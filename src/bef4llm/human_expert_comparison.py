@@ -1,4 +1,4 @@
-from bef4llm.benchmark.quality_check import *
+from bef4llm.llm_comparison.quality_check import *
 from bef4llm.resource_controller.path_helper import look_for_directory
 from bef4llm.semantic_quality.similarity.language_similarity.lanuage_utils import Language
 

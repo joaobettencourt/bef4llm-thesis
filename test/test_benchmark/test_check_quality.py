@@ -1,7 +1,7 @@
 import unittest
 
-from bef4llm.benchmark import prepare_datasets, quality_check
-from bef4llm.benchmark.quality_check import *
+from bef4llm.llm_comparison import prepare_datasets, quality_check
+from bef4llm.llm_comparison.quality_check import *
 from bef4llm.definitions import thresholds_pragmatic_quality_metrics as prag_group_metric_mapping
 from bef4llm.definitions import Pragmatic_Metrics, Sytax_Mistakes, Similarity_Metrics, Similarity_Groups
 

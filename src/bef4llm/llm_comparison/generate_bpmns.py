@@ -1,8 +1,8 @@
 import re
 
-from bef4llm.benchmark import prepare_datasets
+from bef4llm.llm_comparison import prepare_datasets
 from bef4llm.llm_connection.connect_llms import ConnectLLMs
-import bef4llm.benchmark.promting_helper as prompts
+import bef4llm.llm_comparison.promting_helper as prompts
 from bef4llm.validation.validation import validate_bpmn_with_error_message, validate_bpmn
 from bef4llm.semantic_quality.similarity.language_similarity.lanuage_utils import Language
 from bef4llm.definitions import Folder

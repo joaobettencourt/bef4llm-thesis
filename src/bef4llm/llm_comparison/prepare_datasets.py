@@ -7,7 +7,7 @@ import os
 from tika import parser
 
 """
-In this file different datasets are prepared to be usable for the benchmark, so the text-model pairs are returned
+In this file different datasets are prepared to be usable for the llm_comparison, so the text-model pairs are returned
 Text model pairs should always be returned in the following format, since for some texts there are multiple models given:
 {
     text_id_1: (language, text, [model1, model2, ...]),
@@ -17,7 +17,7 @@ Text model pairs should always be returned in the following format, since for so
 """
 def prepare_camunda():
     """
-    Prepares Camunda dataset for benchmark with model text pairs
+    Prepares Camunda dataset for llm_comparison with model text pairs
     --------
     Returns:
         text_model_pairs: list
@@ -151,7 +151,7 @@ def prepare_camunda():
 
 def prepare_text_and_bpmn():
     """
-    Prepares text and bpmn dataset for benchmark with model text pairs
+    Prepares text and bpmn dataset for llm_comparison with model text pairs
     --------
     Returns:
         text_model_pairs: list
@@ -256,7 +256,7 @@ def prepare_lre_old():
 
 def text_model_pairs_lre(lre_folder):
     """
-    Prepares LRE (orginial and new) dataset for benchmark with model text pairs
+    Prepares LRE (orginial and new) dataset for llm_comparison with model text pairs
 
     Parameters
     --------

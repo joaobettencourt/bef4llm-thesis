@@ -2,13 +2,13 @@ import argparse
 import re
 import sys
 
-from bef4llm.benchmark import prepare_datasets, quality_check
+from bef4llm.llm_comparison import prepare_datasets, quality_check
 from bef4llm.definitions import Folder
 from bef4llm.resource_controller.path_helper import get_folder_path
 
 import os
 from tqdm import tqdm
-from bef4llm.benchmark.generate_bpmns import Benchmark
+from bef4llm.llm_comparison.generate_bpmns import Benchmark
 
 
 def generate_bpmn(run):
