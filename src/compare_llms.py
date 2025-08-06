@@ -11,7 +11,7 @@ from tqdm import tqdm
 from bef4llm.llm_comparison.generate_bpmns import Benchmark
 
 
-def generate_bpmn(run):
+def generate_bpmn(run, expert_dataset=False):
 
     llms = [
         "llama3.3:70b-instruct-q8_0",
@@ -34,23 +34,25 @@ def generate_bpmn(run):
     ]
 
     datasets = dict()
-    datasets["camunda"] = prepare_datasets.prepare_camunda()
-    datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-    datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-    datasets["lre_old"] = prepare_datasets.prepare_lre_old()
-    #datasets["experts"] = prepare_datasets.prepare_experts_comparison()
+    if not expert_dataset:
+        datasets["camunda"] = prepare_datasets.prepare_camunda()
+        datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
+        datasets["lre_new"] = prepare_datasets.prepare_lre_new()
+        datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+    else:
+        datasets["experts"] = prepare_datasets.prepare_experts_comparison()
 
     print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
 
     for llm in llms:
         print(llm)
-        if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}"):
-            os.makedirs(f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}")
+        if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}"):
+            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}")
 
         not_modelled_models = []
 
         for dataset in tqdm(datasets):
-            target_dir = f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}/{dataset}"
+            target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
             print("Start test with dataset:", dataset)
             benchmark = Benchmark(datasets[dataset], llm=llm)
             not_modelled = benchmark.model_processes(target_dir)
@@ -64,7 +66,7 @@ def generate_bpmn(run):
 
 
 
-def check_quality_llms(temp, run, evaluation, expert_dataset=False):
+def check_quality_llms(run, evaluation, expert_dataset=False):
     datasets = dict()
     if not expert_dataset:
         datasets["camunda"] = prepare_datasets.prepare_camunda()
@@ -75,8 +77,8 @@ def check_quality_llms(temp, run, evaluation, expert_dataset=False):
         datasets["experts"] = prepare_datasets.prepare_experts_comparison()
 
     df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/test_llm_temp_{temp}_run{run}",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}//test_llm_temp_{temp}_run{run}/test_llm_temp_{temp}_run{run}_{evaluation}.csv",
+                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
+                                                    target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
                                                     analyse_method=evaluation)
 
 def check_quality_expert_dataset(evaluation):
@@ -92,7 +94,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # arguments for quality check
-    quality_parser = subparsers.add_parser("check_quality")
+    quality_parser = subparsers.add_parser("check_quality_llms")
     quality_parser.add_argument("temp", type=str)
     quality_parser.add_argument("run", type=str)
     quality_parser.add_argument("evaluation", type=str)
@@ -103,6 +105,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.command == "generate_bpmn":
         generate_bpmn(run=args.run)
-    elif args.command == "check_quality":
+    elif args.command == "check_quality_llms":
         print(args.temp, args.run, args.evaluation)
-        check_quality(temp=args.temp, run=args.run, evaluation=args.evaluation)
+        check_quality_llms(temp=args.temp, run=args.run, evaluation=args.evaluation)

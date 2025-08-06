@@ -1,10 +1,7 @@
-import os
-
 from bef4llm.process_models.importer.bpmn_importer import load_bpmn_from_directory, load_diagram_from_xml
 from bef4llm.semantic_quality.semantic_quality_check import SemanticQualityCheckBPMN
 from bef4llm.synactic_quality.synactic_quality_check import SyntacticQualityCheckBPMN
 from bef4llm.pragmatic_quality.pragmatic_quality_check import PragmaticQualityCheckBPMN
-from bef4llm.process_models.graph_representation.node_types import Task, Gateway, Event
 from bef4llm.process_models.graph_representation.collaboration_model import CollaborationModel
 from bef4llm.validation.validation import validate_bpmn
 from bef4llm.definitions import *
@@ -307,48 +304,6 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
         return score_group_dict, not_analysed
 
 
-def nullifcation(model, reference_model):
-    """
-    Nullification is used when there is a reference process model to compare the generated process model with
-    Like in [1] the value of the syntactic metric is 0, if the number of elements in the according group is below
-    25% of the number of elements in the reference model. If so the scores of the metrics in connection with this
-    group should be 0 (lowest possible value):
-
-    Parameters
-    ----------
-    model: model the nullification should be checked for
-        CollaborationModel
-    reference_model: reference to check the nullification
-        CollaborationModel
-    Returns
-    -------
-    Bool
-        indicates if the value should be nullified
-    """
-    elements = list(Task) + list(Event) + list(Gateway)
-    num_elements_model = len([el for el in model.process_graph.nodes
-                              if model.process_graph.nodes[el]["type"] in elements])
-    num_elements_reference = len([el for el in model.process_graph.nodes
-                                  if reference_model.process_graph.nodes[el]["type"] in elements])
-
-    return (num_elements_model / num_elements_reference < 0.25 or
-            len(model.process_graph.edges) / len(model.process_graph.nodes) < 0.25)
-
-
-def get_mean_max_min(score_list):
-    """
-    returns min, max, and mean of list of scores
-    """
-    if None in score_list:
-        score_list.remove(None)
-    if len(score_list) == 0:
-        return 0, 0, 0
-    mean = sum(score_list) / len(score_list)
-
-    return mean, max(score_list), min(score_list)
-
-
-
 def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil", target_file=None):
     """
     computes the quality scores for multiple LLMs based on the models they generated for multiple datasets
@@ -595,129 +550,22 @@ def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
         quality_scores["not analysed"] = []
 
     return quality_scores
-def compute_grouped_quality_llms(datasets, test_llm_dir, analyse_method="detail", target_file=None):
-    """
-    Computes the quality scores for all LLMs. The scores are grouped, based on the size of the LLMs (number of nodes)
 
-    Parameters:
-    -----------
+def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run, target_file=None):
+    """
+    returns a dataframe with the score for all metric for each process model (for all files in the given llm_dir).
+    So per LLM (given by llm_dir) a csv file is created and for all valid BPMNs the metric results are inserted.
+
+    Parameters
+    ----------
     dataset: dict
-        dict with all datasets that should be checked for each LLM
-    test_llm_dir: str
-        directory to the process models modelled by different llms
-    analyse_mode : str
-       Granularity in which the pragmatic quality should be computed (detail, quality_group_score, metric_score)
+        dict with all datasets
+    llm_dir: str
+        directory to the process models modelled by different llms are stored
+    analyse_method: str
+        Indicates on which granularity the quality scores should be computed (detail, quality_group_score, metric_score)
     target_file: str
         file path to save the result (pandas dataframe)
-
-    Returns:
-    --------
-    df: pandas dataframe
-        Dataframe with LLMs as rows and quality dimensions/ quality dimension subgroups/ metrics as columns
-    """
-
-    quality_scores_grouped = {BPMNSize[size].value: init_quality_scores_dict(analyse_method, overall_quality_dict=False) for size in BPMNSize.__members__}
-    i = 0
-
-    for llm in tqdm(os.listdir(test_llm_dir)):
-        #quality_scores_grouped["llm"].append(llm)
-        if llm.startswith(".") or os.path.isfile(llm):
-            continue
-
-        quality_scores_grouped_llm = {BPMNSize[size].value: init_quality_scores_dict(analyse_method) for size in BPMNSize.__members__}
-
-        print(llm)
-        num_not_analysed = 0
-        for dataset in os.listdir(os.path.join(test_llm_dir, llm)):
-            print(dataset)
-            if dataset.startswith(".") or os.path.isfile(f"{test_llm_dir}/{llm}/{dataset}"):
-                continue
-
-            models_grouped = get_grouping(os.path.join(test_llm_dir, llm, dataset))
-            for size in models_grouped:
-                if "llm" not in models_grouped[size]:
-                    quality_scores_grouped[size]["llm"] = [llm]
-                else:
-                    quality_scores_grouped[size]["llm"].append(llm)
-
-                not_analysed_xml = []
-                quality_scores_grouped_llm[size], na = get_quality_per_dataset(quality_scores_dict=quality_scores_grouped_llm[size],
-                                                                 models=models_grouped[size],
-                                                                 analyse_method=analyse_method,
-                                                                 dataset=datasets[dataset],
-                                                                 not_valid_xml=[])
-
-                not_analysed_xml.extend(na)
-                num_not_analysed += len(set(not_analysed_xml))
-
-        # save mean value over all tested BPMN
-        for size in quality_scores_grouped_llm:
-            for key in quality_scores_grouped_llm[size]:
-                if len(quality_scores_grouped_llm[size][key]) != 0 and key != "llm":
-                    if key in quality_scores_grouped:
-                        quality_scores_grouped[size][key].append(mean(quality_scores_grouped_llm[size][key]))
-                    else:
-                        quality_scores_grouped[size][key] = [mean(quality_scores_grouped_llm[size][key])]
-                else:
-                    quality_scores_grouped[size][key].append(None)
-
-
-        if i == 1:
-            break
-        i += 1
-
-    df = pd.DataFrame(quality_scores_grouped)
-    df.to_csv(target_file, sep=";")
-
-    return df
-
-def get_grouping(model_dir):
-    """
-    groups the BPMN models based on size, only valid BPMN models are grouped
-
-    Parameters
-    ----------
-    model_dir: str
-        directory to folder, in which the models files are
-
-    Returns
-    -------
-    size_groups: dict
-        dict with size as key and list of BPMNs (dirs) as value
-    """
-
-    size_groups = {BPMNSize[size].value: [] for size in BPMNSize.__members__}
-    for model in os.listdir(model_dir):
-        if not model.startswith(".") and model.endswith(".bpmn"):
-            if validate_bpmn(f"{model_dir}/{model}"):
-                try:
-                    bpmn = load_diagram_from_xml(os.path.join(model_dir, model))
-                    process_nodes = [node for node in bpmn.process_graph.nodes if "type" in bpmn.process_graph.nodes[node]
-                                                                                and (bpmn.process_graph.nodes[node]["type"] in Event.__members__ or
-                                                                                     bpmn.process_graph.nodes[node]["type"] in Task.__members__ or
-                                                                                      bpmn.process_graph.nodes[node]["type"] in Gateway.__members__)]
-                    num_node = len(process_nodes)
-                    if num_node < 29.9: size_groups[BPMNSize.very_small.value].append(bpmn)
-                    elif num_node < 43.7: size_groups[BPMNSize.small.value].append(bpmn)
-                    elif num_node < 58.1: size_groups[BPMNSize.medium.value].append(bpmn)
-                    elif num_node < 81.1: size_groups[BPMNSize.large.value].append(bpmn)
-                    else: size_groups[BPMNSize.very_large.value].append(bpmn)
-                except Exception as e:
-                    print(f"model {model} failed to parse")
-
-    return size_groups
-
-
-def get_metric_results_per_llm(datasets, test_llm_dir, analyse_method, run, target_file=None):
-    """
-    returns a dataframe with the score for all metric for each process model
-
-    Parameters
-    ----------
-    dataset: dict with all datasets
-    test_llm_dir: directory to the process models modelled by different llms
-    nullification: indicates whether nullification is used during evaluation
-    target_file: file path to save the result (pandas dataframe)
 
     Returns
     -------
@@ -726,15 +574,15 @@ def get_metric_results_per_llm(datasets, test_llm_dir, analyse_method, run, targ
     """
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=False)
     quality_scores["process model"] = []
-    quality_scores["run"] =[]
+    quality_scores["run"] = []
 
-    for dataset in os.listdir(test_llm_dir):
-        if os.path.isdir(f"{test_llm_dir}/{dataset}"):
-            not_valid_xml = get_invalid_models(os.path.join(test_llm_dir, dataset))
-            for model_name in os.listdir(os.path.join(test_llm_dir, dataset)):
-                if os.path.join(test_llm_dir, dataset, model_name) not in not_valid_xml:
+    for dataset in os.listdir(llm_dir):
+        if os.path.isdir(f"{llm_dir}/{dataset}"):
+            not_valid_xml = get_invalid_models(os.path.join(llm_dir, dataset))
+            for model_name in os.listdir(os.path.join(llm_dir, dataset)):
+                if os.path.join(llm_dir, dataset, model_name) not in not_valid_xml:
                     try:
-                        model = load_diagram_from_xml(os.path.join(test_llm_dir, dataset, model_name))
+                        model = load_diagram_from_xml(os.path.join(llm_dir, dataset, model_name))
                         model_name = model_name.split(".")[0]
                         scores = dict()
                         if analyse_method == "metric_score":
@@ -745,10 +593,10 @@ def get_metric_results_per_llm(datasets, test_llm_dir, analyse_method, run, targ
                             scores.update(prag_check.pragmatic_quality_check_metric_results())
 
                             scores.update(semantic_check_single_model(
-                                                                model=model,
-                                                                reference_model=datasets[dataset][model_name][2],
-                                                                lang=datasets[dataset][model_name][0],
-                                                                analyse_mode=analyse_method))
+                                model=model,
+                                reference_model=datasets[dataset][model_name][2],
+                                lang=datasets[dataset][model_name][0],
+                                analyse_mode=analyse_method))
 
                         elif analyse_method == "detail":
                             syn_check = SyntacticQualityCheckBPMN(model)
@@ -784,6 +632,8 @@ def get_metric_results_per_llm(datasets, test_llm_dir, analyse_method, run, targ
                         print(e)
 
     df = pd.DataFrame(quality_scores)
+
+    # determines if file needs to be attached
     if not os.path.isfile(target_file):
         df.to_csv(target_file, sep=";", index=False)
     else:

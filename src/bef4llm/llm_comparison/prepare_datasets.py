@@ -137,7 +137,7 @@ def prepare_camunda():
         return text_model_pairs
 
     # add dowlooad files if not yet done
-    if not look_for_directory("camunda"):
+    if not look_for_directory("BPMN for Research"):
         data = DatasetCollection.CAMUNDA.value
         download_any_format(url=data["link"],
                             file_name=data["filename"],
