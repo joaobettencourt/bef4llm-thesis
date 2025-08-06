@@ -130,7 +130,6 @@ class TestSytaxCheck(unittest.TestCase):
         self.assertLess(0, syntax_checker.syntax_errors[Sytax_Mistakes.connected_nodes.value]["mistakes"],
                            "The task Task_0a2rm9v is unconnected")
 
-        #ToDo: Exception events for events (in and outdegree)
 
     def test_check_gateway_properties_normal_gateways(self):
         # checks for XOR, OR and AND Gateways

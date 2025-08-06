@@ -329,7 +329,6 @@ class SyntacticQualityCheckBPMN(SyntaxCheck):
 
             return None
 
-        # ToDo: add check with boundary events
         # make sure join and split is matched
         # make sure on order
         visited_suc = []

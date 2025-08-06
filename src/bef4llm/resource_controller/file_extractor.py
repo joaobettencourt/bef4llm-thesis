@@ -84,7 +84,6 @@ def gz_extractor(gz_file_path, dest_dir):
     suffix = suffix.replace(".gz", "")
     suffix = suffix.split(os.sep)[-1]
     # in case a hidden directory is extracted, make the extracted file visible again.
-    # TODO: any additional code needed for Windows?
     if suffix.startswith("."):
         suffix = suffix.replace(".", "", 1)
     _dest_file = os.path.join(dest_dir, suffix)
