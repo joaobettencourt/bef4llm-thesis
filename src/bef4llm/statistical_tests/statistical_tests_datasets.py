@@ -6,6 +6,16 @@ from bef4llm.definitions import *
 import pandas as pd
 
 def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets):
+    """
+    Generates the files containing the metric results for each BPMN.
+    For each LLM one file is generated, and saved in the folder llm_metric_results_runx as file name_of_llm.csv
+
+    Parameters
+    -----------
+    llms : list
+        list of LLM tags
+    datasets : dictionary
+    """
     missing_llms = []
     for llm in llms:
         if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_metric_results_run1/{llm}.csv"):
