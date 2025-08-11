@@ -91,20 +91,38 @@ def check_quality_llms(run, evaluation, expert_dataset=False):
         if true, the analysis is made for the expert comparison
     """
     datasets = dict()
-    if not expert_dataset:
-        datasets["camunda"] = prepare_datasets.prepare_camunda()
-        datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-        datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-        datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+    datasets["camunda"] = prepare_datasets.prepare_camunda()
+    datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
+    datasets["lre_new"] = prepare_datasets.prepare_lre_new()
+    datasets["lre_old"] = prepare_datasets.prepare_lre_old()
 
+    df = quality_check.compute_overall_quality_llms(datasets=datasets,
+                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
+                                                    target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
+                                                    analyse_method=evaluation)
 
-    else:
-        datasets["experts"] = prepare_datasets.prepare_experts_comparison()
+def human_expert_comparison(run, evaluation, expert_dataset=False):
+    """
+    Allows to analyze the quality of the LLM-generated BPMNs and compare the results to human experts.
+    This is based on the dataset of the human experts.
+    The analysis results are saved in a csv file llm_results_runx_evaluation (x= iteration, evaluation = evaluation type) in the folder llm_runx
+    run: int
+        indicates the number of the iteration
+    evaluation: string
+        We allow for three types of granualrity to assess the quality of the LLM-generated BPMNs.
+        quality_group_score: scores in the four groups sytactic, pragmatic and semantic quality, and validity
+        detail: here the subgroup scores for the quality dimensions are calculated
+        metrics: here each metric result is given
+    expert_dataset:
+        if true, the analysis is made for the expert comparison
+    """
+    datasets = dict()
+    datasets["experts"] = prepare_datasets.prepare_experts_comparison()
 
-        df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                        test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
-                                                        target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
-                                                        analyse_method=evaluation)
+    df = quality_check.compute_overall_quality_llms(datasets=datasets,
+                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
+                                                    target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
+                                                    analyse_method=evaluation)
 
     df = quality_check.compute_overall_quality_llms(datasets=datasets,
                                                     test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
@@ -117,7 +135,6 @@ if __name__ == "__main__":
 
     # arguments for quality check
     quality_parser = subparsers.add_parser("check_quality_llms")
-    quality_parser.add_argument("temp", type=str)
     quality_parser.add_argument("run", type=str)
     quality_parser.add_argument("evaluation", type=str)
 
@@ -128,5 +145,6 @@ if __name__ == "__main__":
     if args.command == "generate_bpmn":
         generate_bpmn(run=args.run)
     elif args.command == "check_quality_llms":
-        print(args.temp, args.run, args.evaluation)
-        check_quality_llms(temp=args.temp, run=args.run, evaluation=args.evaluation)
+        check_quality_llms(run=args.run, evaluation=args.evaluation)
+    elif args.command == "human_expert_comparison":
+        human_expert_comparison(run=args.run, evaluation=args.evaluation)

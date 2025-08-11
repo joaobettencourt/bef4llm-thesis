@@ -375,13 +375,11 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
             else:
                 quality_scores[key].append(None)
 
-        quality_scores["valid"].append(num_valid)
-        quality_scores["invalid"].append(num_invalid)
-        quality_scores["not analysed"].append(num_not_analysed)
+        quality_scores["validity"].append(num_valid/105)
 
     df = pd.DataFrame(quality_scores)
     if analyse_method == "quality_group_score":
-        df = df.loc[:, ["llm", "syntactic quality", "pragmatic quality", "semantic quality", "valid", "invalid", "not analysed"]]
+        df = df.loc[:, ["llm", "syntactic quality", "pragmatic quality", "semantic quality", "validity"]]
     df.to_csv(target_file, sep=";")
 
     return df
@@ -545,9 +543,8 @@ def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
 
     if overall_quality_dict:
         quality_scores["llm"] = []
-        quality_scores["valid"] = []
-        quality_scores["invalid"] = []
-        quality_scores["not analysed"] = []
+        quality_scores["validity"] = []
+
 
     return quality_scores
 
