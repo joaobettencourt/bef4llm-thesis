@@ -12,7 +12,17 @@ from bef4llm.llm_comparison.generate_bpmns import Benchmark
 
 
 def generate_bpmn(run, expert_dataset=False):
+    """
+    automates the process of generating BPMNs with multiple LLMs.
+    All BPMNs are saved in the folder llm_runx, with x being the iteration of the experiment, and sorted by LLM and dataset.
+    Each BPMN is saved in a separate BPMN-XML file.
 
+    Prameters
+    run: int
+        indicates the number of the iteration
+    expert_dataset: bool
+        if true, the generation of BPMNs of only made for the expert dataset
+    """
     llms = [
         "llama3.3:70b-instruct-q8_0",
         "llama3.2:1b-instruct-q8_0",
@@ -67,26 +77,38 @@ def generate_bpmn(run, expert_dataset=False):
 
 
 def check_quality_llms(run, evaluation, expert_dataset=False):
+    """
+    Allows to analyze the quality of the LLM-generated BPMNs.
+    The analysis results are saved in a csv file llm_results_runx_evaluation (x= iteration, evaluation = evaluation type) in the folder llm_runx
+    run: int
+        indicates the number of the iteration
+    evaluation: string
+        We allow for three types of granualrity to assess the quality of the LLM-generated BPMNs.
+        quality_group_score: scores in the four groups sytactic, pragmatic and semantic quality, and validity
+        detail: here the subgroup scores for the quality dimensions are calculated
+        metrics: here each metric result is given
+    expert_dataset:
+        if true, the analysis is made for the expert comparison
+    """
     datasets = dict()
     if not expert_dataset:
         datasets["camunda"] = prepare_datasets.prepare_camunda()
         datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
         datasets["lre_new"] = prepare_datasets.prepare_lre_new()
         datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+
+
     else:
         datasets["experts"] = prepare_datasets.prepare_experts_comparison()
+
+        df = quality_check.compute_overall_quality_llms(datasets=datasets,
+                                                        test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
+                                                        target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
+                                                        analyse_method=evaluation)
 
     df = quality_check.compute_overall_quality_llms(datasets=datasets,
                                                     test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
                                                     target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-                                                    analyse_method=evaluation)
-
-def check_quality_expert_dataset(evaluation):
-    datasets = dict()
-    datasets["experts"] = prepare_datasets.prepare_experts_comparison()
-    df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
                                                     analyse_method=evaluation)
 
 if __name__ == "__main__":
