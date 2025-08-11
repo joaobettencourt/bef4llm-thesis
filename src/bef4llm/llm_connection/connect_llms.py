@@ -20,8 +20,8 @@ class ConnectLLMs():
             Timeout in seconds
         """
         self.client = Client(
-            #host="http://192.168.92.194:10202", #server for research project
-            host="http://134.96.191.214:10202",
+            # please modify the host address
+            host="http://ip.port",
             timeout=timeout
         )
 
