@@ -1,49 +1,141 @@
 # BEF4LLM
 
-This repository contains the source code accompanying the paper:
+This repository is an adaptation of the original [BEF4LLM](https://gitlab-iwi.dfki.de/lauer/bef4llm), which was designed to evaluate the ability of large language models (LLMs) to generate BPMN diagrams and compare their outputs to those of human experts. The original pipeline was built to analyze how well LLMs can generate BPMNs from textual descriptions using a dataset of 105 text-BPMN pairs, and to compare their performance against human experts using a smaller dataset of 9 text-model pairs.
 
+The original study is described in the paper:  
 *Assessing the Business Process Modeling Competences of Large Language Models*
 
-Using these metrics, we developed a pipeline to analyze how well large language models (LLMs) can generate BPMN diagrams from textual descriptions. Our Evaluation used 105 text-BPMN pairs.
+In this adaptation, the framework has been modified to run in a Docker container, and the configurations have been simplified for easier setup and reproducibility, supporting extensions to investigate the impact of integrating retrieval-augmented generation (RAG) into LLM workflows as part of my master's thesis. It retains the original evaluation pipeline, allowing testing of multiple LLMs, analyzing generated BPMNs, and comparing their performance to expert-modeled BPMNs.
 
-For comparison, we also assess the performance of human experts in process modeling using a smaller dataset of 9 text-model pairs.
+**Note:** These instructions assume the framework is run in Docker, but the Ollama server should be running externally (e.g., on your host machine or another server) and be accessible via the OLLAMA_HOST environment variable.
 
-## Installation
-The installation via pip is not yet tested, so we recommend to clone the project and work with it. 
-All required packages can be installed by using the requirements.txt, with the most import packages being: 
+---
+
+## Setup & Running
+
+### Installation
+
+The installation via pip is not yet tested, so we recommend cloning the project and working with it.  
+All required packages can be installed by using the `requirements.txt`, with the most important packages being: 
+
+```
 - ollama
 - pandas
 - networkx
+```
 
-**Note:** The LLM connection is based on Ollama, which in our setup runs on a private server and cannot be made publicly accessible.
-To run the pipeline, you will need to set up your own Ollama service. Instructions for adapting the repository to your own Ollama instance can be found in the next paragraph "Assessing the abilities of LLMs to generate BPMNs".
+---
 
-## Structure and usage of the repository
-The contribution of this repository is threefold, it allows assessing the ability of LLMs to generate BPMNs, a comparison to human experts and provides statistical test to analyze the results. 
+### Ollama
 
-### Assessing the abilities of LLMs to generate BPMNs 
-To assess LLM's abilities to generate BPMNs two steps are necessary: The generation of the BPMNs, and the analysis of the LLM-generated BPMNs
+Ensure your Ollama server is running:
 
-Step 1: Generation of BPMNs by LLMs
-We decided to use Ollama as an environment to run the LLMs. This enables easy setup and testing of multiple models in the same environment.
-To be able to run generate BPMNs with a LLM, you need to set up Ollama on your machine/server. There you can download all LLMs you want to test. To run the LLMs you need to update the ```__init__``` method of the ConnectLLM class in ```llm_connection/connect_llms.py```.
-Set the host parameter in the Client initialization to your Ollama server’s IP address. We do not provide a server. 
-To run the generation, you can use the function ```generate_bpmn``` in ```compare_llms.py```. The list llms indicates which LLMs are used to generate LLMs. If you want to add a new LLM the ollame tag must be enetered.
+```
+ollama serve
+```
 
-Step 2: Assessment
-To check the quality of the LLMs, the script ```check_quality_llms``` in ```compare_llms.py``` can be used. 
-We assess the quality of BPMNs in the four categories of syntactic quality, pragmatic quality, semantic quality and validity. For each category a seperate score is computed.
-Further, we allow for a more detailed analysis, as the evaluation method can be specified: 
-- quality_group_score - scores for the four main categories
-- detail - subgroup scores within each dimension
-- metrics - individual metric results
+- Use `ollama list` to see which models are installed  
+- Make sure the models you want to use are available in your Ollama instance  
+
+---
+
+### Configuration
+
+Copy the example environment file and update it with your server and models:
+
+```
+cp .env.example .env
+```
+
+Edit `.env`:
+
+- OLLAMA_HOST: URL of your Ollama server  
+- LLMS: Comma-separated list of models to use
+
+These settings are automatically used by the scripts inside the container.
+
+---
+
+### Docker
+
+Build the Docker image:
+
+```
+docker build -t bef4llm-docker .
+```
+
+Run the container interactively with your `.env` file. The `src` folder is mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
+
+```
+docker run --rm -it \
+  -v $(pwd)/src:/app/src \
+  --env-file .env \
+  bef4llm-docker \
+  bash
+```
+
+---
+
+## Structure and Usage of the Repository
+
+This repository allows assessing the ability of LLMs to generate BPMNs, comparing them to human experts, and performing statistical analyses of the results.
+
+### Assessing the abilities of LLMs to generate BPMNs
+
+Two steps are necessary: generating the BPMNs and analyzing the generated BPMNs.
+
+**Step 1: Generation of BPMNs by LLMs**  
+Ensure your `.env` file is correctly configured and your models are installed on the Ollama server inside the container.  
+
+Run the generation:
+
+```
+python src/compare_llms.py generate_bpmn 1
+```
+
+The `LLMS` environment variable determines which models are used.
+
+**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
+
+---
+
+**Step 2: Assessment**  
+To evaluate the quality of the generated BPMNs, use the script `check_quality_llms` in `compare_llms.py`.  
+BPMNs are assessed in four categories: syntactic quality, pragmatic quality, semantic quality, and validity. Each category produces a separate score.
+
+For a more detailed analysis:
+- quality_group_score - scores for the four main categories  
+- detail - subgroup scores within each dimension  
+- metrics - individual metric results  
+
+---
 
 ### Comparison to human experts
-The comparison to human experts is done in a similar way to the "Assessing the abilities of LLMs to generate BPMNs". The BPMNs are generated with the function generate_bpmns, with the parameter ```expert_dataset``` being set to ```True```. 
-After that, the LLM-generated BPMNs and the BPMNs modeled by the experts can be assessed via ```check_quality_expert_dataset```.
-The expert datset can be found in the folder ```data_human_comparison```.
+
+BPMNs from human experts can be compared by generating expert BPMNs:
+
+```
+python src/compare_llms.py generate_bpmn --expert_dataset=True
+```
+
+Then assess the comparison with:
+
+```
+check_quality_expert_dataset
+```
+
+The expert dataset is in the folder `data_human_comparison`.
+
+---
 
 ### Statistical tests
-The code for the statistical test can be found in the folder ```statistical_tests``` and is currently only available for the quality dimensions (syntactic, pragmatic and semantic quality). 
-To run the statistical test for a quality dimension, you just need to run the corresponding file, e.g. for the syntactic quality dimension, you need to run ```syntactic_quality_analysis.py```
-Further, we need to create a "dataset" for the statistical test, which is automatically created at the beginning of the tests. For each quality dimension, one file is created containing the score of each BPMN of each run for each LLM. If the BPMN is invalid or not generated, it is indicated by a "none" or "NaN" value.
+
+Statistical tests are in the folder `statistical_tests/`, available for syntactic, pragmatic, and semantic quality dimensions.  
+
+To run a test, e.g., for syntactic quality:
+
+```
+python statistical_tests/syntactic_quality_analysis.py
+```
+
+A dataset is automatically created at the beginning of each test. Each file contains scores of BPMNs for each run and each LLM. Invalid or missing BPMNs are indicated by `none` or `NaN`.

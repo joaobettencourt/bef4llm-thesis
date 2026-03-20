@@ -1,7 +1,23 @@
 from ollama import Client
 from copy import deepcopy
 from pydantic import BaseModel
+import os
 
+
+def get_ollama_host():
+    host = os.getenv("OLLAMA_HOST")
+    
+    if not host:
+        raise RuntimeError(
+            "OLLAMA_HOST is not set.\n"
+            "Make sure you defined it in your .env file and passed it to Docker.\n"
+            "Example:\n"
+            "  OLLAMA_HOST=http://host.docker.internal:11434"
+        )
+    
+    print(f"[DEBUG] Using OLLAMA_HOST={host}")
+
+    return host
 
 class ConnectLLMs():
     """
@@ -20,8 +36,7 @@ class ConnectLLMs():
             Timeout in seconds
         """
         self.client = Client(
-            # please modify the host address
-            host="http://ip.port",
+            host=get_ollama_host(),
             timeout=timeout
         )
 

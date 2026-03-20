@@ -11,6 +11,25 @@ from tqdm import tqdm
 from bef4llm.llm_comparison.generate_bpmns import Benchmark
 
 
+def get_llms():
+    llms = os.getenv("LLMS")
+    
+    if not llms:
+        raise RuntimeError(
+            "LLMS is not set in .env\n"
+            "Example:\n"
+            "LLMS=llama3.1:latest,phi3:latest"
+        )
+    
+    llm_list = [m.strip() for m in llms.split(",") if m.strip()]
+    
+    if not llm_list:
+        raise RuntimeError("LLMS is empty after parsing.")
+    
+    print(f"[DEBUG] Using LLMs: {llm_list}")
+    
+    return llm_list
+
 def generate_bpmn(run, expert_dataset=False):
     """
     automates the process of generating BPMNs with multiple LLMs.
@@ -23,25 +42,7 @@ def generate_bpmn(run, expert_dataset=False):
     expert_dataset: bool
         if true, the generation of BPMNs of only made for the expert dataset
     """
-    llms = [
-        "llama3.3:70b-instruct-q8_0",
-        "llama3.2:1b-instruct-q8_0",
-        "llama3.1:8b-instruct-q8_0",
-        "qwen2.5:1.5b-instruct-q8_0",
-        "qwen2.5:14b-instruct-q8_0",
-        "qwen2.5:32b-instruct-q8_0",
-        "deepseek-r1:1.5b-qwen-distill-q8_0",
-        "deepseek-r1:14b-qwen-distill-q8_0",
-        "deepseek-r1:8b-llama-distill-q8_0",
-        "deepseek-r1:70b-llama-distill-q8_0",
-        "phi4:14b-q8_0",
-        "falcon3:10b-instruct-q8_0",
-        "falcon3:3b-instruct-q8_0",
-        "qwen3:30b-a3b-q8_0",
-        "qwen3:14b-q8_0",
-        "qwen3:1.7b-q8_0",
-        "qwen3:235b-a22b",
-    ]
+    llms = get_llms()
 
     datasets = dict()
     if not expert_dataset:
@@ -55,7 +56,7 @@ def generate_bpmn(run, expert_dataset=False):
     print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
 
     for llm in llms:
-        print(llm)
+        print(f"\n[INFO] Running LLM: {llm}")
         if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}"):
             os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}")
 
