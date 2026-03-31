@@ -64,11 +64,12 @@ Build the Docker image:
 docker build -t bef4llm-docker .
 ```
 
-Run the container interactively with your `.env` file. The `src` folder is mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
+Run the container interactively with your `.env` file. The `src` and `data` folders are mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
 
 ```
 docker run --rm -it \
   -v $(pwd)/src:/app/src \
+  -v $(pwd)/data:/app/data \
   --env-file .env \
   bef4llm-docker \
   bash
@@ -84,29 +85,28 @@ This repository allows assessing the ability of LLMs to generate BPMNs, comparin
 
 Two steps are necessary: generating the BPMNs and analyzing the generated BPMNs.
 
-**Step 1: Generation of BPMNs by LLMs**  
-Ensure your `.env` file is correctly configured and your models are installed on the Ollama server inside the container.  
+The parameter `run` is an identifier for a specific experiment. It determines the folder where results are stored (e.g., `data/llm_run1/`).
 
-Run the generation:
+**Step 1: Generation of BPMNs by LLMs**  
 
 ```
 python src/compare_llms.py generate_bpmn 1
 ```
 
-The `LLMS` environment variable determines which models are used.
-
-**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
-
 ---
 
-**Step 2: Assessment**  
-To evaluate the quality of the generated BPMNs, use the script `check_quality_llms` in `compare_llms.py`.  
-BPMNs are assessed in four categories: syntactic quality, pragmatic quality, semantic quality, and validity. Each category produces a separate score.
+**Step 2: Assessment of Generated BPMNs**  
 
-For a more detailed analysis:
-- quality_group_score - scores for the four main categories  
-- detail - subgroup scores within each dimension  
-- metrics - individual metric results  
+```
+python src/compare_llms.py check_quality_llms 1 quality_group_score
+```
+
+Replace `quality_group_score` with the desired evaluation level:
+- `quality_group_score` – overall scores for the four main categories (syntactic, pragmatic, semantic, validity)
+- `detail` – subgroup scores within each quality dimension
+- `metric_score` – individual metric values for fine-grained analysis
+
+**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
 
 ---
 

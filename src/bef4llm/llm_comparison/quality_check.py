@@ -325,13 +325,25 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
     """
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=True)
 
+#    for llm in tqdm(os.listdir(test_llm_dir)):
+#        if llm.startswith("."):
+#            continue
+
+#        quality_scores["llm"].append(llm)
+#        if llm.startswith("."):
+#            continue
+
     for llm in tqdm(os.listdir(test_llm_dir)):
         if llm.startswith("."):
             continue
 
-        quality_scores["llm"].append(llm)
-        if llm.startswith("."):
+        llm_path = os.path.join(test_llm_dir, llm)
+
+        # skip files like .csv
+        if not os.path.isdir(llm_path):
             continue
+
+        quality_scores["llm"].append(llm)
 
         quality_scores_llm = init_quality_scores_dict(analyse_method)
 
