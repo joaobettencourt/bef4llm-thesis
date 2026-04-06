@@ -300,7 +300,7 @@ def prepare_experts_comparison():
         text_model_pairs: list
             list of tuples: (file_name, language, text, reference models)
         """
-    expert_folder = os.path.join(get_folder_path(Folder.DATA), "models", "Expert_BPMN")
+    expert_folder = os.path.join(get_folder_path(Folder.DATA_HUMAN_COMPARISON), "Expert_BPMN")
     text_model_pairs = dict()
     for file in os.listdir(os.path.join(expert_folder, "textual_descriptions")):
         try:

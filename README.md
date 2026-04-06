@@ -64,12 +64,13 @@ Build the Docker image:
 docker build -t bef4llm-docker .
 ```
 
-Run the container interactively with your `.env` file. The `src` and `data` folders are mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
+Run the container interactively with your `.env` file. The `src`, `data` and `data_human_comparison` folders are mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
 
 ```
 docker run --rm -it \
   -v $(pwd)/src:/app/src \
   -v $(pwd)/data:/app/data \
+  -v $(pwd)/data_human_comparison:/app/data_human_comparison \
   --env-file .env \
   bef4llm-docker \
   bash
@@ -106,25 +107,31 @@ Replace `quality_group_score` with the desired evaluation level:
 - `detail` – subgroup scores within each quality dimension
 - `metric_score` – individual metric values for fine-grained analysis
 
-**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
-
 ---
 
 ### Comparison to human experts
 
-BPMNs from human experts can be compared by generating expert BPMNs:
+The repository includes a dataset of BPMNs modeled by human experts, located in the `data_human_comparison` folder. This dataset contains textual descriptions, ground truth BPMNs, and BPMNs created by multiple experts.
+
+**Step 1: Generate BPMNs for the expert dataset (LLMs only)** 
 
 ```
-python src/compare_llms.py generate_bpmn --expert_dataset=True
+python src/compare_llms.py generate_bpmn 2 --expert_dataset
+```
+**Step 2: Compute evaluation metrics for both LLMs and human experts**
+
+```
+python src/compare_llms.py human_expert_comparison 2 quality_group_score
 ```
 
-Then assess the comparison with:
+Replace `quality_group_score` with the desired evaluation level.
 
-```
-check_quality_expert_dataset
-```
+**Output**
 
-The expert dataset is in the folder `data_human_comparison`.
+- LLM results are saved under: `data/llm_runX/llm_results_runX_<evaluation>.csv`
+- Human expert results are saved under: `data_human_comparison/Expert_BPMN/expert_results_<evaluation>.csv`
+
+**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
 
 ---
 

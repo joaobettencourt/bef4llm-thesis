@@ -117,18 +117,43 @@ def human_expert_comparison(run, evaluation, expert_dataset=False):
     expert_dataset:
         if true, the analysis is made for the expert comparison
     """
+    #datasets = dict()
+    #datasets["experts"] = prepare_datasets.prepare_experts_comparison()
+
+    # Compute metrics for the human expert BPMNs
+    #df = quality_check.compute_overall_quality_llms(datasets=datasets,
+    #                                                test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
+    #                                                target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
+    #                                                analyse_method=evaluation)
+
+    # Compute metrics for the LLM-generated BPMNs
+    #df = quality_check.compute_overall_quality_llms(datasets=datasets,
+    #                                                test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
+    #                                                target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
+    #                                                analyse_method=evaluation)
+
     datasets = dict()
     datasets["experts"] = prepare_datasets.prepare_experts_comparison()
 
-    df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}/expert_comparison/human_experts/expert_results_{evaluation}.csv",
-                                                    analyse_method=evaluation)
+    # Metrics for human experts
+    human_dir = os.path.join(get_folder_path(Folder.DATA_HUMAN_COMPARISON), "Expert_BPMN", "experts_modelling")
+    human_csv = os.path.join(get_folder_path(Folder.DATA_HUMAN_COMPARISON), "Expert_BPMN", f"expert_results_{evaluation}.csv")
+    df = quality_check.compute_overall_quality_llms(
+        datasets=datasets,
+        test_llm_dir=human_dir,
+        target_file=human_csv,
+        analyse_method=evaluation
+    )
 
-    df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-                                                    analyse_method=evaluation)
+    # Metrics for LLM-generated BPMNs
+    llm_dir = os.path.join(get_folder_path(Folder.DATA), f"llm_run{run}")
+    llm_csv = os.path.join(get_folder_path(Folder.DATA), f"llm_run{run}", f"llm_results_run{run}_{evaluation}.csv")
+    df = quality_check.compute_overall_quality_llms(
+        datasets=datasets,
+        test_llm_dir=llm_dir,
+        target_file=llm_csv,
+        analyse_method=evaluation
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-function script")
@@ -139,12 +164,24 @@ if __name__ == "__main__":
     quality_parser.add_argument("run", type=str)
     quality_parser.add_argument("evaluation", type=str)
 
-    quality_parser = subparsers.add_parser("generate_bpmn")
-    quality_parser.add_argument("run", type=str)
+    # arguments for generating BPMNs
+    gen_parser = subparsers.add_parser("generate_bpmn")
+    gen_parser.add_argument("run", type=str)
+    gen_parser.add_argument(
+        "--expert_dataset",
+        action="store_true",
+        help="Generate BPMNs only for the human expert dataset"
+    )
+
+    # arguments for human expert comparison
+    human_parser = subparsers.add_parser("human_expert_comparison")
+    human_parser.add_argument("run", type=str)
+    human_parser.add_argument("evaluation", type=str)
 
     args = parser.parse_args()
+
     if args.command == "generate_bpmn":
-        generate_bpmn(run=args.run)
+        generate_bpmn(run=args.run, expert_dataset=args.expert_dataset)
     elif args.command == "check_quality_llms":
         check_quality_llms(run=args.run, evaluation=args.evaluation)
     elif args.command == "human_expert_comparison":

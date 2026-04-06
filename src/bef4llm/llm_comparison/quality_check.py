@@ -325,6 +325,7 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
     """
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=True)
 
+    #print("[DEBUG] Datasets:", datasets)
 #    for llm in tqdm(os.listdir(test_llm_dir)):
 #        if llm.startswith("."):
 #            continue
@@ -370,7 +371,11 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
 
             not_analysed_xml.extend(na)
 
-            num_valid += len(os.listdir(model_dir)) - len(set(not_valid_xml))
+            # num_valid += len(os.listdir(model_dir)) - len(set(not_valid_xml))
+            
+            dataset_total_models = len([f for f in os.listdir(model_dir) if f.endswith(".bpmn")])
+            num_valid += dataset_total_models - len(set(not_valid_xml))
+
             num_invalid += len(set(not_valid_xml))
             num_not_analysed += len(set(not_analysed_xml))
 
@@ -387,7 +392,13 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
             else:
                 quality_scores[key].append(None)
 
-        quality_scores["validity"].append(num_valid/105)
+        # quality_scores["validity"].append(num_valid/105)
+
+        llm_total_models = num_valid + num_invalid
+        if llm_total_models > 0:
+            quality_scores["validity"].append(num_valid / llm_total_models)
+        else:
+            quality_scores["validity"].append(None)
 
     df = pd.DataFrame(quality_scores)
     if analyse_method == "quality_group_score":
