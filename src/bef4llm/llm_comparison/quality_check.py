@@ -304,7 +304,7 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
         return score_group_dict, not_analysed
 
 
-def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil", target_file=None):
+def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil", target_file=None, is_human=False):    
     """
     computes the quality scores for multiple LLMs based on the models they generated for multiple datasets
     Parameters:
@@ -403,6 +403,13 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
     df = pd.DataFrame(quality_scores)
     if analyse_method == "quality_group_score":
         df = df.loc[:, ["llm", "syntactic quality", "pragmatic quality", "semantic quality", "validity"]]
+    
+    if is_human:
+        numeric_cols = df.select_dtypes(include=["number"]).columns
+        mean_row = df[numeric_cols].mean()
+        mean_row["llm"] = "MEAN"
+        df = pd.concat([df, pd.DataFrame([mean_row])], ignore_index=True)
+    
     df.to_csv(target_file, sep=";")
 
     return df

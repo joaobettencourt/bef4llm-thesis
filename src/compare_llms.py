@@ -142,7 +142,8 @@ def human_expert_comparison(run, evaluation, expert_dataset=False):
         datasets=datasets,
         test_llm_dir=human_dir,
         target_file=human_csv,
-        analyse_method=evaluation
+        analyse_method=evaluation,
+        is_human=True
     )
 
     # Metrics for LLM-generated BPMNs
