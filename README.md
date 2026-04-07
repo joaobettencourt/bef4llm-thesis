@@ -131,18 +131,19 @@ Replace `quality_group_score` with the desired evaluation level.
 - LLM results are saved under: `data/llm_runX/llm_results_runX_<evaluation>.csv`
 - Human expert results are saved under: `data_human_comparison/Expert_BPMN/expert_results_<evaluation>.csv`
 
-**Note:** The README has been fully verified and tested up to this point. All subsequent sections have been adapted from the old README with the help of generative AI and require further verification.
+**Note:** The README has been fully verified and tested up to this point.
 
 ---
 
 ### Statistical tests
 
-Statistical tests are in the folder `statistical_tests/`, available for syntactic, pragmatic, and semantic quality dimensions.  
-
-To run a test, e.g., for syntactic quality:
+**Note:** Statistical tests assume multiple runs per LLM to capture variability. Generating these runs locally is resource-intensive, so this section is deferred.
+The following commands are provided for later use:
 
 ```
-python statistical_tests/syntactic_quality_analysis.py
+python src/bef4llm/statistical_tests/statistical_tests_datasets.py
 ```
 
-A dataset is automatically created at the beginning of each test. Each file contains scores of BPMNs for each run and each LLM. Invalid or missing BPMNs are indicated by `none` or `NaN`.
+```
+python src/bef4llm/statistical_tests/syntactic_quality_analysis.py
+```
