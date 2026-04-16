@@ -30,7 +30,56 @@ def get_llms():
     
     return llm_list
 
-def generate_bpmn(run, expert_dataset=False):
+def get_datasets_config():
+    mode = os.getenv("DATASET_MODE")
+
+    if not mode:
+        raise RuntimeError(
+            "DATASET_MODE is not set in .env\n"
+            "Options: general | experts"
+        )
+
+    mode = mode.strip().lower()
+
+    if mode == "experts":
+        print("[DEBUG] Using expert dataset only")
+        return {"experts": prepare_datasets.prepare_experts_comparison()}
+
+    elif mode == "general":
+        datasets_env = os.getenv("DATASETS")
+
+        if not datasets_env:
+            raise RuntimeError(
+                "DATASETS must be set when DATASET_MODE=general"
+            )
+
+        dataset_names = [d.strip() for d in datasets_env.split(",") if d.strip()]
+
+        allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
+
+        invalid = [d for d in dataset_names if d not in allowed]
+        if invalid:
+            raise ValueError(f"Invalid datasets in DATASETS: {invalid}")
+
+        datasets = {}
+
+        for name in dataset_names:
+            if name == "camunda":
+                datasets[name] = prepare_datasets.prepare_camunda()
+            elif name == "bpmn_and_text":
+                datasets[name] = prepare_datasets.prepare_text_and_bpmn()
+            elif name == "lre_new":
+                datasets[name] = prepare_datasets.prepare_lre_new()
+            elif name == "lre_old":
+                datasets[name] = prepare_datasets.prepare_lre_old()
+
+        print(f"[DEBUG] Using datasets: {list(datasets.keys())}")
+        return datasets
+
+    else:
+        raise ValueError("DATASET_MODE must be 'general' or 'experts'")
+
+def generate_bpmn(run):
     """
     automates the process of generating BPMNs with multiple LLMs.
     All BPMNs are saved in the folder llm_runx, with x being the iteration of the experiment, and sorted by LLM and dataset.
@@ -39,19 +88,9 @@ def generate_bpmn(run, expert_dataset=False):
     Prameters
     run: int
         indicates the number of the iteration
-    expert_dataset: bool
-        if true, the generation of BPMNs of only made for the expert dataset
     """
     llms = get_llms()
-
-    datasets = dict()
-    if not expert_dataset:
-        datasets["camunda"] = prepare_datasets.prepare_camunda()
-        datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-        datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-        datasets["lre_old"] = prepare_datasets.prepare_lre_old()
-    else:
-        datasets["experts"] = prepare_datasets.prepare_experts_comparison()
+    datasets = get_datasets_config()
 
     print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
 
@@ -77,7 +116,7 @@ def generate_bpmn(run, expert_dataset=False):
 
 
 
-def check_quality_llms(run, evaluation, expert_dataset=False):
+def check_quality_llms(run, evaluation):
     """
     Allows to analyze the quality of the LLM-generated BPMNs.
     The analysis results are saved in a csv file llm_results_runx_evaluation (x= iteration, evaluation = evaluation type) in the folder llm_runx
@@ -160,19 +199,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-function script")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # arguments for generating BPMNs
+    gen_parser = subparsers.add_parser("generate_bpmn")
+    gen_parser.add_argument("run", type=str)
+
     # arguments for quality check
     quality_parser = subparsers.add_parser("check_quality_llms")
     quality_parser.add_argument("run", type=str)
     quality_parser.add_argument("evaluation", type=str)
-
-    # arguments for generating BPMNs
-    gen_parser = subparsers.add_parser("generate_bpmn")
-    gen_parser.add_argument("run", type=str)
-    gen_parser.add_argument(
-        "--expert_dataset",
-        action="store_true",
-        help="Generate BPMNs only for the human expert dataset"
-    )
 
     # arguments for human expert comparison
     human_parser = subparsers.add_parser("human_expert_comparison")
@@ -182,7 +216,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "generate_bpmn":
-        generate_bpmn(run=args.run, expert_dataset=args.expert_dataset)
+        generate_bpmn(run=args.run)
     elif args.command == "check_quality_llms":
         check_quality_llms(run=args.run, evaluation=args.evaluation)
     elif args.command == "human_expert_comparison":

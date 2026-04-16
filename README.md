@@ -41,7 +41,7 @@ ollama serve
 
 ### Configuration
 
-Copy the example environment file and update it with your server and models:
+Copy the example environment file and update it with your configuration:
 
 ```
 cp .env.example .env
@@ -49,10 +49,14 @@ cp .env.example .env
 
 Edit `.env`:
 
-- OLLAMA_HOST: URL of your Ollama server  
-- LLMS: Comma-separated list of models to use
-
-These settings are automatically used by the scripts inside the container.
+- `OLLAMA_HOST`: URL of your Ollama server  
+- `LLMS`: Comma-separated list of models to use  
+- `DATASET_MODE`:
+  - `general` → use selected datasets
+  - `experts` → use only the expert dataset  
+- `DATASETS` (only used if `DATASET_MODE=general`):
+  - Comma-separated subset of:
+    `camunda`, `bpmn_and_text`, `lre_new`, `lre_old`
 
 ---
 
@@ -115,9 +119,12 @@ The repository includes a dataset of BPMNs modeled by human experts, located in 
 
 **Step 1: Generate BPMNs for the expert dataset (LLMs only)** 
 
+Set `DATASET_MODE=experts` in `.env`, then run:
+
 ```
-python src/compare_llms.py generate_bpmn 2 --expert_dataset
+python src/compare_llms.py generate_bpmn 2
 ```
+
 **Step 2: Compute evaluation metrics for both LLMs and human experts**
 
 ```
