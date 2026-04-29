@@ -142,15 +142,27 @@ Replace `quality_group_score` with the desired evaluation level.
 
 ### Statistical tests
 
-This will produce a folder for each run in .env, with a file for each LLM with the quality group scores of each bpmn in `statistical_datasets` and a folder in `statistical_tests` with the name `statistical_tests_group_<runs>` with a file for each of the quality group scores with, where an entry corresponds to a bpmn+run combination:
+**Step 1: Generate datasets** 
+
+First, the statistical datasets must be generated from the results of the configured runs and LLMs:
 
 ```
 python src/compare_llms.py statistical_datasets
 ```
 
-This will run the tests:
+This step processes the outputs of all runs and LLMs and creates the datasets required for statistical analysis.
+It produces:
+- A folder per run inside `statistical_datasets`, containing one file per LLM
+- A `statistical_tests_group_<runs>` folder inside `statistical_tests`, containing three files (one per metric), where each entry corresponds to a BPMN across runs
+
+**Step 2: Run statistical tests** 
 
 ```
-python src/compare_llms.py statistical_tests pragmatic
+python src/compare_llms.py statistical_tests <metric>
 ```
 
+Where `<metric>` can be:
+- `syntactic` → syntactic quality analysis
+- `pragmatic` → pragmatic quality analysis
+- `semantic` → semantic quality analysis
+- `all` → runs all statistical tests
