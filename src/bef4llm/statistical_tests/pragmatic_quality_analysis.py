@@ -6,6 +6,9 @@ from itertools import combinations
 import warnings
 warnings.filterwarnings('ignore')
 
+from bef4llm.resource_controller.path_helper import get_folder_path
+from bef4llm.definitions import *
+
 def run_skillings_mack(data):
     """
     Performs the Skillings-Mack test for non-parametric blocked data with missing values.
@@ -135,12 +138,16 @@ def run_pairwise_wilcoxon(data):
     return results_df.sort_values("p_value_corr")
 
 # --- Main Execution ---
-if __name__ == "__main__":
+def run_pragmatic_statistical_tests(runs):
+# if __name__ == "__main__":
     # Load and preprocess data
     try:
-        data = pd.read_csv("pragmatic quality.csv", sep=";", index_col=0)
+        runs_suffix = "_".join(str(r) for r in runs)
+        base_path = f"{get_folder_path(Folder.DATA)}/statistical_tests/statistical_tests_group_{runs_suffix}/pragmatic quality.csv"
+        data = pd.read_csv(base_path, sep=";", index_col=0)
         data.replace('', np.nan, inplace=True)
-        data = data.astype(float)
+        # Convert to numeric, handling any string values
+        data = data.apply(pd.to_numeric, errors='coerce')
     except FileNotFoundError:
         print("Error: 'pragmatic quality.csv' not found. Please ensure the file is in the correct directory.")
         exit()

@@ -606,57 +606,95 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
     for dataset in os.listdir(llm_dir):
         if os.path.isdir(f"{llm_dir}/{dataset}"):
             not_valid_xml = get_invalid_models(os.path.join(llm_dir, dataset))
+
             for model_name in os.listdir(os.path.join(llm_dir, dataset)):
-                if os.path.join(llm_dir, dataset, model_name) not in not_valid_xml:
-                    try:
-                        model = load_diagram_from_xml(os.path.join(llm_dir, dataset, model_name))
-                        model_name = model_name.split(".")[0]
-                        scores = dict()
-                        if analyse_method == "metric_score":
-                            syn_check = SyntacticQualityCheckBPMN(model)
-                            scores.update(syn_check.syntax_check_metric_results())
+                full_path = os.path.join(llm_dir, dataset, model_name)
 
-                            prag_check = PragmaticQualityCheckBPMN(model)
-                            scores.update(prag_check.pragmatic_quality_check_metric_results())
+                if full_path in not_valid_xml:
+                    print(f"[WARNING] Invalid XML skipped: {model_name}")
+                    continue
 
-                            scores.update(semantic_check_single_model(
-                                model=model,
-                                reference_model=datasets[dataset][model_name][2],
-                                lang=datasets[dataset][model_name][0],
-                                analyse_mode=analyse_method))
+                try:
+                    model = load_diagram_from_xml(full_path)
+                    original_name = model_name
+                    model_name = model_name.split(".")[0]
 
-                        elif analyse_method == "detail":
-                            syn_check = SyntacticQualityCheckBPMN(model)
-                            scores["syntactic quality"] = [syn_check.syntax_check()]
+                    if model_name not in datasets[dataset]:
+                        print(f"[ERROR] Model '{model_name}' not found in datasets[{dataset}]")
+                        continue
 
-                            prag_check = PragmaticQualityCheckBPMN(model)
-                            scores.update(prag_check.pragmatic_quality_check_detailed())
+                    scores = dict()
 
-                            scores.update(semantic_check_single_model(
-                                model=model,
-                                reference_model=datasets[dataset][model_name][2],
-                                lang=datasets[dataset][model_name][0],
-                                analyse_mode=analyse_method))
+                    if analyse_method == "metric_score":
+                        syn_check = SyntacticQualityCheckBPMN(model)
+                        scores.update(syn_check.syntax_check_metric_results())
 
-                        elif analyse_method == "quality_group_score":
-                            syn_check = SyntacticQualityCheckBPMN(model)
-                            scores["syntactic quality"] = syn_check.syntax_check()
+                        prag_check = PragmaticQualityCheckBPMN(model)
+                        scores.update(prag_check.pragmatic_quality_check_metric_results())
 
-                            prag_check = PragmaticQualityCheckBPMN(model)
-                            scores["pragmatic quality"] = prag_check.pragmatic_quality_check()
+                        semantic_result = semantic_check_single_model(
+                            model=model,
+                            reference_model=datasets[dataset][model_name][2],
+                            lang=datasets[dataset][model_name][0],
+                            analyse_mode=analyse_method
+                        )
 
-                            scores["semantic quality"] = semantic_check_single_model(
-                                model=model,
-                                reference_model=datasets[dataset][model_name][2],
-                                lang=datasets[dataset][model_name][0],
-                                analyse_mode=analyse_method)
+                        if semantic_result is None:
+                            print(f"[DEBUG] semantic_check returned None for: {model_name}")
+                            for key in quality_scores:
+                                if "semantic" in key:
+                                    scores[key] = None
+                        else:
+                            scores.update(semantic_result)
 
-                        quality_scores["process model"].append(model_name)
-                        quality_scores["run"].append(f"run {run}")
-                        for score in scores:
-                            quality_scores[score].append(scores[score])
-                    except Exception as e:
-                        print(e)
+                        #scores.update(semantic_check_single_model(
+                        #    model=model,
+                        #    reference_model=datasets[dataset][model_name][2],
+                        #    lang=datasets[dataset][model_name][0],
+                        #    analyse_mode=analyse_method))
+
+                    elif analyse_method == "quality_group_score":
+                        print(f"\n[START] quality_group_score | model={model_name} | run={run}")
+
+                        # --- syntactic (GROUP LEVEL) ---
+                        print("[INFO] Running syntactic quality check...")
+                        syn_check = SyntacticQualityCheckBPMN(model)
+                        scores["syntactic quality"] = syn_check.syntax_check()
+                        print(f"[RESULT] syntactic quality = {scores['syntactic quality']}")
+
+                        # --- pragmatic (GROUP LEVEL) ---
+                        print("[INFO] Running pragmatic quality check...")
+                        prag_check = PragmaticQualityCheckBPMN(model)
+                        scores["pragmatic quality"] = prag_check.pragmatic_quality_check()
+                        print(f"[RESULT] pragmatic quality = {scores['pragmatic quality']}")
+
+                        # --- semantic (already group-level) ---
+                        print("[INFO] Running semantic quality check...")
+                        scores["semantic quality"] = semantic_check_single_model(
+                            model=model,
+                            reference_model=datasets[dataset][model_name][2],
+                            lang=datasets[dataset][model_name][0],
+                            analyse_mode="quality_group_score"
+                        )
+
+                        print(f"[RESULT] semantic quality = {scores['semantic quality']}")
+                        print(f"[END] model={model_name} | run={run} ready")
+                        
+                    quality_scores["process model"].append(model_name)
+                    quality_scores["run"].append(f"{run}")
+
+                    for metric in quality_scores:
+                        if metric not in ["process model", "run"]:
+                            if metric not in scores:
+                                scores[metric] = None
+
+                    for score in scores:
+                        quality_scores[score].append(scores[score])
+
+                except Exception as e:
+                    print(f"[ERROR] Failed processing model: {model_name}")
+                    print(f"        File: {full_path}")
+                    print(f"        Error: {e}")
 
     df = pd.DataFrame(quality_scores)
 

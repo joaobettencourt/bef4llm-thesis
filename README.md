@@ -138,19 +138,19 @@ Replace `quality_group_score` with the desired evaluation level.
 - LLM results are saved under: `data/llm_runX/llm_results_runX_<evaluation>.csv`
 - Human expert results are saved under: `data_human_comparison/Expert_BPMN/expert_results_<evaluation>.csv`
 
-**Note:** The README has been fully verified and tested up to this point.
-
 ---
 
 ### Statistical tests
 
-**Note:** Statistical tests assume multiple runs per LLM to capture variability. Generating these runs locally is resource-intensive, so this section is deferred.
-The following commands are provided for later use:
+This will produce a folder for each run in .env, with a file for each LLM with the quality group scores of each bpmn in `statistical_datasets` and a folder in `statistical_tests` with the name `statistical_tests_group_<runs>` with a file for each of the quality group scores with, where an entry corresponds to a bpmn+run combination:
 
 ```
-python src/bef4llm/statistical_tests/statistical_tests_datasets.py
+python src/compare_llms.py statistical_datasets
 ```
 
+This will run the tests:
+
 ```
-python src/bef4llm/statistical_tests/syntactic_quality_analysis.py
+python src/compare_llms.py statistical_tests pragmatic
 ```
+

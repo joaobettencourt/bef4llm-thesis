@@ -10,6 +10,13 @@ import os
 from tqdm import tqdm
 from bef4llm.llm_comparison.generate_bpmns import Benchmark
 
+from bef4llm.statistical_tests.syntactic_quality_analysis import run_syntactic_statistical_tests
+from bef4llm.statistical_tests.pragmatic_quality_analysis import run_pragmatic_statistical_tests
+from bef4llm.statistical_tests.semantic_quality_analysis import run_semantic_statistical_tests
+
+from bef4llm.statistical_tests.statistical_tests_datasets import (
+    generate_data_for_statistical_tests
+)
 
 def get_llms():
     llms = os.getenv("LLMS")
@@ -78,6 +85,17 @@ def get_datasets_config():
 
     else:
         raise ValueError("DATASET_MODE must be 'general' or 'experts'")
+
+def get_runs():
+    runs = os.getenv("STATISTICAL_RUNS")
+
+    run_list = [r.strip() for r in runs.split(",") if r.strip()]
+
+    if not run_list:
+        raise RuntimeError("STATISTICAL_RUNS is empty")
+
+    print(f"[DEBUG] Using runs: {run_list}")
+    return run_list
 
 def generate_bpmn(run):
     """
@@ -213,6 +231,13 @@ if __name__ == "__main__":
     human_parser.add_argument("run", type=str)
     human_parser.add_argument("evaluation", type=str)
 
+    # arguments for building the statistical datasets
+    stats_data_parser = subparsers.add_parser("statistical_datasets")
+
+    # arguments for statistical tests
+    stats_parser = subparsers.add_parser("statistical_tests")
+    stats_parser.add_argument("metric", type=str)
+
     args = parser.parse_args()
 
     if args.command == "generate_bpmn":
@@ -221,3 +246,21 @@ if __name__ == "__main__":
         check_quality_llms(run=args.run, evaluation=args.evaluation)
     elif args.command == "human_expert_comparison":
         human_expert_comparison(run=args.run, evaluation=args.evaluation)
+    elif args.command == "statistical_datasets":
+        llms = get_llms()
+        datasets = get_datasets_config()
+        runs = get_runs()
+        generate_data_for_statistical_tests(llms, datasets, runs)
+    elif args.command == "statistical_tests":
+        runs = get_runs()
+        if args.metric == "syntactic":
+            run_syntactic_statistical_tests(runs)
+        elif args.metric == "pragmatic":
+            run_pragmatic_statistical_tests(runs)
+        elif args.metric == "semantic":
+            run_semantic_statistical_tests(runs)
+        elif args.metric == "all":
+            run_syntactic_statistical_tests(runs)
+            run_pragmatic_statistical_tests(runs)
+            run_semantic_statistical_tests(runs)
+

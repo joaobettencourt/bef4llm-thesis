@@ -6,6 +6,9 @@ from itertools import combinations
 import warnings
 warnings.filterwarnings('ignore')
 
+from bef4llm.resource_controller.path_helper import get_folder_path
+from bef4llm.definitions import *
+
 def run_skillings_mack(data):
     """
     Performs the Skillings-Mack test for non-parametric blocked data with missing values.
@@ -135,10 +138,12 @@ def run_pairwise_wilcoxon(data):
     return results_df.sort_values("p_value_corr")
 
 # --- Main Execution ---
-if __name__ == "__main__":
+def run_syntactic_statistical_tests(runs):
     # Load and preprocess data
     try:
-        data = pd.read_csv("syntactic quality.csv", sep=";", index_col=0)
+        runs_suffix = "_".join(str(r) for r in runs)
+        base_path = f"{get_folder_path(Folder.DATA)}/statistical_tests/statistical_tests_group_{runs_suffix}/syntactic quality.csv"
+        data = pd.read_csv(base_path, sep=";", index_col=0)
         data.replace('', np.nan, inplace=True)
         # Convert to numeric, handling any string values
         data = data.apply(pd.to_numeric, errors='coerce')

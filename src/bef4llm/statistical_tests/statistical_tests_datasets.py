@@ -5,7 +5,7 @@ from bef4llm.definitions import *
 
 import pandas as pd
 
-def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets):
+def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets, runs):
     """
     Generates the files containing the metric results for each BPMN.
     For each LLM one file is generated, and saved in the folder llm_metric_results_runx as file name_of_llm.csv
@@ -22,99 +22,149 @@ def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets):
             missing_llms.append(llm)
 
     for llm in llms:
-        for run in range(1, 6):
+        for run in runs:
             print("run ", run)
 
+#            quality_check.get_metric_results_per_process_model(datasets=datasets,
+#                                                     test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}",
+#                                                     target_file=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}.csv",
+#                                                     analyse_method="metric_score",
+#                                                     run=run)
+            
+            output_dir = f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}"
+            os.makedirs(output_dir, exist_ok=True)
+
             quality_check.get_metric_results_per_process_model(datasets=datasets,
-                                                     test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}",
-                                                     target_file=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}.csv",
-                                                     analyse_method="metric_score",
-                                                     run=run)
+                                                    llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}",
+                                                    analyse_method="quality_group_score",
+                                                    run=run,
+                                                    target_file=f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}/{llm}.csv")
 
 
-def generate_data_for_statistical_tests():
+def generate_data_for_statistical_tests(llms, datasets, runs):
     """
-    Generates data set for statistical tests.
-    For each metric a seperate csv file is created. Each file contains all each generated BPMN of each tested LLM with the given metric score.
-    BPMN that are not valid or not generated have a None or NaN value for the metric.
-
-    The data are saved in the folder "data_statistical_tests"
+    Generate datasets for statistical tests.
+    Creates one CSV per metric with all BPMNs across LLMs and runs.
     """
-    folder_path = f"{get_folder_path(Folder.DATA)}/data_statistical_tests"
-    if not os.path.isdir(folder_path):
-        os.mkdir(folder_path)
 
-    bpmn_models = []
+    base_path = f"{get_folder_path(Folder.DATA)}/statistical_datasets"
+    os.makedirs(base_path, exist_ok=True)
 
-    datasets = dict()
-    datasets["camunda"] = prepare_datasets.prepare_camunda()
-    datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-    datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-    datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+    # ---------------------------------------
+    # 1. Build BPMN + run identifiers
+    # ---------------------------------------
+    bpmn_models = [
+        bpmn
+        for dataset in datasets
+        for bpmn in datasets[dataset].keys()
+    ]
 
-    for dataset in datasets:
-        bpmn_models.extend([key for key in datasets[dataset].keys()])
+    bpmn_run_ids = [
+        f"{bpmn}_run {run}"
+        for bpmn in bpmn_models
+        for run in runs
+    ]
 
-    bpmn_models_id = []
-    for bpmn in bpmn_models:
-        for i in range(1, 6):
-            bpmn_models_id.append(f"{bpmn}_run {i}")
+    # ---------------------------------------
+    # 2. Initialize metric structure
+    # ---------------------------------------
+    metrics = ["syntactic quality", "pragmatic quality", "semantic quality"]
 
-    llm_dict = {
-        "qwen3:14b-q8_0": None,
-        "llama3.3:70b-instruct-q8_0": None,
-        "llama3.1:8b-instruct-q8_0": None,
-        "qwen2.5:14b-instruct-q8_0": None,
-        "deepseek-r1:14b-qwen-distill-q8_0": None,
-        "phi4:14b-q8_0": None,
-        "qwen2.5:32b-instruct-q8_0": None,
-        "qwen3:30b-a3b-q8_0": None,
-        "deepseek-r1:70b-llama-distill-q8_0": None,
-        "falcon3:10b-instruct-q8_0": None,
-        "qwen3:235b-a22b": None
+    metric_data = {
+        metric: {
+            bpmn_id: {llm: None for llm in llms}
+            for bpmn_id in bpmn_run_ids
+        }
+        for metric in metrics
     }
 
-    metric_dicts_group = {
-        "syntactic quality": {bpmn: copy.deepcopy(llm_dict) for bpmn in bpmn_models_id},
-        "pragmatic quality": {bpmn: copy.deepcopy(llm_dict) for bpmn in bpmn_models_id},
-        "semantic quality": {bpmn: copy.deepcopy(llm_dict) for bpmn in bpmn_models_id},
-    }
+    # ---------------------------------------
+    # 3. Generate metric CSVs (per LLM/run)
+    # ---------------------------------------
+    calcualte_metric_results_per_bpmn_for_each_LLM(
+        llms=llms,
+        datasets=datasets,
+        runs=runs
+    )
 
-    # calculate metric scores
-    calcualte_metric_results_per_bpmn_for_each_LLM(llms=llm_dict, datasets=datasets)
+    # ---------------------------------------
+    # 4. Read generated CSVs
+    # ---------------------------------------
+    rows = []
 
-    for file in os.listdir(folder_path):
-        if not file.endswith(".csv"):
+    for run in runs:
+        run_path = f"{base_path}/llm_metric_results_run{run}"
+
+        if not os.path.isdir(run_path):
+            print(f"[WARNING] Missing folder: {run_path}")
             continue
 
-        llm = file.split(".csv")[0]
-        df = pd.read_csv(f"{folder_path}/{file}", sep=";")
+        for file in os.listdir(run_path):
+            if not file.endswith(".csv"):
+                continue
 
-        for metric in metric_dicts_group:
-            for i, data in df.iterrows():
-                # row with column names
-                if data["process model"] == "process model":
+            llm = file.replace(".csv", "")
+            file_path = f"{run_path}/{file}"
+
+            print(f"[DEBUG] Processing {file} (run {run})")
+
+            df = pd.read_csv(file_path, sep=";")
+            print(f"[DEBUG] Columns in {file}: {list(df.columns)}")
+
+            for _, row in df.iterrows():
+                bpmn = row["process model"]
+
+                if bpmn == "process model":
                     continue
 
-                # save data for one BPMN
-                bpmn = data["process model"]
-                run = data["run"]
-                metric_dicts_group[metric][f"{bpmn}_{run.strip()}"][llm] = data[metric]
+                print(f"\n[DEBUG] Row BPMN: {bpmn}")
 
-    # create one file per metric, add BPMN analysis (for not valid BPMNs just an empty list is saved)
-    metric_data = dict()
-    for metric in metric_dicts_group:
-        metric_data[metric] = {"bpmn": []}
-        for bpmn in bpmn_models_id:
-            metric_data[metric]["bpmn"].append(bpmn)
-            for llm in metric_dicts_group[metric][bpmn]:
-                if llm not in metric_data[metric]:
-                    metric_data[metric][llm] = [metric_dicts_group[metric][bpmn][llm]]
-                else:
-                    metric_data[metric][llm].append(metric_dicts_group[metric][bpmn][llm])
+                for metric in metrics:
+                    value = row.get(metric, None)
 
-    target_dir = f"{get_folder_path(Folder.DATA)}/Analysis Results/statistical_tests_group"
-    for metric in metric_data:
-        df = pd.DataFrame.from_dict(metric_data[metric])
-        df.to_csv(target_dir + f"/{metric}.csv", sep=";", index=False)
-        print(f"created {metric}.csv")
+                    print(f"[DEBUG]   metric: '{metric}' -> value: {value}")
+
+                    rows.append({
+                        "bpmn": bpmn,
+                        "run": run,
+                        "llm": llm,
+                        "metric": metric,
+                        "value": value
+                    })
+
+    # ---------------------------------------
+    # 5. Convert to DataFrame + save
+    # ---------------------------------------
+    runs_suffix = "_".join(str(r) for r in runs)
+    output_dir = f"{get_folder_path(Folder.DATA)}/statistical_tests/statistical_tests_group_{runs_suffix}"
+    #output_dir = f"{get_folder_path(Folder.DATA)}/Analysis Results/statistical_tests_group"
+    os.makedirs(output_dir, exist_ok=True)
+
+    df = pd.DataFrame(rows)
+    print("\n[DEBUG] DataFrame head:")
+    print(df.head())
+
+    print("\n[DEBUG] Unique metrics in DF:")
+    print(df["metric"].unique())
+
+    print("\n[DEBUG] Unique LLMs in DF:")
+    print(df["llm"].unique())
+
+    print("\n[DEBUG] Non-null values per metric:")
+    print(df.groupby("metric")["value"].apply(lambda x: x.notna().sum()))
+
+    print(f"[DEBUG] Total rows collected: {len(df)}")
+
+    for metric in metrics:
+        df_metric = df[df["metric"] == metric]
+
+        pivot = df_metric.pivot_table(
+            index="bpmn",
+            aggfunc="mean",
+            columns="llm",
+            values="value"
+        ).reset_index()
+
+        pivot.to_csv(f"{output_dir}/{metric}.csv", sep=";", index=False)
+
+        print(f"[INFO] Created {metric}.csv")
