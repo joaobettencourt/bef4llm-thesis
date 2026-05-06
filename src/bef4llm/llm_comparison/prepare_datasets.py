@@ -149,6 +149,97 @@ def prepare_camunda():
 
     return text_model_pairs
 
+def prepare_small_camunda():
+    """
+    Prepares SMALL Camunda dataset for llm_comparison with model text pairs
+    --------
+    Returns:
+        text_model_pairs: dict
+            dict of {exercise_name: (language, text, reference models)}
+    """
+
+    def clean_text_camunda(text_path):
+        txt_text_path = text_path.split(".")[0] + ".txt"
+
+        if not os.path.exists(txt_text_path):
+            text = parser.from_file(text_path)["content"]
+            text = text.replace("\n", "")
+
+            # Exercise 1-3 english
+            if "Please model the following process" in text:
+                rest, text = text.split("Please model the following process")
+
+                if text.startswith(":"):
+                    text = text[1:]
+
+                background = ""
+
+                if "Background" in rest:
+                    if "Exercise:" in rest:
+                        rest = rest.replace("Exercise: ", "")
+
+                    background = "Background" + rest.split("Background")[1]
+
+                if "Please use" in text:
+                    text = text.split("Please use")[0]
+
+                text = text + background
+                text = text.replace("Background", "\nBackground: \n")
+
+            # Exercise 4 english
+            if "Exercise: Create a model of the following optimised process" in text:
+                rest, text = text.split("Exercise: Create a model of the following optimised process")
+                background = ""
+
+                if "Background" in rest:
+                    background = "\nBackground: \n" + rest.split("Background")[1]
+
+                if "Chef (meal preparation)" in text:
+                    text = text.split("Chef (meal preparation)")[1]
+
+                text = text + background
+
+            with open(txt_text_path, "w") as text_file:
+                text_file.write(text)
+        else:
+            with open(txt_text_path, "r") as f:
+                text = f.read()
+
+        return text
+
+    def extract_files_small(text_model_pairs):
+        # 👇 your local small-camunda path
+        base_path = os.path.join(
+            get_folder_path(Folder.DATA),
+            "models",
+            "small-camunda",
+            "bpmn-for-research-master",
+            "BPMN for Research",
+            "English"
+        )
+
+        model_dir = "03-Solution"
+        text_dir = "01-Exercise"
+
+        for exercise in os.listdir(base_path):
+            if not exercise.startswith('.'):
+                ex_dir_path = os.path.join(base_path, exercise)
+
+                text_file = os.listdir(os.path.join(ex_dir_path, text_dir))[0]
+                text_path = os.path.join(ex_dir_path, text_dir, text_file)
+
+                clean_text = clean_text_camunda(text_path)
+                models = load_bpmn_from_directory(os.path.join(ex_dir_path, model_dir))
+
+                text_model_pairs[exercise] = (Language.ENGLISH, clean_text, models)
+
+        return text_model_pairs
+
+    text_model_pairs = dict()
+    extract_files_small(text_model_pairs)
+
+    return text_model_pairs
+
 def prepare_text_and_bpmn():
     """
     Prepares text and bpmn dataset for llm_comparison with model text pairs
