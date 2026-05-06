@@ -18,6 +18,59 @@ from bef4llm.statistical_tests.statistical_tests_datasets import (
     generate_data_for_statistical_tests
 )
 
+import json
+
+def get_run_config_path(run):
+    return f"{get_folder_path(Folder.DATA)}/llm_run{run}/run_config.json"
+
+
+def save_run_config(run, llms, datasets, dataset_mode):
+    path = get_run_config_path(run)
+
+    config = {
+        "llms": llms,
+        "datasets": list(datasets.keys()),
+        "dataset_mode": dataset_mode,
+        "status": "unfinished"
+    }
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            existing = json.load(f)
+
+        if existing["llms"] != config["llms"] or existing["datasets"] != config["datasets"]:
+            raise RuntimeError(
+                f"Run {run} already exists with different configuration.\n"
+                f"Existing: {existing}\n"
+                f"New: {config}"
+            )
+
+        print("[DEBUG] Existing run config matches.")
+        return
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "w") as f:
+        json.dump(config, f, indent=4)
+
+    print(f"[DEBUG] Run config saved at {path}")
+
+def update_run_status(run, status):
+    path = get_run_config_path(run)
+
+    if not os.path.exists(path):
+        raise RuntimeError("Run config not found")
+
+    with open(path, "r") as f:
+        config = json.load(f)
+
+    config["status"] = status
+
+    with open(path, "w") as f:
+        json.dump(config, f, indent=4)
+
+    print(f"[DEBUG] Run {run} status updated to {status}")
+
 def get_llms():
     llms = os.getenv("LLMS")
     
@@ -62,7 +115,7 @@ def get_datasets_config():
 
         dataset_names = [d.strip() for d in datasets_env.split(",") if d.strip()]
 
-        allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
+        allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old","small-camunda"}
 
         invalid = [d for d in dataset_names if d not in allowed]
         if invalid:
@@ -73,6 +126,8 @@ def get_datasets_config():
         for name in dataset_names:
             if name == "camunda":
                 datasets[name] = prepare_datasets.prepare_camunda()
+            if name == "small-camunda":
+                datasets[name] = prepare_datasets.prepare_small_camunda()
             elif name == "bpmn_and_text":
                 datasets[name] = prepare_datasets.prepare_text_and_bpmn()
             elif name == "lre_new":
@@ -97,8 +152,9 @@ def get_runs():
     print(f"[DEBUG] Using runs: {run_list}")
     return run_list
 
+"""
 def generate_bpmn(run):
-    """
+
     automates the process of generating BPMNs with multiple LLMs.
     All BPMNs are saved in the folder llm_runx, with x being the iteration of the experiment, and sorted by LLM and dataset.
     Each BPMN is saved in a separate BPMN-XML file.
@@ -106,7 +162,7 @@ def generate_bpmn(run):
     Prameters
     run: int
         indicates the number of the iteration
-    """
+
     llms = get_llms()
     datasets = get_datasets_config()
 
@@ -131,8 +187,37 @@ def generate_bpmn(run):
 
         #with open(f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}/not_modelled.txt", "w") as f:
         #    f.write(str(not_modelled_models))
+"""
 
+def generate_bpmn(run):
+    llms = get_llms()
+    datasets = get_datasets_config()
+    dataset_mode = os.getenv("DATASET_MODE")
 
+    save_run_config(run, llms, datasets, dataset_mode)
+
+    try:
+        print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
+
+        for llm in llms:
+            print(f"\n[INFO] Running LLM: {llm}")
+            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}", exist_ok=True)
+
+            not_modelled_models = []
+
+            for dataset in tqdm(datasets):
+                target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
+                print("Start test with dataset:", dataset)
+
+                benchmark = Benchmark(datasets[dataset], llm=llm)
+                not_modelled = benchmark.model_processes(target_dir)
+                not_modelled_models.extend(not_modelled)
+
+        update_run_status(run, "DONE")
+
+    except Exception as e:
+        update_run_status(run, "FAILED")
+        raise e
 
 def check_quality_llms(run, evaluation):
     """
@@ -150,6 +235,7 @@ def check_quality_llms(run, evaluation):
     """
     datasets = dict()
     datasets["camunda"] = prepare_datasets.prepare_camunda()
+    datasets["small-camunda"] = prepare_datasets.prepare_small_camunda()
     datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
     datasets["lre_new"] = prepare_datasets.prepare_lre_new()
     datasets["lre_old"] = prepare_datasets.prepare_lre_old()
