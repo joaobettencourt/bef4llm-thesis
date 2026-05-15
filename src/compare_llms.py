@@ -24,7 +24,7 @@ def get_run_config_path(run):
     return f"{get_folder_path(Folder.DATA)}/llm_run{run}/run_config.json"
 
 
-def save_run_config(run, llms, datasets, dataset_mode):
+def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
     path = get_run_config_path(run)
 
     config = {
@@ -34,15 +34,34 @@ def save_run_config(run, llms, datasets, dataset_mode):
         "status": "unfinished"
     }
 
+    # Add RAG config if provided
+    if rag_config is not None:
+        config["rag"] = rag_config
+
     if os.path.exists(path):
         with open(path, "r") as f:
             existing = json.load(f)
 
-        if existing["llms"] != config["llms"] or existing["datasets"] != config["datasets"]:
+        # Compare only stable core config (not status or runtime fields)
+        core_existing = {
+            "llms": existing.get("llms"),
+            "datasets": existing.get("datasets"),
+            "dataset_mode": existing.get("dataset_mode"),
+            "rag": existing.get("rag"),
+        }
+
+        core_new = {
+            "llms": config["llms"],
+            "datasets": config["datasets"],
+            "dataset_mode": config["dataset_mode"],
+            "rag": config.get("rag"),
+        }
+
+        if core_existing != core_new:
             raise RuntimeError(
                 f"Run {run} already exists with different configuration.\n"
-                f"Existing: {existing}\n"
-                f"New: {config}"
+                f"Existing: {core_existing}\n"
+                f"New: {core_new}"
             )
 
         print("[DEBUG] Existing run config matches.")
@@ -152,65 +171,63 @@ def get_runs():
     print(f"[DEBUG] Using runs: {run_list}")
     return run_list
 
-"""
-def generate_bpmn(run):
-
-    automates the process of generating BPMNs with multiple LLMs.
-    All BPMNs are saved in the folder llm_runx, with x being the iteration of the experiment, and sorted by LLM and dataset.
-    Each BPMN is saved in a separate BPMN-XML file.
-
-    Prameters
-    run: int
-        indicates the number of the iteration
-
-    llms = get_llms()
-    datasets = get_datasets_config()
-
-    print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
-
-    for llm in llms:
-        print(f"\n[INFO] Running LLM: {llm}")
-        if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}"):
-            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}")
-
-        not_modelled_models = []
-
-        for dataset in tqdm(datasets):
-            target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
-            print("Start test with dataset:", dataset)
-            benchmark = Benchmark(datasets[dataset], llm=llm)
-            not_modelled = benchmark.model_processes(target_dir)
-            not_modelled_models.extend(not_modelled)
-
-        print("Due to a timeout the following models are not modelled or the invalid model is not corrected:",
-              not_modelled_models)
-
-        #with open(f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}/not_modelled.txt", "w") as f:
-        #    f.write(str(not_modelled_models))
-"""
 
 def generate_bpmn(run):
     llms = get_llms()
     datasets = get_datasets_config()
+
     dataset_mode = os.getenv("DATASET_MODE")
 
-    save_run_config(run, llms, datasets, dataset_mode)
+    rag_config = {
+        "enabled": os.getenv("RAG_ENABLED", "false").lower() == "true",
+        "dir": os.getenv("RAG_DIR"),
+        "top_k": int(os.getenv("RAG_TOP_K", 3)),
+        "chunk_size": int(os.getenv("RAG_CHUNK_SIZE", 500)),
+        "chunk_overlap": int(os.getenv("RAG_CHUNK_OVERLAP", 100)),
+    }
+
+    save_run_config(
+        run,
+        llms,
+        datasets,
+        dataset_mode,
+        rag_config
+    )
 
     try:
-        print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
+        print(
+            "Number of textual descriptions:",
+            sum(len(datasets[d].keys()) for d in datasets)
+        )
 
         for llm in llms:
             print(f"\n[INFO] Running LLM: {llm}")
-            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}", exist_ok=True)
+
+            os.makedirs(
+                f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}",
+                exist_ok=True
+            )
 
             not_modelled_models = []
 
             for dataset in tqdm(datasets):
-                target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
+                target_dir = (
+                    f"{get_folder_path(Folder.DATA)}/"
+                    f"llm_run{run}/{llm}/{dataset}"
+                )
+
                 print("Start test with dataset:", dataset)
 
-                benchmark = Benchmark(datasets[dataset], llm=llm)
-                not_modelled = benchmark.model_processes(target_dir)
+                benchmark = Benchmark(
+                    datasets[dataset],
+                    llm=llm
+                )
+
+                not_modelled = benchmark.model_processes(
+                    target_dir=target_dir,
+                    rag_config=rag_config
+                )
+
                 not_modelled_models.extend(not_modelled)
 
         update_run_status(run, "DONE")

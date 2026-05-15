@@ -57,6 +57,7 @@ Edit `.env`:
 - `DATASETS` (only used if `DATASET_MODE=general`):
   - Comma-separated subset of:
     `camunda`, `bpmn_and_text`, `lre_new`, `lre_old`
+- `RAG_ENABLED` and other RAG definitions (see `.env.example` for more detail)
 
 ---
 
@@ -75,6 +76,7 @@ docker run --rm -it \
   -v $(pwd)/src:/app/src \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/data_human_comparison:/app/data_human_comparison \
+  -v $(pwd)/rag:/app/rag \
   --env-file .env \
   bef4llm-docker \
   bash
@@ -91,6 +93,11 @@ This repository allows assessing the ability of LLMs to generate BPMNs, comparin
 Two steps are necessary: generating the BPMNs and analyzing the generated BPMNs.
 
 The parameter `run` is an identifier for a specific experiment. It determines the folder where results are stored (e.g., `data/llm_run1/`).
+
+If you wish to use RAG, place your documents inside the `rag/` directory at the root of the project.
+Each RAG dataset must be stored in its own subdirectory inside `rag/`.
+Then, specify the subdirectory name in the `.env` file using the `RAG_DIR` variable.
+
 
 **Step 1: Generation of BPMNs by LLMs**  
 

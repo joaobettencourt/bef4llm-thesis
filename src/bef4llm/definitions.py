@@ -132,6 +132,7 @@ class Folder(Enum):
     """
 
     DATA = os.path.join("data")
+    RAG = os.path.join("rag")
     DATA_HUMAN_COMPARISON = os.path.join("data_human_comparison")
     RESOURCE_CONTROLLER = os.path.join("src", "bef4llm", "resource_controller")
     RMM_CORE = os.path.join("src", "bef4llm")

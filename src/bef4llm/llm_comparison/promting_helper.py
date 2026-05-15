@@ -174,3 +174,5 @@ Create a BPMN model in XML format for the following textual description of a pro
 
 ### Process description:
 """
+
+rag_context_connector = "\n\n### Retrieved BPMN Knowledge:\n"
