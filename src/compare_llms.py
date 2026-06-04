@@ -20,40 +20,58 @@ from bef4llm.statistical_tests.statistical_tests_datasets import (
 
 import json
 
+
 def get_run_config_path(run):
     return f"{get_folder_path(Folder.DATA)}/llm_run{run}/run_config.json"
 
 
-def save_run_config(run, llms, datasets, dataset_mode):
+def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
     path = get_run_config_path(run)
-
     config = {
         "llms": llms,
-        "datasets": list(datasets.keys()),
         "dataset_mode": dataset_mode,
         "status": "unfinished"
     }
+
+    # Only store datasets list if in general mode
+    if dataset_mode == "general":
+        config["datasets"] = list(datasets.keys())
+
+    # Add RAG config if provided
+    if rag_config is not None:
+        config["rag"] = rag_config
 
     if os.path.exists(path):
         with open(path, "r") as f:
             existing = json.load(f)
 
-        if existing["llms"] != config["llms"] or existing["datasets"] != config["datasets"]:
+        core_existing = {
+            "llms": existing.get("llms"),
+            "datasets": existing.get("datasets"),
+            "dataset_mode": existing.get("dataset_mode"),
+            "rag": existing.get("rag"),
+        }
+        core_new = {
+            "llms": config["llms"],
+            "datasets": config.get("datasets"),
+            "dataset_mode": config["dataset_mode"],
+            "rag": config.get("rag"),
+        }
+
+        if core_existing != core_new:
             raise RuntimeError(
                 f"Run {run} already exists with different configuration.\n"
-                f"Existing: {existing}\n"
-                f"New: {config}"
+                f"Existing: {core_existing}\n"
+                f"New: {core_new}"
             )
-
         print("[DEBUG] Existing run config matches.")
         return
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
-
     with open(path, "w") as f:
         json.dump(config, f, indent=4)
-
     print(f"[DEBUG] Run config saved at {path}")
+
 
 def update_run_status(run, status):
     path = get_run_config_path(run)
@@ -92,13 +110,11 @@ def get_llms():
 
 def get_datasets_config():
     mode = os.getenv("DATASET_MODE")
-
     if not mode:
         raise RuntimeError(
             "DATASET_MODE is not set in .env\n"
             "Options: general | experts"
         )
-
     mode = mode.strip().lower()
 
     if mode == "experts":
@@ -107,27 +123,31 @@ def get_datasets_config():
 
     elif mode == "general":
         datasets_env = os.getenv("DATASETS")
-
         if not datasets_env:
-            raise RuntimeError(
-                "DATASETS must be set when DATASET_MODE=general"
-            )
+            raise RuntimeError("DATASETS must be set when DATASET_MODE=general")
 
         dataset_names = [d.strip() for d in datasets_env.split(",") if d.strip()]
 
-        allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old","small-camunda"}
+        # Valida nomes: fixos + camunda_<int>
+        fixed_allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
 
-        invalid = [d for d in dataset_names if d not in allowed]
+        def is_valid(name):
+            if name in fixed_allowed:
+                return True
+            parts = name.split("_")
+            return len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit()
+
+        invalid = [d for d in dataset_names if not is_valid(d)]
         if invalid:
             raise ValueError(f"Invalid datasets in DATASETS: {invalid}")
 
         datasets = {}
-
         for name in dataset_names:
             if name == "camunda":
                 datasets[name] = prepare_datasets.prepare_camunda()
-            if name == "small-camunda":
-                datasets[name] = prepare_datasets.prepare_small_camunda()
+            elif name.startswith("camunda_") and name.split("_")[1].isdigit():
+                version = int(name.split("_")[1])
+                datasets[name] = prepare_datasets.prepare_camunda(version=version)
             elif name == "bpmn_and_text":
                 datasets[name] = prepare_datasets.prepare_text_and_bpmn()
             elif name == "lre_new":
@@ -152,65 +172,63 @@ def get_runs():
     print(f"[DEBUG] Using runs: {run_list}")
     return run_list
 
-"""
-def generate_bpmn(run):
-
-    automates the process of generating BPMNs with multiple LLMs.
-    All BPMNs are saved in the folder llm_runx, with x being the iteration of the experiment, and sorted by LLM and dataset.
-    Each BPMN is saved in a separate BPMN-XML file.
-
-    Prameters
-    run: int
-        indicates the number of the iteration
-
-    llms = get_llms()
-    datasets = get_datasets_config()
-
-    print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
-
-    for llm in llms:
-        print(f"\n[INFO] Running LLM: {llm}")
-        if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}"):
-            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}")
-
-        not_modelled_models = []
-
-        for dataset in tqdm(datasets):
-            target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
-            print("Start test with dataset:", dataset)
-            benchmark = Benchmark(datasets[dataset], llm=llm)
-            not_modelled = benchmark.model_processes(target_dir)
-            not_modelled_models.extend(not_modelled)
-
-        print("Due to a timeout the following models are not modelled or the invalid model is not corrected:",
-              not_modelled_models)
-
-        #with open(f"{get_folder_path(Folder.DATA)}/test_llm_temp_01_run{run}/{llm}/not_modelled.txt", "w") as f:
-        #    f.write(str(not_modelled_models))
-"""
 
 def generate_bpmn(run):
     llms = get_llms()
     datasets = get_datasets_config()
+
     dataset_mode = os.getenv("DATASET_MODE")
 
-    save_run_config(run, llms, datasets, dataset_mode)
+    rag_config = {
+        "enabled": os.getenv("RAG_ENABLED", "false").lower() == "true",
+        "dir": os.getenv("RAG_DIR"),
+        "top_k": int(os.getenv("RAG_TOP_K", 3)),
+        "chunk_size": int(os.getenv("RAG_CHUNK_SIZE", 500)),
+        "chunk_overlap": int(os.getenv("RAG_CHUNK_OVERLAP", 100)),
+    }
+
+    save_run_config(
+        run,
+        llms,
+        datasets,
+        dataset_mode,
+        rag_config
+    )
 
     try:
-        print("Number of textual descriptions: ", sum([len(datasets[d].keys()) for d in datasets]))
+        print(
+            "Number of textual descriptions:",
+            sum(len(datasets[d].keys()) for d in datasets)
+        )
 
         for llm in llms:
             print(f"\n[INFO] Running LLM: {llm}")
-            os.makedirs(f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}", exist_ok=True)
+
+            os.makedirs(
+                f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}",
+                exist_ok=True
+            )
 
             not_modelled_models = []
 
             for dataset in tqdm(datasets):
-                target_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}/{dataset}"
+                target_dir = (
+                    f"{get_folder_path(Folder.DATA)}/"
+                    f"llm_run{run}/{llm}/{dataset}"
+                )
+
                 print("Start test with dataset:", dataset)
 
-                benchmark = Benchmark(datasets[dataset], llm=llm)
-                not_modelled = benchmark.model_processes(target_dir)
+                benchmark = Benchmark(
+                    datasets[dataset],
+                    llm=llm
+                )
+
+                not_modelled = benchmark.model_processes(
+                    target_dir=target_dir,
+                    rag_config=rag_config
+                )
+
                 not_modelled_models.extend(not_modelled)
 
         update_run_status(run, "DONE")
@@ -233,17 +251,30 @@ def check_quality_llms(run, evaluation):
     expert_dataset:
         if true, the analysis is made for the expert comparison
     """
-    datasets = dict()
-    datasets["camunda"] = prepare_datasets.prepare_camunda()
-    datasets["small-camunda"] = prepare_datasets.prepare_small_camunda()
-    datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-    datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-    datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+    datasets = get_datasets_config()
 
-    df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-                                                    analyse_method=evaluation)
+    # Also index datasets by the directory names used in LLM runs
+    # e.g. if datasets has "camunda", also expose it as "camunda_1", "camunda_2", etc.
+    # by scanning the actual subdirectories in the run folder
+    llm_run_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}"
+    for llm in os.listdir(llm_run_dir):
+        llm_path = os.path.join(llm_run_dir, llm)
+        if not os.path.isdir(llm_path) or llm.startswith("."):
+            continue
+        for dataset_dir in os.listdir(llm_path):
+            if dataset_dir not in datasets:
+                # try to resolve it to a known dataset
+                parts = dataset_dir.split("_")
+                if len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit():
+                    version = int(parts[1])
+                    datasets[dataset_dir] = prepare_datasets.prepare_camunda(version=version)
+
+    df = quality_check.compute_overall_quality_llms(
+        datasets=datasets,
+        test_llm_dir=llm_run_dir,
+        target_file=f"{get_folder_path(Folder.DATA)}/llm_run{run}/llm_results_run{run}_{evaluation}.csv",
+        analyse_method=evaluation
+    )
 
 def human_expert_comparison(run, evaluation, expert_dataset=False):
     """
