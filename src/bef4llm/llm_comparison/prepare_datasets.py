@@ -15,13 +15,11 @@ Text model pairs should always be returned in the following format, since for so
     ....
 }
 """
-def prepare_camunda():
+def prepare_camunda(version: int = None):
     """
-    Prepares Camunda dataset for llm_comparison with model text pairs
-    --------
-    Returns:
-        text_model_pairs: list
-            list of tuples: (file_name, language, text, reference models)
+    Prepares Camunda dataset for llm_comparison with model text pairs.
+    If version is provided, loads from a versioned local path (e.g. 'camunda_1').
+    Otherwise, downloads/uses the full dataset with English + German.
     """
 
     def clean_text_camunda(text_path):
@@ -109,134 +107,62 @@ def prepare_camunda():
                 text = f.read()
 
         return text
+        
+    def extract_files(lang, text_model_pairs, base_path=None):
+        if base_path:
+            dir_path = base_path  # versioned: já aponta para a pasta correta
+        else:
+            dir_path = look_for_directory("BPMN for Research")  # full dataset
 
-    def extract_files(lang, text_model_pairs):
-        dir_path = look_for_directory("BPMN for Research")
         model_dir = ""
         text_dir = ""
         if lang == Language.ENGLISH:
-            dir_path = os.path.join(dir_path, "English")
+            if not base_path:
+                dir_path = os.path.join(dir_path, "English")
             model_dir = "03-Solution"
             text_dir = "01-Exercise"
         elif lang == Language.GERMAN:
-            dir_path = os.path.join(dir_path, "German")
+            if not base_path:
+                dir_path = os.path.join(dir_path, "German")
             model_dir = "03-Musterlösung"
             text_dir = "01-Aufgabenstellung"
 
         for exercise in os.listdir(dir_path):
-            # exclude hidden directories
             if not exercise.startswith('.'):
                 ex_dir_path = os.path.join(dir_path, exercise)
                 text_file = os.listdir(f"{ex_dir_path}/{text_dir}")[0]
                 text_path = f"{ex_dir_path}/{text_dir}/{text_file}"
-                #text = parser.from_file(f"{ex_dir_path}/{text_dir}/{text_file}")["content"]
                 clean_text = clean_text_camunda(text_path)
                 models = load_bpmn_from_directory(f"{ex_dir_path}/{model_dir}")
                 text_model_pairs[exercise] = (lang, clean_text, models)
 
         return text_model_pairs
 
-    # add dowlooad files if not yet done
-    if not look_for_directory("BPMN for Research"):
-        data = DatasetCollection.CAMUNDA.value
-        download_any_format(url=data["link"],
-                            file_name=data["filename"],
-                            dest_dir=os.path.join(get_folder_path(Folder.DATA), data["destination_dir"]),
-                            compressed=True)
     text_model_pairs = dict()
-    extract_files(Language.ENGLISH, text_model_pairs)
-    extract_files(Language.GERMAN, text_model_pairs)
 
-    return text_model_pairs
-
-def prepare_small_camunda():
-    """
-    Prepares SMALL Camunda dataset for llm_comparison with model text pairs
-    --------
-    Returns:
-        text_model_pairs: dict
-            dict of {exercise_name: (language, text, reference models)}
-    """
-
-    def clean_text_camunda(text_path):
-        txt_text_path = text_path.split(".")[0] + ".txt"
-
-        if not os.path.exists(txt_text_path):
-            text = parser.from_file(text_path)["content"]
-            text = text.replace("\n", "")
-
-            # Exercise 1-3 english
-            if "Please model the following process" in text:
-                rest, text = text.split("Please model the following process")
-
-                if text.startswith(":"):
-                    text = text[1:]
-
-                background = ""
-
-                if "Background" in rest:
-                    if "Exercise:" in rest:
-                        rest = rest.replace("Exercise: ", "")
-
-                    background = "Background" + rest.split("Background")[1]
-
-                if "Please use" in text:
-                    text = text.split("Please use")[0]
-
-                text = text + background
-                text = text.replace("Background", "\nBackground: \n")
-
-            # Exercise 4 english
-            if "Exercise: Create a model of the following optimised process" in text:
-                rest, text = text.split("Exercise: Create a model of the following optimised process")
-                background = ""
-
-                if "Background" in rest:
-                    background = "\nBackground: \n" + rest.split("Background")[1]
-
-                if "Chef (meal preparation)" in text:
-                    text = text.split("Chef (meal preparation)")[1]
-
-                text = text + background
-
-            with open(txt_text_path, "w") as text_file:
-                text_file.write(text)
-        else:
-            with open(txt_text_path, "r") as f:
-                text = f.read()
-
-        return text
-
-    def extract_files_small(text_model_pairs):
-        # 👇 your local small-camunda path
+    if version is not None:
+        # Versioned: English only, path inclui "camunda_<version>"
         base_path = os.path.join(
             get_folder_path(Folder.DATA),
             "models",
-            "small-camunda",
+            f"camunda_{version}",
             "bpmn-for-research-master",
             "BPMN for Research",
             "English"
         )
-
-        model_dir = "03-Solution"
-        text_dir = "01-Exercise"
-
-        for exercise in os.listdir(base_path):
-            if not exercise.startswith('.'):
-                ex_dir_path = os.path.join(base_path, exercise)
-
-                text_file = os.listdir(os.path.join(ex_dir_path, text_dir))[0]
-                text_path = os.path.join(ex_dir_path, text_dir, text_file)
-
-                clean_text = clean_text_camunda(text_path)
-                models = load_bpmn_from_directory(os.path.join(ex_dir_path, model_dir))
-
-                text_model_pairs[exercise] = (Language.ENGLISH, clean_text, models)
-
-        return text_model_pairs
-
-    text_model_pairs = dict()
-    extract_files_small(text_model_pairs)
+        extract_files(Language.ENGLISH, text_model_pairs, base_path=base_path)
+    else:
+        # Full dataset: download se necessário, English + German
+        if not look_for_directory("BPMN for Research"):
+            data = DatasetCollection.CAMUNDA.value
+            download_any_format(
+                url=data["link"],
+                file_name=data["filename"],
+                dest_dir=os.path.join(get_folder_path(Folder.DATA), data["destination_dir"]),
+                compressed=True
+            )
+        extract_files(Language.ENGLISH, text_model_pairs)
+        extract_files(Language.GERMAN, text_model_pairs)
 
     return text_model_pairs
 

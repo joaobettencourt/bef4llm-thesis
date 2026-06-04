@@ -111,13 +111,11 @@ def get_llms():
 
 def get_datasets_config():
     mode = os.getenv("DATASET_MODE")
-
     if not mode:
         raise RuntimeError(
             "DATASET_MODE is not set in .env\n"
             "Options: general | experts"
         )
-
     mode = mode.strip().lower()
 
     if mode == "experts":
@@ -126,27 +124,31 @@ def get_datasets_config():
 
     elif mode == "general":
         datasets_env = os.getenv("DATASETS")
-
         if not datasets_env:
-            raise RuntimeError(
-                "DATASETS must be set when DATASET_MODE=general"
-            )
+            raise RuntimeError("DATASETS must be set when DATASET_MODE=general")
 
         dataset_names = [d.strip() for d in datasets_env.split(",") if d.strip()]
 
-        allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old","small-camunda"}
+        # Valida nomes: fixos + camunda_<int>
+        fixed_allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
 
-        invalid = [d for d in dataset_names if d not in allowed]
+        def is_valid(name):
+            if name in fixed_allowed:
+                return True
+            parts = name.split("_")
+            return len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit()
+
+        invalid = [d for d in dataset_names if not is_valid(d)]
         if invalid:
             raise ValueError(f"Invalid datasets in DATASETS: {invalid}")
 
         datasets = {}
-
         for name in dataset_names:
             if name == "camunda":
                 datasets[name] = prepare_datasets.prepare_camunda()
-            if name == "small-camunda":
-                datasets[name] = prepare_datasets.prepare_small_camunda()
+            elif name.startswith("camunda_") and name.split("_")[1].isdigit():
+                version = int(name.split("_")[1])
+                datasets[name] = prepare_datasets.prepare_camunda(version=version)
             elif name == "bpmn_and_text":
                 datasets[name] = prepare_datasets.prepare_text_and_bpmn()
             elif name == "lre_new":
@@ -250,17 +252,30 @@ def check_quality_llms(run, evaluation):
     expert_dataset:
         if true, the analysis is made for the expert comparison
     """
-    datasets = dict()
-    datasets["camunda"] = prepare_datasets.prepare_camunda()
-    datasets["small-camunda"] = prepare_datasets.prepare_small_camunda()
-    datasets["bpmn_and_text"] = prepare_datasets.prepare_text_and_bpmn()
-    datasets["lre_new"] = prepare_datasets.prepare_lre_new()
-    datasets["lre_old"] = prepare_datasets.prepare_lre_old()
+    datasets = get_datasets_config()
 
-    df = quality_check.compute_overall_quality_llms(datasets=datasets,
-                                                    test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}",
-                                                    target_file=f"{get_folder_path(Folder.DATA)}//llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-                                                    analyse_method=evaluation)
+    # Also index datasets by the directory names used in LLM runs
+    # e.g. if datasets has "camunda", also expose it as "camunda_1", "camunda_2", etc.
+    # by scanning the actual subdirectories in the run folder
+    llm_run_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}"
+    for llm in os.listdir(llm_run_dir):
+        llm_path = os.path.join(llm_run_dir, llm)
+        if not os.path.isdir(llm_path) or llm.startswith("."):
+            continue
+        for dataset_dir in os.listdir(llm_path):
+            if dataset_dir not in datasets:
+                # try to resolve it to a known dataset
+                parts = dataset_dir.split("_")
+                if len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit():
+                    version = int(parts[1])
+                    datasets[dataset_dir] = prepare_datasets.prepare_camunda(version=version)
+
+    df = quality_check.compute_overall_quality_llms(
+        datasets=datasets,
+        test_llm_dir=llm_run_dir,
+        target_file=f"{get_folder_path(Folder.DATA)}/llm_run{run}/llm_results_run{run}_{evaluation}.csv",
+        analyse_method=evaluation
+    )
 
 def human_expert_comparison(run, evaluation, expert_dataset=False):
     """
