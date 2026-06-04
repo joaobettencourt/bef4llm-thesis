@@ -20,19 +20,22 @@ from bef4llm.statistical_tests.statistical_tests_datasets import (
 
 import json
 
+
 def get_run_config_path(run):
     return f"{get_folder_path(Folder.DATA)}/llm_run{run}/run_config.json"
 
 
 def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
     path = get_run_config_path(run)
-
     config = {
         "llms": llms,
-        "datasets": list(datasets.keys()),
         "dataset_mode": dataset_mode,
         "status": "unfinished"
     }
+
+    # Only store datasets list if in general mode
+    if dataset_mode == "general":
+        config["datasets"] = list(datasets.keys())
 
     # Add RAG config if provided
     if rag_config is not None:
@@ -42,17 +45,15 @@ def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
         with open(path, "r") as f:
             existing = json.load(f)
 
-        # Compare only stable core config (not status or runtime fields)
         core_existing = {
             "llms": existing.get("llms"),
             "datasets": existing.get("datasets"),
             "dataset_mode": existing.get("dataset_mode"),
             "rag": existing.get("rag"),
         }
-
         core_new = {
             "llms": config["llms"],
-            "datasets": config["datasets"],
+            "datasets": config.get("datasets"),
             "dataset_mode": config["dataset_mode"],
             "rag": config.get("rag"),
         }
@@ -63,16 +64,14 @@ def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
                 f"Existing: {core_existing}\n"
                 f"New: {core_new}"
             )
-
         print("[DEBUG] Existing run config matches.")
         return
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
-
     with open(path, "w") as f:
         json.dump(config, f, indent=4)
-
     print(f"[DEBUG] Run config saved at {path}")
+
 
 def update_run_status(run, status):
     path = get_run_config_path(run)
