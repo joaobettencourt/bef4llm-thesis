@@ -182,6 +182,7 @@ def generate_bpmn(run):
     rag_config = {
         "enabled": os.getenv("RAG_ENABLED", "false").lower() == "true",
         "dir": os.getenv("RAG_DIR"),
+        "mode": os.getenv("RAG_MODE", "documents").strip().lower(),
         "top_k": int(os.getenv("RAG_TOP_K", 3)),
         "chunk_size": int(os.getenv("RAG_CHUNK_SIZE", 500)),
         "chunk_overlap": int(os.getenv("RAG_CHUNK_OVERLAP", 100)),

@@ -175,4 +175,9 @@ Create a BPMN model in XML format for the following textual description of a pro
 ### Process description:
 """
 
-rag_context_connector = "\n\n### Retrieved BPMN Knowledge:\n"
+rag_context_connector = """
+### Retrieved Similar Examples:
+The following examples were retrieved based on their similarity to the process description above.
+Each example contains a textual process description and its corresponding reference BPMN model.
+Use them as modeling guidance for the current task, paying attention to how similar process patterns were modeled.
+"""
