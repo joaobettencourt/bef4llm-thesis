@@ -71,12 +71,14 @@ docker build -t bef4llm-docker .
 
 Run the container interactively with your `.env` file. The `src`, `data` and `data_human_comparison` folders are mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
 
+
 ```
 docker run --rm -it \
   -v $(pwd)/src:/app/src \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/data_human_comparison:/app/data_human_comparison \
   -v $(pwd)/rag:/app/rag \
+  -v $(pwd)/scripts:/app/scripts \
   --env-file .env \
   bef4llm-docker \
   bash
@@ -173,3 +175,16 @@ Where `<metric>` can be:
 - `pragmatic` → pragmatic quality analysis
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
+
+
+## Command to build subset of the camunda dataset
+```
+./generate_camunda_subset.sh 2 \
+        01-Dispatch-of-goods \
+        02-Recourse
+```
+
+run outside docker
+```
+chmod +x scripts/*.sh
+```

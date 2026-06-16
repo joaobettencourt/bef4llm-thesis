@@ -70,12 +70,6 @@ class Benchmark():
             else:
                 print("\n[INFO] NOT using RAG")
 
-            print("\n[DEBUG] Last 1000 chars of prompt:\n")
-            print(final_prompt[-1000:])
-
-            print("\n[DEBUG] Full prompt:\n")
-            print(final_prompt)
-
             # guardar o prompt usado
             prompt_log_path = f"{target_dir}/{pair}_prompt.txt"
             with open(prompt_log_path, "w") as f:
@@ -152,7 +146,7 @@ class Benchmark():
 
         return True
 
-    def change_sys_msg_lang(self, lang, timeout=600):
+    def change_sys_msg_lang(self, lang, timeout=300):
         """
         Allows to adapt the language of the system message
 
