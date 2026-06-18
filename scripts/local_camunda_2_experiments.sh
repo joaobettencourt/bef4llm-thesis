@@ -20,7 +20,9 @@ export DATASETS=camunda_2
 run_batch() {
     for run in "$@"; do
         echo "Generating BPMNs for run $run"
-        python src/compare_llms.py generate_bpmn "$run"
+        log_dir="data/llm_run${run}"
+        mkdir -p "$log_dir"
+        python src/compare_llms.py generate_bpmn "$run" 2>&1 | tee "$log_dir/run_${run}.log"
     done
 }
 
@@ -28,8 +30,15 @@ run_batch() {
 export RAG_ENABLED=false
 #run_batch 111 112 113
 
-# Mock RAG A
+# Mock RAG example solution
 export RAG_ENABLED=true
 export RAG_MODE=mock_examples
 export RAG_DIR=mock/solution
-run_batch 121 122 123
+#run_batch 121 122 123
+
+# Mock RAG example stakeholders
+export RAG_ENABLED=true
+export RAG_MODE=mock_examples
+export RAG_DIR=mock/stakeholders
+#run_batch 131 132 133
+run_batch 132 133
