@@ -20,9 +20,10 @@ class Benchmark():
     """
     Class for generating BPMN diagrams, based on given Datasets
     """
-    def __init__(self, dataset, llm:str, sys_msg=None):
+    def __init__(self, dataset, llm: str, sys_msg=None, dataset_name=None):
 
         self.text_model_pairs = dataset
+        self.dataset_name = dataset_name
         self.syntax_scores = []
         self.pragmatic_scores = []
         self.semantic_scores = []
@@ -58,15 +59,9 @@ class Benchmark():
 
             if rag_enabled:
                 print("\n[INFO] Using RAG")
-
-                rag_context = get_rag_context(text, rag_config)
-
+                rag_context = get_rag_context(text, rag_config, pair=pair, dataset=self.dataset_name)
                 if rag_context.strip():
-                    final_prompt = (
-                        prompt
-                        + prompts.rag_context_connector
-                        + rag_context
-                    )
+                    final_prompt = prompt + rag_context
             else:
                 print("\n[INFO] NOT using RAG")
 
@@ -74,6 +69,11 @@ class Benchmark():
             prompt_log_path = f"{target_dir}/{pair}_prompt.txt"
             with open(prompt_log_path, "w") as f:
                 f.write(final_prompt)
+
+            # guardar a sys_msg usada
+            sys_msg_log_path = f"{target_dir}/{pair}_sys_msg.txt"
+            with open(sys_msg_log_path, "w") as f:
+                f.write(self.sys_msg)
 
             model_succ = self.llm_modelling(pair, target_dir, final_prompt)
 

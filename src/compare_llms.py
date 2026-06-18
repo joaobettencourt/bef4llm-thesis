@@ -222,7 +222,8 @@ def generate_bpmn(run):
 
                 benchmark = Benchmark(
                     datasets[dataset],
-                    llm=llm
+                    llm=llm,
+                    dataset_name=dataset
                 )
 
                 not_modelled = benchmark.model_processes(

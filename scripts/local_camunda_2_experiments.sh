@@ -15,7 +15,7 @@ cd ..
 
 export LLMS=llama3.1:latest,qwen2.5:latest
 export DATASET_MODE=general
-export DATASETS=camunda_4
+export DATASETS=camunda_2
 
 run_batch() {
     for run in "$@"; do
@@ -26,10 +26,10 @@ run_batch() {
 
 # Baseline
 export RAG_ENABLED=false
-run_batch 111 112 113
+#run_batch 111 112 113
 
 # Mock RAG A
 export RAG_ENABLED=true
-export RAG_MODE=mock
-export RAG_DIR=mock/set_a #TODO
+export RAG_MODE=mock_examples
+export RAG_DIR=mock/solution
 run_batch 121 122 123
