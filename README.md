@@ -13,19 +13,6 @@ In this adaptation, the framework has been modified to run in a Docker container
 
 ## Setup & Running
 
-### Installation
-
-The installation via pip is not yet tested, so we recommend cloning the project and working with it.  
-All required packages can be installed by using the `requirements.txt`, with the most important packages being: 
-
-```
-- ollama
-- pandas
-- networkx
-```
-
----
-
 ### Ollama
 
 Ensure your Ollama server is running:
@@ -175,16 +162,3 @@ Where `<metric>` can be:
 - `pragmatic` → pragmatic quality analysis
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
-
-
-## Command to build subset of the camunda dataset
-```
-./generate_camunda_subset.sh 2 \
-        01-Dispatch-of-goods \
-        02-Recourse
-```
-
-run outside docker
-```
-chmod +x scripts/*.sh
-```

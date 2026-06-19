@@ -41,19 +41,19 @@ join_batch() {
 
 # Baseline
 export RAG_ENABLED=false
-#run_batch 111 112 113
+run_batch 111 112 113
 join_batch baseline 111 112 113
 
 # Mock RAG example solution
 export RAG_ENABLED=true
 export RAG_MODE=mock_examples
 export RAG_DIR=mock/solution
-#run_batch 121 122 123
+run_batch 121 122 123
 join_batch mock_examples_solution 121 122 123
 
 # Mock RAG example stakeholders
 export RAG_ENABLED=true
 export RAG_MODE=mock_examples
 export RAG_DIR=mock/stakeholders
-#run_batch 131 132 133
+run_batch 131 132 133
 join_batch mock_examples_stakeholders 131 132 133
