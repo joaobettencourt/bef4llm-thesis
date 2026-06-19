@@ -32,6 +32,10 @@ COPY src/ ./src
 COPY setup.py .
 COPY README.md .
 
+# Copy the helping scripts
+COPY scripts/ ./scripts
+RUN chmod +x scripts/*.sh
+
 # Set PYTHONPATH so Python can find your modules
 ENV PYTHONPATH=/app/src
 

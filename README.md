@@ -13,19 +13,6 @@ In this adaptation, the framework has been modified to run in a Docker container
 
 ## Setup & Running
 
-### Installation
-
-The installation via pip is not yet tested, so we recommend cloning the project and working with it.  
-All required packages can be installed by using the `requirements.txt`, with the most important packages being: 
-
-```
-- ollama
-- pandas
-- networkx
-```
-
----
-
 ### Ollama
 
 Ensure your Ollama server is running:
@@ -71,12 +58,14 @@ docker build -t bef4llm-docker .
 
 Run the container interactively with your `.env` file. The `src`, `data` and `data_human_comparison` folders are mounted into the container (changes are reflected both on the host and inside the container). The container is automatically removed after exit:
 
+
 ```
 docker run --rm -it \
   -v $(pwd)/src:/app/src \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/data_human_comparison:/app/data_human_comparison \
   -v $(pwd)/rag:/app/rag \
+  -v $(pwd)/scripts:/app/scripts \
   --env-file .env \
   bef4llm-docker \
   bash

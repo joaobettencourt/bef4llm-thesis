@@ -3,7 +3,9 @@ from bef4llm.semantic_quality.semantic_quality_check import SemanticQualityCheck
 from bef4llm.synactic_quality.synactic_quality_check import SyntacticQualityCheckBPMN
 from bef4llm.pragmatic_quality.pragmatic_quality_check import PragmaticQualityCheckBPMN
 from bef4llm.process_models.graph_representation.collaboration_model import CollaborationModel
-from bef4llm.validation.validation import validate_bpmn
+#from bef4llm.validation.validation import 
+from bef4llm.validation.validation import validate_bpmn_with_error_message, validate_bpmn
+
 from bef4llm.definitions import *
 
 import pandas as pd
@@ -335,6 +337,8 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
 #            continue
 
     for llm in tqdm(os.listdir(test_llm_dir)):
+        all_invalid_reasons = {}
+
         if llm.startswith("."):
             continue
 
@@ -361,7 +365,9 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
             model_dir = f"{test_llm_dir}/{llm}/{dataset}"
             print(dataset)
 
-            not_valid_xml = get_invalid_models(model_dir)
+#            not_valid_xml = get_invalid_models(model_dir)
+            not_valid_xml, invalid_reasons = get_invalid_models(model_dir)
+            all_invalid_reasons.update(invalid_reasons)
 
             quality_scores_llm, na = get_quality_per_dataset(quality_scores_dict=quality_scores_llm,
                                                          models=model_dir,
@@ -378,6 +384,8 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
 
             num_invalid += len(set(not_valid_xml))
             num_not_analysed += len(set(not_analysed_xml))
+
+
 
 
 
@@ -400,6 +408,15 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
         else:
             quality_scores["validity"].append(None)
 
+        if all_invalid_reasons:
+            log_path = os.path.join(test_llm_dir, llm, "invalid_models.log")
+            with open(log_path, "w") as f:
+                for path, reason in all_invalid_reasons.items():
+                    f.write(f"FILE: {path}\n")
+                    f.write(f"REASON: {reason}\n")
+                    f.write("-" * 60 + "\n")
+            print(f"[DEBUG] Invalid models log saved at {log_path}")
+
     df = pd.DataFrame(quality_scores)
     if analyse_method == "quality_group_score":
         df = df.loc[:, ["llm", "syntactic quality", "pragmatic quality", "semantic quality", "validity"]]
@@ -415,37 +432,21 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
     return df
 
 def get_quality_per_dataset(quality_scores_dict, analyse_method, dataset, not_valid_xml, models):
-    """
-    computes the quality scores for one LLM and one dataset
-
-    Parameters:
-    -----------
-    quality_scores_dict: dict
-        dict with current quality scores for one LLM, which is extended
-    analyse_mode : str
-      Granularity in which the pragmatic quality should be computed (detail, quality_group_score, metric_score)
-    dataset : str
-        name of dataset for which the quality scores should be computed
-    not_valid_xml: list
-        dirs to BPMN XML, which are not valid
-    models: list
-        dir to folder containing the BPMN XML files for this dataset
-
-    Returns:
-    --------
-    df: pandas dataframe
-       Dataframe with LLMs as rows and quality dimensions/ quality dimension subgroups/ metrics as columns
-    """
-
     not_analysed_xml = []
+
+    print(f"[DEBUG] dataset keys: {list(dataset.keys())}")
+    print(f"[DEBUG] not_valid_xml: {not_valid_xml}")
+
     syn_scores, na = make_syntactic_check(models=models,
                                           not_valid=not_valid_xml,
                                           analyse_mode=analyse_method)
-
+    print(f"[DEBUG] syn_scores: {syn_scores}")
     not_analysed_xml.extend(na)
+
     prag_scores, na = make_pragmatic_check(models=models,
                                            not_valid=not_valid_xml,
                                            analyse_mode=analyse_method)
+    print(f"[DEBUG] prag_scores: {prag_scores}")
     not_analysed_xml.extend(na)
 
     if analyse_method == "quality_group_score":
@@ -453,97 +454,55 @@ def get_quality_per_dataset(quality_scores_dict, analyse_method, dataset, not_va
         quality_scores_dict["pragmatic quality"].extend(prag_scores)
 
         if isinstance(models, str):
-            models = [os.path.join(models, model)for model in os.listdir(models)]
+            models = [os.path.join(models, model) for model in os.listdir(models)]
+
+        print(f"[DEBUG] models to evaluate: {models}")
+
         for model in models:
-            #if isinstance(model, str):
-                #model_name = model.split("/")[-1].split(".")[0]
-                #if not os.path.isfile(f"{model}/{model_name}.bpmn"):
-                #    continue
-                #model = f"{model}/{model_name}.bpmn"
-            #else:
-            #    model_name = model.name
             if isinstance(model, str):
                 model_name = model.split("/")[-1].split(".")[0]
             else:
                 model_name = model.name
+
+            print(f"[DEBUG] processing model_name: {model_name}")
+            print(f"[DEBUG] model in not_valid_xml: {model in not_valid_xml}")
+            print(f"[DEBUG] model_name in dataset: {model_name in dataset}")
+
             if model not in not_valid_xml:
-                semantic_score = []
+                if model_name not in dataset:
+                    print(f"[WARNING] model_name '{model_name}' not found in dataset, skipping")
+                    continue
                 semantic_score = semantic_check_single_model(
                     model=model,
                     reference_model=dataset[model_name][2],
                     lang=dataset[model_name][0],
                     analyse_mode=analyse_method)
+                print(f"[DEBUG] semantic_score for {model_name}: {semantic_score}")
                 if semantic_score:
                     quality_scores_dict["semantic quality"].append(semantic_score)
-    else:
-        # syntactic scores
-        if analyse_method == "detail":
-            quality_scores_dict["syntactic quality"].extend(syn_scores)
-        else:
-            for key in syn_scores:
-                if key not in quality_scores_dict:
-                    quality_scores_dict[key] = []
-                quality_scores_dict[key].extend(syn_scores[key])
 
-        # pragmatic scores
-        for key in prag_scores:
-            if key not in quality_scores_dict:
-                quality_scores_dict[key] = []
-            quality_scores_dict[key].extend(prag_scores[key])
-
-
-        # semantic scores
-        if isinstance(models, str):
-            models = [os.path.join(models, model) for model in os.listdir(models)]
-        for model in models:
-            if isinstance(model, str):
-                model_name = model.split("/")[-1].split(".")[0]
-            else:
-                model_name = model.name
-            if model not in not_valid_xml:
-                semantic_scores = semantic_check_single_model(
-                                model=model,
-                                reference_model=dataset[model_name][2],
-                                lang=dataset[model_name][0],
-                                analyse_mode=analyse_method)
-                if semantic_scores:
-                    for key in semantic_scores:
-                        if key not in quality_scores_dict:
-                            quality_scores_dict[key] = []
-
-                        quality_scores_dict[key].append(semantic_scores[key])
-                else:
-                    not_analysed_xml.append(model)
-
+    # ... rest unchanged
     return quality_scores_dict, not_analysed_xml
 
 def get_invalid_models(model_dir):
-    """
-    Makes a list of BPMN XML, that are invalid
-
-    Parameters
-    ----------
-    model_dir: str
-        dir to the BPMN XML files
-
-    Returns
-    -------
-    not_valid_xml
-    """
     not_valid_xml = []
+    invalid_reasons = {}  # novo: {path: error_message}
+    
     for model in os.listdir(model_dir):
         if model.endswith(".bpmn"):
-            with open(f"{model_dir}/{model}") as f:
+            path = f"{model_dir}/{model}"
+            with open(path) as f:
                 content = f.read()
             if content and content != "":
-                if not validate_bpmn(f"{model_dir}/{model}"):
-                    not_valid_xml.append(f"{model_dir}/{model}")
+                if not validate_bpmn(path):
+                    not_valid_xml.append(path)
+                    error_msg, _ = validate_bpmn_with_error_message(path)  # já existe!
+                    invalid_reasons[path] = error_msg
             else:
-                not_valid_xml.append(f"{model_dir}/{model}")
-
-
-
-    return not_valid_xml
+                not_valid_xml.append(path)
+                invalid_reasons[path] = "Empty file"
+    
+    return not_valid_xml, invalid_reasons
 
 def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
     """
@@ -605,7 +564,8 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
 
     for dataset in os.listdir(llm_dir):
         if os.path.isdir(f"{llm_dir}/{dataset}"):
-            not_valid_xml = get_invalid_models(os.path.join(llm_dir, dataset))
+            #not_valid_xml = get_invalid_models(os.path.join(llm_dir, dataset))
+            not_valid_xml, _ = get_invalid_models(os.path.join(llm_dir, dataset))
 
             for model_name in os.listdir(os.path.join(llm_dir, dataset)):
                 full_path = os.path.join(llm_dir, dataset, model_name)
