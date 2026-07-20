@@ -69,7 +69,8 @@ source ~/fw-env/bin/activate
 export OLLAMA_HOST=http://localhost:11434
 export LLMS=qwen2.5:latest,llama3.1:latest
 export DATASET_MODE=general
-export DATASETS=camunda,lre_new,lre_original,text_and_bpmn
+#export DATASETS=camunda,lre_new,lre_original,text_and_bpmn
+export DATASETS=camunda,lre_new,lre_old,bpmn_and_text
 
 run_batch() {
     for run in "$@"; do
