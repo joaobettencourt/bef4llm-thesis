@@ -152,8 +152,14 @@ def prepare_camunda(version: int = None):
         )
         extract_files(Language.ENGLISH, text_model_pairs, base_path=base_path)
     else:
-        # Full dataset: download se necessário, English + German
-        if not look_for_directory("BPMN for Research"):
+        base_path = os.path.join(
+            get_folder_path(Folder.DATA),
+            "models",
+            "camunda",
+            "bpmn-for-research-master",
+            "BPMN for Research"
+        )
+        if not os.path.isdir(base_path):
             data = DatasetCollection.CAMUNDA.value
             download_any_format(
                 url=data["link"],
@@ -161,8 +167,8 @@ def prepare_camunda(version: int = None):
                 dest_dir=os.path.join(get_folder_path(Folder.DATA), data["destination_dir"]),
                 compressed=True
             )
-        extract_files(Language.ENGLISH, text_model_pairs)
-        extract_files(Language.GERMAN, text_model_pairs)
+        extract_files(Language.ENGLISH, text_model_pairs, base_path=os.path.join(base_path, "English"))
+        extract_files(Language.GERMAN, text_model_pairs, base_path=os.path.join(base_path, "German"))
 
     return text_model_pairs
 
