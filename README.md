@@ -154,11 +154,12 @@ It produces:
 **Step 2: Run statistical tests** 
 
 ```
-python src/compare_llms.py statistical_tests <metric>
+python src/compare_llms.py statistical_tests <option>
 ```
 
-Where `<metric>` can be:
+Where `<option>` can be:
 - `syntactic` → syntactic quality analysis
 - `pragmatic` → pragmatic quality analysis
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
+- `table7` → writes Global Skillings-Mack test to a file

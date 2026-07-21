@@ -181,3 +181,5 @@ def run_syntactic_statistical_tests(runs):
             print("No significant pairs found after correction.")
     else:
         print("No pairs had sufficient data for comparison.") 
+
+    return sm_stat, sm_p, sm_df

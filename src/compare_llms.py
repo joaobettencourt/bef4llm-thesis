@@ -14,6 +14,8 @@ from bef4llm.statistical_tests.syntactic_quality_analysis import run_syntactic_s
 from bef4llm.statistical_tests.pragmatic_quality_analysis import run_pragmatic_statistical_tests
 from bef4llm.statistical_tests.semantic_quality_analysis import run_semantic_statistical_tests
 
+from bef4llm.statistical_tests.tables.table7 import generate_table7
+
 from bef4llm.statistical_tests.statistical_tests_datasets import (
     generate_data_for_statistical_tests
 )
@@ -382,4 +384,5 @@ if __name__ == "__main__":
             run_syntactic_statistical_tests(runs)
             run_pragmatic_statistical_tests(runs)
             run_semantic_statistical_tests(runs)
-
+        elif args.metric == "table7":
+            generate_table7(runs)
