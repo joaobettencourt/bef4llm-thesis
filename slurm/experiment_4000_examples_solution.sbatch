@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=experiment_3000_examples_solution
+#SBATCH --job-name=experiment_4000_examples_solution
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu
 #SBATCH --qos=gpu075522026
@@ -67,7 +67,7 @@ source ~/fw-env/bin/activate
 # 3. Shared config
 # =========================================================
 export OLLAMA_HOST=http://localhost:11434
-export LLMS=qwen2.5:latest,llama3.1:latest
+export LLMS=llama4:16x17b,qwen3.5:35b,eurollm-22b:latest
 export DATASET_MODE=general
 #export DATASETS=camunda,lre_new,lre_original,text_and_bpmn
 export DATASETS=camunda,lre_new,lre_old,bpmn_and_text
