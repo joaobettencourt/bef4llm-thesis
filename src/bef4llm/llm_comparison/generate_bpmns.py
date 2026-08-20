@@ -146,7 +146,7 @@ class Benchmark():
 
         return True
 
-    def change_sys_msg_lang(self, lang, timeout=300):
+    def change_sys_msg_lang(self, lang, timeout=1800):
         """
         Allows to adapt the language of the system message
 

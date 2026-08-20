@@ -23,7 +23,7 @@ class ConnectLLMs():
     """
     Class to connect to an LLM via Ollama API
     """
-    def __init__(self, llm_modell, sys_msg, timeout=300):
+    def __init__(self, llm_modell, sys_msg, timeout=1800):
         """
         Initalizes the class
         Parameters
