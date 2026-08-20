@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=experiment_4000_examples_solution
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu
+#SBATCH --gres=gpu:a100:1
 #SBATCH --qos=gpu075522026
 #SBATCH --mem=128G
 #SBATCH --time=72:00:00
@@ -33,6 +33,7 @@ echo "[$(date)] Logs for this run: $RUN_DIR"
 # 1. Start Ollama and wait until it is ready
 # =========================================================
 echo "[$(date)] Starting ollama serve..."
+export OLLAMA_LOAD_TIMEOUT=30m
 ollama serve > "$RUN_DIR/ollama.log" 2>&1 &
 OLLAMA_PID=$!
 
