@@ -1,8 +1,8 @@
+import os
 import pandas as pd
 
 from bef4llm.definitions import Folder
 from bef4llm.resource_controller.path_helper import get_folder_path
-from bef4llm.llm_comparison import quality_check
 from bef4llm.statistical_tests.tables.common import save_table
 
 # Minimum fraction of valid BPMN-XMLs (averaged across runs) an LLM must
@@ -12,79 +12,68 @@ from bef4llm.statistical_tests.tables.common import save_table
 MIN_VALID_RATIO = 0.10
 
 
+def _load_per_model_results(llm, run):
+    """
+    Reads the per-model results CSV produced by
+    get_metric_results_per_process_model for a given llm/run.
+    Returns None if the file doesn't exist yet.
+    """
+    path = f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}/{llm}.csv"
+    if not os.path.isfile(path):
+        print(f"[WARNING] Missing per-model results file: {path}")
+        return None
+    return pd.read_csv(path, sep=";")
+
+
 def generate_table8(llms, runs):
     """
     Builds Table 8 (validity, AVBM, per-dimension quality scores, and
     aggregate totals per LLM) and saves it as table8.csv, in the same
     statistical_tests_group_<runs>/tables directory used for Table 7.
+
+    Everything is derived from the per-model results CSVs (one row per
+    expected process model, with a 'status' column of valid/invalid/
+    not_generated) produced by the 'statistical_datasets' step — no
+    separate recomputation against the raw .bpmn files is needed here.
     """
     runs_suffix = "_".join(str(r) for r in runs)
     group_dir = f"{get_folder_path(Folder.DATA)}/statistical_tests/statistical_tests_group_{runs_suffix}"
 
-    # ------------------------------------------------------------------
-    # 1. Q_syn, Q_prag, Q_sem: column means from the pooled quality CSVs
-    #    (same files Table 7 already reads)
-    # ------------------------------------------------------------------
-    metric_files = {
-        "Q_syn": "syntactic quality.csv",
-        "Q_prag": "pragmatic quality.csv",
-        "Q_sem": "semantic quality.csv",
-    }
+    per_llm_run_stats = {}  # {llm: {"num_valid": [...], "total": [...], "Q_syn": [...], "Q_prag": [...], "Q_sem": [...]}}
 
-    quality_means = {}  # {llm: {"Q_syn": ..., "Q_prag": ..., "Q_sem": ...}}
-    for col_name, filename in metric_files.items():
-        path = f"{group_dir}/{filename}"
-        df = pd.read_csv(path, sep=";", index_col=0)
-        means = df.mean(axis=0, skipna=True)
-        for llm, value in means.items():
-            quality_means.setdefault(llm, {})[col_name] = value
-
-    # ------------------------------------------------------------------
-    # 2. Q_val and AVBM: run the quality check per run, then average the
-    #    validity ratio and raw valid counts per LLM across all runs
-    # ------------------------------------------------------------------
-    per_run_frames = []
-    for run in runs:
-        df_run = quality_check.run_quality_check_for_run(run=run, evaluation="quality_group_score")
-        df_run = df_run.set_index("llm")
-        per_run_frames.append(df_run)
-
-    validity_rows = []
     for llm in llms:
-        run_num_valid, run_totals = [], []
-        for df_run in per_run_frames:
-            if llm not in df_run.index:
+        stats = {"num_valid": [], "total": [], "Q_syn": [], "Q_prag": [], "Q_sem": []}
+        for run in runs:
+            df = _load_per_model_results(llm, run)
+            if df is None:
                 continue
-            row = df_run.loc[llm]
-            if pd.notna(row.get("num_valid")):
-                run_num_valid.append(row["num_valid"])
-                run_totals.append(row.get("total"))
 
-        avbm = (sum(run_num_valid) / len(run_num_valid)) if run_num_valid else None
-        avg_total = (sum(run_totals) / len(run_totals)) if run_totals else None
-        q_val = (avbm / avg_total) if (avbm is not None and avg_total) else None
+            total = len(df)
+            num_valid = (df["status"] == "valid").sum()
 
-        validity_rows.append({
-            "llm": llm,
-            "Q_val": q_val,
-            "AVBM": avbm,
-            "_avg_total_models": avg_total,
-        })
+            stats["total"].append(total)
+            stats["num_valid"].append(num_valid)
+            stats["Q_syn"].append(df["syntactic quality"].mean(skipna=True))
+            stats["Q_prag"].append(df["pragmatic quality"].mean(skipna=True))
+            stats["Q_sem"].append(df["semantic quality"].mean(skipna=True))
 
-    validity_df = pd.DataFrame(validity_rows).set_index("llm")
+        per_llm_run_stats[llm] = stats
 
-    # ------------------------------------------------------------------
-    # 3. Merge, compute Q_qual / Q_total, apply the AVBM ratio filter
-    # ------------------------------------------------------------------
     rows = []
     for llm in llms:
-        q = quality_means.get(llm, {})
-        v = validity_df.loc[llm] if llm in validity_df.index else None
+        stats = per_llm_run_stats[llm]
 
-        q_syn, q_prag, q_sem = q.get("Q_syn"), q.get("Q_prag"), q.get("Q_sem")
-        q_val = v["Q_val"] if v is not None else None
-        avbm = v["AVBM"] if v is not None else None
-        avg_total = v["_avg_total_models"] if v is not None else None
+        if not stats["total"]:
+            print(f"[WARNING] Skipping {llm}: no per-model data found for any run.")
+            continue
+
+        avbm = sum(stats["num_valid"]) / len(stats["num_valid"])
+        avg_total = sum(stats["total"]) / len(stats["total"])
+        q_val = avbm / avg_total if avg_total else None
+
+        q_syn = pd.Series(stats["Q_syn"]).mean(skipna=True)
+        q_prag = pd.Series(stats["Q_prag"]).mean(skipna=True)
+        q_sem = pd.Series(stats["Q_sem"]).mean(skipna=True)
 
         values = (q_syn, q_prag, q_sem, q_val, avbm)
         if any(x is None or pd.isna(x) for x in values):

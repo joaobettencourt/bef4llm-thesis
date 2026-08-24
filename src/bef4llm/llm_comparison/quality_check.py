@@ -517,50 +517,96 @@ def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
 
 def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run, target_file=None):
     """
-    returns a dataframe with the score for all metrics for each process model (for all files in the given llm_dir).
-    One row is written for every model considered "valid" by get_invalid_models (same criterion as the
-    quality_group_score summary), even if an individual metric computation fails — in that case the
-    metric is set to None and the failure is logged, but the model is never silently dropped.
+    Returns a dataframe with one row per EXPECTED process model (i.e. every
+    exercise defined in `datasets`, regardless of whether it was generated
+    or is valid). Each row carries a 'status' column ('valid', 'invalid',
+    'not_generated') plus the quality scores, which are None whenever the
+    model isn't valid or a specific metric couldn't be computed.
+
+    Parameters
+    ----------
+    datasets: dict
+        dict with all datasets (dataset_name -> {exercise_name: (...)})
+    llm_dir: str
+        directory where the process models modelled by this LLM/run are stored
+    analyse_method: str
+        Granularity of the quality scores (detail, quality_group_score, metric_score)
+    run: str
+    target_file: str
+        file path to save the result (always overwritten, never appended)
+
+    Returns
+    -------
+    df: pandas dataframe
+        one row per expected bpmn, metrics + status as columns
     """
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=False)
     quality_scores["process model"] = []
     quality_scores["run"] = []
+    quality_scores["status"] = []
 
-    metric_errors = {}  # path -> reason, for the invalid_models.log
+    metric_errors = {}  # path -> reason, feeds the invalid_models.log
 
-    for dataset in os.listdir(llm_dir):
-        if not os.path.isdir(f"{llm_dir}/{dataset}"):
+    for dataset in datasets.keys():
+        ds_dir = os.path.join(llm_dir, dataset)
+        expected_names = datasets[dataset].keys()
+
+        if not os.path.isdir(ds_dir):
+            # whole dataset folder missing -> every exercise in it is not_generated
+            for name in expected_names:
+                fake_path = f"{ds_dir}/{name}.bpmn"
+                metric_errors[fake_path] = "[NOT_GENERATED] Dataset folder missing"
+                quality_scores["process model"].append(name)
+                quality_scores["run"].append(f"{run}")
+                quality_scores["status"].append("not_generated")
+                for metric in quality_scores:
+                    if metric not in ["process model", "run", "status"]:
+                        quality_scores[metric].append(None)
             continue
 
-        expected_names = datasets[dataset].keys()
         not_valid_xml, invalid_reasons, not_generated = get_invalid_models(
-            os.path.join(llm_dir, dataset), expected_names=expected_names
+            ds_dir, expected_names=expected_names
         )
-        metric_errors.update(invalid_reasons)  # carries forward invalid + not_generated entries too
+        metric_errors.update(invalid_reasons)
 
-        for model_name in os.listdir(os.path.join(llm_dir, dataset)):
-            full_path = os.path.join(llm_dir, dataset, model_name)
+        not_valid_names = {os.path.basename(p).split(".")[0] for p in not_valid_xml}
+        not_generated_names = {os.path.basename(p).split(".")[0] for p in not_generated}
 
-            if not model_name.endswith(".bpmn"):
+        for model_name in sorted(expected_names):
+            quality_scores["process model"].append(model_name)
+            quality_scores["run"].append(f"{run}")
+
+            if model_name in not_generated_names:
+                quality_scores["status"].append("not_generated")
+                for metric in quality_scores:
+                    if metric not in ["process model", "run", "status"]:
+                        quality_scores[metric].append(None)
                 continue
-            if full_path in not_valid_xml:
-                continue  # already logged as [INVALID]
 
-            stem = model_name.split(".")[0]
-
-            if stem not in datasets[dataset]:
-                # Defensive: shouldn't normally happen since not_generated is computed from the
-                # same dataset keys. If it does, treat it as invalid rather than dropping silently.
-                metric_errors[full_path] = "[INVALID] Model name not found in dataset definition"
+            if model_name in not_valid_names:
+                quality_scores["status"].append("invalid")
+                for metric in quality_scores:
+                    if metric not in ["process model", "run", "status"]:
+                        quality_scores[metric].append(None)
                 continue
+
+            # valid: actually load and score it
+            full_path = os.path.join(ds_dir, f"{model_name}.bpmn")
+            quality_scores["status"].append("valid")
+            scores = dict()
 
             try:
                 model = load_diagram_from_xml(full_path)
             except Exception as e:
+                # was schema-valid but failed to load as a diagram object -> treat as invalid
+                quality_scores["status"][-1] = "invalid"
                 metric_errors[full_path] = f"[INVALID] Failed to load BPMN: {e}"
+                for metric in quality_scores:
+                    if metric not in ["process model", "run", "status"]:
+                        scores[metric] = None
+                for score in scores:
+                    quality_scores[score].append(scores[score])
                 continue
-
-            scores = dict()
 
             if analyse_method == "metric_score":
                 try:
@@ -577,8 +623,8 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
 
                 semantic_result = semantic_check_single_model(
                     model=model,
-                    reference_model=datasets[dataset][stem][2],
-                    lang=datasets[dataset][stem][0],
+                    reference_model=datasets[dataset][model_name][2],
+                    lang=datasets[dataset][model_name][0],
                     analyse_mode=analyse_method
                 )
                 if semantic_result is None:
@@ -607,25 +653,19 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
                 try:
                     semantic_score = semantic_check_single_model(
                         model=model,
-                        reference_model=datasets[dataset][stem][2],
-                        lang=datasets[dataset][stem][0],
+                        reference_model=datasets[dataset][model_name][2],
+                        lang=datasets[dataset][model_name][0],
                         analyse_mode="quality_group_score"
                     )
-                    scores["semantic quality"] = semantic_score  # may be None, that's fine
+                    scores["semantic quality"] = semantic_score
                     if semantic_score is None:
                         metric_errors[full_path] = "[METRIC_ERROR] semantic: returned None"
                 except Exception as e:
                     scores["semantic quality"] = None
                     metric_errors[full_path] = f"[METRIC_ERROR] semantic: {e}"
 
-            # ALWAYS append a row for a model that passed get_invalid_models, regardless of
-            # whether individual metrics succeeded. This is what keeps this CSV's row count
-            # in sync with num_valid from the quality_group_score summary.
-            quality_scores["process model"].append(stem)
-            quality_scores["run"].append(f"{run}")
-
             for metric in quality_scores:
-                if metric not in ["process model", "run"] and metric not in scores:
+                if metric not in ["process model", "run", "status"] and metric not in scores:
                     scores[metric] = None
 
             for score in scores:
@@ -633,7 +673,6 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
                     quality_scores[score] = []
                 quality_scores[score].append(scores[score])
 
-    # write/append the per-model log entries for this llm_dir call, alongside the main invalid log
     if metric_errors:
         log_path = os.path.join(llm_dir, "invalid_models.log")
         mode = "a" if os.path.isfile(log_path) else "w"
@@ -645,10 +684,14 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
 
     df = pd.DataFrame(quality_scores)
 
-    if not os.path.isfile(target_file):
-        df.to_csv(target_file, sep=";", index=False)
-    else:
-        df.to_csv(target_file, sep=";", mode='a', index=False, header=False)
+    # always overwrite: this function already produces the complete
+    # dataframe for this llm/run in one pass, so appending would only
+    # ever duplicate rows across repeated invocations of the command.
+    lead_cols = ["process model", "run", "status"]
+    other_cols = [c for c in df.columns if c not in lead_cols]
+    df = df[lead_cols + other_cols]
+
+    df.to_csv(target_file, sep=";", index=False)
     return df
 
 def get_datasets_config():

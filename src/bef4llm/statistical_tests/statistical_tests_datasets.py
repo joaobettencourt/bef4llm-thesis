@@ -18,17 +18,17 @@ def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets, runs):
     """
     for llm in llms:
         for run in runs:
-            print("run ", run)
-
             output_dir = f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}"
             os.makedirs(output_dir, exist_ok=True)
 
-            quality_check.get_metric_results_per_process_model(datasets=datasets,
-                                                    llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}",
-                                                    analyse_method="quality_group_score",
-                                                    run=run,
-                                                    target_file=f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}/{llm}.csv")
-
+            quality_check.get_metric_results_per_process_model(
+                datasets=datasets,
+                llm_dir=f"{get_folder_path(Folder.DATA)}/llm_run{run}/{llm}",
+                analyse_method="quality_group_score",
+                run=run,
+                target_file=f"{output_dir}/{llm}.csv"
+            )
+    
 
 def generate_data_for_statistical_tests(llms, datasets, runs):
     """
