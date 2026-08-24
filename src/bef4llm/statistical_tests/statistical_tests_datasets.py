@@ -16,21 +16,10 @@ def calcualte_metric_results_per_bpmn_for_each_LLM(llms, datasets, runs):
         list of LLM tags
     datasets : dictionary
     """
-    missing_llms = []
-    for llm in llms:
-        if not os.path.isdir(f"{get_folder_path(Folder.DATA)}/llm_metric_results_run1/{llm}.csv"):
-            missing_llms.append(llm)
-
     for llm in llms:
         for run in runs:
             print("run ", run)
 
-#            quality_check.get_metric_results_per_process_model(datasets=datasets,
-#                                                     test_llm_dir=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}",
-#                                                     target_file=f"{get_folder_path(Folder.DATA)}/llm_metric_results_run{run}/{llm}.csv",
-#                                                     analyse_method="metric_score",
-#                                                     run=run)
-            
             output_dir = f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}"
             os.makedirs(output_dir, exist_ok=True)
 
@@ -51,35 +40,7 @@ def generate_data_for_statistical_tests(llms, datasets, runs):
     os.makedirs(base_path, exist_ok=True)
 
     # ---------------------------------------
-    # 1. Build BPMN + run identifiers
-    # ---------------------------------------
-    bpmn_models = [
-        bpmn
-        for dataset in datasets
-        for bpmn in datasets[dataset].keys()
-    ]
-
-    bpmn_run_ids = [
-        f"{bpmn}_run {run}"
-        for bpmn in bpmn_models
-        for run in runs
-    ]
-
-    # ---------------------------------------
-    # 2. Initialize metric structure
-    # ---------------------------------------
-    metrics = ["syntactic quality", "pragmatic quality", "semantic quality"]
-
-    metric_data = {
-        metric: {
-            bpmn_id: {llm: None for llm in llms}
-            for bpmn_id in bpmn_run_ids
-        }
-        for metric in metrics
-    }
-
-    # ---------------------------------------
-    # 3. Generate metric CSVs (per LLM/run)
+    # 1. Generate metric CSVs (per LLM/run)
     # ---------------------------------------
     calcualte_metric_results_per_bpmn_for_each_LLM(
         llms=llms,
@@ -88,9 +49,10 @@ def generate_data_for_statistical_tests(llms, datasets, runs):
     )
 
     # ---------------------------------------
-    # 4. Read generated CSVs
+    # 2. Read generated CSVs
     # ---------------------------------------
     rows = []
+    metrics = ["syntactic quality", "pragmatic quality", "semantic quality"]
 
     for run in runs:
         run_path = f"{base_path}/llm_metric_results_run{run}"
@@ -133,7 +95,7 @@ def generate_data_for_statistical_tests(llms, datasets, runs):
                     })
 
     # ---------------------------------------
-    # 5. Convert to DataFrame + save
+    # 3. Convert to DataFrame + save
     # ---------------------------------------
     runs_suffix = "_".join(str(r) for r in runs)
     output_dir = f"{get_folder_path(Folder.DATA)}/statistical_tests/statistical_tests_group_{runs_suffix}"

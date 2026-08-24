@@ -352,19 +352,3 @@ def prepare_experts_comparison():
     print(text_model_pairs)
     return text_model_pairs
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

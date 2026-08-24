@@ -145,6 +145,7 @@ First, the statistical datasets must be generated from the results of the config
 ```
 python src/compare_llms.py statistical_datasets
 ```
+*IMPORTANT*: `LLMs` and `DATASETS` configured on `.env`
 
 This step processes the outputs of all runs and LLMs and creates the datasets required for statistical analysis.
 It produces:
@@ -163,3 +164,4 @@ Where `<option>` can be:
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
 - `table7` → writes Global Skillings-Mack test to a file
+- `table8` → wrties overall results to a file
