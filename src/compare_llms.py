@@ -341,3 +341,4 @@ if __name__ == "__main__":
             generate_table11(runs)
             generate_table12(llms, runs)
             generate_table13(llms, runs)
+            generate_table14(llms, runs)

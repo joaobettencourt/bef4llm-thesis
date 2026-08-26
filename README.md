@@ -170,4 +170,5 @@ Where `<option>` can be:
 - `table11` → writes Wilcoxon contrasts for the semantic quality
 - `table12` → writes Mean syntactic, pragmatic, and semantic scores (0–1 scale)
 - `table13` → writes Wilcoxon signed–rank tests contrasting small and large checkpoints
+- `table14` → writes human comparison table
 - `tables` → writes all tables
