@@ -21,6 +21,7 @@ from bef4llm.statistical_tests.tables.table10 import generate_table10
 from bef4llm.statistical_tests.tables.table11 import generate_table11
 from bef4llm.statistical_tests.tables.table12 import generate_table12
 from bef4llm.statistical_tests.tables.table13 import generate_table13
+from bef4llm.statistical_tests.tables.table14 import generate_table14
 
 from bef4llm.statistical_tests.statistical_tests_datasets import (
     generate_data_for_statistical_tests
@@ -328,6 +329,9 @@ if __name__ == "__main__":
         elif args.metric == "table13": 
             llms = get_llms()
             generate_table13(llms, runs)
+        elif args.metric == "table14": 
+            llms = get_llms()
+            generate_table14(llms, runs)
         elif args.metric == "tables":
             llms = get_llms()
             generate_table7(runs)
