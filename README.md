@@ -164,4 +164,10 @@ Where `<option>` can be:
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
 - `table7` → writes Global Skillings-Mack test to a file
-- `table8` → wrties overall results to a file
+- `table8` → writes overall results to a file
+- `table9` → writes Wilcoxon contrasts for the syntactic quality
+- `table10` → writes Wilcoxon contrasts for the pragmatic quality
+- `table11` → writes Wilcoxon contrasts for the semantic quality
+- `table12` → writes Mean syntactic, pragmatic, and semantic scores (0–1 scale)
+- `table13` → writes Wilcoxon signed–rank tests contrasting small and large checkpoints
+- `tables` → writes all tables

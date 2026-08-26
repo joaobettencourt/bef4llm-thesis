@@ -16,6 +16,11 @@ from bef4llm.statistical_tests.semantic_quality_analysis import run_semantic_sta
 
 from bef4llm.statistical_tests.tables.table7 import generate_table7
 from bef4llm.statistical_tests.tables.table8 import generate_table8
+from bef4llm.statistical_tests.tables.table9 import generate_table9
+from bef4llm.statistical_tests.tables.table10 import generate_table10
+from bef4llm.statistical_tests.tables.table11 import generate_table11
+from bef4llm.statistical_tests.tables.table12 import generate_table12
+from bef4llm.statistical_tests.tables.table13 import generate_table13
 
 from bef4llm.statistical_tests.statistical_tests_datasets import (
     generate_data_for_statistical_tests
@@ -311,3 +316,24 @@ if __name__ == "__main__":
         elif args.metric == "table8": 
             llms = get_llms()
             generate_table8(llms, runs)
+        elif args.metric == "table9":
+            generate_table9(runs)
+        elif args.metric == "table10":
+            generate_table10(runs)
+        elif args.metric == "table11":
+            generate_table11(runs)
+        elif args.metric == "table12": 
+            llms = get_llms()
+            generate_table12(llms, runs)
+        elif args.metric == "table13": 
+            llms = get_llms()
+            generate_table13(llms, runs)
+        elif args.metric == "tables":
+            llms = get_llms()
+            generate_table7(runs)
+            generate_table8(llms, runs)
+            generate_table9(runs)
+            generate_table10(runs)
+            generate_table11(runs)
+            generate_table12(llms, runs)
+            generate_table13(llms, runs)
