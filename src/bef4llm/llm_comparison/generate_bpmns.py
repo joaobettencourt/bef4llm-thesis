@@ -146,7 +146,7 @@ class Benchmark():
 
         return True
 
-    def change_sys_msg_lang(self, lang, timeout=1800):
+    def change_sys_msg_lang(self, lang, load_timeout=1800, generate_timeout=300, keep_alive="60m"):
         """
         Allows to adapt the language of the system message
 
@@ -154,6 +154,14 @@ class Benchmark():
         ----------
         lang: Language
             indicates the language of the system message
+        load_timeout: int
+            timeout (seconds) for the initial model warm-up / load. Only used
+            the first time this LLM is connected (self.llm is None).
+        generate_timeout: int
+            timeout (seconds) applied to regular chat/generation requests
+            after warm-up.
+        keep_alive: str
+            how long Ollama keeps the model loaded between requests.
         """
         if lang == Language.ENGLISH:
             self.sys_msg = prompts.sys_msg # + "\\no_think" disable thinking mode
@@ -161,7 +169,13 @@ class Benchmark():
             raise Exception("Language is not implemented yet")
 
         if not self.llm:
-            self.llm = ConnectLLMs(llm_modell=self.llm_model, sys_msg=self.sys_msg, timeout=timeout)
+            self.llm = ConnectLLMs(
+                llm_modell=self.llm_model,
+                sys_msg=self.sys_msg,
+                load_timeout=load_timeout,
+                generate_timeout=generate_timeout,
+                keep_alive=keep_alive,
+            )
         else:
             self.llm.init_sys_role(self.sys_msg)
         self.current_lang = lang

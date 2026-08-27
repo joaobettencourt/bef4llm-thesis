@@ -109,7 +109,7 @@ cd scripts
 cd ..
 
 run_batch 4521 4522 4523
-join_batch baseline 4521 4522 4523
+join_batch examples_solution 4521 4522 4523
 
 echo "[$(date)] Full run finished."
 
