@@ -49,7 +49,7 @@ def get_run_config_path(run):
     return os.path.join(get_folder_path(Folder.DATA), f"llm_run{run}", "run_config.json")
 
 
-def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
+def save_run_config(run, llms, datasets, dataset_mode, rag_config=None, timeout_config=None):
     """Save the configuration for a benchmark run, or validate it against an existing one.
 
     Args:
@@ -58,6 +58,7 @@ def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
         datasets: Dataset dict (only stored when dataset_mode == "general").
         dataset_mode: Mode used to select datasets.
         rag_config: Optional RAG configuration dict.
+        timeout_config: Optional timeout configuration dict.
     """
     path = get_run_config_path(run)
     config = {
@@ -72,6 +73,9 @@ def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
     if rag_config is not None:
         config["rag"] = rag_config
 
+    if timeout_config is not None:
+        config["timeout"] = timeout_config
+
     if os.path.exists(path):
         with open(path, "r") as f:
             existing = json.load(f)
@@ -81,12 +85,14 @@ def save_run_config(run, llms, datasets, dataset_mode, rag_config=None):
             "datasets": existing.get("datasets"),
             "dataset_mode": existing.get("dataset_mode"),
             "rag": existing.get("rag"),
+            "timeout": existing.get("timeout"),
         }
         core_new = {
             "llms": config["llms"],
             "datasets": config.get("datasets"),
             "dataset_mode": config["dataset_mode"],
             "rag": config.get("rag"),
+            "timeout": config.get("timeout"),
         }
 
         if core_existing != core_new:
@@ -184,6 +190,11 @@ def generate_bpmn(run):
 
     dataset_mode = os.getenv("DATASET_MODE")
 
+    timeout_config = {
+        "load_timeout": int(os.getenv("LOAD_TIMEOUT", "1800")),
+        "generate_timeout": int(os.getenv("GENERATE_TIMEOUT", "300")),
+    }
+
     rag_config = {
         "enabled": os.getenv("RAG_ENABLED", "false").lower() == "true",
         "dir": os.getenv("RAG_DIR"),
@@ -199,6 +210,7 @@ def generate_bpmn(run):
         datasets,
         dataset_mode,
         rag_config,
+        timeout_config,
     )
 
     try:
@@ -226,6 +238,8 @@ def generate_bpmn(run):
                     datasets[dataset],
                     llm=llm,
                     dataset_name=dataset,
+                    load_timeout=timeout_config["load_timeout"],
+                    generate_timeout=timeout_config["generate_timeout"],
                 )
 
                 benchmark.model_processes(
