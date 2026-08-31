@@ -137,31 +137,3 @@ class Folder(Enum):
     RESOURCE_CONTROLLER = os.path.join("src", "bef4llm", "resource_controller")
     RMM_CORE = os.path.join("src", "bef4llm")
     TEST = "test"
-
-class SapSamConstants(Enum):
-    """
-    Enum for SapSam Constants (Dataset)
-    """
-    CSV_PATH = get_folder_path(Folder.DATA) + "/models/sapsam/csv"
-    BPMN_PATH = get_folder_path(Folder.DATA) + "/models/sapsam/bpmn"
-    MODEL_PATH = get_folder_path(Folder.DATA) + "/models"
-    SAP_MODEL_PATH = get_folder_path(Folder.DATA) + "/models/sapsam"
-    DATA_PATH = get_folder_path(Folder.DATA)
-
-    BPMN2_NAMESPACE = "http://b3mn.org/stencilset/bpmn2.0#"
-
-    # login data
-    email = "chla00001@stud.uni-saarland.de"
-    pw = "PetriNet234"
-    tenant_id = '17989c1295ae48d895fdc47f2d75bc37'
-    system_instance = 'https://academic.signavio.com'
-
-class BPMNSize(Enum):
-    """
-    Enum for BPMN Sizes
-    """
-    very_small = "very small"
-    small = "small"
-    medium = "medium"
-    large = "large"
-    very_large = "very large"

@@ -29,7 +29,6 @@ RUN pip install -r requirements.txt
 
 # Copy the project code
 COPY src/ ./src
-COPY setup.py .
 COPY README.md .
 
 # Copy the helping scripts
