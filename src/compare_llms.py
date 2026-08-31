@@ -14,6 +14,15 @@ from bef4llm.statistical_tests.syntactic_quality_analysis import run_syntactic_s
 from bef4llm.statistical_tests.pragmatic_quality_analysis import run_pragmatic_statistical_tests
 from bef4llm.statistical_tests.semantic_quality_analysis import run_semantic_statistical_tests
 
+from bef4llm.statistical_tests.tables.table7 import generate_table7
+from bef4llm.statistical_tests.tables.table8 import generate_table8
+from bef4llm.statistical_tests.tables.table9 import generate_table9
+from bef4llm.statistical_tests.tables.table10 import generate_table10
+from bef4llm.statistical_tests.tables.table11 import generate_table11
+from bef4llm.statistical_tests.tables.table12 import generate_table12
+from bef4llm.statistical_tests.tables.table13 import generate_table13
+from bef4llm.statistical_tests.tables.table14 import generate_table14
+
 from bef4llm.statistical_tests.statistical_tests_datasets import (
     generate_data_for_statistical_tests
 )
@@ -108,59 +117,6 @@ def get_llms():
     
     return llm_list
 
-def get_datasets_config():
-    mode = os.getenv("DATASET_MODE")
-    if not mode:
-        raise RuntimeError(
-            "DATASET_MODE is not set in .env\n"
-            "Options: general | experts"
-        )
-    mode = mode.strip().lower()
-
-    if mode == "experts":
-        print("[DEBUG] Using expert dataset only")
-        return {"experts": prepare_datasets.prepare_experts_comparison()}
-
-    elif mode == "general":
-        datasets_env = os.getenv("DATASETS")
-        if not datasets_env:
-            raise RuntimeError("DATASETS must be set when DATASET_MODE=general")
-
-        dataset_names = [d.strip() for d in datasets_env.split(",") if d.strip()]
-
-        # Valida nomes: fixos + camunda_<int>
-        fixed_allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
-
-        def is_valid(name):
-            if name in fixed_allowed:
-                return True
-            parts = name.split("_")
-            return len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit()
-
-        invalid = [d for d in dataset_names if not is_valid(d)]
-        if invalid:
-            raise ValueError(f"Invalid datasets in DATASETS: {invalid}")
-
-        datasets = {}
-        for name in dataset_names:
-            if name == "camunda":
-                datasets[name] = prepare_datasets.prepare_camunda()
-            elif name.startswith("camunda_") and name.split("_")[1].isdigit():
-                version = int(name.split("_")[1])
-                datasets[name] = prepare_datasets.prepare_camunda(version=version)
-            elif name == "bpmn_and_text":
-                datasets[name] = prepare_datasets.prepare_text_and_bpmn()
-            elif name == "lre_new":
-                datasets[name] = prepare_datasets.prepare_lre_new()
-            elif name == "lre_old":
-                datasets[name] = prepare_datasets.prepare_lre_old()
-
-        print(f"[DEBUG] Using datasets: {list(datasets.keys())}")
-        return datasets
-
-    else:
-        raise ValueError("DATASET_MODE must be 'general' or 'experts'")
-
 def get_runs():
     runs = os.getenv("STATISTICAL_RUNS")
 
@@ -175,7 +131,7 @@ def get_runs():
 
 def generate_bpmn(run):
     llms = get_llms()
-    datasets = get_datasets_config()
+    datasets = quality_check.get_datasets_config()
 
     dataset_mode = os.getenv("DATASET_MODE")
 
@@ -242,41 +198,15 @@ def generate_bpmn(run):
 def check_quality_llms(run, evaluation):
     """
     Allows to analyze the quality of the LLM-generated BPMNs.
-    The analysis results are saved in a csv file llm_results_runx_evaluation (x= iteration, evaluation = evaluation type) in the folder llm_runx
+    The analysis results are saved in a csv file llm_results_runx_evaluation
+    (x = iteration, evaluation = evaluation type) in the folder llm_runx.
+
     run: int
         indicates the number of the iteration
     evaluation: string
-        We allow for three types of granualrity to assess the quality of the LLM-generated BPMNs.
-        quality_group_score: scores in the four groups sytactic, pragmatic and semantic quality, and validity
-        detail: here the subgroup scores for the quality dimensions are calculated
-        metrics: here each metric result is given
-    expert_dataset:
-        if true, the analysis is made for the expert comparison
+        quality_group_score, detail, or metrics — see quality_check module.
     """
-    datasets = get_datasets_config()
-
-    # Also index datasets by the directory names used in LLM runs
-    # e.g. if datasets has "camunda", also expose it as "camunda_1", "camunda_2", etc.
-    # by scanning the actual subdirectories in the run folder
-    llm_run_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}"
-    for llm in os.listdir(llm_run_dir):
-        llm_path = os.path.join(llm_run_dir, llm)
-        if not os.path.isdir(llm_path) or llm.startswith("."):
-            continue
-        for dataset_dir in os.listdir(llm_path):
-            if dataset_dir not in datasets:
-                # try to resolve it to a known dataset
-                parts = dataset_dir.split("_")
-                if len(parts) == 2 and parts[0] == "camunda" and parts[1].isdigit():
-                    version = int(parts[1])
-                    datasets[dataset_dir] = prepare_datasets.prepare_camunda(version=version)
-
-    df = quality_check.compute_overall_quality_llms(
-        datasets=datasets,
-        test_llm_dir=llm_run_dir,
-        target_file=f"{get_folder_path(Folder.DATA)}/llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-        analyse_method=evaluation
-    )
+    return quality_check.run_quality_check_for_run(run=run, evaluation=evaluation)
 
 def human_expert_comparison(run, evaluation, expert_dataset=False):
     """
@@ -367,7 +297,7 @@ if __name__ == "__main__":
         human_expert_comparison(run=args.run, evaluation=args.evaluation)
     elif args.command == "statistical_datasets":
         llms = get_llms()
-        datasets = get_datasets_config()
+        datasets = quality_check.get_datasets_config()
         runs = get_runs()
         generate_data_for_statistical_tests(llms, datasets, runs)
     elif args.command == "statistical_tests":
@@ -382,4 +312,33 @@ if __name__ == "__main__":
             run_syntactic_statistical_tests(runs)
             run_pragmatic_statistical_tests(runs)
             run_semantic_statistical_tests(runs)
-
+        elif args.metric == "table7":
+            generate_table7(runs)
+        elif args.metric == "table8": 
+            llms = get_llms()
+            generate_table8(llms, runs)
+        elif args.metric == "table9":
+            generate_table9(runs)
+        elif args.metric == "table10":
+            generate_table10(runs)
+        elif args.metric == "table11":
+            generate_table11(runs)
+        elif args.metric == "table12": 
+            llms = get_llms()
+            generate_table12(llms, runs)
+        elif args.metric == "table13": 
+            llms = get_llms()
+            generate_table13(llms, runs)
+        elif args.metric == "table14": 
+            llms = get_llms()
+            generate_table14(llms, runs)
+        elif args.metric == "tables":
+            llms = get_llms()
+            generate_table7(runs)
+            generate_table8(llms, runs)
+            generate_table9(runs)
+            generate_table10(runs)
+            generate_table11(runs)
+            generate_table12(llms, runs)
+            generate_table13(llms, runs)
+            generate_table14(llms, runs)

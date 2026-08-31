@@ -265,7 +265,7 @@ process_bpmn_and_text() {
 # ---------------------------------------------------------------------------
 # Main — run all (or only the ones listed in $DATASETS)
 # ---------------------------------------------------------------------------
-ALL_DATASETS="camunda camunda_1 camunda_2 lre_new lre_old bpmn_and_text"
+ALL_DATASETS="camunda lre_new lre_old bpmn_and_text"
 DATASETS="${DATASETS:-$ALL_DATASETS}"
 
 for dataset in $DATASETS; do

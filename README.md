@@ -145,6 +145,7 @@ First, the statistical datasets must be generated from the results of the config
 ```
 python src/compare_llms.py statistical_datasets
 ```
+*IMPORTANT*: `LLMs` and `DATASETS` configured on `.env`
 
 This step processes the outputs of all runs and LLMs and creates the datasets required for statistical analysis.
 It produces:
@@ -154,11 +155,20 @@ It produces:
 **Step 2: Run statistical tests** 
 
 ```
-python src/compare_llms.py statistical_tests <metric>
+python src/compare_llms.py statistical_tests <option>
 ```
 
-Where `<metric>` can be:
+Where `<option>` can be:
 - `syntactic` → syntactic quality analysis
 - `pragmatic` → pragmatic quality analysis
 - `semantic` → semantic quality analysis
 - `all` → runs all statistical tests
+- `table7` → writes Global Skillings-Mack test to a file
+- `table8` → writes overall results to a file
+- `table9` → writes Wilcoxon contrasts for the syntactic quality
+- `table10` → writes Wilcoxon contrasts for the pragmatic quality
+- `table11` → writes Wilcoxon contrasts for the semantic quality
+- `table12` → writes Mean syntactic, pragmatic, and semantic scores (0–1 scale)
+- `table13` → writes Wilcoxon signed–rank tests contrasting small and large checkpoints
+- `table14` → writes human comparison table
+- `tables` → writes all tables
