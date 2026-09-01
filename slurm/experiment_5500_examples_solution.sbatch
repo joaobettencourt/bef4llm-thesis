@@ -87,11 +87,15 @@ join_batch() {
     local run1=$2
     local run2=$3
     local run3=$4
+    local run4=$5
+    local run5=$6
 
     cd scripts
-    ./join_runs.sh 4501 "$run1" "$suffix"
-    ./join_runs.sh 4502 "$run2" "$suffix"
-    ./join_runs.sh 4503 "$run3" "$suffix"
+    ./join_runs.sh 5501 "$run1" "$suffix"
+    ./join_runs.sh 5502 "$run2" "$suffix"
+    ./join_runs.sh 5503 "$run3" "$suffix"
+    ./join_runs.sh 5504 "$run4" "$suffix"
+    ./join_runs.sh 5505 "$run5" "$suffix"
     cd ..
 }
 
@@ -104,12 +108,11 @@ export RAG_DIR=mock/experts_solution
 
 echo "[$(date)] Generating RAG mock solution..."
 cd scripts
-#./generate_rag_mock_solution.sh
 ./generate_rag_mock_experts_solution.sh
 cd ..
 
-run_batch 4521 4522 4523
-join_batch examples_solution 4521 4522 4523
+run_batch 5521 5522 5523 5524 5525
+join_batch examples_solution 5521 5522 5523 5524 5525
 
 echo "[$(date)] Full run finished."
 
