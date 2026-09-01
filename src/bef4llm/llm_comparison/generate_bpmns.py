@@ -20,8 +20,7 @@ class Benchmark():
     """
     Class for generating BPMN diagrams, based on given Datasets
     """
-    def __init__(self, dataset, llm: str, sys_msg=None, dataset_name=None):
-
+    def __init__(self, dataset, llm: str, sys_msg=None, dataset_name=None, load_timeout=1800, generate_timeout=300):
         self.text_model_pairs = dataset
         self.dataset_name = dataset_name
         self.syntax_scores = []
@@ -30,10 +29,11 @@ class Benchmark():
         self.sys_msg = None
         self.llm_model = llm
         self.llm = None
+        self.load_timeout = load_timeout
+        self.generate_timeout = generate_timeout
         self.current_lang = list(self.text_model_pairs.values())[0][0]
         if not sys_msg:
-            self.change_sys_msg_lang(self.current_lang)
-        # init llm
+            self.change_sys_msg_lang(self.current_lang, load_timeout, generate_timeout)
 
     def model_processes(self, target_dir, rag_config):
         """
@@ -146,7 +146,7 @@ class Benchmark():
 
         return True
 
-    def change_sys_msg_lang(self, lang, load_timeout=1800, generate_timeout=300, keep_alive="60m"):
+    def change_sys_msg_lang(self, lang, load_timeout=None, generate_timeout=None, keep_alive="60m"):
         """
         Allows to adapt the language of the system message
 
@@ -167,6 +167,12 @@ class Benchmark():
             self.sys_msg = prompts.sys_msg # + "\\no_think" disable thinking mode
         elif lang == Language.GERMAN:
             raise Exception("Language is not implemented yet")
+
+        # Usar valores padrão se não forem fornecidos
+        if load_timeout is None:
+            load_timeout = self.load_timeout
+        if generate_timeout is None:
+            generate_timeout = self.generate_timeout
 
         if not self.llm:
             self.llm = ConnectLLMs(
