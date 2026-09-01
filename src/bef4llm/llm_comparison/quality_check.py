@@ -1,40 +1,43 @@
-from bef4llm.process_models.importer.bpmn_importer import load_bpmn_from_directory, load_diagram_from_xml
-from bef4llm.semantic_quality.semantic_quality_check import SemanticQualityCheckBPMN
-from bef4llm.synactic_quality.synactic_quality_check import SyntacticQualityCheckBPMN
-from bef4llm.pragmatic_quality.pragmatic_quality_check import PragmaticQualityCheckBPMN
-from bef4llm.process_models.graph_representation.collaboration_model import CollaborationModel
-#from bef4llm.validation.validation import 
-from bef4llm.validation.validation import validate_bpmn_with_error_message, validate_bpmn
-from bef4llm.llm_comparison import prepare_datasets
-
-from bef4llm.definitions import *
-from bef4llm.resource_controller.path_helper import get_folder_path
+import os
+from statistics import mean
 
 import pandas as pd
 from tqdm import tqdm
-from statistics import mean
 
-import os
+from bef4llm.definitions import (
+    Folder,
+    Pragmatic_Metrics,
+    Pragmatic_Subgroups,
+    Similarity_Groups,
+    Similarity_Metrics,
+    Sytax_Mistakes,
+)
+from bef4llm.llm_comparison import prepare_datasets
+from bef4llm.pragmatic_quality.pragmatic_quality_check import PragmaticQualityCheckBPMN
+from bef4llm.process_models.graph_representation.collaboration_model import CollaborationModel
+from bef4llm.process_models.importer.bpmn_importer import (
+    load_bpmn_from_directory,
+    load_diagram_from_xml,
+)
+from bef4llm.resource_controller.path_helper import get_folder_path
+from bef4llm.semantic_quality.semantic_quality_check import SemanticQualityCheckBPMN
+from bef4llm.synactic_quality.synactic_quality_check import SyntacticQualityCheckBPMN
+from bef4llm.validation.validation import validate_bpmn, validate_bpmn_with_error_message
 
 
 def make_syntactic_check(models, not_valid=None, analyse_mode="detail"):
-    """
-    Computes the syntactic quality check for a given set of models.
+    """Computes the syntactic quality check for a given set of models.
 
-    Parameters
-    ----------
-    models : list, str
-        List of models to check or dir where models are located.
-    not_valid : list
-        list of models, that should not be checked (either path to model or object)
-    analyse_mode : str
-        Granuarity in which the syntactic quality should be computed (detail, quality_group_score, metric_score)
+    Args:
+        models: List of models to check, or a directory where models are located.
+        not_valid: List of models that should not be checked (path or object).
+        analyse_mode: Granularity of the syntactic quality computation
+            ("detail", "quality_group_score", "metric_score").
 
-    Returns
-    -------
-    score_list_syn: list of scores with syntactic quality score for each model.
-    or score_metric_dict: dict of metrics of syntactic quality, with scores for each model
-
+    Returns:
+        A list of syntactic quality scores per model (for "detail"/"quality_group_score"),
+        or a dict of per-metric score lists (for "metric_score"), plus the list of models
+        that could not be analysed.
     """
     if not not_valid:
         not_valid = []
@@ -50,7 +53,7 @@ def make_syntactic_check(models, not_valid=None, analyse_mode="detail"):
     if len(models) > 0 and isinstance(models[0], str) and os.path.isfile(models[0]):
         new_models = []
         for model in models:
-            if model not in not_valid and model.endswith('.bpmn') and model not in not_valid:
+            if model not in not_valid and model.endswith(".bpmn") and model not in not_valid:
                 try:
                     new_models.append(load_diagram_from_xml(model))
                 except:
@@ -60,21 +63,20 @@ def make_syntactic_check(models, not_valid=None, analyse_mode="detail"):
 
         models = new_models.copy()
 
-
     for model in models:
         try:
             if model.process_graph.number_of_nodes() > 1 and model not in not_valid:
-                    syn_check = SyntacticQualityCheckBPMN(model)
-                    if analyse_mode == "detail" or analyse_mode == "quality_group_score":
-                        score = syn_check.syntax_check()
-                        score_list_syn.append(score)
-                    elif analyse_mode == "metric_score":
-                        metric_score = syn_check.syntax_check_metric_results()
-                        for metric in score_metric_dict:
-                            score_metric_dict[metric].append(metric_score[metric])
+                syn_check = SyntacticQualityCheckBPMN(model)
+                if analyse_mode == "detail" or analyse_mode == "quality_group_score":
+                    score = syn_check.syntax_check()
+                    score_list_syn.append(score)
+                elif analyse_mode == "metric_score":
+                    metric_score = syn_check.syntax_check_metric_results()
+                    for metric in score_metric_dict:
+                        score_metric_dict[metric].append(metric_score[metric])
 
         except Exception as e:
-            print(e)
+            print("[DEBUG]", e)
             not_analysed.append(model)
 
     if analyse_mode == "detail" or analyse_mode == "quality_group_score":
@@ -84,26 +86,21 @@ def make_syntactic_check(models, not_valid=None, analyse_mode="detail"):
 
 
 def make_semantic_check(models, reference_model, lang, not_valid=None, analyse_mode="detail"):
+    """Computes the semantic quality for a given set of models.
+
+    Args:
+        models: List of models to check, or a directory where models are located.
+        reference_model: Ground-truth model(s) to compare against.
+        lang: Language of the textual description.
+        not_valid: List of models that should not be checked (path or object).
+        analyse_mode: Granularity of the semantic quality computation
+            ("detail", "quality_group_score", "metric_score").
+
+    Returns:
+        A list of semantic quality scores (for "quality_group_score"), a dict of per-group
+        scores (for "detail"), or a dict of per-metric scores (for "metric_score"), plus the
+        list of models that could not be analysed.
     """
-        Computes the semantic quality for a given set of models.
-
-        Parameters
-        ----------
-        models : list, str
-            List of models to check or dir where models are located.
-        not_valid : list
-            list of models, that should not be checked (either path to model or object)
-        analyse_mode : str
-            Granularity in which the syntactic quality should be computed (detail, quality_group_score, metric_score)
-
-        Returns
-        -------
-        score_list_sem: list of scores with semantic quality score for each model.
-        or score_group_dict: dict of groups of semantic quality, with scores for each model
-        or score_metric_dict: dict of metrics of semantic quality, with scores for each model
-
-        not_analysed: list of models, that could not be analysed
-        """
     if not not_valid:
         not_valid = []
 
@@ -116,19 +113,22 @@ def make_semantic_check(models, reference_model, lang, not_valid=None, analyse_m
     score_metric_dict = {Similarity_Metrics[metric].value: [] for metric in Similarity_Metrics.__members__}
     score_group_dict = {Similarity_Groups[group].value: [] for group in Similarity_Groups.__members__}
 
-
     for model in models:
         try:
-            if model not in not_valid and model.endswith('.bpmn'):
+            if model not in not_valid and model.endswith(".bpmn"):
                 if analyse_mode == "quality_group_score":
-                    score = semantic_check_single_model(model, reference_model, lang, analyse_mode=analyse_mode)
+                    score = semantic_check_single_model(
+                        model, reference_model, lang, analyse_mode=analyse_mode,
+                    )
                     if score:
                         score_list_sem.append(score)
                     else:
                         not_analysed.append(model)
 
                 elif analyse_mode == "detail":
-                    score_groups = semantic_check_single_model(model, reference_model, lang, analyse_mode=analyse_mode)
+                    score_groups = semantic_check_single_model(
+                        model, reference_model, lang, analyse_mode=analyse_mode,
+                    )
                     if score_groups:
                         for group in score_groups:
                             score_group_dict[group].append(score_groups[group])
@@ -136,7 +136,9 @@ def make_semantic_check(models, reference_model, lang, not_valid=None, analyse_m
                         not_analysed.append(model)
 
                 elif analyse_mode == "metric_score":
-                    score_metrics = semantic_check_single_model(model, reference_model, lang, analyse_mode=analyse_mode)
+                    score_metrics = semantic_check_single_model(
+                        model, reference_model, lang, analyse_mode=analyse_mode,
+                    )
                     if score_metrics:
                         for metric in score_metric_dict:
                             score_metric_dict[metric].append(score_metrics[metric])
@@ -144,7 +146,7 @@ def make_semantic_check(models, reference_model, lang, not_valid=None, analyse_m
                         not_analysed.append(model)
 
         except Exception as e:
-            print(e)
+            print("[DEBUG]", e)
             not_analysed.append(model)
 
     if analyse_mode == "quality_group_score":
@@ -156,18 +158,20 @@ def make_semantic_check(models, reference_model, lang, not_valid=None, analyse_m
 
 
 def semantic_check_single_model(model, reference_model, lang, analyse_mode="detail"):
-    """
-    make semantic check for single model (one model and one or multiple ground truth models)
-    Parameters
-    ----------
-    model : CollaborationModel, str
-        model to be checked as a path where it is located, or CollaborationModel
-    reference_model : list of CollaborationModel or str
-        models to be checked as a list of paths where they located, or a list of CollaborationModel
-    lang : Language
-        language of the textual description
-    analyse_mode : str
-        Granularity in which the syntactic quality should be computed (detail, quality_group_score, metric_score)
+    """Computes the semantic quality for a single model against one or more ground truths.
+
+    Args:
+        model: Model to check, as a file path or CollaborationModel.
+        reference_model: Ground-truth model(s) to compare against, as a path, list of paths,
+            or (list of) CollaborationModel.
+        lang: Language of the textual description.
+        analyse_mode: Granularity of the semantic quality computation
+            ("detail", "quality_group_score", "metric_score").
+
+    Returns:
+        The semantic quality score (for "quality_group_score"), a dict of per-group scores
+        (for "detail"), or a dict of per-metric scores (for "metric_score"). Returns None if
+        the model can't be scored.
     """
     score_metric_dict = {Similarity_Metrics[metric].value: [] for metric in Similarity_Metrics.__members__}
     score_group_dict = {Similarity_Groups[group].value: [] for group in Similarity_Groups.__members__}
@@ -186,21 +190,26 @@ def semantic_check_single_model(model, reference_model, lang, analyse_mode="deta
             reference_model = [load_diagram_from_xml(reference_model)]
 
         if isinstance(reference_model, CollaborationModel):
-            sem_check = SemanticQualityCheckBPMN(model=bpmn, reference_model=reference_model, lang=lang)
+            sem_check = SemanticQualityCheckBPMN(
+                model=bpmn, reference_model=reference_model, lang=lang,
+            )
             if analyse_mode == "quality_group_score":
                 return sem_check.semantic_quality_check()
             elif analyse_mode == "metric_score":
-                return score_metric_dict.update(sem_check.semantic_quality_check_metric_results())
+                return score_metric_dict.update(
+                    sem_check.semantic_quality_check_metric_results(),
+                )
             elif analyse_mode == "detail":
-                return score_group_dict.update(sem_check.semantic_quality_check_detailed())
-
+                return score_group_dict.update(
+                    sem_check.semantic_quality_check_detailed(),
+                )
 
         elif isinstance(reference_model, list):
             score_list_sem = []
-            #score_metric_dict = {Similarity_Metrics[metric].value: [] for metric in Similarity_Metrics.__members__}
-            #score_group_dict = {Similarity_Groups[group].value: [] for group in Similarity_Groups.__members__}
             for ref_model in reference_model:
-                sem_check = SemanticQualityCheckBPMN(model=bpmn, reference_model=ref_model, lang=lang)
+                sem_check = SemanticQualityCheckBPMN(
+                    model=bpmn, reference_model=ref_model, lang=lang,
+                )
                 if analyse_mode == "quality_group_score":
                     score = sem_check.semantic_quality_check()
                     score_list_sem.append(score)
@@ -213,7 +222,6 @@ def semantic_check_single_model(model, reference_model, lang, analyse_mode="deta
                     for metric in score_metric_dict:
                         score_metric_dict[metric].append(metric_score[metric])
 
-
             if analyse_mode == "quality_group_score":
                 return mean(score_list_sem)
             elif analyse_mode == "metric_score":
@@ -225,32 +233,24 @@ def semantic_check_single_model(model, reference_model, lang, analyse_mode="deta
                     score_group_dict[group] = mean(score_group_dict[group])
                 return score_group_dict
     except Exception as e:
-        print(e)
+        print("[DEBUG]", e)
         return None
 
 
 def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
+    """Computes the pragmatic quality for a given set of models.
+
+    Args:
+        models: List of models to check, or a directory where models are located.
+        not_valid: List of models that should not be checked (path or object).
+        analyse_mode: Granularity of the pragmatic quality computation
+            ("detail", "quality_group_score", "metric_score").
+
+    Returns:
+        A list of pragmatic quality scores (for "quality_group_score"), a dict of per-group
+        scores (for "detail"), or a dict of per-metric scores (for "metric_score"), plus the
+        list of models that could not be analysed.
     """
-   Computes the pragmatic quality for a given set of models.
-
-   Parameters
-   ----------
-   models : list, str
-       List of models to check or dir where models are located.
-   not_valid : list
-       list of models, that should not be checked (either path to model or object)
-   analyse_mode : str
-       Granularity in which the pragmatic quality should be computed (detail, quality_group_score, metric_score)
-
-   Returns
-   -------
-   score_list_prag: list of scores with pragmatic quality score for each model.
-   or score_group_dict: dict of groups of pragmatic quality, with scores for each model
-   or score_metric_dict: dict of metrics of pragmatic quality, with scores for each model
-
-   not_analysed: list of models, that could not be analysed
-   """
-
     not_analysed = []
     if not not_valid:
         not_valid = []
@@ -262,7 +262,7 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
     if len(models) > 0 and isinstance(models[0], str) and os.path.isfile(models[0]):
         new_models = []
         for model in models:
-            if model not in not_valid and model.endswith('.bpmn') and model not in not_valid:
+            if model not in not_valid and model.endswith(".bpmn") and model not in not_valid:
                 try:
                     new_models.append(load_diagram_from_xml(model))
                 except Exception as e:
@@ -271,8 +271,6 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
                 not_analysed.append(model)
 
         models = new_models.copy()
-
-
 
     score_list_prag = []
     score_metric_dict = {Pragmatic_Metrics[metric].value: [] for metric in Pragmatic_Metrics.__members__}
@@ -296,11 +294,9 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
                 else:
                     not_analysed.append(model)
 
-
             except Exception as e:
-                print(e)
+                print("[DEBUG]", e)
                 not_analysed.append(model)
-
 
     if analyse_mode == "quality_group_score":
         return score_list_prag, not_analysed
@@ -311,6 +307,20 @@ def make_pragmatic_check(models, not_valid=None, analyse_mode="detail"):
 
 
 def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil", target_file=None, is_human=False):
+    """Computes overall quality scores for every LLM found in test_llm_dir.
+
+    Args:
+        datasets: Dict of datasets used to check which models were expected per LLM.
+        test_llm_dir: Directory containing one subdirectory per LLM being evaluated.
+        analyse_method: Granularity of the quality computation
+            ("detail", "quality_group_score", "metric_score").
+        target_file: CSV file path the resulting dataframe is written to.
+        is_human: Whether this run is scoring the human-expert baseline; adds a MEAN row
+            over all numeric columns when True.
+
+    Returns:
+        pandas.DataFrame: One row per LLM with its aggregated quality scores.
+    """
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=True)
 
     for llm in tqdm(os.listdir(test_llm_dir)):
@@ -326,22 +336,19 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
         quality_scores["llm"].append(llm)
         quality_scores_llm = init_quality_scores_dict(analyse_method)
 
-        print(llm)
-
-
-
+        print("[INFO]", llm)
 
         num_valid = 0
         num_invalid = 0
         num_not_generated = 0
         for dataset in os.listdir(os.path.join(test_llm_dir, llm)):
-            if dataset.startswith(".") or os.path.isfile(f"{test_llm_dir}/{llm}/{dataset}"):
+            if dataset.startswith(".") or os.path.isfile(os.path.join(test_llm_dir, llm, dataset)):
                 continue
 
-            model_dir = f"{test_llm_dir}/{llm}/{dataset}"
+            model_dir = os.path.join(test_llm_dir, llm, dataset)
 
             not_valid_xml, invalid_reasons, not_generated = get_invalid_models(
-                model_dir, expected_names=datasets[dataset].keys()
+                model_dir, expected_names=datasets[dataset].keys(),
             )
             all_invalid_reasons.update(invalid_reasons)
             num_invalid += len(not_valid_xml)
@@ -353,7 +360,8 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
                 models=model_dir,
                 analyse_method=analyse_method,
                 dataset=datasets[dataset],
-                not_valid_xml=not_valid_xml)
+                not_valid_xml=not_valid_xml,
+            )
             new_scored = len(quality_scores_llm.get("syntactic quality", []))
             num_valid += new_scored - prev_scored
 
@@ -387,8 +395,21 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
 
     df = pd.DataFrame(quality_scores)
     if analyse_method == "quality_group_score":
-        df = df.loc[:, ["llm", "syntactic quality", "pragmatic quality", "semantic quality",
-                        "validity", "num_valid", "invalid", "not_generated", "not_valid", "total"]]
+        df = df.loc[
+            :,
+            [
+                "llm",
+                "syntactic quality",
+                "pragmatic quality",
+                "semantic quality",
+                "validity",
+                "num_valid",
+                "invalid",
+                "not_generated",
+                "not_valid",
+                "total",
+            ],
+        ]
 
     if is_human:
         numeric_cols = df.select_dtypes(include=["number"]).columns
@@ -399,21 +420,36 @@ def compute_overall_quality_llms(datasets, test_llm_dir, analyse_method="detaiil
     df.to_csv(target_file, sep=";")
     return df
 
+
 def get_quality_per_dataset(quality_scores_dict, analyse_method, dataset, not_valid_xml, models):
+    """Scores one dataset's models and merges the results into quality_scores_dict.
+
+    Args:
+        quality_scores_dict: Dict accumulating scores across datasets for one LLM.
+        analyse_method: Granularity of the quality computation
+            ("detail", "quality_group_score", "metric_score").
+        dataset: Dict mapping model name to its (language, ..., reference model) info.
+        not_valid_xml: List of model paths already known to be invalid.
+        models: Directory (or list) of models belonging to this dataset.
+
+    Returns:
+        tuple: (quality_scores_dict, not_analysed_xml) — the updated scores dict and the
+        list of models that could not be analysed.
+    """
     not_analysed_xml = []
 
     print(f"[DEBUG] dataset keys: {list(dataset.keys())}")
     print(f"[DEBUG] not_valid_xml: {not_valid_xml}")
 
-    syn_scores, na = make_syntactic_check(models=models,
-                                          not_valid=not_valid_xml,
-                                          analyse_mode=analyse_method)
+    syn_scores, na = make_syntactic_check(
+        models=models, not_valid=not_valid_xml, analyse_mode=analyse_method,
+    )
     print(f"[DEBUG] syn_scores: {syn_scores}")
     not_analysed_xml.extend(na)
 
-    prag_scores, na = make_pragmatic_check(models=models,
-                                           not_valid=not_valid_xml,
-                                           analyse_mode=analyse_method)
+    prag_scores, na = make_pragmatic_check(
+        models=models, not_valid=not_valid_xml, analyse_mode=analyse_method,
+    )
     print(f"[DEBUG] prag_scores: {prag_scores}")
     not_analysed_xml.extend(na)
 
@@ -444,7 +480,8 @@ def get_quality_per_dataset(quality_scores_dict, analyse_method, dataset, not_va
                     model=model,
                     reference_model=dataset[model_name][2],
                     lang=dataset[model_name][0],
-                    analyse_mode=analyse_method)
+                    analyse_mode=analyse_method,
+                )
                 print(f"[DEBUG] semantic_score for {model_name}: {semantic_score}")
                 if semantic_score:
                     quality_scores_dict["semantic quality"].append(semantic_score)
@@ -452,7 +489,20 @@ def get_quality_per_dataset(quality_scores_dict, analyse_method, dataset, not_va
     # ... rest unchanged
     return quality_scores_dict, not_analysed_xml
 
+
 def get_invalid_models(model_dir, expected_names=None):
+    """Validates every .bpmn file in model_dir and reports missing expected files.
+
+    Args:
+        model_dir: Directory containing the .bpmn files to validate.
+        expected_names: Optional set of model names (without extension) that should be
+            present in model_dir; any missing ones are reported as not generated.
+
+    Returns:
+        tuple: (not_valid_xml, invalid_reasons, not_generated) — paths that failed
+        validation, a dict mapping each problem path to its reason, and paths for
+        expected-but-missing models.
+    """
     not_valid_xml = []
     invalid_reasons = {}
     not_generated = []
@@ -461,7 +511,7 @@ def get_invalid_models(model_dir, expected_names=None):
     for model in os.listdir(model_dir):
         if model.endswith(".bpmn"):
             found_names.add(model.split(".")[0])
-            path = f"{model_dir}/{model}"
+            path = os.path.join(model_dir, model)
             with open(path) as f:
                 content = f.read()
             if content and content != "":
@@ -476,35 +526,44 @@ def get_invalid_models(model_dir, expected_names=None):
     if expected_names is not None:
         missing = set(expected_names) - found_names
         for name in sorted(missing):
-            missing_path = f"{model_dir}/{name}.bpmn"
+            missing_path = os.path.join(model_dir, f"{name}.bpmn")
             not_generated.append(missing_path)
             invalid_reasons[missing_path] = "[NOT_GENERATED] File missing"
 
     return not_valid_xml, invalid_reasons, not_generated
 
-def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
-    """
-    Initalizes the dict for the quality scores
 
-    Parameters
-    ----------
-    analyse_method: str
-        Indicates on which granularity the quality scores should be computed (detail, quality_group_score, metric_score)
-    overall_quality_dict: bool
-        Indicates if the dict is used in context of multiple or one LLM
+def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
+    """Initializes the dict used to accumulate quality scores.
+
+    Args:
+        analyse_method: Granularity of the quality computation
+            ("detail", "quality_group_score", "metric_score").
+        overall_quality_dict: Whether this dict aggregates multiple LLMs (True) or scores
+            a single LLM (False).
+
+    Returns:
+        dict: Empty score-list entries keyed by quality metric/group, per analyse_method.
     """
     if analyse_method == "quality_group_score":
         quality_scores = {"syntactic quality": [], "pragmatic quality": [], "semantic quality": []}
     elif analyse_method == "metric_score":
         quality_scores = {Sytax_Mistakes[metric].value: [] for metric in Sytax_Mistakes.__members__}
-        quality_scores.update({Pragmatic_Metrics[metric].value: [] for metric in Pragmatic_Metrics.__members__})
-        quality_scores.update({Similarity_Metrics[metric].value: [] for metric in Similarity_Metrics.__members__})
+        quality_scores.update(
+            {Pragmatic_Metrics[metric].value: [] for metric in Pragmatic_Metrics.__members__},
+        )
+        quality_scores.update(
+            {Similarity_Metrics[metric].value: [] for metric in Similarity_Metrics.__members__},
+        )
 
     elif analyse_method == "detail":
         quality_scores = {"syntactic quality": []}
         quality_scores.update(
-            {Pragmatic_Subgroups[metric].value: [] for metric in Pragmatic_Subgroups.__members__})
-        quality_scores.update({Similarity_Groups[metric].value: [] for metric in Similarity_Groups.__members__})
+            {Pragmatic_Subgroups[metric].value: [] for metric in Pragmatic_Subgroups.__members__},
+        )
+        quality_scores.update(
+            {Similarity_Groups[metric].value: [] for metric in Similarity_Groups.__members__},
+        )
     else:
         quality_scores = dict()
 
@@ -512,60 +571,58 @@ def init_quality_scores_dict(analyse_method, overall_quality_dict=False):
         quality_scores["llm"] = []
         quality_scores["validity"] = []
 
-
     return quality_scores
 
+
 def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run, target_file=None):
-    """
-    Returns a dataframe with one row per EXPECTED process model (i.e. every
-    exercise defined in `datasets`, regardless of whether it was generated
-    or is valid). Each row carries a 'status' column ('valid', 'invalid',
-    'not_generated') plus the quality scores, which are None whenever the
-    model isn't valid or a specific metric couldn't be computed.
+    """Builds a per-process-model results dataframe for one LLM run.
 
-    Parameters
-    ----------
-    datasets: dict
-        dict with all datasets (dataset_name -> {exercise_name: (...)})
-    llm_dir: str
-        directory where the process models modelled by this LLM/run are stored
-    analyse_method: str
-        Granularity of the quality scores (detail, quality_group_score, metric_score)
-    run: str
-    target_file: str
-        file path to save the result (always overwritten, never appended)
+    Returns one row per EXPECTED process model (i.e. every exercise defined in `datasets`,
+    regardless of whether it was generated or is valid). Each row carries a "status" column
+    ("valid", "invalid", "not_generated") plus the quality scores, which are None whenever
+    the model isn't valid or a specific metric couldn't be computed.
 
-    Returns
-    -------
-    df: pandas dataframe
-        one row per expected bpmn, metrics + status as columns
+    Args:
+        datasets: Dict with all datasets (dataset_name -> {exercise_name: (...)}).
+        llm_dir: Directory where the process models modelled by this LLM/run are stored.
+        analyse_method: Granularity of the quality scores
+            ("detail", "quality_group_score", "metric_score").
+        run: Identifier of the run being processed.
+        target_file: File path the result is saved to (always overwritten, never appended).
+
+    Returns:
+        pandas.DataFrame: One row per expected BPMN, with metrics and status as columns.
     """
+    def _append_none_scores(scores_dict):
+        """Appends None to every metric column except the identifying columns."""
+        for metric in scores_dict:
+            if metric not in ["process model", "run", "status"]:
+                scores_dict[metric].append(None)
+
     quality_scores = init_quality_scores_dict(analyse_method, overall_quality_dict=False)
     quality_scores["process model"] = []
     quality_scores["run"] = []
     quality_scores["status"] = []
 
-    metric_errors = {}  # path -> reason, feeds the invalid_models.log
+    metric_errors = {}  # Path -> reason, feeds the invalid_models.log
 
     for dataset in datasets.keys():
         ds_dir = os.path.join(llm_dir, dataset)
         expected_names = datasets[dataset].keys()
 
         if not os.path.isdir(ds_dir):
-            # whole dataset folder missing -> every exercise in it is not_generated
+            # Whole dataset folder missing -> every exercise in it is not_generated
             for name in expected_names:
-                fake_path = f"{ds_dir}/{name}.bpmn"
+                fake_path = os.path.join(ds_dir, f"{name}.bpmn")
                 metric_errors[fake_path] = "[NOT_GENERATED] Dataset folder missing"
                 quality_scores["process model"].append(name)
                 quality_scores["run"].append(f"{run}")
                 quality_scores["status"].append("not_generated")
-                for metric in quality_scores:
-                    if metric not in ["process model", "run", "status"]:
-                        quality_scores[metric].append(None)
+                _append_none_scores(quality_scores)
             continue
 
         not_valid_xml, invalid_reasons, not_generated = get_invalid_models(
-            ds_dir, expected_names=expected_names
+            ds_dir, expected_names=expected_names,
         )
         metric_errors.update(invalid_reasons)
 
@@ -578,19 +635,15 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
 
             if model_name in not_generated_names:
                 quality_scores["status"].append("not_generated")
-                for metric in quality_scores:
-                    if metric not in ["process model", "run", "status"]:
-                        quality_scores[metric].append(None)
+                _append_none_scores(quality_scores)
                 continue
 
             if model_name in not_valid_names:
                 quality_scores["status"].append("invalid")
-                for metric in quality_scores:
-                    if metric not in ["process model", "run", "status"]:
-                        quality_scores[metric].append(None)
+                _append_none_scores(quality_scores)
                 continue
 
-            # valid: actually load and score it
+            # Valid: actually load and score it
             full_path = os.path.join(ds_dir, f"{model_name}.bpmn")
             quality_scores["status"].append("valid")
             scores = dict()
@@ -598,7 +651,7 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
             try:
                 model = load_diagram_from_xml(full_path)
             except Exception as e:
-                # was schema-valid but failed to load as a diagram object -> treat as invalid
+                # Was schema-valid but failed to load as a diagram object -> treat as invalid
                 quality_scores["status"][-1] = "invalid"
                 metric_errors[full_path] = f"[INVALID] Failed to load BPMN: {e}"
                 for metric in quality_scores:
@@ -625,7 +678,7 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
                     model=model,
                     reference_model=datasets[dataset][model_name][2],
                     lang=datasets[dataset][model_name][0],
-                    analyse_mode=analyse_method
+                    analyse_mode=analyse_method,
                 )
                 if semantic_result is None:
                     metric_errors[full_path] = "[METRIC_ERROR] semantic: returned None"
@@ -655,7 +708,7 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
                         model=model,
                         reference_model=datasets[dataset][model_name][2],
                         lang=datasets[dataset][model_name][0],
-                        analyse_mode="quality_group_score"
+                        analyse_mode="quality_group_score",
                     )
                     scores["semantic quality"] = semantic_score
                     if semantic_score is None:
@@ -684,9 +737,9 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
 
     df = pd.DataFrame(quality_scores)
 
-    # always overwrite: this function already produces the complete
-    # dataframe for this llm/run in one pass, so appending would only
-    # ever duplicate rows across repeated invocations of the command.
+    # Always overwrite: this function already produces the complete dataframe for this
+    # llm/run in one pass, so appending would only ever duplicate rows across repeated
+    # invocations of the command.
     lead_cols = ["process model", "run", "status"]
     other_cols = [c for c in df.columns if c not in lead_cols]
     df = df[lead_cols + other_cols]
@@ -694,12 +747,22 @@ def get_metric_results_per_process_model(datasets, llm_dir, analyse_method, run,
     df.to_csv(target_file, sep=";", index=False)
     return df
 
+
 def get_datasets_config():
+    """Builds the dataset config dict based on the DATASET_MODE/DATASETS env vars.
+
+    Returns:
+        dict: Dataset name -> dataset config, as produced by prepare_datasets.
+
+    Raises:
+        RuntimeError: If DATASET_MODE (or DATASETS, when required) is not set.
+        ValueError: If DATASET_MODE or a name in DATASETS is invalid.
+    """
     mode = os.getenv("DATASET_MODE")
     if not mode:
         raise RuntimeError(
             "DATASET_MODE is not set in .env\n"
-            "Options: general | experts"
+            "Options: general | experts",
         )
     mode = mode.strip().lower()
 
@@ -717,6 +780,7 @@ def get_datasets_config():
         fixed_allowed = {"camunda", "bpmn_and_text", "lre_new", "lre_old"}
 
         def is_valid(name):
+            """Checks whether a dataset name is a fixed name or a valid camunda_N variant."""
             if name in fixed_allowed:
                 return True
             parts = name.split("_")
@@ -748,23 +812,24 @@ def get_datasets_config():
 
 
 def run_quality_check_for_run(run, evaluation):
-    """
-    Resolves datasets for a given run — including camunda_N subfolders not
-    present in the default dataset config — then computes overall LLM
-    quality for that run via compute_overall_quality_llms.
+    """Resolves datasets for a run and computes overall LLM quality for it.
 
-    This contains the dataset-resolution logic that used to live in
-    compare_llms.py's check_quality_llms, moved here so it can be reused
-    by other modules (e.g. table generation) without a circular import.
+    Includes camunda_N subfolders not present in the default dataset config, then computes
+    overall LLM quality for that run via compute_overall_quality_llms. This contains the
+    dataset-resolution logic that used to live in compare_llms.py's check_quality_llms,
+    moved here so it can be reused by other modules (e.g. table generation) without a
+    circular import.
 
-    Returns
-    -------
-    df: pandas dataframe
-        Same dataframe returned by compute_overall_quality_llms.
+    Args:
+        run: Identifier of the run to resolve datasets and compute quality for.
+        evaluation: Granularity of the quality computation, passed through as analyse_method.
+
+    Returns:
+        pandas.DataFrame: Same dataframe returned by compute_overall_quality_llms.
     """
     datasets = get_datasets_config()
 
-    llm_run_dir = f"{get_folder_path(Folder.DATA)}/llm_run{run}"
+    llm_run_dir = os.path.join(get_folder_path(Folder.DATA), f"llm_run{run}")
     for llm in os.listdir(llm_run_dir):
         llm_path = os.path.join(llm_run_dir, llm)
         if not os.path.isdir(llm_path) or llm.startswith("."):
@@ -779,7 +844,9 @@ def run_quality_check_for_run(run, evaluation):
     df = compute_overall_quality_llms(
         datasets=datasets,
         test_llm_dir=llm_run_dir,
-        target_file=f"{get_folder_path(Folder.DATA)}/llm_run{run}/llm_results_run{run}_{evaluation}.csv",
-        analyse_method=evaluation
+        target_file=os.path.join(
+            get_folder_path(Folder.DATA), f"llm_run{run}", f"llm_results_run{run}_{evaluation}.csv",
+        ),
+        analyse_method=evaluation,
     )
     return df
