@@ -4,6 +4,7 @@ from pathlib import Path
 from bef4llm.definitions import Folder
 from bef4llm.resource_controller.path_helper import get_folder_path
 import bef4llm.llm_comparison.promting_helper as prompts
+from . import vector_db
 
 
 def _get_mock_examples_context(pair, directory):
@@ -46,6 +47,14 @@ def get_rag_context(query, rag_config, pair=None, dataset=None):
     print(f"[DEBUG] Documents directory: {rag_dir}")
 
     base_dir = Path(get_folder_path(Folder.RAG)) / rag_dir
+
+    if rag_mode == "examples":
+        best_example = vector_db.get_most_similar_semantically(
+            query, corpus_dir=base_dir, exclude_pair=pair
+        )
+        if not best_example.strip():
+            return ""
+        return prompts.rag_context_connector_examples + best_example
 
     if rag_mode == "mock_examples":
         if not pair:
