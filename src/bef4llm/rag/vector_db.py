@@ -210,23 +210,20 @@ def build_index(corpus_dir: Path, force: bool = False):
     return _get_index(corpus_dir)
 
 
-def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: str = None):
+def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: str = None,
+                                    return_scores: bool = False):
     """
-    Returns the (description, bpmn) example most semantically similar to
-    `query`, formatted like the mock_examples context block. Returns ""
-    if no suitable example is found.
-
-    Two layers of leakage protection are applied before returning a match:
-      - exclude_pair (+ any names grouped with it in duplicate_groups.json)
-        is skipped by name.
-      - Any candidate whose normalized text is byte-identical to the query
-        is skipped regardless of name (catches exact duplicates not yet
-        listed in duplicate_groups.json).
+    ...
+    If return_scores=True, returns (formatted_string, candidates) where
+    candidates lists ALL non-excluded corpus items with their cosine
+    similarity score, sorted descending (candidates[0] is the best match,
+    used to build formatted_string).
     """
     corpus_dir = Path(corpus_dir)
     embeddings, items = _get_index(corpus_dir)
+    empty = ("", []) if return_scores else ""
     if len(items) == 0:
-        return ""
+        return empty
 
     duplicate_groups = _load_duplicate_groups(corpus_dir)
     exclude_names = set()
@@ -241,23 +238,31 @@ def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: st
         [query], convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False
     )[0]
 
-    scores = embeddings @ query_embedding  # cosine similarity (vectors are normalized)
+    scores = embeddings @ query_embedding
     order = np.argsort(-scores)
 
+    candidates = []
+    best_item = None
     for idx in order:
         item = items[idx]
         if item["pair"] in exclude_names:
-            print(f"[DEBUG] vector_db: skipping '{item['pair']}' "
-                  f"(self or known duplicate of query pair '{exclude_pair}')")
             continue
         if item.get("text_hash") == query_text_hash:
-            print(f"[DEBUG] vector_db: skipping '{item['pair']}' "
-                  f"(identical normalized text to query, score={scores[idx]:.4f})")
             continue
-        print(f"[DEBUG] vector_db: best match = {item['pair']} (score={scores[idx]:.4f})")
-        txt_content = Path(item["txt_path"]).read_text(encoding="utf-8")
-        bpmn_content = Path(item["bpmn_path"]).read_text(encoding="utf-8")
-        return f"[DESCRIPTION:]\n{txt_content}\n\n[BPMN MODEL:]\n{bpmn_content}\n\n"
+        if best_item is None:
+            best_item = item
+            print(f"[DEBUG] vector_db: best match = {item['pair']} (score={scores[idx]:.4f})")
+        candidates.append({"pair": item["pair"], "score": float(scores[idx])})
+        # no break — keep going through every remaining item
 
-    print("[WARNING] vector_db: no candidate left after exclusions")
-    return ""
+    if best_item is None:
+        print("[WARNING] vector_db: no candidate left after exclusions")
+        return empty
+
+    txt_content = Path(best_item["txt_path"]).read_text(encoding="utf-8")
+    bpmn_content = Path(best_item["bpmn_path"]).read_text(encoding="utf-8")
+    result = f"[DESCRIPTION:]\n{txt_content}\n\n[BPMN MODEL:]\n{bpmn_content}\n\n"
+
+    if return_scores:
+        return result, candidates
+    return result

@@ -49,26 +49,33 @@ def get_rag_context(query, rag_config, pair=None, dataset=None):
     base_dir = Path(get_folder_path(Folder.RAG)) / rag_dir
 
     if rag_mode == "examples":
-        best_example = vector_db.get_most_similar_semantically(
-            query, corpus_dir=base_dir, exclude_pair=pair
+        best_example, candidates = vector_db.get_most_similar_semantically(
+            query, corpus_dir=base_dir, exclude_pair=pair, return_scores=True
         )
         if not best_example.strip():
-            return ""
-        return prompts.rag_context_connector_examples + best_example
+            return "", None
+        similarity_info = {
+            "mode": "examples",
+            "query_pair": pair,
+            "best_match": candidates[0]["pair"] if candidates else None,
+            "best_score": candidates[0]["score"] if candidates else None,
+            "candidates": candidates,
+        }
+        return prompts.rag_context_connector_examples + best_example, similarity_info
 
     if rag_mode == "mock_examples":
         if not pair:
             print("[WARNING] mock_examples mode requires pair")
-            return ""
+            return "", None
         if not dataset:
             print("[WARNING] mock_examples mode requires dataset")
-            return ""
+            return "", None
 
         directory = base_dir / dataset
         context = _get_mock_examples_context(pair, directory)
         if not context.strip():
-            return ""
-        return prompts.rag_context_connector_examples + context
+            return "", None
+        return prompts.rag_context_connector_examples + context, None
 
     # documents / examples modes (to be implemented)
     print(f"[DEBUG] Top-K: {top_k}")
@@ -76,12 +83,12 @@ def get_rag_context(query, rag_config, pair=None, dataset=None):
     print(f"[DEBUG] Loaded documents: {len(documents)}")
     if not documents:
         print("[WARNING] No documents loaded")
-        return ""
+        return "", None
     chunks = chunk_documents(documents, rag_config)
     print(f"[DEBUG] Total chunks created: {len(chunks)}")
     if not chunks:
         print("[WARNING] No chunks created")
-        return ""
+        return "", None
     selected_chunks = chunks[:top_k]
     context = ""
     for index, chunk in enumerate(selected_chunks):
@@ -89,4 +96,4 @@ def get_rag_context(query, rag_config, pair=None, dataset=None):
         print(f"[DEBUG] Adding chunk {index} (source={source}, size={len(chunk.text)})")
         context += f"[SOURCE: {source}]\n{chunk.text}\n\n"
     print(f"[DEBUG] Final context length: {len(context)}")
-    return prompts.rag_context_connector_documents + context
+    return prompts.rag_context_connector_documents + context, None
