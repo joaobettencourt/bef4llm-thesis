@@ -211,7 +211,7 @@ def build_index(corpus_dir: Path, force: bool = False):
 
 
 def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: str = None,
-                                    return_scores: bool = False):
+                                    return_scores: bool = False, exclude_exact_duplicates: bool = True):
     """
     ...
     If return_scores=True, returns (formatted_string, candidates) where
@@ -243,11 +243,12 @@ def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: st
 
     candidates = []
     best_item = None
+
     for idx in order:
         item = items[idx]
         if item["pair"] in exclude_names:
             continue
-        if item.get("text_hash") == query_text_hash:
+        if exclude_exact_duplicates and item.get("text_hash") == query_text_hash:
             continue
         if best_item is None:
             best_item = item

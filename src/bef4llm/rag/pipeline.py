@@ -63,37 +63,22 @@ def get_rag_context(query, rag_config, pair=None, dataset=None):
         }
         return prompts.rag_context_connector_examples + best_example, similarity_info
 
+
     if rag_mode == "mock_examples":
-        if not pair:
-            print("[WARNING] mock_examples mode requires pair")
-            return "", None
-        if not dataset:
-            print("[WARNING] mock_examples mode requires dataset")
-            return "", None
+        best_example, candidates = vector_db.get_most_similar_semantically(
+            query, corpus_dir=base_dir, exclude_pair=None,
+            exclude_exact_duplicates=False, return_scores=True
+        )
 
-        directory = base_dir / dataset
-        context = _get_mock_examples_context(pair, directory)
-        if not context.strip():
+        if not best_example.strip():
             return "", None
-        return prompts.rag_context_connector_examples + context, None
+        similarity_info = {
+            "mode": "mock_examples",
+            "query_pair": pair,
+            "best_match": candidates[0]["pair"] if candidates else None,
+            "best_score": candidates[0]["score"] if candidates else None,
+            "candidates": candidates,
+        }
+        return prompts.rag_context_connector_examples + best_example, similarity_info
 
-    # documents / examples modes (to be implemented)
-    print(f"[DEBUG] Top-K: {top_k}")
-    documents = load_documents(rag_dir)
-    print(f"[DEBUG] Loaded documents: {len(documents)}")
-    if not documents:
-        print("[WARNING] No documents loaded")
-        return "", None
-    chunks = chunk_documents(documents, rag_config)
-    print(f"[DEBUG] Total chunks created: {len(chunks)}")
-    if not chunks:
-        print("[WARNING] No chunks created")
-        return "", None
-    selected_chunks = chunks[:top_k]
-    context = ""
-    for index, chunk in enumerate(selected_chunks):
-        source = chunk.metadata.get("source", "unknown")
-        print(f"[DEBUG] Adding chunk {index} (source={source}, size={len(chunk.text)})")
-        context += f"[SOURCE: {source}]\n{chunk.text}\n\n"
-    print(f"[DEBUG] Final context length: {len(context)}")
-    return prompts.rag_context_connector_documents + context, None
+    raise ValueError(f"Unknown RAG mode: '{rag_mode}'. Expected 'examples' or 'mock_examples'.")
