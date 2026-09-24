@@ -29,6 +29,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import re
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
 _INDEX_DIRNAME = ".vector_index"
@@ -37,6 +38,25 @@ _SCHEMA_VERSION = 2  # bump whenever the cached item structure changes
 
 _model = None            # lazy singleton for the embedding model
 _memory_cache = {}       # {corpus_dir_str: (embeddings, items, fingerprint)}
+
+
+
+_BPMN_DI_BLOCK_RE = re.compile(
+    r"\s*<bpmndi:BPMNDiagram\b.*?</bpmndi:BPMNDiagram>",
+    re.DOTALL,
+)
+
+
+def _strip_diagram_interchange(bpmn_xml: str) -> str:
+    """
+    Removes the <bpmndi:BPMNDiagram>...</bpmndi:BPMNDiagram> block (pure
+    visual layout info — coordinates, bounds, waypoints) from a BPMN 2.0 XML
+    string, keeping only the semantic process/collaboration definition.
+    Every corpus file uses the standard 'bpmndi' prefix, so a direct text
+    match is used instead of a full XML parse/re-serialize — this keeps the
+    rest of the file byte-for-byte identical to the source.
+    """
+    return _BPMN_DI_BLOCK_RE.sub("", bpmn_xml)
 
 
 def _get_model():
@@ -261,7 +281,7 @@ def get_most_similar_semantically(query: str, corpus_dir: Path, exclude_pair: st
         return empty
 
     txt_content = Path(best_item["txt_path"]).read_text(encoding="utf-8")
-    bpmn_content = Path(best_item["bpmn_path"]).read_text(encoding="utf-8")
+    bpmn_content = _strip_diagram_interchange(Path(best_item["bpmn_path"]).read_text(encoding="utf-8"))
     result = f"[DESCRIPTION:]\n{txt_content}\n\n[BPMN MODEL:]\n{bpmn_content}\n\n"
 
     if return_scores:
