@@ -6,7 +6,7 @@ import os
 
 def get_ollama_host():
     host = os.getenv("OLLAMA_HOST")
-    
+
     if not host:
         raise RuntimeError(
             "OLLAMA_HOST is not set.\n"
@@ -14,7 +14,7 @@ def get_ollama_host():
             "Example:\n"
             "  OLLAMA_HOST=http://host.docker.internal:11434"
         )
-    
+
     print(f"[DEBUG] Using OLLAMA_HOST={host}")
 
     return host
@@ -158,7 +158,7 @@ class ConnectLLMs():
        """
         self.chat_histroy = []
         self.chat_histroy.append({"role": "system", "content": msg})
-        response = self.client.chat(model=self.llm, messages=self.chat_histroy, keep_alive=self.keep_alive)
+        response = self.client.chat(model=self.llm, messages=self.chat_histroy, options={"num_ctx": 40000}, keep_alive=self.keep_alive)
         self.chat_histroy.append({"role": "assistant", "content": response.message.content})
 
     def reset_chat_history(self):

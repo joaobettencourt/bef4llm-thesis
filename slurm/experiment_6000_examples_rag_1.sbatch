@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=experiment_6000_examples_rag
+#SBATCH --job-name=experiment_6000_examples_rag_1
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:1
 #SBATCH --qos=gpu075522026
