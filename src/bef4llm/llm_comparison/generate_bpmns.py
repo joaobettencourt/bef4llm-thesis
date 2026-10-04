@@ -1,4 +1,5 @@
 import re
+import json
 
 from bef4llm.llm_comparison import prepare_datasets
 from bef4llm.llm_connection.connect_llms import ConnectLLMs
@@ -56,10 +57,11 @@ class Benchmark():
             prompt = (prompts.modeling_prompt + text).strip()
 
             final_prompt = prompt
+            similarity_info = None
 
             if rag_enabled:
                 print("\n[INFO] Using RAG")
-                rag_context = get_rag_context(text, rag_config, pair=pair, dataset=self.dataset_name)
+                rag_context, similarity_info = get_rag_context(text, rag_config, pair=pair, dataset=self.dataset_name)
                 if rag_context.strip():
                     final_prompt = prompt + rag_context
             else:
@@ -74,6 +76,12 @@ class Benchmark():
             sys_msg_log_path = f"{target_dir}/{pair}_sys_msg.txt"
             with open(sys_msg_log_path, "w") as f:
                 f.write(self.sys_msg)
+
+            # guardar os similarity scores (só existe em rag_mode == "examples")
+            if similarity_info is not None:
+                scores_log_path = f"{target_dir}/{pair}_similarity_scores.json"
+                with open(scores_log_path, "w") as f:
+                    json.dump(similarity_info, f, indent=2, ensure_ascii=False)
 
             model_succ = self.llm_modelling(pair, target_dir, final_prompt)
 

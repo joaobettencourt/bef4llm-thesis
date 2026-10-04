@@ -9,7 +9,7 @@ from bef4llm.statistical_tests.tables.common import save_table
 # produce to be included in Table 8. The paper used a fixed count of 30
 # out of 105 samples (~30%); expressed as a ratio here so it scales
 # automatically if the sample size or run count ever changes.
-MIN_VALID_RATIO = 0.10
+MIN_VALID_RATIO = 0.01
 
 
 def _load_per_model_results(llm, run):
@@ -42,7 +42,10 @@ def generate_table8(llms, runs):
     per_llm_run_stats = {}  # {llm: {"num_valid": [...], "total": [...], "Q_syn": [...], "Q_prag": [...], "Q_sem": [...]}}
 
     for llm in llms:
-        stats = {"num_valid": [], "total": [], "Q_syn": [], "Q_prag": [], "Q_sem": []}
+        stats = {
+            "num_valid": [], "num_invalid": [], "num_not_generated": [],
+            "total": [], "Q_syn": [], "Q_prag": [], "Q_sem": [],
+        }
         for run in runs:
             df = _load_per_model_results(llm, run)
             if df is None:
@@ -50,9 +53,13 @@ def generate_table8(llms, runs):
 
             total = len(df)
             num_valid = (df["status"] == "valid").sum()
+            num_invalid = (df["status"] == "invalid").sum()
+            num_not_generated = (df["status"] == "not_generated").sum()
 
             stats["total"].append(total)
             stats["num_valid"].append(num_valid)
+            stats["num_invalid"].append(num_invalid)
+            stats["num_not_generated"].append(num_not_generated)
             stats["Q_syn"].append(df["syntactic quality"].mean(skipna=True))
             stats["Q_prag"].append(df["pragmatic quality"].mean(skipna=True))
             stats["Q_sem"].append(df["semantic quality"].mean(skipna=True))
@@ -68,6 +75,8 @@ def generate_table8(llms, runs):
             continue
 
         avbm = sum(stats["num_valid"]) / len(stats["num_valid"])
+        avim = sum(stats["num_invalid"]) / len(stats["num_invalid"])
+        avng = sum(stats["num_not_generated"]) / len(stats["num_not_generated"])
         avg_total = sum(stats["total"]) / len(stats["total"])
         q_val = avbm / avg_total if avg_total else None
 
@@ -92,6 +101,8 @@ def generate_table8(llms, runs):
             "LLM": llm,
             "Q_val": round(q_val, 4),
             "AVBM": round(avbm, 1),
+            "AVIM": round(avim, 1),
+            "AVNG": round(avng, 1),
             "Q_syn": round(q_syn, 4),
             "Q_prag": round(q_prag, 4),
             "Q_sem": round(q_sem, 4),

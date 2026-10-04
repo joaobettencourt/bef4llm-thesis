@@ -5,7 +5,7 @@ from bef4llm.resource_controller.path_helper import get_folder_path
 from bef4llm.statistical_tests.tables.common import save_table
 
 # Order in which RAG settings should appear within each family group.
-RAG_SETTINGS = ["baseline", "examples_solution"]
+RAG_SETTINGS = ["baseline", "examples_rag", "examples_solution"]
 
 # The three quality dimensions, and the CSV files they come from
 # (same files already used by generate_table8).
