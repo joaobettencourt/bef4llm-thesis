@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_BankAddition">
+    <bpmn:participant name="PayPal System" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="_LaneSets_BankAddition">
+      <bpmn:lane name="Client Actions" id="_Lane_Client"/>
+      <bpmn:lane name="System Processing" id="_Lane_System"/>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Add Bank Account" id="StartEvent_0">
+      <bpmn:outgoing>_Flow_StartToEnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Client Enters Details (Client Lane) -->
+    <bpmn:userTask name="Enter Bank Details" id="_UserTask_EnterDetails">
+      <bpmn:incoming>_Flow_StartToEnterDetails</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SubmitDetails</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: System Submits Details (System Lane) -->
+    <bpmn:userTask name="Submit Bank Details" id="_UserTask_SubmitDetails">
+      <bpmn:incoming>_Flow_SubmitDetails</bpmn:incoming>
+      <bpmn:outgoing>_Flow_InitDeposits</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: System Initiates Deposits (System Lane) -->
+    <bpmn:userTask name="Initiate Micro-deposits" id="_UserTask_InitDeposits">
+      <bpmn:incoming>_Flow_InitDeposits</bpmn:incoming>
+      <bpmn:outgoing>_Flow_WaitPeriodStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Timer Event (3-5 Working Days) -->
+    <bpmn:intermediateCatchEvent name="Wait 3-5 days" id="_IntermediateTimer_WaitPeriod">
+      <bpmn:incoming>_Flow_WaitPeriodStart</bpmn:incoming>
+      <bpmn:outgoing>_Flow_NotifyClient</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: System Notifies Client (System Lane) -->
+    <bpmn:userTask name="Notify Client to Check Account" id="_UserTask_NotifyClient">
+      <bpmn:incoming>_Flow_NotifyClient</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ClientVerifyStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Client Verifies Deposits (Client Lane) -->
+    <bpmn:userTask name="Enter Deposit Amounts &amp; Verify" id="_UserTask_VerifyDeposits">
+      <bpmn:incoming>_Flow_ClientVerifyStart</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CheckMatchLogic</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Check Values Match (System Lane) -->
+    <bpmn:exclusiveGateway name="Values match?" id="_Gateway_CheckMatch">
+      <bpmn:incoming>_Flow_CheckMatchLogic</bpmn:incoming>
+      <bpmn:outgoing>_Flow_LinkAccountPath</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_RemoveBankPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Link Account (Success) -->
+    <bpmn:userTask name="Link Bank to PayPal" id="_UserTask_LinkAccount">
+      <bpmn:incoming>_Flow_LinkAccountPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ConfirmedEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Remove Bank Account (Failure) -->
+    <bpmn:userTask name="Remove Unconfirmed Bank" id="_UserTask_RemoveBank">
+      <bpmn:incoming>_Flow_RemoveBankPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_RejectedEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 1: Confirmed -->
+    <bpmn:endEvent name="Bank Account Linked" id="_End_Confirmed">
+      <bpmn:incoming>_Flow_ConfirmedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Rejected -->
+    <bpmn:endEvent name="Verification Failed" id="_End_Rejected">
+      <bpmn:incoming>_Flow_RejectedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_0" targetRef="_UserTask_EnterDetails" id="_Flow_StartToEnterDetails"/>
+    
+    <bpmn:sequenceFlow name="Click Continue" sourceRef="_UserTask_EnterDetails" targetRef="_UserTask_SubmitDetails" id="_Flow_SubmitDetails"/>
+
+    <bpmn:sequenceFlow sourceRef="_UserTask_SubmitDetails" targetRef="_UserTask_InitDeposits" id="_Flow_InitDeposits">
+      <bpmn:name>Submit Details</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- System makes deposits and sends message to bank account -->
+    <bpmn:sequenceFlow name="Initiate Deposits" sourceRef="_UserTask_InitDeposits" targetRef="_IntermediateTimer_WaitPeriod" id="_Flow_WaitPeriodStart"/>
+
+    <!-- Wait period -->
+    <bpmn:sequenceFlow sourceRef="_IntermediateTimer_WaitPeriod" targetRef="_UserTask_NotifyClient" id="_Flow_NotifyClient">
+      <bpmn:name>Wait Period Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Client Action after notification -->
+    <bpmn:sequenceFlow name="Notify Sent" sourceRef="_UserTask_NotifyClient" targetRef="_UserTask_VerifyDeposits" id="_Flow_ClientVerifyStart"/>
+
+    <!-- Verification Logic -->
+    <bpmn:sequenceFlow sourceRef="_UserTask_VerifyDeposits" targetRef="_Gateway_CheckMatch" id="_Flow_CheckMatchLogic">
+      <bpmn:name>Submit Amounts</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Match Path -->
+    <bpmn:sequenceFlow name="Yes" sourceRef="_Gateway_CheckMatch" targetRef="_UserTask_LinkAccount" id="_Flow_LinkAccountPath"/>
+
+    <!-- No Match Path -->
+    <bpmn:sequenceFlow name="No" sourceRef="_Gateway_CheckMatch" targetRef="_UserTask_RemoveBank" id="_Flow_RemoveBankPath"/>
+
+    <!-- End Paths -->
+    <bpmn:sequenceFlow sourceRef="_UserTask_LinkAccount" targetRef="_End_Confirmed" id="_Flow_ConfirmedEnd">
+      <bpmn:name>Link Account</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow sourceRef="_UserTask_RemoveBank" targetRef="_End_Rejected" id="_Flow_RejectedEnd"/>
+
+  </bpmn:process>
+</bpmn:definitions>

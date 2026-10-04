@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CourtFiles_1">
+  <bpmn:collaboration id="Collaboration_CourtProcess">
+    <bpmn:participant id="Participant_CourtFileProcessing" name="Court File Processing Process" processRef="Process_CourtFileProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CourtFileProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FileClerk" name="Court Clerk">
+        <bpmn:flowNodeRef>StartEvent_DailyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckFilesOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_FilesMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_FileReadyConverge</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Associate" name="Associate">
+        <bpmn:flowNodeRef>Task_HandFilesToAssociate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_ConvergeBeforeHearing</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DailyCheck" name="Daily File Check">
+      <bpmn:outgoing>SequenceFlow_CheckFilesOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Files Order -->
+    <bpmn:task id="Task_CheckFilesOrder" name="Check files for court hearing order">
+      <bpmn:incoming>SequenceFlow_CheckFilesOrder</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_FilesMissingGw</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Files Missing? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_FilesMissing" name="Files missing?">
+      <bpmn:incoming>SequenceFlow_FilesMissingGw</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_SearchPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TrackFilesPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Search Initiated -->
+    <bpmn:task id="Task_SearchInitiated" name="Search for missing files">
+      <bpmn:incoming>SequenceFlow_SearchPath</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_ConvergeAfterSearch</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Track Files -->
+    <bpmn:task id="Task_TrackFiles" name="Track files to intended location">
+      <bpmn:incoming>SequenceFlow_TrackFilesPath</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_ConvergeAfterTracking</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Convergence after file preparation -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_FileReadyConverge" name="All files ready">
+      <bpmn:incoming>SequenceFlow_ConvergeAfterSearch</bpmn:incoaming>
+      <bpmn:incoming>SequenceFlow_ConvergeAfterTracking</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_SplitToAssociateAndLawlist</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 4: Hand Files to Associate -->
+    <bpmn:task id="Task_HandFilesToAssociate" name="Hand files to Associate">
+      <bpmn:incoming>SequenceFlow_SplitToAssociateAndLawlist</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_AssociateReadyForHearing</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Distribute Law List -->
+    <bpmn:task id="Task_DistributeLawList" name="Distribute Judges Lawlist">
+      <bpmn:incoming>SequenceFlow_SplitToAssociateAndLawlist</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_LawlistReadyForHearing</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Convergence before hearings -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_ConvergeBeforeHearing" name="All ready for hearing">
+      <bpmn:incoming>SequenceFlow_AssociateReadyForHearing</bpmn:incoaming>
+      <bpmn:incoming>SequenceFlow_LawlistReadyForHearing</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_ConductDirectionsHearings</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 6: Conduct Hearings -->
+    <bpmn:task id="Task_DirectionsHearings" name="Conduct directions hearings">
+      <bpmn:incoming>SequenceFlow_ConductDirectionsHearings</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_HearingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_DailyProcess" name="Daily process complete">
+      <bpmn:incoming>SequenceFlow_HearingComplete</bpmn:incoaming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_CheckFilesOrder" sourceRef="StartEvent_DailyCheck" targetRef="Task_CheckFilesOrder"/>
+  <bpmn:sequenceFlow id="SequenceFlow_FilesMissingGw" name="Files missing?" sourceRef="ExclusiveGateway_FilesMissing" targetRef="InclusiveGateway_FileReadyConverge">
+    <bpmn:conditionExpression xsi:type="tFormalExpression">${filesAreComplete}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+  <bpmn:sequenceFlow id="SequenceFlow_SearchPath" name="Yes - search needed" sourceRef="ExclusiveGateway_FilesMissing" targetRef="Task_SearchInitiated"/>
+  <bpmn:sequenceFlow id="SequenceFlow_TrackFilesPath" name="No - track files" sourceRef="ExclusiveGateway_FilesMissing" targetRef="Task_TrackFiles"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ConvergeAfterSearch" sourceRef="Task_SearchInitiated" targetRef="InclusiveGateway_FileReadyConverge"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ConvergeAfterTracking" sourceRef="Task_TrackFiles" targetRef="InclusiveGateway_FileReadyConverge"/>
+  <bpmn:sequenceFlow id="SequenceFlow_SplitToAssociateAndLawlist" name="All files ready - split paths" sourceRef="InclusiveGateway_FileReadyConverge" targetRef="Task_HandFilesToAssociate"/>
+  <bpmn:sequenceFlow id="SequenceFlow_AssociateReadyForHearing" sourceRef="Task_HandFilesToAssociate" targetRef="InclusiveGateway_ConvergeBeforeHearing"/>
+  <bpmn:sequenceFlow id="SequenceFlow_LawlistReadyForHearing" name="Law list distributed" sourceRef="Task_DistributeLawList" targetRef="InclusiveGateway_ConvergeBeforeHearing"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ConductDirectionsHearings" sourceRef="InclusiveGateway_ConvergeBeforeHearing" targetRef="Task_DirectionsHearings"/>
+  <bpmn:sequenceFlow id="SequenceFlow_HearingComplete" name="All hearings complete" sourceRef="Task_DirectionsHearings" targetRef="EndEvent_DailyProcess"/>
+
+</bpmn:definitions>

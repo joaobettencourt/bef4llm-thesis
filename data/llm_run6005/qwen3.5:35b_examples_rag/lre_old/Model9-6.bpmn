@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:signal id="Signal_DesignUpdated" name="Design Updated"/>
+
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Process" name="Electrical &amp; Physical Design Process" processRef="Process_P1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_P1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Electrical" name="Electrical Design Department">
+        <bpmn:flowNodeRef>Task_LocateDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Parallel_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewPlanElectrical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RevisedDesignElectrical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TestPassElectrical</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Physical" name="Physical Design Department">
+        <bpmn:flowNodeRef>Task_LocateDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Parallel_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewPlanPhysical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RevisedDesignPhysical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TestPassPhysical</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event1" name="Process Starts">
+      <bpmn:outgoing>SequenceFlow_Init</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Locate and Distribute Designs -->
+    <bpmn:task id="Task_LocateDesigns" name="Locate &amp; Distribute Existing Designs">
+      <bpmn:incoming>SequenceFlow_Init</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitParallel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="Gateway_Parallel_Start">
+      <bpmn:incoming>SequenceFlow_SplitParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ElectricalStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PhysicalStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Electrical Lane Flow -->
+    <bpmn:task id="Task_ReviewPlanElectrical" name="Create Update Plan (Electrical)">
+      <bpmn:incoming>SequenceFlow_ElectricalStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RevisedDesignE</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for Interruption Signal -->
+    <bpmn:intermediateCatchEvent id="Int_CatchSignalE" name="Interrupted by Peer">
+      <bpmn:signalEventDefinition signalRef="Signal_DesignUpdated"/>
+      <bpmn:incoming>SequenceFlow_SignalElectrical</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RestartPlanE</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Electrical Revised Design Task -->
+    <bpmn:task id="Task_RevisedDesignElectrical" name="Revise Electrical Design">
+      <bpmn:incoming>SequenceFlow_RestartPlanE</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestElectrical</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Electrical Test Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_TestPassElectrical" name="Test Pass?">
+      <bpmn:incoming>SequenceFlow_TestElectrical</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_ElectricalFail</bpmn:outgoing>
+      <bpmn:outgoing>SequenceJoinE_Pass</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Physical Lane Flow -->
+    <bpmn:task id="Task_ReviewPlanPhysical" name="Create Update Plan (Physical)">
+      <bpmn:incoming>SequenceFlow_PhysicalStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RevisedDesignP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for Interruption Signal -->
+    <bpmn:intermediateCatchEvent id="Int_CatchSignalP" name="Interrupted by Peer">
+      <bpmn:signalEventDefinition signalRef="Signal_DesignUpdated"/>
+      <bpmn:incoming>SequenceFlow_SignalPhysical</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RestartPlanP</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Physical Revised Design Task -->
+    <bpmn:task id="Task_RevisedDesignPhysical" name="Revise Physical Design">
+      <bpmn:incoming>SequenceFlow_RestartPlanP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestPhysical</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Physical Test Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_TestPassPhysical" name="Test Pass?">
+      <bpmn:incoming>SequenceFlow_TestPhysical</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_PhysicalFail</bpmn:outgoing>
+      <bpmn:outgoing>SequenceJoinP_Pass</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Join Gateway for Combined Design -->
+    <bpmn:parallelGateway id="Gateway_JoinCombined">
+      <bpmn:incoming>SequenceJoinE_Pass</bpmn:incoming>
+      <bpmn:incoming>SequenceJoinP_Pass</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CombineDesigns</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Combine and Final Test -->
+    <bpmn:task id="Task_CombinedTest" name="Combine &amp; Test Designs">
+      <bpmn:incoming>SequenceFlow_CombineDesigns</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_FinalTest" name="Combined Test Pass?">
+      <bpmn:incoming>SequenceFlow_FinalDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_CycleRestart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceEnd_Success</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event1" name="Send to Manufacturing">
+      <bpmn:incoming>SequenceEnd_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Electrical Lane -->
+    <bpmn:sequenceFlow id="SequenceFlow_Init" sourceRef="Start_Event1" targetRef="Task_LocateDesigns"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SplitParallel" name="Split to Departments" sourceRef="Gateway_Parallel_Start" targetRef="Task_ReviewPlanElectrical"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ElectricalStart" sourceRef="Gateway_Parallel_Start" targetRef="Task_ReviewPlanElectrical"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PhysicalStart" name="" sourceRef="Gateway_Parallel_Start" targetRef="Task_ReviewPlanPhysical"/>
+
+    <!-- Electrical Loop -->
+    <bpmn:sequenceFlow id="SequenceLoop_ElectricalFail" name="No (Review)" sourceRef="Gateway_TestPassElectrical" targetRef="Task_ReviewPlanElectrical"/>
+    <bpmn:sequenceFlow id="SequenceSignalE_PeerRestart" sourceRef="Gateway_TestPassPhysical" targetRef="Int_CatchSignalP"/>
+
+    <!-- Physical Loop -->
+    <bpmn:sequenceFlow id="SequenceLoop_PhysicalFail" name="No (Review)" sourceRef="Gateway_TestPassPhysical" targetRef="Task_ReviewPlanPhysical"/>
+    <bpmn:sequenceFlow id="SequenceSignalP_PeerRestart" sourceRef="Gateway_TestPassElectrical" targetRef="Int_CatchSignalE"/>
+
+    <!-- Signal Catch Redirects to Review Plan -->
+    <bpmn:sequenceFlow id="SequenceFlow_RestartPlanE" name="Restart Due to Peer Update" sourceRef="Int_CatchSignalE" targetRef="Task_ReviewPlanElectrical"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RestartPlanP" name="Restart Due to Peer Update" sourceRef="Int_CatchSignalP" targetRef="Task_ReviewPlanPhysical"/>
+
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceJoinE_Pass" name="Pass (Electrical)" sourceRef="Gateway_TestPassElectrical" targetRef="Gateway_JoinCombined"/>
+    <bpmn:sequenceFlow id="SequenceJoinP_Pass" name="Pass (Physical)" sourceRef="Gateway_TestPassPhysical" targetRef="Gateway_JoinCombined"/>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CombineDesigns" sourceRef="Gateway_JoinCombined" targetRef="Task_CombinedTest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FinalDecision" name="" sourceRef="Task_CombinedTest" targetRef="Gateway_FinalTest"/>
+
+    <!-- Final Loop or End -->
+    <bpmn:sequenceFlow id="SequenceLoop_CycleRestart" name="Fail (Initiate Cycle)" sourceRef="Gateway_FinalTest" targetRef="Start_Event1"/>
+    <bpmn:sequenceFlow id="SequenceEnd_Success" name="Pass (Send to Manufacturing)" sourceRef="Gateway_FinalTest" targetRef="End_Event1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Order Fulfillment Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_InternalStaff" name="Internal Staff">
+        <bpmn:flowNodeRef>LaneTask_CheckStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneGateway_Available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneUserTask_InformDiscontinued</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneServiceTask_OrderMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneGateway_AllReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneUserTask_RecollectPackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Courier" name="External Logistics (Courier)">
+        <bpmn:flowNodeRef>CourierIntermediateEvent_WaitResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneGateway_ResourcesAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneUserTask_PickupPackage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CourierServiceTask_RouteDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneUserTask_DeliverPackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Review Order">
+      <bpmn:outgoing>bpmn:SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Internal Staff Tasks & Gateways -->
+    <bpmn:userTask id="LaneUserTask_InformDiscontinued" name="Inform Customer (Discontinued Item)">
+      <bpmn:incoming>bpmn:SequenceFlow_Discontinued</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_EndCanceled</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_Canceled" name="Order Canceled">
+      <bpmn:incoming>bpmn:SequenceFlow_EndCanceled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="LaneServiceTask_OrderMissing" name="Inform Delay & Order Missing Products">
+      <bpmn:incoming>bpmn:SequenceFlow_MissingItems</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WaitDelivery</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="LaneUserTask_RecollectPackage" name="Recollect & Prepare Package">
+      <bpmn:incoming>bpmn:SequenceFlow_PrepareOrder</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_NotifyCourier</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="LaneUserTask_CheckStock" name="Check Item Availability">
+      <bpmn:incoming>bpmn:SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_AvailableCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="LaneGateway_AllReady" name="All Products Ready?">
+      <bpmn:incoming>bpmn:SequenceFlow_RecheckStock</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_PrepareOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="LaneGateway_Available" name="Items Available?">
+      <bpmn:incoming>bpmn:SequenceFlow_AvailableCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Discontinued</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_MissingItems</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Event for Wait -->
+    <bpmn:intermediateCatchEvent id="LaneIntermediateEvent_WaitDelivery" name="Wait x Days">
+      <bpmn:incoming>bpmn:SequenceFlow_WaitDelivery</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RecheckStock</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Courier Tasks & Gateways -->
+    <bpmn:userTask id="LaneUserTask_PickupPackage" name="Pick Up Package">
+      <bpmn:incoming>bpmn:SequenceFlow_CourierReady</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RouteDecisionStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_Completed" name="Order Completed">
+      <bpmn:incoming>bpmn:SequenceFlow_FinalNotify</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="CourierServiceTask_RouteDecision" name="Centralized Route Decision">
+      <bpmn:incoming>bpmn:SequenceFlow_RouteDecisionStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_DeliverPackage</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Courier Intermediate Event -->
+    <bpmn:intermediateCatchEvent id="CourierIntermediateEvent_WaitResources" name="Wait for Resources">
+      <bpmn:incoming>bpmn:SequenceFlow_CourierStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ResourcesAvailableCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Courier Gateway -->
+    <bpmn:exclusiveGateway id="LaneGateway_ResourcesAvailable" name="Enough Resources?">
+      <bpmn:incoming>bpmn:SequenceFlow_WaitResources</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CourierReady</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_1" targetRef="LaneUserTask_CheckStock"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AvailableCheck" name="" sourceRef="LaneUserTask_CheckStock" targetRef="LaneGateway_Available">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${itemStatus == 'discontinued'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Discontinued Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Discontinued" name="Discontinued Item?" sourceRef="LaneGateway_Available" targetRef="LaneUserTask_InformDiscontinued">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${itemStatus == 'discontinued'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Missing Items Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MissingItems" name="Missing Item?" sourceRef="LaneGateway_Available" targetRef="LaneServiceTask_OrderMissing">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${itemStatus == 'missing'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Delivery Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitDelivery" sourceRef="LaneServiceTask_OrderMissing" targetRef="LaneIntermediateEvent_WaitDelivery"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RecheckStock" name="" sourceRef="LaneIntermediateEvent_WaitDelivery" targetRef="LaneGateway_AllReady">
+      <!-- In a real model, this would go back to Check Stock or merge into All Ready check -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareOrder" name="Yes - OK" sourceRef="LaneGateway_AllReady" targetRef="LaneUserTask_RecollectPackage"/>
+
+    <!-- Courier Handover & Flow -->
+    <bpmn:userTask id="CourierServiceTask_NotifyClientDelay" name="Inform Client of Delay">
+      <bpmn:incoming>bpmn:SequenceFlow_CourierStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WaitResources</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Courier Process Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_CourierStart" sourceRef="LaneUserTask_RecollectPackage" targetRef="CourierServiceTask_NotifyClientDelay"/>
+
+    <!-- Wait for Resources Logic (Simplified as Task/Event flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResources" name="" sourceRef="CourierServiceTask_NotifyClientDelay" targetRef="LaneGateway_ResourcesAvailable"> 
+      <!-- Note: In a real model, this would be the 'No' path or wait logic. Adjusted for flow continuity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CourierReady" name="Yes - Resources OK" sourceRef="LaneGateway_ResourcesAvailable" targetRef="CourierIntermediateEvent_WaitResources">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${resourcesAvailable}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Delivery & Completion -->
+    <bpmn:userTask id="LaneUserTask_UpdateSystemNotifyStakeholders" name="Update System & Notify Stakeholders">
+      <bpmn:incoming>bpmn:SequenceFlow_DeliverPackage</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_FinalNotify</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Corrected Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_RouteDecisionStart" sourceRef="CourierIntermediateEvent_WaitResources" targetRef="LaneUserTask_PickupPackage"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DeliverPackage" name="" sourceRef="LaneGateway_ResourcesAvailable" targetRef="CourierServiceTask_RouteDecision">
+      <!-- Corrected flow from Gateway to Route Decision -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalNotify" sourceRef="LaneUserTask_UpdateSystemNotifyStakeholders" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

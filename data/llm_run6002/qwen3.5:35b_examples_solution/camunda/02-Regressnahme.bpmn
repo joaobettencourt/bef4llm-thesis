@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Regress_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RegressProcess">
+    <bpmn:participant id="Participant_Sachbearbeiter" name="Regressnahme Sachbearbeiter" processRef="Process_Regress_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Regress_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RegressNotification" name="Regressverdacht gemeldet">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_CheckCase</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Case -->
+    <bpmn:task id="Task_01_CheckCase" name="Fall prüfen">
+      <bpmn:incoming>SequenceFlow_CheckCase</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionRegression</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is regression possible? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_01_RegressPossible" name="Regress möglich?">
+      <bpmn:incoming>SequenceFlow_DecisionRegression</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPaymentRequest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CloseCase_NoRegres</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Send Payment Request -->
+    <bpmn:task id="Task_02_SendPaymentRequest" name="Zahlungsaufforderung an VN schicken">
+      <bpmn:incoming>SequenceFlow_SendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetFollowUp</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Set for Follow-up -->
+    <bpmn:task id="Task_03_SetFollowUp" name="Vorgang auf Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_SetFollowUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EventBasedGatewayStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway for waiting on events -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_01_WaitingEvents" name="Warten auf Ereignisse">
+      <bpmn:incoming>SequenceFlow_EventBasedGatewayStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ObjectionPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DeadlineExpiredPath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Path 1: Money Received -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_01_MoneyReceived" name="Geld eingegangen">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_MoneyReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookReceipt</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4: Book Receipt -->
+    <bpmn:task id="Task_04_BookReceipt" name="Geldeingang verbuchen">
+      <bpmn:incoming>SequenceFlow_BookReceipt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCase_MoneyReceived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Objection Received -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_02_Objection" name="Widerspruch erhalten">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_ObjectionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckObjection</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 5: Check Objection -->
+    <bpmn:task id="Task_05_CheckObjection" name="Widerspruch prüfen">
+      <bpmn:incoming>SequenceFlow_CheckObjection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionJustified</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Is objection justified? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_02_ObjectionJustified" name="Gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_DecisionJustified</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCase_Justified</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendToCollection_NoObjection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 3: Deadline Expired -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_03_DeadlineExpired" name="Wiedervorlage fällig">
+      <bpmn:timerEventDefinition />
+      <bpmn:incoming>SequenceFlow_DeadlineExpiredPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToCollection_TimeOut</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 6: Send to Collection Agency -->
+    <bpmn:task id="Task_06_SendToCollection" name="Vorgang an Inkasso-Dienstleister geben">
+      <bpmn:incoming>SequenceFlow_SendToCollection_NoObjection</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SendToCollection_TimeOut</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCaseOpen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_01_CloseNoRegres" name="Vorgang geschlossen">
+      <bpmn:incoming>SequenceFlow_CloseCase_NoRegres</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_02_CloseMoneyReceived" name="Vorgang geschlossen">
+      <bpmn:incoming>SequenceFlow_CloseCase_MoneyReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_03_CloseJustified" name="Vorgang geschlossen">
+      <bpmn:incoming>SequenceFlow_CloseCase_Justified</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_04_OpenCollection" name="Vorgang offen (Inkasso)">
+      <bpmn:incoming>SequenceFlow_EndCaseOpen</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCase" sourceRef="StartEvent_RegressNotification" targetRef="Task_01_CheckCase">
+      <bpmn:name>Hauptprozess</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionRegression" name="Prüfungsergebnis" sourceRef="Task_01_CheckCase" targetRef="ExclusiveGateway_01_RegressPossible">
+      <bpmn:name>Fall geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendPaymentRequest" name="Ja - Regress möglich" sourceRef="ExclusiveGateway_01_RegressPossible" targetRef="Task_02_SendPaymentRequest">
+      <bpmn:name>J</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCase_NoRegres" name="Nein - Kein Regress möglich" sourceRef="ExclusiveGateway_01_RegressPossible" targetRef="EndEvent_01_CloseNoRegres">
+      <bpmn:name>N</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SetFollowUp" name="Zahlungsaufforderung gesendet" sourceRef="Task_02_SendPaymentRequest" targetRef="Task_03_SetFollowUp">
+      <bpmn:name>Zahlungsaufforderung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EventBasedGatewayStart" name="Wiedervorlage aktiviert" sourceRef="Task_03_SetFollowUp" targetRef="EventBasedGateway_01_WaitingEvents">
+      <bpmn:name>Frist gesetzt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Event-Based Gateway Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_MoneyReceivedPath" name="Geld eingegangen" sourceRef="EventBasedGateway_01_WaitingEvents" targetRef="IntermediateCatch_01_MoneyReceived">
+      <bpmn:name>Geldeingang</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ObjectionPath" name="Widerspruch erhalten" sourceRef="EventBasedGateway_01_WaitingEvents" targetRef="IntermediateCatch_02_Objection">
+      <bpmn:name>Widerspruch</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DeadlineExpiredPath" name="Frist abgelaufen" sourceRef="EventBasedGateway_01_WaitingEvents" targetRef="IntermediateCatch_03_DeadlineExpired">
+      <bpmn:name>Fristablauf</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Money Received Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_BookReceipt" name="Geld eingegangen" sourceRef="IntermediateCatch_01_MoneyReceived" targetRef="Task_04_BookReceipt">
+      <bpmn:name>Geldeingang</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCase_MoneyReceived" name="Verbucht und geschlossen" sourceRef="Task_04_BookReceipt" targetRef="EndEvent_02_CloseMoneyReceived">
+      <bpmn:name>Vorgang abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Objection Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckObjection" name="Widerspruch erhalten" sourceRef="IntermediateCatch_02_Objection" targetRef="Task_05_CheckObjection">
+      <bpmn:name>Prüfung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionJustified" name="Widerspruch geprüft" sourceRef="Task_05_CheckObjection" targetRef="ExclusiveGateway_02_ObjectionJustified">
+      <bpmn:name>Gerechtfertigt?</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Objection Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCase_Justified" name="Ja - Gerechtfertigt" sourceRef="ExclusiveGateway_02_ObjectionJustified" targetRef="EndEvent_03_CloseJustified">
+      <bpmn:name>J</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendToCollection_NoObjection" name="Nein - Nicht gerechtfertigt" sourceRef="ExclusiveGateway_02_ObjectionJustified" targetRef="Task_06_SendToCollection">
+      <bpmn:name>N</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Deadline Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToCollection_TimeOut" name="Frist abgelaufen" sourceRef="IntermediateCatch_03_DeadlineExpired" targetRef="Task_06_SendToCollection">
+      <bpmn:name>Fristablauf</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Collection Agency Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndCaseOpen" name="An Inkasso übergeben" sourceRef="Task_06_SendToCollection" targetRef="EndEvent_04_OpenCollection">
+      <bpmn:name>Vorgang offen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

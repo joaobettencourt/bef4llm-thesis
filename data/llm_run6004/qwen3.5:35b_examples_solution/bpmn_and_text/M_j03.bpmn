@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ContractProject" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_ContractExecution" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ProjectInitiated" name="Contract Project Initiated">
+      <bpmn:outgoing>SequenceFlow_InitiateOrdering</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Ordering Phase Tasks -->
+    <bpmn:task id="Task_QueryShops" name="Query Webshops for Parts">
+      <bpmn:incoming>SequenceFlow_InitiateOrdering</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GetDetails</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GetDeliveryDetails" name="Find out delivery details">
+      <bpmn:incoming>SequenceFlow_GetDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ComparePrices</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:serviceTask id="ServiceTask_CompareSelect" name="Compare prices &amp; Select Cheapest">
+      <bpmn:incoming>SequenceFlow_ComparePrices</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateOrderList</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:task id="Task_CreateOrderList" name="Create list of parts to order">
+      <bpmn:incoming>SequenceFlow_CreateOrderList</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderParts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ordering Logic Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AllCovered" name="All required parts covered?">
+      <bpmn:incoming>SequenceFlow_CheckCoverage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderMoreParts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WaitForArrival</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop for Ordering -->
+    <bpmn:task id="Task_ReviewOrder" name="Check if more shops needed">
+      <bpmn:incoming>SequenceFlow_OrderMoreParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QueryShopsLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Convergence for Ordering Phase -->
+    <bpmn:exclusiveGateway id="Gateway_ConvergeOrdering" name="">
+      <bpmn:incoming>SequenceFlow_OrderParts</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_QueryShopsLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCoverage</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Event for Arrival -->
+    <bpmn:intermediateCatchEvent id="Event_PartArrived" name="Part Arrived">
+      <bpmn:incoming>SequenceFlow_WaitForArrival</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartBuildAndCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Build and Stock Check Phase -->
+    <bpmn:parallelGateway id="Parallel_BuildStock" name="">
+      <bpmn:incoming>SequenceFlow_StartBuildAndCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BuildItem</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckQuantityLoop</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Build Task -->
+    <bpmn:task id="Task_BuildItem" name="Build Item">
+      <bpmn:incoming>SequenceFlow_BuildItem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckStockAfterBuild</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Stock Check Loop -->
+    <bpmn:task id="Task_CheckQuantity" name="Check quantity of parts">
+      <bpmn:incoming>SequenceFlow_CheckQuantityLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StockDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Stock Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_StockLevel" name="Quantity?">
+      <bpmn:incoming>SequenceFlow_StockDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderCheapest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderFastest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ComplainZero</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reordering Tasks -->
+    <bpmn:task id="Task_ReorderCheapest" name="Reorder cheapest parts">
+      <bpmn:incoming>SequenceFlow_OrderCheapest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeStockLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ReorderFastest" name="Reorder fastest parts">
+      <bpmn:incoming>SequenceFlow_OrderFastest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeStockLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Complaint Task -->
+    <bpmn:userTask id="UserTask_Complain" name="Write mail to friends">
+      <bpmn:incoming>SequenceFlow_ComplainZero</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeStockLoop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Convergence for Stock Loop -->
+    <bpmn:parallelGateway id="Parallel_ConvergeStock" name="">
+      <bpmn:incoming>SequenceFlow_CheckQuantityLoop</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeStockLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueBuildOrEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Phase -->
+    <bpmn:task id="Task_CloseProject" name="Close contract project">
+      <bpmn:incoming>SequenceFlow_ContinueBuildOrEnd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishContract</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ContractFinished" name="Contract Finished">
+      <bpmn:incoming>SequenceFlow_FinishContract</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitiateOrdering" sourceRef="StartEvent_ProjectInitiated" targetRef="Task_QueryShops" />
+    <bpmn:sequenceFlow id="SequenceFlow_GetDetails" sourceRef="Task_QueryShops" targetRef="Task_GetDeliveryDetails" />
+    <bpmn:sequenceFlow id="SequenceFlow_ComparePrices" sourceRef="Task_GetDeliveryDetails" targetRef="ServiceTask_CompareSelect" />
+    <bpmn:sequenceFlow id="SequenceFlow_CreateOrderList" sourceRef="ServiceTask_CompareSelect" targetRef="Task_CreateOrderList" />
+    <bpmn:sequenceFlow id="SequenceFlow_OrderParts" sourceRef="Task_CreateOrderList" targetRef="Gateway_ConvergeOrdering" />
+    
+    <!-- Ordering Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_QueryShopsLoop" name="Yes (More needed)" sourceRef="Task_ReviewOrder" targetRef="Task_GetDeliveryDetails" />
+
+    <!-- Order Check Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCoverage" sourceRef="Gateway_ConvergeOrdering" targetRef="Gateway_AllCovered" />
+    
+    <!-- All Covered Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderMoreParts" name="No (Need more)" sourceRef="Gateway_AllCovered" targetRef="Task_ReviewOrder" />
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForArrival" name="Yes (All covered)" sourceRef="Gateway_AllCovered" targetRef="Event_PartArrived" />
+
+    <!-- Build and Monitor Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartBuildAndCheck" sourceRef="Event_PartArrived" targetRef="Parallel_BuildStock" />
+    
+    <!-- Parallel Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuildItem" name="" sourceRef="Parallel_BuildStock" targetRef="Task_BuildItem" />
+    <bpmn:sequenceFlow id="SequenceFlow_CheckQuantityLoop" name="" sourceRef="Parallel_BuildStock" targetRef="Task_CheckQuantity" />
+
+    <!-- Stock Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StockDecision" sourceRef="Task_CheckQuantity" targetRef="Gateway_StockLevel" />
+    
+    <!-- Threshold Decisions (Simplified logic for XML) -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderCheapest" name="Below 5" sourceRef="Gateway_StockLevel" targetRef="Task_ReorderCheapest" />
+    <bpmn:sequenceFlow id="SequenceFlow_OrderFastest" name="Below 3" sourceRef="Gateway_StockLevel" targetRef="Task_ReorderFastest" />
+    <bpmn:sequenceFlow id="SequenceFlow_ComplainZero" name="Is Zero" sourceRef="Gateway_StockLevel" targetRef="UserTask_Complain" />
+
+    <!-- Merge Stock Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeStockLoop" sourceRef="Task_ReorderCheapest" targetRef="Parallel_ConvergeStock" />
+    <bpmn:sequenceFlow id="SequenceFlow_MergeFastest" name="" sourceRef="Task_ReorderFastest" targetRef="Parallel_ConvergeStock" />
+    <bpmn:sequenceFlow id="SequenceFlow_ComplainMerge" name="" sourceRef="UserTask_Complain" targetRef="Parallel_ConvergeStock" />
+
+    <!-- Loop Back to Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueBuildOrEnd" sourceRef="Parallel_ConvergeStock" targetRef="Task_CheckQuantity" />
+
+    <!-- End Phase Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishContract" name="" sourceRef="Task_CloseProject" targetRef="EndEvent_ContractFinished" />
+  </bpmn:process>
+</bpmn:definitions>

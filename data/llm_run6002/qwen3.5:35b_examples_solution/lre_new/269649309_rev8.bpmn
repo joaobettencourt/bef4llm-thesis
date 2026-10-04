@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_NotCollectedBagProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_CVS" name="CVS" processRef="Proc_NotCollectedBag" />
+    <bpmn:participant id="Pool_Customer" name="Customer" />
+    <bpmn:messageFlow id="MsgFlow_CallCustomer" sourceRef="Task_ContactCustomer" targetRef="Pool_Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_NotCollectedBag" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_BagIdentified" name="Not collected bag identified">
+      <bpmn:outgoing>Seq_Start_CheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane for CVS operations -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CVS" name="CVS">
+        <bpmn:flowNodeRef>Start_BagIdentified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckRetries</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_RetryThreshold</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ContactCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ContactOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IncreaseRetryCount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReturnDisassemble</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task 1: Check number of resolution retries conducted -->
+    <bpmn:task id="Task_CheckRetries" name="Check number of resolution retries conducted">
+      <bpmn:incoming>Seq_Start_CheckRetries</bpmn:incoming>
+      <bpmn:outgoing>Seq_Gw_RetryThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision on retry threshold -->
+    <bpmn:exclusiveGateway id="Gw_RetryThreshold" name="Retries &gt; specified number?">
+      <bpmn:incoming>Seq_Gw_RetryThreshold</bpmn:incoming>
+      <bpmn:outgoing>Seq_ContactCustomer</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ReturnDisassemble1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Contact customer by phone -->
+    <bpmn:task id="Task_ContactCustomer" name="Try to contact customer and remind to pick up bag">
+      <bpmn:incoming>Seq_ContactCustomer</bpmn:incoming>
+      <bpmn:outgoing>Seq_Gw_ContactOutcome</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Contact outcome decision -->
+    <bpmn:exclusiveGateway id="Gw_ContactOutcome" name="Contact outcome">
+      <bpmn:incoming>Seq_Gw_ContactOutcome</bpmn:incoming>
+      <bpmn:outgoing>Seq_ReturnDisassemble2</bpmn:outgoing>
+      <bpmn:outgoing>Seq_IncreaseRetryCount1</bpmn:outgoing>
+      <bpmn:outgoing>Seq_IncreaseRetryCount2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Return to production for disassemble -->
+    <bpmn:task id="Task_ReturnDisassemble" name="Return bag to production area for disassemble">
+      <bpmn:incoming>Seq_ReturnDisassemble1</bpmn:incoming>
+      <bpmn:incoming>Seq_ReturnDisassemble2</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndBagManaged</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Increase retry count on bag label -->
+    <bpmn:task id="Task_IncreaseRetryCount" name="Increase retry count on bag label">
+      <bpmn:incoming>Seq_IncreaseRetryCount1</bpmn:incoming>
+      <bpmn:incoming>Seq_IncreaseRetryCount2</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndBagManaged</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_BagManaged" name="Not collected bag managed">
+      <bpmn:incoming>Seq_EndBagManaged</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Gateway 1 decisions -->
+    <bpmn:sequenceFlow id="Seq_Start_CheckRetries" sourceRef="Start_BagIdentified" targetRef="Task_CheckRetries">
+      <bpmn:name>Check retries</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_Gw_RetryThreshold" name="No (retries ≤ threshold)" sourceRef="Gw_RetryThreshold" targetRef="Task_ContactCustomer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retryCount &lt;= maxRetries}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ReturnDisassemble1" name="Yes (retries > threshold)" sourceRef="Gw_RetryThreshold" targetRef="Task_ReturnDisassemble">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retryCount &gt; maxRetries}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - Gateway 2 decisions -->
+    <bpmn:sequenceFlow id="Seq_Gw_ContactOutcome" sourceRef="Task_ContactCustomer" targetRef="Gw_ContactOutcome">
+      <bpmn:name>Contact outcome</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ReturnDisassemble2" name="Successful, customer withdrew order" sourceRef="Gw_ContactOutcome" targetRef="Task_ReturnDisassemble">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${contactSuccess AND customerWithdrew}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_IncreaseRetryCount1" name="Successful, promised to pick up" sourceRef="Gw_ContactOutcome" targetRef="Task_IncreaseRetryCount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${contactSuccess AND customerPromised}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_IncreaseRetryCount2" name="Unsuccessful contact" sourceRef="Gw_ContactOutcome" targetRef="Task_IncreaseRetryCount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!contactSuccess}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows to End Event -->
+    <bpmn:sequenceFlow id="Seq_EndBagManaged" sourceRef="Task_ReturnDisassemble" targetRef="End_BagManaged">
+      <bpmn:name>Bags processed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

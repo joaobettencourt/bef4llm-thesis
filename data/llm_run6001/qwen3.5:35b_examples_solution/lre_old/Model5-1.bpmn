@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LoanApproval" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LoanProcess">
+    <bpmn:participant id="Participant_System" name="Loan Approval System" processRef="Process_LoanApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LoanApproval" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Organization" name="Organization">
+        <bpmn:flowNodeRef>Event_StartRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RiskAssessment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionPoint</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LoanApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Denied</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_FeedbackSent</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Event_StartRequest" name="Receive Loan Request">
+      <bpmn:outgoing>SFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Risk Assessment Web Service Invocation -->
+    <bpmn:task id="Task_RiskAssessment" name="Invoke Risk Assessment Web Service">
+      <bpmn:incoming>SFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Decision Logic -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionPoint" name="Risk &amp; Amount Check?">
+      <bpmn:incoming>SFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SFlow_Approved_Path</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_Denied_Path</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ReviewPath_Seqflow1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Approved -->
+    <bpmn:endEvent id="End_Approved" name="Loan Approved / Feedback Sent">
+      <bpmn:incoming>SFlow_Approved_Path</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Loan Approval Web Service Invocation -->
+    <bpmn:task id="Task_LoanApproval" name="Invoke Loan Approval Web Service">
+      <bpmn:incoming>SFlow_ReviewPath_Seqflow1</bpmn:incoming>
+      <bpmn:outgoing>SFlow_FeedbackSent_Path</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2: Denied -->
+    <bpmn:endEvent id="End_Denied" name="Loan Denied / Feedback Sent">
+      <bpmn:incoming>SFlow_Denied_Path</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 3: Approval Response from Approver -->
+    <bpmn:endEvent id="End_FeedbackSent" name="Approval Feedback Sent">
+      <bpmn:incoming>SFlow_FeedbackSent_Path</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_01" sourceRef="Event_StartRequest" targetRef="Task_RiskAssessment"/>
+    
+    <bpmn:sequenceFlow id="SFlow_02" name="Risk Assessment Complete" sourceRef="Task_RiskAssessment" targetRef="Gateway_DecisionPoint"/>
+
+    <!-- Path to Approved (Small & Low Risk) -->
+    <bpmn:sequenceFlow id="SFlow_Approved_Path" name="Approved (Small, Low Risk)" sourceRef="Gateway_DecisionPoint" targetRef="End_Approved">
+      <bpmn:conditionExpression>${loanAmount &lt; 10000 AND riskLevel == 'Low'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path to Denied (High Risk) -->
+    <bpmn:sequenceFlow id="SFlow_Denied_Path" name="Denied (High Risk)" sourceRef="Gateway_DecisionPoint" targetRef="End_Denied">
+      <bpmn:conditionExpression>${riskLevel == 'High'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path to Review/Approver (Further review OR Amount >= 10k) -->
+    <bpmn:sequenceFlow id="SFlow_ReviewPath_Seqflow1" name="Needs Review or High Amount" sourceRef="Gateway_DecisionPoint" targetRef="Task_LoanApproval">
+      <bpmn:conditionExpression>${needsFurtherReview OR loanAmount &gt;= 10000}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path from Approver to Final Feedback -->
+    <bpmn:sequenceFlow id="SFlow_FeedbackSent_Path" sourceRef="Task_LoanApproval" targetRef="End_FeedbackSent"/>
+  </bpmn:process>
+</bpmn:definitions>

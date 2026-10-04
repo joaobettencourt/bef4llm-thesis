@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OEE_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OEE_1">
+    <bpmn:participant id="Participant_Process_1" name="OEE Monitoring Process" processRef="Process_OEE_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEE_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Monitoring" name="OEE Monitoring">
+      <bpmn:outgoing>SequenceFlow_StartToCollect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Collect Information -->
+    <bpmn:task id="Task_CollectInfo" name="Collect information from machine">
+      <bpmn:incoming>SequenceFlow_StartToCollect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectToCalc</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Service Task: Calculate OEE -->
+    <bpmn:serviceTask id="ServiceTask_CalcOEE" name="Calculate Overall Equipment Efficiency">
+      <bpmn:incoming>SequenceFlow_CollectToCalc</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CalcToCheckThreshold</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Check OEE Threshold -->
+    <bpmn:exclusiveGateway id="Gateway_CheckOEE" name="Is OEE below threshold?">
+      <bpmn:incoming>SequenceFlow_CalcToCheckThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OEELowYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OEOkNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for Low OEE Actions -->
+    <bpmn:parallelGateway id="ParallelSplit_LowOEE" name="">
+      <bpmn:incoming>SequenceFlow_OEELowYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StopMachineAction</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendEmailAction</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task/Service: Stop Machine -->
+    <bpmn:userTask id="UserTask_StopMachine" name="Stop the machine">
+      <bpmn:incoming>SequenceFlow_StopMachineAction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeLowOEE</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task/Message: Send Email -->
+    <bpmn:serviceTask id="ServiceTask_SendEmail" name="Send email to engineer">
+      <bpmn:incoming>SequenceFlow_SendEmailAction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeLowOEE</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="ParallelMerge_LowOEE" name="">
+      <bpmn:incoming>SequenceFlow_MergeLowOEE</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConnectionCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway: Check Connection Status -->
+    <bpmn:exclusiveGateway id="Gateway_ConnectionStatus" name="Is machine connected?">
+      <bpmn:incoming>SequenceFlow_OEOkNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToConnectionCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConnectedYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisconnectedNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event if Disconnected -->
+    <bpmn:endEvent id="EndEvent_Disconnect" name="Process Ended (Disconnected)">
+      <bpmn:incoming>SequenceFlow_DisconnectedNo</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definitions -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCollect" sourceRef="StartEvent_Monitoring" targetRef="Task_CollectInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CollectToCalc" sourceRef="Task_CollectInfo" targetRef="ServiceTask_CalcOEE"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CalcToCheckThreshold" sourceRef="ServiceTask_CalcOEE" targetRef="Gateway_CheckOEE"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_OEELowYes" name="Low OEE" sourceRef="Gateway_CheckOEE" targetRef="ParallelSplit_LowOEE"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StopMachineAction" sourceRef="ParallelSplit_LowOEE" targetRef="UserTask_StopMachine"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmailAction" name="" sourceRef="ParallelSplit_LowOEE" targetRef="ServiceTask_SendEmail"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeLowOEE" name="" sourceRef="UserTask_StopMachine" targetRef="ParallelMerge_LowOEE"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToConnectionCheck" sourceRef="ParallelMerge_LowOEE" targetRef="Gateway_ConnectionStatus"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OEOkNo" name="" sourceRef="Gateway_CheckOEE" targetRef="Gateway_ConnectionStatus"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConnectedYes" name="Connected / Restarted" sourceRef="Gateway_ConnectionStatus" targetRef="Task_CollectInfo"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisconnectedNo" name="Disconnected" sourceRef="Gateway_ConnectionStatus" targetRef="EndEvent_Disconnect"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RestaurantService">
+    <bpmn:participant id="Participant_Restaurant" name="Restaurant Service Process" processRef="Process_Service" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Service" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Gast">
+        <bpmn:flowNodeRef>StartEvent_Arrival</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChooseDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TurnReached</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Staff" name="Angestellter">
+        <bpmn:flowNodeRef>Task_EnterOrderCashier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetPagerGiveInstruction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InformCookStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_FoodReadyNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriggerPagerSignal</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Cook" name="Koch">
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_PlaceInPassThroughNotifyStaff</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Guest Lane Elements -->
+    <bpmn:startEvent id="StartEvent_Arrival" name="Gast betritt Restaurant">
+      <bpmn:outgoing>SequenceFlow_ChooseDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ChooseDish" name="Gericht auswählen">
+      <bpmn:incoming>SequenceFlow_ChooseDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TurnReachedCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_TurnReached" name="An der Reihe?">
+      <bpmn:incoming>SequenceFlow_TurnReachedCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitTurnLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PlaceOrderStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:intermediateCatchEvent id="Event_WaitTurn" name="Warten auf Bedienung">
+      <bpmn:incoming>SequenceFlow_WaitTurnLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TurnReachedCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_PlaceOrder" name="Bestellung aufgeben">
+      <bpmn:incoming>SequenceFlow_PlaceOrderStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderToStaff</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Lane Elements -->
+    <bpmn:task id="Task_EnterOrderCashier" name="Bestellung eingeben &amp; kassieren">
+      <bpmn:incoming>SequenceFlow_OrderToStaff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetPagerStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SetPagerGiveInstruction" name="Pieper einstellen &amp; übergeben">
+      <bpmn:incoming>SequenceFlow_SetPagerStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformCookOrWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Cooking and Waiting Logic -->
+    <bpmn:parallelGateway id="Gateway_InformCookStart">
+       <bpmn:incoming>SequenceFlow_InformCookOrWait</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_InformCookTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Cook Lane Elements -->
+    <bpmn:startEvent id="StartEvent_PlaceInPassThrough" name="Essen in Durchreiche stellen &amp; informieren">
+      <bpmn:incoming>SequenceFlow_CookingDoneNotifyStaff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TriggerPagerSignal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Staff Lane Elements (Post Cooking) -->
+    <bpmn:task id="Task_PrepareMeal" name="Mahlzeit zubereiten">
+      <bpmn:incoming>SequenceFlow_InformCookTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CookingDoneNotifyStaff</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Lane Elements (Post Cooking) -->
+    <bpmn:task id="Task_TriggerPagerSignal" name="Pieper auslösen">
+      <bpmn:incoming>SequenceFlow_TriggerPagerSignal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForPickupOrTimeout</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ChooseDish" sourceRef="StartEvent_Arrival" targetRef="Task_ChooseDish">
+      <bpmn:name>Gast betritt Restaurant</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Loop for Guest -->
+    <bpmn:sequenceFlow id="SequenceFlow_TurnReachedCheck" sourceRef="Task_ChooseDish" targetRef="Gateway_TurnReached">
+      <bpmn:name>An der Reihe prüfen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Loop for Guest -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitTurnLoop" name="Noch nicht dran" sourceRef="Gateway_TurnReached" targetRef="Event_WaitTurn">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Proceed to Order -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrderStart" name="An der Reihe" sourceRef="Gateway_TurnReached" targetRef="Task_PlaceOrder">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Order to Staff -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderToStaff" sourceRef="Task_PlaceOrder" targetRef="Task_EnterOrderCashier">
+      <bpmn:name>Gast gibt Bestellung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment & Pager Setup -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetPagerStart" sourceRef="Task_EnterOrderCashier" targetRef="Task_SetPagerGiveInstruction">
+      <bpmn:name>Gast bezahlt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Inform Cook (Parallel to waiting) -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformCookOrWait" sourceRef="Task_SetPagerGiveInstruction" targetRef="Gateway_InformCookStart">
+      <bpmn:name>Danach</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Start Cooking -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformCookTask" sourceRef="Gateway_InformCookStart" targetRef="Task_PrepareMeal">
+      <bpmn:name>Koch informieren</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Cooking Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_CookingDoneNotifyStaff" sourceRef="Task_PrepareMeal" targetRef="StartEvent_PlaceInPassThrough">
+      <bpmn:name>Mahlzeit fertig</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Notify Staff (Back to Staff Lane) -->
+    <bpmn:sequenceFlow id="SequenceFlow_TriggerPagerSignal" sourceRef="StartEvent_PlaceInPassThrough" targetRef="Task_TriggerPagerSignal">
+      <bpmn:name>Koch informiert Angestellten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

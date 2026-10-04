@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_SEPA_001">
+  <bpmn:collaboration id="Collab_SEPA_Process">
+    <bpmn:participant id="Participant_SEPA_Owner" name="SEPA Mandat Processing Process Owner" processRef="Process_SEPA_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SEPA_Main" isExecutable="false">
+    <!-- Lane Set for different roles -->
+    <bpmn:laneSet id="LaneSet_001">
+      <bpmn:lane id="Lane_System_Auto" name="System Auto-Prüfung">
+        <bpmn:flowNodeRef>StartEvent_SEPA</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IBAN_Pruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Land_Ermitteln</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Manual_Check" name="Manuelle Prüfung">
+        <bpmn:flowNodeRef>Task_Person_Suchen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Unterschrift_Vorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Manuelle_Pruefung_Fehlende_Daten</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Auto_Letter" name="Automatisches Schreiben">
+        <bpmn:flowNodeRef>Gateway_Unterschrift_Vorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Schreiben_Erstellen</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Bankverbindung" name="Bankverbindung">
+        <bpmn:flowNodeRef>Gateway_Gueltig_Von_Datum</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Unterschriftsort_Pruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Bankverbindung_Erstellen_Oder_Pruefen</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Mandat" name="SEPA Mandat">
+        <bpmn:flowNodeRef>Gateway_Aktives_Mandat_Vorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Neues_Mandat_Anlegen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Mandat_Gueltig_und_Relevant</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Forderungen" name="Offene Forderungen">
+        <bpmn:flowNodeRef>Task_Pruefung_Offener_Forderungen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Forderung_Hoehe_Ueberschritten</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeiter">
+        <bpmn:flowNodeRef>Task_Manuelle_Pruefung_Fehlende_Daten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Bankverbindung_Erstellen_Oder_Pruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Manuelle_Ueberpruefung_5000Euros</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_End" name="Abschluss">
+        <bpmn:flowNodeRef>EndEvent_SEPA_Abschliessen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Mandat_Beenden_Altes</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SEPA" name="Daten SEPA-Mandat eingegangen">
+      <bpmn:outgoing>SequenceFlow_IBAN_Pruefen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IBAN Check -->
+    <bpmn:task id="Task_IBAN_Pruefen" name="Prüfung auf Vorliegen einer IBAN">
+      <bpmn:incoming>SequenceFlow_IBAN_Pruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Land_Ermitteln</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Country Determination -->
+    <bpmn:exclusiveGateway id="Gateway_Land_Ermitteln" name="Land aus IBAN ermitteln">
+      <bpmn:incoming>SequenceFlow_Land_Ermitteln</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Person_Suchen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Person Search -->
+    <bpmn:task id="Task_Person_Suchen" name="Person im System suchen">
+      <bpmn:incoming>SequenceFlow_Person_Suchen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Info_Vollstaendig_Pruefen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Information Completeness Check -->
+    <bpmn:exclusiveGateway id="Gateway_Info_Vollstaendig" name="Alle erforderlichen Informationen vorhanden?">
+      <bpmn:incoming>SequenceFlow_Info_Vollstaendig_Pruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Unterschrift_Fehlt_Nein</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Signature Check -->
+    <bpmn:exclusiveGateway id="Gateway_Unterschrift_Vorhanden" name="Unterschrift vorhanden?">
+      <bpmn:incoming>SequenceFlow_Info_Vollstaendig_Pruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Manuelle_Pruefung_Ja</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Check of Missing Data -->
+    <bpmn:task id="Task_Manuelle_Pruefung_Fehlende_Daten" name="Manuelle Prüfung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_Manuelle_Pruefung_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gueltig_Von_Datum_Pruefen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Create Letter for Missing Signature -->
+    <bpmn:task id="Task_Schreiben_Erstellen" name="Automatisches Schreiben zur Unterschriftserstellung">
+      <bpmn:incoming>SequenceFlow_Unterschrift_Fehlt_Nein</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Warten_28_Tage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Response -->
+    <bpmn:startEvent id="StartEvent_Rueckmeldung" name="Rückmeldung nach 28 Tagen">
+      <bpmn:incoming>SequenceFlow_Warten_28_Tage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Prozess_Kann_Nicht_Fortgesetzt_Ja</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Process Cannot Continue -->
+    <bpmn:endEvent id="EndEvent_Process_Cannot_Continue" name="Prozess kann nicht weitergeführt werden">
+      <bpmn:incoming>SequenceFlow_Prozess_Kann_Nicht_Fortgesetzt_Ja</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Valid From Date Check -->
+    <bpmn:exclusiveGateway id="Gateway_Gueltig_Von_Datum" name="Gültig von Datum vorhanden?">
+      <bpmn:incoming>SequenceFlow_Gueltig_Von_Datum_Pruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Unterschriftsort_Pruefen_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Signature Place Check -->
+    <bpmn:task id="Task_Unterschriftsort_Pruefen" name="Unterschriftsort und Datum korrekt erfassen?">
+      <bpmn:incoming>SequenceFlow_Unterschriftsort_Pruefen_Flow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bankverbindung_Pruefen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Bank Connection Check -->
+    <bpmn:exclusiveGateway id="Gateway_Bankverbindung" name="Gültige Bankverbindung im System?">
+      <bpmn:incoming>SequenceFlow_Bankverbindung_Pruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Aktives_Mandat_Pruefen_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Bank Connection Create or Review -->
+    <bpmn:task id="Bankverbindung_Erstellen_Oder_Pruefen" name="Bankverbindung neu erstellen oder von Sachbearbeiter prüfen">
+      <bpmn:incoming>SequenceFlow_Bank_Erstellen_Oder_Pruefen_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Aktives_Mandat_Pruefen_Flow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Active Mandate Check -->
+    <bpmn:exclusiveGateway id="Gateway_Aktives_Mandat_Vorhanden" name="Aktives SEPA-Mandat vorhanden?">
+      <bpmn:incoming>SequenceFlow_Aktives_Mandat_Pruefen_Flow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Neues_Mandat_Anlegen_Ja</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- New Mandate Creation -->
+    <bpmn:task id="Task_Neues_Mandat_Anlegen" name="Neues SEPA-Mandat anlegen">
+      <bpmn:incoming>SequenceFlow_Neues_Mandat_Anlegen_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Pruefung_Offener_Forderungen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Mandate Validity Check -->
+    <bpmn:exclusiveGateway id="Gateway_Mandat_Gueltig_und_Relevant" name="Neues Mandat gültig und relevant?">
+      <bpmn:incoming>SequenceFlow_Aktives_Mandat_Vorhanden_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bestehendes_Mandat_Beenden_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Existing Mandate -->
+    <bpmn:task id="Task_Mandat_Beenden_Altes" name="Bestehendes Mandat beenden">
+      <bpmn:incoming>SequenceFlow_Bestehendes_Mandat_Beenden_Flow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Pruefung_Offener_Forderungen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Open Claims Check -->
+    <bpmn:exclusiveGateway id="Task_Pruefung_Offener_Forderungen" name="Offene Forderungen prüfen">
+      <bpmn:incoming>SequenceFlow_Neues_Mandat_Anlegen_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bestehendes_Mandat_Beenden_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Forderung Amount Check -->
+    <bpmn:exclusiveGateway id="Gateway_Forderung_Hoehe_Ueberschritten" name="Offene Forderungen > 5.000 €?">
+      <bpmn:incoming>SequenceFlow_Pruefung_Offener_Forderungen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Manuelle_Ueberpruefung_Ja</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Review for High Amounts -->
+    <bpmn:task id="Manuelle_Ueberpruefung_5000Euros" name="Zusätzliche manuelle Überprüfung">
+      <bpmn:incoming>SequenceFlow_Manuelle_Ueberpruefung_Ja</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SEPA_Abschliessen_Flow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SEPA_Abschliessen" name="SEPA-Mandat abgeschlossen">
+      <bpmn:incoming>SequenceFlow_Manuelle_Ueberpruefung_Ja</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Forderung_Nicht_Ueberschritten</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_IBAN_Pruefen" sourceRef="StartEvent_SEPA" targetRef="Task_IBAN_Pruefen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Land_Ermitteln" name="Land ermitteln" sourceRef="Task_IBAN_Pruefen" targetRef="Gateway_Land_Ermitteln"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Person_Suchen" sourceRef="Gateway_Land_Ermitteln" targetRef="Task_Person_Suchen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Info_Vollstaendig_Pruefen" name="Alle Informationen vorhanden?" sourceRef="Task_Person_Suchen" targetRef="Gateway_Info_Vollstaendig"/>
+    
+    <!-- Signature Check Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Unterschrift_Fehlt_Nein" name="Unterschrift fehlt - Nein" sourceRef="Gateway_Info_Vollstaendig" targetRef="Task_Schreiben_Erstellen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Manuelle_Pruefung_Ja" name="Unterschrift vorhanden - Ja" sourceRef="Gateway_Unterschrift_Vorhanden" targetRef="Task_Manuelle_Pruefung_Fehlende_Daten"/>
+    
+    <!-- Letter Creation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Warten_28_Tage" name="Warte auf Rückmeldung" sourceRef="Task_Schreiben_Erstellen" targetRef="StartEvent_Rueckmeldung"/>
+    
+    <!-- Response Check Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Prozess_Kann_Nicht_Fortgesetzt_Ja" name="Keine Rückmeldung - Ja" sourceRef="StartEvent_Rueckmeldung" targetRef="EndEvent_Process_Cannot_Continue"/>
+    
+    <!-- Valid From Date Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Gueltig_Von_Datum_Pruefen" name="Gültiges Datum vorhanden?" sourceRef="Task_Manuelle_Pruefung_Fehlende_Daten" targetRef="Gateway_Gueltig_Von_Datum"/>
+    
+    <!-- Signature Place Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Unterschriftsort_Pruefen_Flow" name="Unterschriftsort korrekt?" sourceRef="Gateway_Gueltig_Von_Datum" targetRef="Task_Unterschriftsort_Pruefen"/>
+    
+    <!-- Bank Connection Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Bankverbindung_Pruefen" name="Bankverbindung prüfen?" sourceRef="Task_Unterschriftsort_Pruefen" targetRef="Gateway_Bankverbindung"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Aktives_Mandat_Pruefen_Flow" name="Weiter zu Mandat" sourceRef="Gateway_Bankverbindung" targetRef="Gateway_Aktives_Mandat_Vorhanden"/>
+    
+    <!-- Active Mandate Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Neues_Mandat_Anlegen_Ja" name="Neues Mandat anlegen - Ja" sourceRef="Gateway_Aktives_Mandat_Vorhanden" targetRef="Task_Neues_Mandat_Anlegen"/>
+    
+    <!-- Validity Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Bestehendes_Mandat_Beenden_Flow" name="Mandat gültig und relevant - Ja" sourceRef="Gateway_Aktives_Mandat_Vorhanden_Ja" targetRef="Task_Neues_Mandat_Anlegen"/>
+    
+    <!-- Open Claims Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Pruefung_Offener_Forderungen" name="Offene Forderungen prüfen - Ja" sourceRef="Gateway_Aktives_Mandat_Vorhanden_Ja" targetRef="Task_Pruefung_Offener_Forderungen"/>
+    
+    <!-- High Amount Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Manuelle_Ueberpruefung_Ja" name="Forderungen > 5.000 € - Ja" sourceRef="Gateway_Forderung_Hoehe_Ueberschritten" targetRef="Manuelle_Ueberpruefung_5000Euros"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Forderung_Nicht_Ueberschritten" name="Forderungen ≤ 5.000 € - Ja" sourceRef="Gateway_Forderung_Hoehe_Ueberschritten" targetRef="EndEvent_SEPA_Abschliessen"/>
+    
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SEPA_Abschliessen_Flow" name="SEPA-Mandat abgeschlossen" sourceRef="Manuelle_Ueberpruefung_5000Euros" targetRef="EndEvent_SEPA_Abschliessen"/>
+
+  </bpmn:process>
+</bpmn:definitions>

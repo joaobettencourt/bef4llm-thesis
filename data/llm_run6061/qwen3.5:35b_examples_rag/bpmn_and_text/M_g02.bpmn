@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LegoMachine_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MachineBuild">
+    <bpmn:participant id="Pool_Manufacturing" name="Custom Machine Manufacturing Process" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_01" name="Develop Basic Design">
+      <bpmn:outgoing>SF_StartToOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask id="Task_OrderSets" name="Order Lego Brick Sets">
+      <bpmn:incoming>SF_StartToOrder</bpmn:incoming>
+      <bpmn:outgoing>SF_SortParts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ChildrenSort" name="Children Sort Parts">
+      <bpmn:incoming>SF_SortParts</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckInventoryLoop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Subcomponent Build Loop Start -->
+    <bpmn:exclusiveGateway id="GW_AllComponentsDone" name="All Components&#10;Built?">
+      <bpmn:incoming>SF_CheckInventoryLoop</bpmn:incoming>
+      <bpmn:outgoing>SF_AssembleMachine</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_BuildSubcomponent" name="Build Individual Subcomponent">
+      <bpmn:incoming>SF_BuyPartsOrStart</bpmn:incoming>
+      <bpmn:outgoing>SF_TestComponent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Inventory Check -->
+    <bpmn:exclusiveGateway id="GW_PartsAvailable" name="No more parts&#10;in container?">
+      <bpmn:incoming>SF_BuyPartsOrStart</bpmn:incoming>
+      <bpmn:outgoing>SF_ReorderParts</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Reorder" name="Reorder Individual Parts">
+      <bpmn:incoming>SF_ReorderParts</bpmn:incoming>
+      <bpmn:outgoing>SF_BuyPartsOrStart</bpmn:outgoing> <!-- Back to build -->
+    </bpmn:userTask>
+
+    <!-- Testing Phase -->
+    <bpmn:userTask id="Task_TestComponent" name="Test Subcomponent">
+      <bpmn:incoming>SF_TestComponent</bpmn:incoming>
+      <bpmn:outgoing>SF_GW_Successful</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Test Decision -->
+    <bpmn:exclusiveGateway id="GW_Successful" name="Test&#10;Successful?">
+      <bpmn:incoming>SF_TestComponent</bpmn:incoming>
+      <bpmn:outgoing>SF_RedesignRebuild</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Redisign" name="Redesign and Rebuild">
+      <bpmn:incoming>SF_RedesignRebuild</bpmn:incoming>
+      <bpmn:outgoing>SF_BuyPartsOrStart</bpmn:outgoing> <!-- Loop back to build -->
+    </bpmn:userTask>
+
+    <!-- Assembly Phase (After all components) -->
+    <bpmn:userTask id="Task_AssembleMachine" name="Assemble Machine">
+      <bpmn:incoming>SF_AssembleMachine</bpmn:incoming>
+      <bpmn:outgoing>SF_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_01" name="Custom Machine&#10;Completed">
+      <bpmn:incoming>SF_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToOrder" sourceRef="Start_01" targetRef="Task_OrderSets"/>
+    
+    <bpmn:sequenceFlow id="SF_SortParts" name="Sort Parts into Containers" sourceRef="Task_ChildrenSort" targetRef="GW_AllComponentsDone"/>
+
+    <bpmn:sequenceFlow id="SF_CheckInventoryLoop" name="No more components?" sourceRef="GW_AllComponentsDone" targetRef="Task_BuildSubcomponent"/>
+    
+    <!-- Reorder Logic Flow -->
+    <bpmn:sequenceFlow id="SF_ReorderParts" name="Yes, reorder parts" sourceRef="GW_PartsAvailable" targetRef="Task_Reorder"/>
+
+    <bpmn:sequenceFlow id="SF_BuyPartsOrStart" name="Proceed to Build" sourceRef="Task_BuildSubcomponent" targetRef="GW_AllComponentsDone"/>
+    
+    <!-- Testing Flow -->
+    <bpmn:sequenceFlow id="SF_TestComponent" name="" sourceRef="Task_BuildSubcomponent" targetRef="Task_TestComponent"/>
+
+    <!-- Test Decision Flows -->
+    <bpmn:sequenceFlow id="SF_GW_Successful" name="" sourceRef="GW_AllComponentsDone" targetRef="Task_AssembleMachine">
+        <!-- Yes - all components built, proceed to assembly -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_RedesignRebuild" name="No" sourceRef="GW_Successful" targetRef="Task_Redisign"/>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SF_EndProcess" name="" sourceRef="Task_AssembleMachine" targetRef="End_01"/>
+
+  </process>
+</definitions>

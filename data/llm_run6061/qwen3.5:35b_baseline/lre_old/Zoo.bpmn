@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ZooClubMembership" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ZooClubProcess">
+    <bpmn:participant id="Participant_Visitor" name="Visitor/Customer"/>
+    <bpmn:participant id="Participant_ZooClubDept" name="ZooClub Department" processRef="Proc_ZooClub"/>
+    <bpmn:participant id="Participant_BillingDept" name="Billing Department" processRef="Proc_Billing"/>
+    <bpmn:participant id="Participant_Bank" name="Bank" processRef="Proc_Bank"/>
+    <bpmn:participant id="Participant_MarketingDept" name="Marketing Department" processRef="Proc_Marketing"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MsgFlow_1" sourceRef="Task_VisitorDecision" targetRef="Gateway_IndividualFamily"/>
+    <bpmn:messageFlow id="MsgFlow_2" sourceRef="Task_ZooClubDataEntry" targetRef="Task_BillingPaymentRequest"/>
+    <bpmn:messageFlow id="MsgFlow_3" sourceRef="Task_ZooClubInfoForwarding" targetRef="Task_MarketingMagazineRequest"/>
+    <bpmn:messageFlow id="MsgFlow_4" sourceRef="Task_BillingSendToBank" targetRef="StartEvent_BankProcess"/>
+    <bpmn:messageFlow id="MsgFlow_5" sourceRef="EndEvent_PaymentConfirmed" targetRef="Gateway_ZooClubCardPrint"/>
+
+  </bpmn:collaboration>
+
+  <!-- Visitor Process -->
+  <bpmn:process id="Proc_Visitor">
+    <bpmn:startEvent id="StartEvent_MembershipRequest" name="Membership Application Requested">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_VisitorDecision" name="Decide Membership Type (Individual/Family)">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_VisitorHome" name="Visitor Goes Home">
+      <bpmn:incoming>SequenceFlow_LastStep</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_MembershipRequest" targetRef="Task_VisitorDecision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_LastStep" name="Card Delivered" sourceRef="Gateway_ZooClubCardPrint" targetRef="EndEvent_VisitorHome"/>
+
+  </bpmn:process>
+
+  <!-- ZooClub Department Process -->
+  <bpmn:process id="Proc_ZooClub">
+    <bpmn:startEvent id="StartEvent_DataReceived" name="Information Received from Visitor">
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Exclusive Gateway for Individual vs Family -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MembershipType" name="Membership Type?">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IndividualPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FamilyPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Individual Path -->
+    <bpmn:userTask id="Task_PrepPersonalInfo" name="Prepare Personal Information">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_IndividualPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergePaths</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Family Path -->
+    <bpmn:userTask id="Task_PrepFamilyInfo" name="Prepare Spouse &amp; Spawn Information">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_FamilyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergePaths</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Paths -->
+    <bpmn:parallelGateway id="ParallelGateway_InfoMerge">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_MergePaths</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Data Entry and Payment Request -->
+    <bpmn:userTask id="Task_ZooClubDataEntry" name="Enter Personal Data into System">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_4</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentRequest</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Split for Payment Request and Marketing Info -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitTasks">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToBilling</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ForwardMarketingInfo</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Send Payment Request to Billing -->
+    <bpmn:userTask id="Task_SendPaymentRequest" name="Send Payment Request to Billing Department">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendToBilling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForConfirmation</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Forward Info to Marketing -->
+    <bpmn:userTask id="Task_ForwardMarketingInfo" name="Forward Visitor Information to Marketing Department">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_ForwardMarketingInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MarketingDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Payment Confirmation -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_PaymentConfirmed" name="Payment Confirmed">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitForConfirmation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrintCard</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Print and Deliver Card -->
+    <bpmn:userTask id="Task_PrintAndDeliverCard" name="Print Membership Card &amp; Deliver to Visitor">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PrintCard</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LastStep</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_3" sourceRef="StartEvent_DataReceived" targetRef="ExclusiveGateway_MembershipType"/>
+    <bpmn:sequenceFlow id="SequenceFlow_IndividualPath" name="Individual Membership" sourceRef="ExclusiveGateway_MembershipType" targetRef="Task_PrepPersonalInfo"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FamilyPath" name="Family Membership" sourceRef="ExclusiveGateway_MembershipType" targetRef="Task_PrepFamilyInfo"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergePaths" sourceRef="ParallelGateway_InfoMerge" targetRef="Task_ZooClubDataEntry"/>
+    <bpmn:sequenceFlow id="SequenceFlow_4" name="" sourceRef="Task_ZooClubDataEntry" targetRef="ParallelGateway_SplitTasks"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendToBilling" sourceRef="ParallelGateway_SplitTasks" targetRef="Task_SendPaymentRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardMarketingInfo" name="" sourceRef="ParallelGateway_SplitTasks" targetRef="Task_ForwardMarketingInfo"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForConfirmation" sourceRef="Task_SendPaymentRequest" targetRef="IntermediateEvent_PaymentConfirmed"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MarketingDone" name="" sourceRef="Task_ForwardMarketingInfo" targetRef="ParallelGateway_SplitTasks"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PrintCard" sourceRef="IntermediateEvent_PaymentConfirmed" targetRef="Task_PrintAndDeliverCard"/>
+
+  </bpmn:process>
+
+  <!-- Billing Department Process -->
+  <bpmn:process id="Proc_Billing">
+    <bpmn:startEvent id="StartEvent_ReceiptPaymentRequest" name="Receive Payment Request from ZooClub">
+      <bpmn:outgoing>SequenceFlow_5</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send to Bank -->
+    <bpmn:userTask id="Task_BillingSendToBank" name="Forward Payment Information to Bank">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForConfirmationBilling</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Bank Confirmation -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_BankResponse" name="Payment Processing Complete">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitForConfirmationBilling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToZooClub</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Confirmation to ZooClub -->
+    <bpmn:userTask id="Task_BillingConfirmPayment" name="Send Payment Confirmation to ZooClub">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendToZooClub</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndBillingProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_5" sourceRef="StartEvent_ReceiptPaymentRequest" targetRef="Task_BillingSendToBank"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForConfirmationBilling" name="" sourceRef="Task_BillingSendToBank" targetRef="IntermediateEvent_BankResponse"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendToZooClub" sourceRef="IntermediateEvent_BankResponse" targetRef="Task_BillingConfirmPayment"/>
+
+  </bpmn:process>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Proc_Bank">
+    <bpmn:startEvent id="StartEvent_ReceiptBankRequest" name="Receive Payment Information from Billing Dept">
+      <bpmn:outgoing>SequenceFlow_6</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Process Payment -->
+    <bpmn:userTask id="Task_BankProcessPayment" name="Process Payment &amp; Charge Account">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_6</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentProcessed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_BankProcessComplete" name="Payment Processed">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PaymentProcessed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_6" sourceRef="StartEvent_ReceiptBankRequest" targetRef="Task_BankProcessPayment"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentProcessed" name="" sourceRef="Task_BankProcessPayment" targetRef="EndEvent_BankProcessComplete"/>
+
+  </bpmn:process>
+
+  <!-- Marketing Department Process -->
+  <bpmn:process id="Proc_Marketing">
+    <bpmn:startEvent id="StartEvent_ReceiptVisitorInfo" name="Receive Visitor Information from ZooClub">
+      <bpmn:outgoing>SequenceFlow_7</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Request Magazine Mailing -->
+    <bpmn:userTask id="Task_MarketingMagazineRequest" name="Make Request to Mail Zoo Club Magazine">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_7</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndMarketingProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_MarketingComplete" name="Magazine Mailing Requested">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndMarketingProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_7" sourceRef="StartEvent_ReceiptVisitorInfo" targetRef="Task_MarketingMagazineRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndMarketingProcess" name="" sourceRef="Task_MarketingMagazineRequest" targetRef="EndEvent_MarketingComplete"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RestaurantProcess">
+    <bpmn:participant name="Restaurant Process" processRef="Proc_Restaurant"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Restaurant" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Guest">
+        <bpmn:flowNodeRef>StartEvent_Arrives</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaitTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OrderSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitBuzzer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallGuest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergePickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_EatMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>Task_EnterPOS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectMoney</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetBuzzerInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformChef</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Chef" name="Chef">
+        <bpmn:flowNodeRef>StartEvent_StartCooking</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HatchReady</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Guest Lane Flow -->
+    <bpmn:startEvent id="StartEvent_Arrives" name="Guest Arrives">
+      <bpmn:outgoing>Seq_SelectDish</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <bpmn:task id="Task_SelectDish" name="Select Dish from Menu">
+      <bpmn:incoming>Seq_SelectDish</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_WaitTurn" name="Wait for Turn">
+      <bpmn:incoming>Seq_WaitTurn</bpmn:incoming>
+      <bpmn:outgoing>Seq_PlaceOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PlaceOrder" name="Place Order with Employee">
+      <bpmn:incoming>Seq_PlaceOrder</bpmn:incoming>
+      <bpmn:outgoing>Gateway_OrderSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Concurrency -->
+    <bpmn:parallelGateway id="Gateway_OrderSplit">
+        <bpmn:incoming>Seq_PlaceOrder</bpmn:incoming>
+        <bpmn:outgoing>Seq_EmployeeStart</bpmn:outgoing>
+        <bpmn:outgoing>Seq_GuestWaitStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Employee Lane Flow -->
+    <bpmn:task id="Task_EnterPOS" name="Enter Order in POS">
+      <bpmn:incoming>Seq_EmployeeStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_CollectMoney</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CollectMoney" name="Collect Money">
+      <bpmn:incoming>Seq_CollectMoney</bpmn:incoming>
+      <bpmn:outgoing>Seq_SetBuzzerInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SetBuzzerInfo" name="Set Buzzer &amp; Handover Info">
+      <bpmn:incoming>Seq_SetBuzzerInfo</bpmn:incoming>
+      <bpmn:outgoing>Seq_InformChef</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_InformChef" name="Inform Chef of Order">
+      <bpmn:incoming>Seq_InformChef</bpmn:incoming>
+      <bpmn:outgoing>Gateway_CookingTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Trigger Cooking Process -->
+    <bpmn:parallelGateway id="Gateway_CookingTrigger">
+        <bpmn:incoming>Seq_InformChef</bpmn:incoming>
+        <bpmn:outgoing>CrossLane_ToCookStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Guest Waiting Logic -->
+    <bpmn:intermediateCatchEvent id="Event_WaitBuzzer" name="Wait for Buzzer">
+      <bpmn:incoming>Seq_GuestWaitStart</bpmn:incoming>
+      <bpmn:outgoing>Gateway_MergePickup</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Boundary Timer Event for 5 Minutes -->
+    <bpmn:startTimerEvent id="StartEvent_TimerTrigger" name="Wait Timeout">
+        <bpmn:timerDuration>P0Y0M0DT5H</bpmn:timerDuration> 
+    </bpmn:startTimerEvent>
+
+    <!-- Merge Point for Pickup Meal -->
+    <bpmn:exclusiveGateway id="Gateway_MergePickup" name="Meal Ready?">
+        <bpmn:incoming>Seq_GuestWaitStart</bpmn:incoming>
+        <bpmn:outgoing>Task_PickUpMeal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Chef Lane Flow -->
+    <bpmn:startEvent id="StartEvent_StartCooking" name="Start Cooking">
+      <bpmn:incoming>CrossLane_ToCookStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_PrepMeal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_PrepMeal" name="Prepare Meal">
+      <bpmn:incoming>Seq_PrepMeal</bpmn:incoming>
+      <bpmn:outgoing>Seq_HatchReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_HatchReady" name="Place in Service Hatch">
+        <bpmn:incoming>Seq_HatchReady</bpmn:incoming> 
+        <bpmn:outgoing>CrossLane_ToBuzzerSignal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Guest Eating Meal -->
+    <bpmn:endEvent id="EndEvent_EatMeal" name="Guest Eats">
+      <bpmn:incoming>Seq_GuestWaitStart_Merge</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Cross-lane connections included) -->
+    <bpmn:sequenceFlow id="Seq_SelectDish" sourceRef="StartEvent_Arrives" targetRef="Task_SelectDish"/>
+    <bpmn:sequenceFlow id="Seq_WaitTurn" sourceRef="Task_SelectDish" targetRef="Task_WaitTurn"/>
+    <bpmn:sequenceFlow id="Seq_PlaceOrder" sourceRef="Task_WaitTurn" targetRef="Task_PlaceOrder"/>
+
+    <!-- Split Flows -->
+    <bpmn:sequenceFlow id="Seq_EmployeeStart" name="To Employee Tasks" sourceRef="Gateway_OrderSplit" targetRef="Task_EnterPOS"/>
+    <bpmn:sequenceFlow id="Seq_GuestWaitStart" name="Guest Waiting State" sourceRef="Gateway_OrderSplit" targetRef="Event_WaitBuzzer"/>
+
+    <!-- Employee Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_CollectMoney" sourceRef="Task_EnterPOS" targetRef="Task_CollectMoney"/>
+    <bpmn:sequenceFlow id="Seq_SetBuzzerInfo" sourceRef="Task_CollectMoney" targetRef="Task_SetBuzzerInfo"/>
+    <bpmn:sequenceFlow id="Seq_InformChef" name="Inform Chef" sourceRef="Task_SetBuzzerInfo" targetRef="Task_InformChef"/>
+
+    <!-- Trigger Cooking -->
+    <bpmn:sequenceFlow id="CrossLane_ToCookStart" sourceRef="Gateway_CookingTrigger" targetRef="StartEvent_StartCooking"/>
+
+    <!-- Chef Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_PrepMeal" sourceRef="StartEvent_StartCooking" targetRef="Task_PrepMeal"/>
+    <bpmn:sequenceFlow id="Seq_HatchReady" name="Place in Hatch" sourceRef="Task_PrepMeal" targetRef="Task_HatchReady"/>
+
+    <!-- Signal to Buzzer -->
+    <bpmn:sequenceFlow id="CrossLane_ToBuzzerSignal" sourceRef="Task_HatchReady" targetRef="Event_WaitBuzzer"/>
+
+    <!-- Merge and End -->
+    <bpmn:sequenceFlow id="Seq_GuestWaitStart_Merge" name="Pick Up Meal" sourceRef="Gateway_MergePickup" targetRef="EndEvent_EatMeal"/>
+
+  </bpmn:process>
+</bpmn:definitions>

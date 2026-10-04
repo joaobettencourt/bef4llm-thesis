@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_HardwarePurchase_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_HW_Purchase_Process">
+    <bpmn:participant id="Participant_MainProcess" name="Hardware Purchase Process" processRef="Proc_HardwarePurchase_001" />
+  </bpmn:collaboration>
+
+  <bpmn:message id="Msg_PriceInquiry" name="Price Inquiry Request" />
+  <bpmn:message id="Msg_Offers" name="Price Offer Reply" />
+
+  <bpmn:process id="Proc_HardwarePurchase_001" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ITDept" name="IT Department">
+        <bpmn:flowNodeRef>Sys_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_AnalyseRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ApprovalDecision1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_EditCompleteRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SYS_SendEmailSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_FillFormManagement</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supplier" name="Supplier">
+        <bpmn:flowNodeRef>TASK_SupplierOfferReply</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ManagementDept" name="Management Department">
+        <bpmn:flowNodeRef>SYS_AnalyseRequestMgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ManagementDecision1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FinancialDept" name="Financial Department">
+        <bpmn:flowNodeRef>TASK_FindResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SYS_SendOfferFinancial</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Sys_StartEvent" name="Request for Hardware Received">
+      <bpmn:outgoing>Sys_Flow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IT Department Tasks and Gateways -->
+    <bpmn:task id="TASK_AnalyseRequest" name="Analyse Request">
+      <bpmn:incoming>Sys_Flow_01</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- First Decision Gateway (IT Approval) -->
+    <bpmn:exclusiveGateway id="GW_ApprovalDecision1" name="Request Approved?">
+      <bpmn:incoming>Sys_Flow_02</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_DenyPath</bpmn:outgoing>
+      <bpmn:outgoing>Sys_Flow_ApprovePath1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Deny Path -->
+    <bpmn:endEvent id="Sys_EndDenial" name="Request Denied">
+      <bpmn:incoming>Sys_Flow_DenyEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="SYS_SendEmailDenialEmployee" name="Send Email to Employee">
+      <bpmn:incoming>Sys_Flow_DenyPath</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_DenyEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Sys_Flow_01" sourceRef="Sys_StartEvent" targetRef="TASK_AnalyseRequest">
+      <bpmn:name>Received Request</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Sys_Flow_02" name="Analyse Result" sourceRef="TASK_AnalyseRequest" targetRef="GW_ApprovalDecision1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${requestAnalysed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Deny Path -->
+    <bpmn:sequenceFlow id="Sys_Flow_DenyPath" name="Denied" sourceRef="GW_ApprovalDecision1" targetRef="SYS_SendEmailDenialEmployee">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved = false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Sys_Flow_DenyEnd" sourceRef="SYS_SendEmailDenialEmployee" targetRef="Sys_EndDenial">
+      <bpmn:name>Email Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Approve Path 1 -->
+    <bpmn:task id="TASK_EditCompleteRequest" name="Edit and Complete Request">
+      <bpmn:incoming>Sys_Flow_ApprovePath1</bpmn:incoming>
+      <bpmn:outgoing>SYS_SendEmailSupplierFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Sys_Flow_ApprovePath1" name="Approved by IT" sourceRef="GW_ApprovalDecision1" targetRef="TASK_EditCompleteRequest">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved = true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Email to Supplier -->
+    <bpmn:task id="SYS_SendEmailSupplier" name="Send Price Inquiry">
+      <bpmn:incoming>SYS_SendEmailSupplierFlow</bpmn:incoming>
+      <bpmn:outgoing>SYS_Flow_SupplierReply</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Flow for Email -->
+    <bpmn:messageFlow id="MsgFlow_01" sourceRef="SYS_SendEmailSupplier" targetRef="TASK_SupplierOfferReply">
+      <bpmn:name>Email Sent to Supplier</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Task in IT Lane that sends email (represented as task) -->
+    <bpmn:sequenceFlow id="SYS_SendEmailSupplierFlow" sourceRef="TASK_EditCompleteRequest" targetRef="SYS_SendEmailSupplier">
+      <bpmn:name>Email Sent to Supplier</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Message Flow from Supplier -->
+    <bpmn:messageFlow id="MsgFlow_02" sourceRef="TASK_SupplierOfferReply" targetRef="SYS_SendEmailSupplier">
+      <bpmn:name>Request for Price</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Back to IT -->
+    <bpmn:task id="TASK_FillFormManagement" name="Fill Form and Send to Management">
+      <bpmn:incoming>SYS_SendEmailSupplierFlow</bpmn:incoming>
+      <bpmn:outgoing>SYS_Flow_ToMgmtDecision1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Second Decision Gateway (Management) -->
+    <bpmn:exclusiveGateway id="GW_ManagementDecision1" name="Request Approved by Management?">
+      <bpmn:incoming>SYS_Flow_ToMgmtDecision1</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_ReworkPath</bpmn:outgoing>
+      <bpmn:outgoing>Sys_Flow_DenyManagement</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Rework Path -->
+    <bpmn:endEvent id="Sys_EndRework" name="Request for Rework">
+      <bpmn:incoming>SYS_Flow_ReworkEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="SYS_AnalyseRequestMgmt" name="Analyse Request Management">
+      <bpmn:incoming>Sys_Flow_ToMgmtDecision1</bpmn:incoming>
+      <bpmn:outgoing>SYS_Flow_BackToEditComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to Edit and Complete -->
+    <bpmn:sequenceFlow id="SYS_Flow_ToMgmtDecision1" sourceRef="TASK_FillFormManagement" targetRef="GW_ManagementDecision1">
+      <bpmn:name>Request Sent to Management</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Rework Path -->
+    <bpmn:task id="SYS_AnalyseRework" name="Analyse for Rework">
+      <bpmn:incoming>Sys_Flow_ReworkPath</bpmn:incoming>
+      <bpmn:outgoing>SYS_Flow_BackToEditComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to Edit and Complete -->
+    <bpmn:sequenceFlow id="SYS_Flow_ReworkPath" name="Needs Rework" sourceRef="GW_ManagementDecision1" targetRef="SYS_AnalyseRework">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${needsRework = true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back to Edit and Complete -->
+    <bpmn:sequenceFlow id="SYS_Flow_BackToEditComplete" sourceRef="SYS_AnalyseRework" targetRef="TASK_EditCompleteRequest">
+      <bpmn:name>Rework Required</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Deny by Management -->
+    <bpmn:endEvent id="Sys_EndDenialMgmt" name="Denied by Management">
+      <bpmn:incoming>SYS_Flow_DenyManagementEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SYS_Flow_DenyManagement" name="Not Approved/Denied" sourceRef="GW_ManagementDecision1" targetRef="Sys_EndDenialMgmt">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved = false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Approved by Management Path -->
+    <bpmn:endEvent id="Sys_EndApprovedMgmt" name="Request Approved">
+      <bpmn:incoming>SYS_Flow_ApprovedToFinancial</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SYS_Flow_ApprovePath2" sourceRef="GW_ManagementDecision1" targetRef="Sys_EndApprovedMgmt">
+      <bpmn:name>Approved by Management</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Third Decision Gateway (Financial) -->
+    <bpmn:exclusiveGateway id="SYS_SendOfferFinancial" name="Resources Found?">
+      <bpmn:incoming>SYS_Flow_ToFinancial</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_ResourcesFoundPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Financial Department Tasks -->
+    <bpmn:task id="TASK_FindResources" name="Find Resources">
+      <bpmn:incoming>SYS_Flow_ToFinancial</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_ResourcesFoundPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Forward to Financial -->
+    <bpmn:endEvent id="Sys_EndProcessSuccess" name="Hardware Received, Invoice Processed">
+      <bpmn:incoming>SYS_Flow_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="SYS_PrepareOrderSendSupplier" name="Prepare and Send Order to Supplier">
+      <bpmn:incoming>Sys_Flow_ResourcesFoundPath</bpmn:incoming>
+      <bpmn:outgoing>SYS_Flow_OrderAcceptedIT</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Hardware Received -->
+    <bpmn:endEvent id="Sys_EndHardwareReceived" name="Hardware Received">
+      <bpmn:incoming>SYS_Flow_HardwareReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TASK_HandleInvoiceFinancial" name="Handle Invoice">
+      <bpmn:incoming>SYS_Flow_FinalEnd</bpmn:incoming>
+      <bpmn:outgoing>Sys_Flow_ProcessComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final End -->
+    <bpmn:endEvent id="Sys_EndProcessFinal" name="Process Completed">
+      <bpmn:incoming>SYS_Flow_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Financial Path -->
+    <bpmn:sequenceFlow id="SYS_Flow_ToFinancial" sourceRef="Sys_EndApprovedMgmt" targetRef="TASK_FindResources">
+      <bpmn:name>Forward Offer</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Resources Found Path -->
+    <bpmn:sequenceFlow id="SYS_Flow_ResourcesFoundPath" sourceRef="TASK_FindResources" targetRef="SYS_SendOfferFinancial">
+      <bpmn:name>Find Resources</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Order Preparation -->
+    <bpmn:endEvent id="Sys_EndOrderAccepted" name="Hardware Received">
+      <bpmn:incoming>SYS_Flow_HardwareReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SYS_Flow_OrderAcceptedIT" sourceRef="SYS_PrepareOrderSendSupplier" targetRef="Sys_EndHardwareReceived">
+      <bpmn:name>Order Accepted</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final End -->
+    <bpmn:endEvent id="Sys_EndProcessFinal2" name="Process Completed">
+      <bpmn:incoming>SYS_Flow_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

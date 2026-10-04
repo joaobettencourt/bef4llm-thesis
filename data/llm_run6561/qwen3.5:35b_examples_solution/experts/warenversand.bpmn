@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1a2b3c4d" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ShippingProcess">
+    <bpmn:participant id="Participant_ComputerHardwareShop" name="Computer Hardware Shop - Shipping Process" processRef="Process_MainShipping"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MainShipping" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_Shipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DecideShippingMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_InsuranceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_ShipmentPrepComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_LargeQuantity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillPackageForm</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_LogisticsManager" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_ArrangeInsurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_WarehouseWorker" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>ExclusiveGateway_ReadyForPickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareForPickup</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Shipment" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_SplitTasks</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway to split into Secretary and Warehouse paths -->
+    <bpmn:parallelGateway id="ParallelGateway_TaskSplit" name="Aufgaben parallel">
+      <bpmn:incoming>SequenceFlow_SplitTasks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideShippingMethod</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackGoodsParallel</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Secretary Tasks -->
+    <bpmn:task id="Task_DecideShippingMethod" name="Versandart klären">
+      <bpmn:incoming>SequenceFlow_DecideShippingMethod</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckLargeQuantity</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Large vs Small Quantity -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_LargeQuantity" name="Große Menge?">
+      <bpmn:incoming>SequenceFlow_CheckLargeQuantity</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpecialShippingYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NormalShippingNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Special Shipping Path (Large Quantity) -->
+    <bpmn:task id="Task_GetOffers" name="Angebote von 3 Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_SpecialShippingYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCarrier</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CommissionCarrier" name="Spediteur beauftragen">
+      <bpmn:incoming>SequenceFlow_SelectCarrier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpecialShippingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Normal Shipping Path (Small Quantity) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_InsuranceCheck" name="Versicherung erforderlich?">
+      <bpmn:incoming>SequenceFlow_NormalShippingNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FillPackageFormAlways</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Insurance Task (Logistics Manager) -->
+    <bpmn:task id="Task_ArrangeInsurance" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_InsuranceRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsuranceComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Package Form Task -->
+    <bpmn:task id="Task_FillPackageForm" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_FillPackageFormAlways</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NormalShippingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Warehouse Tasks -->
+    <bpmn:task id="Task_PackGoods" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_PackGoodsParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsPackedReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway for Shipment Preparation Complete -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_ShipmentPrepComplete" name="Vorbereitungen abgeschlossen">
+      <bpmn:incoming>SequenceFlow_NormalShippingComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InsuranceComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeForPickupPrep</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Exclusive Gateway for Ready For Pickup -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReadyForPickup" name="Alle Vorbereitungen?">
+      <bpmn:incoming>SequenceFlow_SpecialShippingComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeForPickupPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareForPickupFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_PrepareForPickup" name="Ware zur Abholung bereitstellen">
+      <bpmn:incoming>SequenceFlow_PrepareForPickupFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeShipping</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ShipmentPrepared" name="Warenversand vorbereitet">
+      <bpmn:incoming>SequenceFlow_FinalizeShipping</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Secretary Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SplitTasks" sourceRef="StartEvent_Shipment" targetRef="ParallelGateway_TaskSplit">
+      <bpmn:name>Versand starten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecideShippingMethod" sourceRef="ParallelGateway_TaskSplit" targetRef="Task_DecideShippingMethod"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckLargeQuantity" sourceRef="Task_DecideShippingMethod" targetRef="ExclusiveGateway_LargeQuantity">
+      <bpmn:name>Entscheidung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Large Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialShippingYes" sourceRef="ExclusiveGateway_LargeQuantity" targetRef="Task_GetOffers">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCarrier" sourceRef="Task_GetOffers" targetRef="Task_CommissionCarrier"/>
+
+    <!-- Small Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NormalShippingNo" sourceRef="ExclusiveGateway_LargeQuantity" targetRef="InclusiveGateway_InsuranceCheck">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_FillPackageFormAlways" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="Task_FillPackageForm">
+      <bpmn:name>Immer</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsuranceRequired" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="Task_ArrangeInsurance">
+      <bpmn:name>Versicherung erforderlich</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Warehouse Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PackGoodsParallel" sourceRef="ParallelGateway_TaskSplit" targetRef="Task_PackGoods"/>
+
+    <!-- Merge Points -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialShippingComplete" sourceRef="Task_CommissionCarrier" targetRef="ExclusiveGateway_ReadyForPickup">
+      <bpmn:name>Sonderversand fertig</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NormalShippingComplete" sourceRef="Task_FillPackageForm" targetRef="InclusiveGateway_ShipmentPrepComplete"/>
+
+    <!-- Insurance Complete -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsuranceComplete" sourceRef="Task_ArrangeInsurance" targetRef="InclusiveGateway_ShipmentPrepComplete">
+      <bpmn:name>Versicherung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeForPickupPrep" sourceRef="InclusiveGateway_ShipmentPrepComplete" targetRef="ExclusiveGateway_ReadyForPickup"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsPackedReady" sourceRef="Task_PackGoods" targetRef="ExclusiveGateway_ReadyForPickup">
+      <bpmn:name>Ware verpackt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Steps -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareForPickupFinal" sourceRef="ExclusiveGateway_ReadyForPickup" targetRef="Task_PrepareForPickup"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeShipping" sourceRef="Task_PrepareForPickup" targetRef="EndEvent_ShipmentPrepared">
+      <bpmn:name>Vorbereitungen abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

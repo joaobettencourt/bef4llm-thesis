@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LANPartyProcess">
+
+  <bpmn:collaboration id="Collab_LANPlanning">
+    <bpmn:participant id="Participant_Organizer" name="LAN Party Organizer" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_PlanParty" name="Plan LAN Party">
+      <bpmn:outgoing>SequenceFlow_SendInvites</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send Invitations -->
+    <bpmn:task id="Task_SendInvites" name="Send invitations to friends">
+      <bpmn:incoming>SequenceFlow_SendInvites</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectGames</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Collect Game Preferences -->
+    <bpmn:task id="Task_CollectGames" name="Find out which games they want">
+      <bpmn:incoming>SequenceFlow_CollectGames</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_Split_DateGame</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_Split_DateGame">
+      <bpmn:incoming>SequenceFlow_CollectGames</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AppointDate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckInventory</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path A: Date Selection Loop -->
+    
+    <!-- Task 3a: Appoint Date -->
+    <bpmn:task id="Task_AppointDate" name="Appoint a date">
+      <bpmn:incoming>SequenceFlow_AppointDate</bpmn:incoming>
+      <bpmn:outgoing>Gateway_CheckAttendance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3a: Check Attendance -->
+    <bpmn:exclusiveGateway id="Gateway_CheckAttendance" name="8+ people agree?">
+      <bpmn:incoming>SequenceFlow_AppointDate</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_BackToAppoint</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_YesProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Flow -->
+    <bpmn:sequenceFlow id="SequenceLoop_BackToAppoint" name="No">
+      <bpmn:sourceRef>Gateway_CheckAttendance</bpmn:sourceRef>
+      <bpmn:targetRef>Task_AppointDate</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Path B: Game Preparation -->
+
+    <!-- Task 3b: Check Inventory -->
+    <bpmn:task id="Task_CheckInventory" name="Check if have all games">
+      <bpmn:incoming>SequenceFlow_CheckInventory</bpmn:incoming>
+      <bpmn:outgoing>Gateway_MissingGames</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3b: Missing Games? -->
+    <bpmn:exclusiveGateway id="Gateway_MissingGames" name="Missing games?">
+      <bpmn:incoming>SequenceFlow_CheckInventory</bpmn:incoming>
+      <bpmn:outgoing>Task_DownloadGames</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_GamesReady</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3c: Download Games -->
+    <bpmn:task id="Task_DownloadGames" name="Download missing games">
+      <bpmn:incoming>SequenceFlow_Missing_Games</bpmn:incoming>
+      <bpmn:outgoing>ParallelJoin_PreParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Missing Games Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_Missing_Games" name="Yes">
+      <bpmn:sourceRef>Gateway_MissingGames</bpmn:sourceRef>
+      <bpmn:targetRef>Task_DownloadGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Join Gateway -->
+    <bpmn:parallelGateway id="ParallelJoin_PreParty">
+      <bpmn:incoming>SequencePath_YesProceed</bpmn:incoming>
+      <bpmn:incoming>Task_DownloadGames</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CalculateBeer</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow from Date Confirmation -->
+    <bpmn:sequenceFlow id="SequencePath_YesProceed" name="Date Confirmed">
+      <bpmn:sourceRef>Gateway_CheckAttendance</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelJoin_PreParty</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Game Path (No missing games) -->
+    <bpmn:sequenceFlow id="SequencePath_GamesReady" name="All Games Available">
+      <bpmn:sourceRef>Gateway_MissingGames</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelJoin_PreParty</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 4: Beer Calculation -->
+    <bpmn:task id="Task_CalculateBeer" name="Calculate beer requirement">
+      <bpmn:incoming>SequenceFlow_CalculateBeer</bpmn:incoming>
+      <bpmn:outgoing>Gateway_CheckStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4a: Check Stock -->
+    <bpmn:exclusiveGateway id="Gateway_CheckStock" name="Enough beer?">
+      <bpmn:incoming>SequenceFlow_CalculateBeer</bpmn:incoming>
+      <bpmn:outgoing>Task_BuyBeer</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_EnjoyParty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4b: Buy Beer -->
+    <bpmn:task id="Task_BuyBeer" name="Buy missing beer">
+      <bpmn:incoming>SequenceFlow_NeedMoreBeer</bpmn:incoming>
+      <bpmn:outgoing>ParallelJoin_EnjoyParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Need Beer -->
+    <bpmn:sequenceFlow id="SequenceFlow_NeedMoreBeer" name="No">
+      <bpmn:sourceRef>Gateway_CheckStock</bpmn:sourceRef>
+      <bpmn:targetRef>Task_BuyBeer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Enough Beer -->
+    <bpmn:sequenceFlow id="SequencePath_EnjoyParty" name="Yes">
+      <bpmn:sourceRef>Gateway_CheckStock</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelJoin_EnjoyParty</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Parallel Join -->
+    <bpmn:parallelGateway id="ParallelJoin_EnjoyParty">
+      <bpmn:incoming>SequencePath_EnjoyParty</bpmn:incoming>
+      <bpmn:outgoing>Task_BuyBeer</bpmn:outgoing>
+      <bpmn:outgoing>End_Event_PartyEnjoyed</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_PartyEnjoyed" name="LAN Party Enjoyed">
+      <bpmn:incoming>SequenceFlow_EnjoyParty_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

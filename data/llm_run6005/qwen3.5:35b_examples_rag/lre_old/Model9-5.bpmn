@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReport" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseProcess">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Report Process" processRef="Process_ExpenseP1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseP1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_EventReceived" name="Expense Report Received">
+      <bpmn:outgoing>Flow_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AccountExists" name="Employee has account?">
+      <bpmn:incoming>Flow_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasAccount_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoAccount_Create</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Account -->
+    <bpmn:task id="Task_CreateAccount" name="Create new employee account">
+      <bpmn:incoming>Flow_NoAccount_Create</bpmn:incoming>
+      <bpmn:outgoing>Flow_AccountCreatedToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Review Report -->
+    <bpmn:task id="Task_ReviewReport" name="Review expense report">
+      <bpmn:incoming>Flow_HasAccount_Yes</bpmn:incoming>
+      <bpmn:incoming>Flow_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_AmountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Amount Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>Flow_AmountDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_LowAmount_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HighAmount_Supervisor</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Low Amount Path - Auto Approval End -->
+    <bpmn:endEvent id="End_AutoApproved" name="Auto-Approval Complete">
+      <bpmn:incoming>Flow_LowAmount_Approve</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- High Amount Path - Supervisor Approval Task -->
+    <bpmn:task id="Task_SupervisorRequest" name="Request supervisor approval">
+      <bpmn:incoming>Flow_HighAmount_Supervisor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WaitSupervisorResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer for 7 days - Approval in Progress -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 Days">
+      <bpmn:incoming>Flow_WaitSupervisorResponse</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+      <bpmn:outgoing>Flow_7DaysToEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 30 days - Cancellation -->
+    <bpmn:intermediateCatchEvent id="Timer_30Days" name="30 Days">
+      <bpmn:incoming>Flow_WaitSupervisorResponse</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+      <bpmn:outgoing>Flow_30DaysToCancelEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message Events for Supervisor Response -->
+    <bpmn:intermediateCatchEvent id="Message_Approval" name="Approval from supervisor">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitSupervisorResponse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ApprovedToReimburse</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="Message_Rejection" name="Rejection from supervisor">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitSupervisorResponse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectedToNotice</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send Approval in Progress Email -->
+    <bpmn:task id="Task_ApprovalInProgressEmail" name="Send approval in progress email">
+      <bpmn:incoming>Flow_7DaysToEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RetrySupervisorRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Rejection Notice Email -->
+    <bpmn:task id="Task_RejectionNoticeEmail" name="Send rejection notice email">
+      <bpmn:incoming>Flow_RejectedToNotice</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectedToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Cancellation Notice Email -->
+    <bpmn:task id="Task_CancellationEmail" name="Send cancellation notice email">
+      <bpmn:incoming>Flow_30DaysToCancelEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RetryProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Process Reimbursement -->
+    <bpmn:task id="Task_Reimburse" name="Process reimbursement to direct deposit">
+      <bpmn:incoming>Flow_ApprovedToReimburse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AutoApprovedToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+      <bpmn:name>Rejection Complete</bpmn:name>
+      <bpmn:incoming>Flow_RejectedToEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Canceled" name="Request Cancelled">
+      <bpmn:name>Cancellation Complete - Re-submit Required</bpmn:name>
+      <bpmn:incoming>Flow_RetryProcess</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToAccountCheck" sourceRef="Start_EventReceived" targetRef="Gateway_AccountExists" />
+    
+    <bpmn:sequenceFlow id="Flow_HasAccount_Yes" name="Yes - Has Account" sourceRef="Gateway_AccountExists" targetRef="Task_ReviewReport" />
+    <bpmn:sequenceFlow id="Flow_NoAccount_Create" name="No - Create First" sourceRef="Gateway_AccountExists" targetRef="Task_CreateAccount" />
+    
+    <bpmn:sequenceFlow id="Flow_AccountCreatedToReview" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport" />
+    <bpmn:sequenceFlow id="Flow_AmountDecision" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountCheck" />
+    
+    <bpmn:sequenceFlow id="Flow_LowAmount_Approve" name="Yes - Amount &lt; $200" sourceRef="Gateway_AmountCheck" targetRef="End_AutoApproved" />
+    <bpmn:sequenceFlow id="Flow_HighAmount_Supervisor" name="No - Amount >= $200" sourceRef="Gateway_AmountCheck" targetRef="Task_SupervisorRequest" />
+    
+    <bpmn:sequenceFlow id="Flow_WaitSupervisorResponse" sourceRef="Task_SupervisorRequest" targetRef="Message_Approval" />
+    <bpmn:sequenceFlow id="Flow_7DaysToEmail" name="After 7 days - No Response Yet" sourceRef="Timer_7Days" targetRef="Task_ApprovalInProgressEmail" />
+    <bpmn:sequenceFlow id="Flow_RetrySupervisorRequest" sourceRef="Task_ApprovalInProgressEmail" targetRef="Gateway_AmountCheck" />
+    
+    <bpmn:sequenceFlow id="Flow_30DaysToCancelEmail" name="After 30 days - Still Pending" sourceRef="Timer_30Days" targetRef="Task_CancellationEmail" />
+    <bpmn:sequenceFlow id="Flow_RetryProcess" sourceRef="Task_CancellationEmail" targetRef="End_Canceled" />
+    
+    <bpmn:sequenceFlow id="Flow_ApprovedToReimburse" name="Approved by Supervisor" sourceRef="Message_Approval" targetRef="Task_Reimburse" />
+    <bpmn:sequenceFlow id="Flow_RejectedToNotice" name="Rejected by Supervisor" sourceRef="Message_Rejection" targetRef="Task_RejectionNoticeEmail" />
+    
+  </bpmn:process>
+</bpmn:definitions>

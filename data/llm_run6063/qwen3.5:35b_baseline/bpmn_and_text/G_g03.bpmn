@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CharacterCreation">
+    <bpmn:participant name="Blizzard Online Character Generator Process" processRef="Process_CharGen"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_CharGen">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="User Actions">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterAccountInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchMessage_ConfirmMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectPaymentMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterCCInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterBankInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LoginAndSelectDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ComingUpNames</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_NameAvailable</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="System Logic">
+        <bpmn:flowNodeRef>InclusiveGateway_AccountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_SubscriptionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_PaymentMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Join</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Create Character">
+      <bpmn:outgoing>SequenceFlow_Split</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Split for Account Setup and Name Generation -->
+    <bpmn:parallelGateway id="ParallelGateway_Split">
+      <bpmn:incoming>SequenceFlow_Split</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NamePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Account Setup -->
+    
+    <!-- Check Battle.net Account (Exclusive Gateway) -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_AccountCheck" name="Has Battle.net?">
+      <bpmn:incoming>SequenceFlow_AccountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HasAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No Account Path -->
+    <bpmn:task id="Task_EnterAccountInfo" name="Enter Account Info">
+       <bpmn:incoming>SequenceFlow_NoAccount</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendMail</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- System sends mail (Implicit) -> User clicks link -->
+    <bpmn:intermediateCatchMessage id="IntermediateCatchMessage_ConfirmMail" name="Receive Confirmation Mail">
+       <bpmn:incoming>SequenceFlow_SendMail</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MailConfirmed</bpmn:outgoing>
+    </bpmn:intermediateCatchMessage>
+
+    <!-- Has Account Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasAccount" name="Yes">
+      <bpmn:sourceRef>InclusiveGateway_AccountCheck</bpmn:sourceRef>
+      <bpmn:targetRef>InclusiveGateway_SubscriptionCheck</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- No Account Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccount" name="No">
+       <bpmn:sourceRef>InclusiveGateway_AccountCheck</bpmn:sourceRef>
+       <bpmn:targetRef>Task_EnterAccountInfo</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Mail Confirmation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendMail" name="Send Link">
+      <bpmn:sourceRef>Task_EnterAccountInfo</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateCatchMessage_ConfirmMail</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- After Mail Confirmation -->
+    <bpmn:sequenceFlow id="SequenceFlow_MailConfirmed" name="Link Clicked">
+       <bpmn:sourceRef>IntermediateCatchMessage_ConfirmMail</bpmn:sourceRef>
+       <bpmn:targetRef>InclusiveGateway_SubscriptionCheck</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Subscription Check -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_SubscriptionCheck" name="Active Sub?">
+      <bpmn:incoming>SequenceFlow_HasAccount</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MailConfirmed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ActiveSub</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoActiveSub</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Payment Logic -->
+    <bpmn:task id="Task_SelectPaymentMethod" name="Select Payment Method">
+       <bpmn:incoming>SequenceFlow_NoActiveSub</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_PaymentChoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Payment Type -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_PaymentMethod" name="Payment Method?">
+      <bpmn:incoming>SequenceFlow_PaymentChoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditCard</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BankAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Credit Card Task -->
+    <bpmn:task id="Task_EnterCCInfo" name="Enter CC Info">
+       <bpmn:incoming>SequenceFlow_CreditCard</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CCComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Bank Account Task -->
+    <bpmn:task id="Task_EnterBankInfo" name="Enter IBAN/BIC">
+       <bpmn:incoming>SequenceFlow_BankAccount</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_BankComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Payment Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoActiveSub" name="No">
+      <bpmn:sourceRef>InclusiveGateway_SubscriptionCheck</bpmn:sourceRef>
+      <bpmn:targetRef>Task_SelectPaymentMethod</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ActiveSub" name="Yes">
+       <bpmn:sourceRef>InclusiveGateway_SubscriptionCheck</bpmn:sourceRef>
+       <bpmn:targetRef>Task_LoginAndSelectDetails</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentChoice" name="">
+      <bpmn:sourceRef>Task_SelectPaymentMethod</bpmn:sourceRef>
+      <bpmn:targetRef>InclusiveGateway_PaymentMethod</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreditCard" name="Credit Card">
+       <bpmn:sourceRef>InclusiveGateway_PaymentMethod</bpmn:sourceRef>
+       <bpmn:targetRef>Task_EnterCCInfo</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BankAccount" name="Bank Account">
+      <bpmn:sourceRef>InclusiveGateway_PaymentMethod</bpmn:sourceRef>
+       <bpmn:targetRef>Task_EnterBankInfo</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Payment Paths -->
+    <bpmn:parallelGateway id="ParallelGateway_MergePayment">
+      <bpmn:incoming>SequenceFlow_CCComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_BankComplete</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_PaymentDone</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- CC Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CCComplete" name="">
+      <bpmn:sourceRef>Task_EnterCCInfo</bpmn:sourceRef>
+       <bpmn:targetRef>ParallelGateway_MergePayment</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Bank Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankComplete" name="">
+      <bpmn:sourceRef>Task_EnterBankInfo</bpmn:sourceRef>
+       <bpmn:targetRef>ParallelGateway_MergePayment</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Payment Done Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentDone" name="">
+      <bpmn:sourceRef>ParallelGateway_MergePayment</bpmn:sourceRef>
+       <bpmn:targetRef>Task_LoginAndSelectDetails</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Login and Select Details -->
+    <bpmn:task id="Task_LoginAndSelectDetails" name="Login &amp; Select Realm/Race/Class">
+       <bpmn:incoming>SequenceFlow_ActiveSub</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_PaymentDone</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_AccountReady</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Path 2: Name Generation -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NamePath" name="">
+      <bpmn:sourceRef>ParallelGateway_Split</bpmn:sourceRef>
+       <bpmn:targetRef>Task_ComingUpNames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Name Loop -->
+    <bpmn:task id="Task_ComingUpNames" name="Come up with Names">
+      <bpmn:incoming>SequenceFlow_NamePath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EnterNameLoop</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Name Availability -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_NameAvailable" name="Name Available?">
+      <bpmn:incoming>SequenceFlow_EnterNameLoop</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Taken</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ValidNameFound</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterNameLoop" name="">
+      <bpmn:sourceRef>Task_ComingUpNames</bpmn:sourceRef>
+       <bpmn:targetRef>InclusiveGateway_NameAvailable</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Taken -->
+    <bpmn:sequenceFlow id="SequenceFlow_Taken" name="No">
+      <bpmn:sourceRef>InclusiveGateway_NameAvailable</bpmn:sourceRef>
+       <bpmn:targetRef>Task_ComingUpNames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Valid Name -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidNameFound" name="Yes">
+      <bpmn:sourceRef>InclusiveGateway_NameAvailable</bpmn:sourceRef>
+       <bpmn:targetRef>ParallelGateway_Join</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Account Ready Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AccountReady" name="">
+      <bpmn:sourceRef>Task_LoginAndSelectDetails</bpmn:sourceRef>
+       <bpmn:targetRef>ParallelGateway_Join</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Join Point -->
+    <bpmn:parallelGateway id="ParallelGateway_Join">
+      <bpmn:incoming>SequenceFlow_ValidNameFound</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_AccountReady</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConfirmationStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Final Confirmation -->
+    <bpmn:endEvent id="EndEvent_1" name="Character Created">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Signal for Expansion Notification (Global) -->
+    <bpmn:signalThrowEvent id="Signal_ExpandNotification" name="Subscribe to Updates">
+       <bpmn:outgoing>SequenceFlow_SubscribeExpansion</bpmn:outgoing>
+    </bpmn:signalThrowEvent>
+
+     <!-- Final Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmationStart" name="">
+      <bpmn:sourceRef>ParallelGateway_Join</bpmn:sourceRef>
+       <bpmn:targetRef>EndEvent_1</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Signal Flow -->
+    <bpmn:signalThrowEvent id="Signal_ExpandNotification" name="Subscribe to Updates">
+      <bpmn:outgoing>SequenceFlow_SubscribeExpansion</bpmn:outgoing>
+    </bpmn:signalThrowEvent>
+
+     <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="">
+       <bpmn:sourceRef>ParallelGateway_Join</bpmn:sourceRef>
+       <bpmn:targetRef>EndEvent_1</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Account Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AccountPath" name="">
+      <bpmn:sourceRef>ParallelGateway_Split</bpmn:sourceRef>
+       <bpmn:targetRef>InclusiveGateway_AccountCheck</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Split Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Split" name="">
+      <bpmn:sourceRef>StartEvent_1</bpmn:sourceRef>
+       <bpmn:targetRef>ParallelGateway_Split</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Signal Flow -->
+    <bpmn:signalThrowEvent id="Signal_ExpandNotification" name="Subscribe to Updates">
+      <bpmn:outgoing>SequenceFlow_SubscribeExpansion</bpmn:outgoing>
+    </bpmn:signalThrowEvent>
+
+  </bpmn:process>
+  
+  <!-- Signal Definition -->
+  <bpmn:signal id="Signal_ExpandNotification" name="Expansion Released"/>
+
+</bpmn:definitions>

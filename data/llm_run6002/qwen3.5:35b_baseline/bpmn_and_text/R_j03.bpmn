@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FridgeService_001">
+  <bpmn:collaboration id="Collaboration_FridgeService">
+    <bpmn:participant id="Participant_ServiceProcess" name="Fridge Service Process" processRef="Process_FridgeRepair"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_FridgeRepair" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_Report</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RateService</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CentralCenter" name="Central Service Center">
+        <bpmn:flowNodeRef>Task_SelectFacility</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Facility" name="Local Facility">
+        <bpmn:flowNodeRef>Task_MakeAppointment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArriveAttempt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PartsNeeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReturnComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Report" name="Symptoms Described">
+      <bpmn:name>Symptoms Described</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_SendReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Customer Task -->
+    <bpmn:task id="Task_SendReport" name="Send Symptoms &amp; Fridge Type">
+      <bpmn:name>Send Symptoms &amp; Fridge Type</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CenterSelects</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Central Center Task -->
+    <bpmn:task id="Task_SelectFacility" name="Select Local Service Facility">
+      <bpmn:name>Select Local Service Facility</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CenterSelects</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FacilityStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Facility Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_FacilityStart" sourceRef="Task_SelectFacility" targetRef="Task_MakeAppointment"/>
+
+    <bpmn:task id="Task_MakeAppointment" name="Make Appointment">
+      <bpmn:name>Make Appointment</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FacilityStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArriveAttempt</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ArriveAttempt" sourceRef="Task_MakeAppointment" targetRef="Task_ArriveAttempt"/>
+
+    <bpmn:task id="Task_ArriveAttempt" name="Arrive &amp; Attempt Repair">
+      <bpmn:name>Arrive &amp; Attempt Repair</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ArriveAttempt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckParts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Parts Check -->
+    <bpmn:exclusiveGateway id="Gateway_PartsNeeded" name="Additional Parts Needed?">
+      <bpmn:name>Additional Parts Needed?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairSuccess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NeedParts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Repair Success -->
+    <bpmn:sequenceFlow id="SequenceFlow_RepairSuccess" name="No (Repaired)" sourceRef="Gateway_PartsNeeded" targetRef="Task_ConfirmOK"/>
+
+    <!-- Path 2: Need Parts Loop/Exception -->
+    <bpmn:task id="Task_OrderParts" name="Order Additional Parts">
+      <bpmn:name>Order Additional Parts</bpmn:name>
+      <bpmn:incoming>SequenceFlow_NeedParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnVisit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to complete repair after parts arrive -->
+    <bpmn:task id="Task_ReturnComplete" name="Return Visit &amp; Complete Repair">
+      <bpmn:name>Return Visit &amp; Complete Repair</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReturnVisit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteRepair</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Order/Return to Confirmation -->
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteRepair" sourceRef="Task_ReturnComplete" targetRef="Task_ConfirmOK"/>
+
+    <!-- Customer Confirmation -->
+    <bpmn:task id="Task_ConfirmOK" name="Confirm Fridge OK">
+      <bpmn:name>Confirm Fridge OK</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RepairSuccess</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_CompleteRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RateService</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Rating -->
+    <bpmn:sequenceFlow id="SequenceFlow_RateService" sourceRef="Task_ConfirmOK" targetRef="Task_RateService"/>
+
+    <bpmn:task id="Task_RateService" name="Rate Service Facility">
+      <bpmn:name>Rate Service Facility</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RateService</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRating</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Process Completed">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndRating</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

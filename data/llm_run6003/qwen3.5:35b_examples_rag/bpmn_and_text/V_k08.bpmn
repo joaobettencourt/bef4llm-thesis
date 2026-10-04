@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_OnlineShopOrdering" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderProcessing">
+    <bpmn:participant id="Participant_CustomerProcess" name="Customer Order Process" processRef="Process_OrderFulfillment" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFulfillment" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_CustomerActions">
+      <bpmn:lane id="Lane_Customer">
+        <bpmn:flowNodeRef>StartEvent_Login</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCredentials</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_LoginResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_LoginFailed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Login" name="Customer Logs In">
+      <bpmn:outgoing>SequenceFlow_CheckCredentials</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task for System Credential Check -->
+    <bpmn:serviceTask id="Task_CheckCredentials" name="Check Credentials (System)">
+      <bpmn:incoming>SequenceFlow_CheckCredentials</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoginResultGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway for Login Result -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_LoginResult" name="Login Successful?">
+      <bpmn:incoming>SequenceFlow_LoginResultGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectProducts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LoginFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Failed Login -->
+    <bpmn:endEvent id="EndEvent_LoginFailed" name="Shopping Experience Stopped">
+      <bpmn:incoming>SequenceFlow_LoginFailed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task Loop Start - Product Selection -->
+    <bpmn:userTask id="Task_SelectProduct" name="Select Products">
+      <bpmn:incoming>SequenceFlow_SelectProducts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddToCart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Add to Cart -->
+    <bpmn:userTask id="Task_AddToCart" name="Add Product to Shopping Cart">
+      <bpmn:incoming>SequenceFlow_AddToCart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SaveProduct</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Save Product -->
+    <bpmn:userTask id="Task_SaveProduct" name="Save Selected Products">
+      <bpmn:incoming>SequenceFlow_SaveProduct</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAllSelected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway - Check if All Products Selected -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AllProducts" name="All Products Selected?">
+      <bpmn:incoming>SequenceFlow_CheckAllSelected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectMoreProducts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinishOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back to Product Selection -->
+    <bpmn:userTask id="Task_SameBilling" name="Use Shipping as Billing">
+      <bpmn:incoming>SequenceFlow_EnterBillingSame</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BillingComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Payment and Shipment Preparation -->
+    <bpmn:parallelGateway id="ParallelGateway_OrderPreparation" name="Order Finished">
+      <bpmn:incoming>SequenceFlow_FinishOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentProcess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ShipmentPreparation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Payment Process -->
+    <bpmn:userTask id="Task_EnterPaymentData" name="Enter Payment Data">
+      <bpmn:incoming>SequenceFlow_PaymentProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitBankConfirmation</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task for Bank Confirmation -->
+    <bpmn:serviceTask id="Task_BankConfirmation" name="Wait for Bank Payment Confirmation">
+      <bpmn:incoming>SequenceFlow_WaitBankConfirmation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentConfirmed</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Shipping Address Process -->
+    <bpmn:userTask id="Task_EnterShippingAddress" name="Enter Shipping Address">
+      <bpmn:incoming>SequenceFlow_ShipmentPreparation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckBillingDifferent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway for Billing vs Shipping Address -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_BillingAddress" name="Shipping = Billing?">
+      <bpmn:incoming>SequenceFlow_CheckBillingDifferent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterBillingSame</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EnterIndependentBilling</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Independent Billing Address -->
+    <bpmn:userTask id="Task_IndependentBilling" name="Enter Independent Billing Address">
+      <bpmn:incoming>SequenceFlow_EnterIndependentBilling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BillingComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Address and Payment Convergence -->
+    <bpmn:parallelGateway id="ParallelGateway_FinalizeOrder" name="Converge">
+      <bpmn:incoming>SequenceFlow_PaymentConfirmed</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_BillingComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SystemFinishOrder</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final System Task -->
+    <bpmn:serviceTask id="Task_SystemFinish" name="System Finishes Order">
+      <bpmn:incoming>SequenceFlow_SystemFinishOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderCompleted" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_OrderComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Product Selection Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCredentials" sourceRef="StartEvent_Login" targetRef="Task_CheckCredentials">
+      <bpmn:name>Login Initiated</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LoginResultGateway" sourceRef="Task_CheckCredentials" targetRef="InclusiveGateway_LoginResult">
+      <bpmn:name>Credentials Checked</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectProducts" name="Yes" sourceRef="InclusiveGateway_LoginResult" targetRef="Task_SelectProduct">
+      <bpmn:description>Login Successful - Continue Shopping</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LoginFailed" name="No" sourceRef="InclusiveGateway_LoginResult" targetRef="EndEvent_LoginFailed">
+      <bpmn:description>Login Failed - Stop Experience</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Product Selection Loop Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddToCart" sourceRef="Task_SelectProduct" targetRef="Task_AddToCart">
+      <bpmn:name>Select Next</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SaveProduct" sourceRef="Task_AddToCart" targetRef="Task_SaveProduct">
+      <bpmn:name>Add to Cart</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAllSelected" sourceRef="Task_SaveProduct" targetRef="ExclusiveGateway_AllProducts">
+      <bpmn:name>All Selected?</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back to Product Selection -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectMoreProducts" name="No" sourceRef="ExclusiveGateway_AllProducts" targetRef="Task_SelectProduct">
+      <bpmn:description>Select More Products</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Order Preparation Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishOrder" name="Yes" sourceRef="ExclusiveGateway_AllProducts" targetRef="ParallelGateway_OrderPreparation">
+      <bpmn:description>All Products Selected</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentProcess" sourceRef="ParallelGateway_OrderPreparation" targetRef="Task_EnterPaymentData">
+      <bpmn:name>Prepare Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitBankConfirmation" sourceRef="Task_EnterPaymentData" targetRef="Task_BankConfirmation">
+      <bpmn:name>Submit for Confirmation</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Shipment Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ShipmentPreparation" sourceRef="ParallelGateway_OrderPreparation" targetRef="Task_EnterShippingAddress">
+      <bpmn:name>Prepare Shipment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Address Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckBillingDifferent" sourceRef="Task_EnterShippingAddress" targetRef="ExclusiveGateway_BillingAddress">
+      <bpmn:name>Check Addresses</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Address Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterBillingSame" name="Yes (Same)" sourceRef="ExclusiveGateway_BillingAddress" targetRef="Task_SameBilling">
+      <bpmn:description>Billing = Shipping</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EnterIndependentBilling" name="No (Different)" sourceRef="ExclusiveGateway_BillingAddress" targetRef="Task_IndependentBilling">
+      <bpmn:description>Billing ≠ Shipping</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Convergence Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentConfirmed" sourceRef="Task_BankConfirmation" targetRef="ParallelGateway_FinalizeOrder">
+      <bpmn:name>Payment Confirmed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BillingComplete" name="" sourceRef="ExclusiveGateway_AllProducts" targetRef="Task_IndependentBilling">
+      <bpmn:description>Billing Address Complete</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Convergence -->
+    <bpmn:sequenceFlow id="SequenceFlow_SystemFinishOrder" sourceRef="ParallelGateway_FinalizeOrder" targetRef="Task_SystemFinish">
+      <bpmn:name>All Steps Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderComplete" sourceRef="Task_SystemFinish" targetRef="EndEvent_OrderCompleted">
+      <bpmn:name>Order Finished</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HardwareProcurement">
+    <bpmn:participant id="Participant_ProcessOwner" name="Hardware Procurement Process" processRef="Process_HardwareBuy" />
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_SupplierOffer" name="Supplier Offer"/>
+  <bpmn:message id="Message_OrderAccepted" name="Order Accepted"/>
+
+  <bpmn:process id="Process_HardwareBuy" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ITDept" name="IT Department">
+        <bpmn:name>IT Department</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_RequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyseRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InitialDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EditCompleteRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SupplierInquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_ReceiveOffer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillFormSendMgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MgmtDecision_ReworkLoop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitProcurement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareOrderSendSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_OrderAccepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SyncReceiveGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveHardware</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Management" name="Management">
+        <bpmn:name>Management</bpmn:name>
+        <bpmn:flowNodeRef>CatchEvent_MgmtDecisionTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionMgmt</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="Financial Department">
+        <bpmn:name>Financial Department</bpmn:name>
+        <bpmn:flowNodeRef>CatchEvent_MgmtDecisionTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitProcurement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FindResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SyncReceiveGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Request Received">
+      <bpmn:outgoing>SequenceFlow_AnalyseInit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IT Task: Analyse Request -->
+    <bpmn:task id="Task_AnalyseRequest" name="Analyse request for new hardware">
+      <bpmn:incoming>SequenceFlow_AnalyseInit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InitialDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Initial Decision (Approve/Deny) -->
+    <bpmn:exclusiveGateway id="Gateway_InitialDecision" name="Request Approved?">
+      <bpmn:incoming>SequenceFlow_InitialDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeniedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovedInitPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Denied Path -->
+    <bpmn:task id="Task_SendDenialEmail" name="Inform employee via email">
+      <bpmn:incoming>SequenceFlow_DeniedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndDenied1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_RequestDenied" name="Process Ended (Denial)">
+      <bpmn:incoming>SequenceFlow_EndDenied1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Approved Path Init -->
+    <bpmn:task id="Task_EditCompleteRequest" name="Edit and complete request">
+      <bpmn:incoming>SequenceFlow_ApprovedInitPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupplierInquiry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supplier Inquiry -->
+    <bpmn:task id="Task_SupplierInquiry" name="Send email to supplier asking prices">
+      <bpmn:incoming>SequenceFlow_SupplierInquiry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitOffer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Message -->
+    <bpmn:startEvent id="CatchEvent_ReceiveOffer" name="Supplier Offer Received">
+       <bpmn:messageRef>Message_SupplierOffer</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_WaitOffer</bpmn:incoming>
+      <bpmn:outgoing>SequenceForm_FillFormMgmt</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Correction for Intermediate Catch Message ID usage in flow -->
+    <bpmn:endEvent id="EndEvent_RequestDenied" name="Process Ended (Denial)">
+      <bpmn:incoming>SequenceFlow_EndDenied1</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Re-define Intermediate Catch Message correctly -->
+  </bpmn:process>
+</bpmn:definitions>

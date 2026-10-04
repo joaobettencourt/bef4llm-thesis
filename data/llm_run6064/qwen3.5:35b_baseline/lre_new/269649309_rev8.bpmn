@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_BagResolution" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Pool_CVS_Ops" name="CVS Operations Process" processRef="Process_BagResolution"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BagResolution" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Operations" name="Operations Team">
+        <bpmn:flowNodeRef>StartEvent_NotCollected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RetryCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReturnDisassemble</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Disassembled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ContactCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OutcomeCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdateRetryCount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Updated</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NotCollected" name="Not Collected Bag Identified">
+        <bpmn:outgoing>SF_CheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Check Retries -->
+    <bpmn:exclusiveGateway id="Gateway_RetryCheck" name="Retry Count &gt; Limit?">
+        <bpmn:incoming>SF_CheckRetries</bpmn:incoming>
+        <bpmn:outgoing>SF_ReturnDisassemble_LimitExceeded</bpmn:outgoing>
+        <bpmn:outgoing>SF_ContactCustomer_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 1: Return for Disassembly -->
+    <bpmn:task id="Task_ReturnDisassemble" name="Return Bag to Production Area">
+        <bpmn:incoming>SF_ReturnDisassemble_LimitExceeded</bpmn:incoming>
+        <bpmn:incoming>SF_WithdrawsOrder_Flow</bpmn:incoming>
+        <bpmn:outgoing>SF_End_Disassembled</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Disassembled" name="Bag Disassembled">
+        <bpmn:incoming>SF_End_Disassembled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Contact Customer -->
+    <bpmn:task id="Task_ContactCustomer" name="Contact Customer by Phone &amp; Remind">
+        <bpmn:incoming>SF_ContactCustomer_Flow</bpmn:incoming>
+        <bpmn:outgoing>SF_OutcomeCheckFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Contact Outcome -->
+    <bpmn:exclusiveGateway id="Gateway_OutcomeCheck" name="Contact Result?">
+        <bpmn:incoming>SF_OutcomeCheckFlow</bpmn:incoming>
+        <bpmn:outgoing>SF_WithdrawsOrder_Flow</bpmn:outgoing>
+        <bpmn:outgoing>SF_UpdateCount_Flow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Update Retry Count -->
+    <bpmn:task id="Task_UpdateRetryCount" name="Increase Retry Count on Label">
+        <bpmn:incoming>SF_PromisesPickup_Flow</bpmn:incoming>
+        <bpmn:incoming>SF_UnsuccessfulContact_Flow</bpmn:incoming>
+        <bpmn:outgoing>SF_End_Updated</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_Updated" name="Retry Count Updated">
+        <bpmn:incoming>SF_End_Updated</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Initial Flow to Gateway 1 -->
+    <bpmn:sequenceFlow id="SF_CheckRetries" sourceRef="StartEvent_NotCollected" targetRef="Gateway_RetryCheck"/>
+
+    <!-- Path A: Limit Exceeded (Yes) -->
+    <bpmn:sequenceFlow id="SF_ReturnDisassemble_LimitExceeded" name="Limit Reached">
+        <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[retries > limit]]></bpmn:conditionExpression>
+        <bpmn:sourceRef>Gateway_RetryCheck</bpmn:sourceRef>
+        <bpmn:targetRef>Task_ReturnDisassemble</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Path B: Contact Customer (No) -->
+    <bpmn:sequenceFlow id="SF_ContactCustomer_Flow" name="Retry Limit Not Reached">
+        <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[retries &lt;= limit]]></bpmn:conditionExpression>
+        <bpmn:sourceRef>Gateway_RetryCheck</bpmn:sourceRef>
+        <bpmn:targetRef>Task_ContactCustomer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Path C: Contact Withdraws Order -->
+    <bpmn:sequenceFlow id="SF_WithdrawsOrder_Flow" name="Successful &amp; Customer Withdraws">
+        <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[outcome == WITHDRAW]]></bpmn:conditionExpression>
+        <bpmn:sourceRef>Gateway_OutcomeCheck</bpmn:sourceRef>
+        <bpmn:targetRef>Task_ReturnDisassemble</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Path D/E Combined Condition Flow -->
+    <bpmn:sequenceFlow id="SF_UpdateCount_Flow" name="Successful(Promise) OR Unsuccessful">
+        <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[outcome == PROMISE || outcome == UNSUCCESSFUL]]></bpmn:conditionExpression>
+        <bpmn:sourceRef>Gateway_OutcomeCheck</bpmn:sourceRef>
+        <bpmn:targetRef>Task_UpdateRetryCount</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to End Event Disassembled -->
+    <bpmn:sequenceFlow id="SF_End_Disassembled" sourceRef="Task_ReturnDisassemble" targetRef="EndEvent_Disassembled"/>
+
+    <!-- Flow from Contact Task to Outcome Gateway -->
+    <bpmn:sequenceFlow id="SF_OutcomeCheckFlow" sourceRef="Task_ContactCustomer" targetRef="Gateway_OutcomeCheck"/>
+
+    <!-- Flow to End Event Updated -->
+    <bpmn:sequenceFlow id="SF_End_Updated" sourceRef="Task_UpdateRetryCount" targetRef="EndEvent_Updated"/>
+
+  </bpmn:process>
+</bpmn:definitions>

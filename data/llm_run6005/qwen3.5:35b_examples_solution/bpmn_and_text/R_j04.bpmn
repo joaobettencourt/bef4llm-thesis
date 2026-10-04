@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CarService_1">
+  <bpmn:collaboration>
+    <bpmn:participant id="Participant_CarServiceProcess" name="Car Service Process" processRef="Process_CarService"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CarService">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ServiceDueCheck" name="Service Due Check">
+      <bpmn:outgoing>SequenceFlow_CheckRegistration</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Registration -->
+    <bpmn:serviceTask id="ServiceTask_CheckRegistration" name="Check if car is registered">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>Gateway_IsRegistered</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Is Registered? -->
+    <bpmn:exclusiveGateway id="Gateway_IsRegistered" name="Is Car Registered?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>Task_NotifyOwner_Yes</bpmn:outgoing>
+      <bpmn:outgoing>EndEvent_NotRegistered</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Not Registered -->
+    <bpmn:endEvent id="EndEvent_NotRegistered" name="Service Cannot Be Scheduled">
+      <bpmn:incoming>SequenceFlow_EndNotRegistered</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path: Registered - Notify Owner -->
+    <bpmn:userTask id="UserTask_NotifyOwner" name="Notify car owner of service necessity">
+      <bpmn:incoming>SequenceFlow_NotifyYes</bpmn:incoming>
+      <bpmn:outgoing>Gateway_WaitOrAction</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait Period / Fine Logic -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_30Days" name="Wait 30 Days">
+      <bpmn:incoming>SequenceFlow_WaitStart</bpmn:incoming>
+      <bpmn:outgoing>Task_SendFine</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send Fine -->
+    <bpmn:userTask id="UserTask_SendFine" name="Send fine to car owner">
+      <bpmn:incoming>SequenceFlow_FinePath</bpmn:incoming>
+      <bpmn:outgoing>EndEvent_Processed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Fine Path -->
+    <bpmn:endEvent id="EndEvent_Processed" name="Process Ended">
+       <bpmn:incoming>SequenceFlow_FinePath</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_RepairComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Mechanic Tasks & Repair Process -->
+    <bpmn:userTask id="UserTask_EnterProblems" name="Enter car problems">
+      <bpmn:incoming>SequenceFlow_StartRepair</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ParallelSplit</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Split for Repair and Status Updates -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit" name="Parallel Processing">
+      <bpmn:incoming>SequenceFlow_EnterProblems</bpmn:incoming>
+      <bpmn:outgoing>UserTask_RepairCar</bpmn:outgoing>
+      <bpmn:outgoing>UserTask_SendStatusUpdates</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Repair Car -->
+    <bpmn:userTask id="UserTask_RepairCar" name="Repair car">
+       <bpmn:incoming>SequenceFlow_RepairsStart</bpmn:incoming>
+       <bpmn:outgoing>UserTask_ConfirmSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Send Status Updates (Parallel) -->
+    <bpmn:serviceTask id="UserTask_SendStatusUpdates" name="Send status updates via email">
+      <bpmn:incoming>SequenceFlow_StatusStart</bpmn:incoming>
+      <bpmn:outgoing>UserTask_ConfirmSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Mechanic Confirmation -->
+    <bpmn:userTask id="UserTask_ConfirmSuccess" name="Confirm successful repair &amp; grant Pickerl">
+      <bpmn:incoming>SequenceFlow_RepairDone</bpmn:incoming>
+       <bpmn:outgoing>UserTask_SetNextServiceTime</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Set Next Service Time -->
+    <bpmn:userTask id="UserTask_SetNextService" name="Enter time for next service">
+      <bpmn:incoming>SequenceFlow_ConfirmSuccess</bpmn:incoming>
+       <bpmn:outgoing>EndEvent_Processed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Check Registration -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRegistration" sourceRef="StartEvent_ServiceDueCheck" targetRef="ServiceTask_CheckRegistration"/>
+    
+    <!-- Gateway IsRegistered Outgoing (Yes) -> Notify Owner -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyYes" name="Is Registered? Yes" sourceRef="Gateway_IsRegistered" targetRef="UserTask_NotifyOwner">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${isRegistered == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+     <!-- Gateway IsRegistered Outgoing (No) -> End -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndNotRegistered" name="Is Registered? No" sourceRef="Gateway_IsRegistered" targetRef="EndEvent_NotRegistered">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${isRegistered == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Notify Owner to Wait Start -->
+     <bpmn:sequenceFlow id="SequenceFlow_WaitStart" sourceRef="UserTask_NotifyOwner" targetRef="Gateway_WaitOrAction"/>
+
+    <!-- Gateway Wait or Action -> Timer Path (30 Days) -->
+    <bpmn:exclusiveGateway id="Gateway_WaitOrAction" name="Wait or Action?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_NotifyYes</bpmn:incoming>
+      <bpmn:outgoing>IntermediateTimer_30Days</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Gateway Wait or Action -> User Arrival Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartRepair" name="Arrival at Facility" sourceRef="Gateway_WaitOrAction" targetRef="UserTask_EnterProblems">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${userArrived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+     <!-- Enter Problems to Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterProblems" sourceRef="UserTask_EnterProblems" targetRef="Gateway_ParallelSplit"/>
+
+    <!-- Parallel Split -> Repair Car -->
+    <bpmn:sequenceFlow id="SequenceFlow_RepairsStart" name="Repair Path" sourceRef="Gateway_ParallelSplit" targetRef="UserTask_RepairCar"/>
+
+     <!-- Parallel Split -> Status Updates -->
+    <bpmn:sequenceFlow id="SequenceFlow_StatusStart" name="Status Update Path" sourceRef="Gateway_ParallelSplit" targetRef="UserTask_SendStatusUpdates"/>
+
+    <!-- Repair/Status converge to Confirm Success (Simplified for XML validity) -->
+     <bpmn:sequenceFlow id="SequenceFlow_RepairDone" sourceRef="UserTask_RepairCar" targetRef="UserTask_ConfirmSuccess"/>
+     <bpmn:sequenceFlow id="SequenceFlow_StatusConverge" sourceRef="UserTask_SendStatusUpdates" targetRef="UserTask_ConfirmSuccess"/>
+
+    <!-- Confirm Success to Set Next Service -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmSuccess" name="Repair Successful" sourceRef="UserTask_ConfirmSuccess" targetRef="UserTask_SetNextService"/>
+
+     <!-- Set Next Service Time to End Processed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RepairComplete" sourceRef="UserTask_SetNextService" targetRef="EndEvent_Processed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

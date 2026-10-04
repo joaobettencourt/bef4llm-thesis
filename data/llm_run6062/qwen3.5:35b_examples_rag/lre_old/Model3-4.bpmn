@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ClaimProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_ClaimHandling">
+    <bpmn:participant id="Participant_CreditSystem" name="Claim Handling Process" processRef="Process_ClaimQuestionnaire"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ClaimQuestionnaire" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Send Questionnaire to Claimant">
+      <bpmn:outgoing>SequenceFlow_001</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Timer Catch Event - Wait 5 days for response -->
+    <bpmn:intermediateCatchEvent id="TimerWait_1" name="Wait up to 5 days">
+      <bpmn:incoming>SequenceFlow_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_002</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision Gateway - Response Received? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResponseReceived" name="Response received within 5 days?">
+      <bpmn:incoming>SequenceFlow_002</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_003</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_004</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Send Reminder -->
+    <bpmn:task id="Task_SendReminder" name="Send Reminder to Claimant">
+      <bpmn:incoming>SequenceFlow_004</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_005</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Catch Event - Wait another 5 days -->
+    <bpmn:intermediateCatchEvent id="TimerWait_Reminder" name="Wait up to 5 days">
+      <bpmn:incoming>SequenceFlow_005</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_006</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision Gateway - Response Received After Reminder? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResponseAfterReminder" name="Response received after reminder?">
+      <bpmn:incoming>SequenceFlow_006</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_007</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_008</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Send Another Reminder -->
+    <bpmn:task id="Task_SendAnotherReminder" name="Send Second Reminder">
+      <bpmn:incoming>SequenceFlow_008</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_009</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Catch Event - Wait another 5 days -->
+    <bpmn:intermediateCatchEvent id="TimerWait_SecondReminder" name="Wait up to 5 days">
+      <bpmn:incoming>SequenceFlow_009</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_010</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision Gateway - Response Received After Second Reminder? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResponseAfterSecondReminder" name="Response received after second reminder?">
+      <bpmn:incoming>SequenceFlow_010</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_011</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Questionnaire Received -->
+    <bpmn:endEvent id="EndEvent_QuestionnaireReceived" name="Questionnaire Completed">
+      <bpmn:incoming>SequenceFlow_011</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event - Process Complete (after receiving response) -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_003</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_007</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_001" sourceRef="StartEvent_1" targetRef="TimerWait_1"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_002" name="Response received within 5 days" sourceRef="TimerWait_1" targetRef="ExclusiveGateway_ResponseReceived">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${responseWithinFiveDays}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_003" name="Yes - Response received" sourceRef="ExclusiveGateway_ResponseReceived" targetRef="EndEvent_ProcessComplete"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_004" name="No - No response after 5 days" sourceRef="ExclusiveGateway_ResponseReceived" targetRef="Task_SendReminder">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${!responseWithinFiveDays}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_005" sourceRef="Task_SendReminder" targetRef="TimerWait_Reminder"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_006" name="Response received after reminder" sourceRef="TimerWait_Reminder" targetRef="ExclusiveGateway_ResponseAfterReminder">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${responseReceived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_007" name="Yes - Response received after reminder" sourceRef="ExclusiveGateway_ResponseAfterReminder" targetRef="EndEvent_ProcessComplete"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_008" name="No - No response after first reminder period" sourceRef="ExclusiveGateway_ResponseAfterReminder" targetRef="Task_SendAnotherReminder">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${!responseReceived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_009" sourceRef="Task_SendAnotherReminder" targetRef="TimerWait_SecondReminder"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_010" name="Response received after second reminder" sourceRef="TimerWait_SecondReminder" targetRef="ExclusiveGateway_ResponseAfterSecondReminder">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${responseReceived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_011" name="Yes - Questionnaire completed received" sourceRef="ExclusiveGateway_ResponseAfterSecondReminder" targetRef="EndEvent_QuestionnaireReceived"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

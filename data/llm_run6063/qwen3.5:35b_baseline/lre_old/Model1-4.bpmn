@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_IPO_Process">
+    <bpmn:participant id="Participant_IPO" name="IPO Process" processRef="Process_IPO" />
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_SEC_Clearance" name="SEC Clearance Received" />
+
+  <bpmn:process id="Process_IPO" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Company" name="Company">
+        <bpmn:flowNodeRef>StartEvent_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectUnderwriters</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Underwriter" name="Underwriter Firm">
+        <bpmn:flowNodeRef>InclusiveGateway_FactsFairly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Preparation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareRegistration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_ComplianceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateEvent_SECApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ReasonNotToOffer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FixPriceCommitment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OfferPublic</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Decision" name="Decision to Go Public">
+      <bpmn:outgoing>SequenceFlow_SelectUnderwriters</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Underwriters -->
+    <bpmn:task id="Task_SelectUnderwriters" name="Select the underwriters">
+      <bpmn:incoming>SequenceFlow_SelectUnderwriters</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FactsFairlyCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Facts Fair? -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_FactsFairly" name="Facts Presented&#10;Fairly?">
+      <bpmn:incoming>SequenceFlow_FactsFairlyCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Split after Approval -->
+    <bpmn:parallelGateway id="ParallelGateway_Preparation">
+      <bpmn:incoming>SequenceFlow_YesProceed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubmitReg</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BlueSkyCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare Registration -->
+    <bpmn:task id="Task_PrepareRegistration" name="Prepare registration&#10;statement for SEC">
+      <bpmn:incoming>SequenceFlow_SubmitReg</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitSECApproval</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event: Wait for SEC Clearance -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_SECApproval" name="Receive&#10;Clearance">
+      <bpmn:messageRef>Message_SEC_Clearance</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Blue Sky Check -->
+    <bpmn:task id="Task_BlueSkyCheck" name="Check blue-sky&#10;laws compliance">
+      <bpmn:incoming>SequenceFlow_BlueSkyCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinCompliance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Road Show / Price Prep -->
+    <bpmn:task id="Task_RoadShow" name="Arrange road show&#10;to firm up price">
+      <bpmn:incoming>SequenceFlow_BlueSkyCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinCompliance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join Parallel Paths -->
+    <bpmn:parallelGateway id="InclusiveGateway_ComplianceCheck">
+       <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinCompliance</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows for Parallelism -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesProceed" sourceRef="InclusiveGateway_FactsFairly" targetRef="ParallelGateway_Preparation">
+      <bpmn:name />
+    </bpmn:sequenceFlow>
+    
+    <!-- Note: In a real model, the Parallel Gateway would split to Submit Reg AND Blue Sky/Roadshow. 
+         For XML validity and flow control in this representation, we sequence Prep -> Wait Event -> Join -->
+         
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitReg" sourceRef="ParallelGateway_Preparation" targetRef="Task_PrepareRegistration">
+      <bpmn:name />
+    </bpmn:sequenceFlow>
+
+    <!-- Simplified Flow for Validity: Wait Event acts as the dependency point -->
+    
+    <!-- Gateway: Reason Not To Offer? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReasonNotToOffer" name="Found reason&#10;not to offer?">
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Fix Price & Commitment -->
+    <bpmn:task id="Task_FixPriceCommitment" name="Fix issue price&#10;and enter firm commitment">
+      <bpmn:incoming>SequenceFlow_NoProceed</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OfferPublic</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Offer to Public -->
+    <bpmn:task id="Task_OfferPublic" name="Offer stock&#10;to the public">
+      <bpmn:incoming>SequenceFlow_OfferPublic</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EndIPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_IPO" name="Offer Completed">
+       <bpmn:incoming>SequenceFlow_EndIPO</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+  <!-- Sequence Flows for Completeness -->
+   <bpmn:task id="Task_Customer_Process" name="Confirm Order">
+      <bpmn:name />
+    </definitions>

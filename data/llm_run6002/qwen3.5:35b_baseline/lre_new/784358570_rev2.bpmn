@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderProcess_1a2b3c" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrderDelivery_Process">
+    <bpmn:participant id="Participant_MainOrderProcess" name="Order Delivery Process" processRef="Process_1a2b3c"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1a2b3c" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesStaff" name="Sales Staff">
+        <bpmn:flowNodeRef>Seller_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Task_CheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Gateway_ItemsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Task_InformCustomerDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Task_OrderMissingProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_TimerEvent_WaitDelivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Gateway_RecheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Task_RecollectProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_Task_PreparePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CourierCompany" name="Courier Company">
+        <bpmn:flowNodeRef>Courier_Task_InformClientDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_EndEvent_DeliveryComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Seller_StartEvent" name="Review Order">
+      <bpmn:outgoing>Seller_Flow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Availability -->
+    <bpmn:task id="Seller_Task_CheckAvailability" name="Check Item Availability">
+      <bpmn:incoming>Seller_Flow_01</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Items Available? -->
+    <bpmn:exclusiveGateway id="Seller_Gateway_ItemsAvailable" name="All items available?">
+      <bpmn:incoming>Seller_Flow_02</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_AvailablePath</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_NotAvailablePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Items Available -->
+    <bpmn:sequenceFlow id="Seller_Flow_AvailablePath" name="Yes" sourceRef="Seller_Gateway_ItemsAvailable" targetRef="Seller_Task_RecollectProducts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${allItemsAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2: Items Not Available -->
+    <bpmn:task id="Seller_Task_InformCustomerDelay" name="Inform Customer About Delay">
+      <bpmn:incoming>Seller_Flow_NotAvailablePath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_04_OrderMissing</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Discontinued Item? -->
+    <bpmn:exclusiveGateway id="Seller_Gateway_Discontinued" name="Discontinued item?">
+      <bpmn:incoming>Seller_Flow_04_OrderMissing</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_DiscontinuedPath</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_NormalOrderPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Discontinued Item -->
+    <bpmn:task id="Seller_Task_InformDiscontinuedItem" name="Inform About Unavailable Items">
+      <bpmn:incoming>Seller_Flow_DiscontinuedPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_06_WaitDelivery</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2b: Normal Order Missing Products -->
+    <bpmn:sequenceFlow id="Seller_Flow_NormalOrderPath" name="No (Normal)" sourceRef="Seller_Gateway_Discontinued" targetRef="Seller_Task_OrderMissingProducts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!isDiscontinued}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Order Missing Products -->
+    <bpmn:task id="Seller_Task_OrderMissingProducts" name="Order Missing Products">
+      <bpmn:incoming>Seller_Flow_NormalOrderPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_06_WaitDelivery</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Event: Wait for Delivery -->
+    <bpmn:startEvent id="Seller_TimerEvent_WaitDelivery" name="Wait x Days">
+      <bpmn:timerDuration xsi:type="bpmn:tTimeCycle">P${x}D</bpmn:timerDuration>
+      <bpmn:outgoing>Seller_Flow_07_RecheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow from Inform/Order to Timer -->
+    <bpmn:sequenceFlow id="Seller_Flow_06_WaitDelivery" sourceRef="Seller_Task_InformDiscontinuedItem" targetRef="Seller_TimerEvent_WaitDelivery"/>
+    <bpmn:sequenceFlow id="Seller_Flow_07_RecheckAvailability" name="" sourceRef="Seller_TimerEvent_WaitDelivery" targetRef="Seller_Gateway_RecheckAvailability">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${timerExpired}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway: Re-check Availability -->
+    <bpmn:exclusiveGateway id="Seller_Gateway_RecheckAvailability" name="All products on store?">
+      <bpmn:incoming>Seller_Flow_07_RecheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ProductsReadyPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Recollect Products -->
+    <bpmn:task id="Seller_Task_RecollectProducts" name="Recollect All Products">
+      <bpmn:incoming>Seller_Flow_AvailablePath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_09_PreparePackage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Prepare Package -->
+    <bpmn:task id="Seller_Task_PreparePackage" name="Prepare Package">
+      <bpmn:incoming>Seller_Flow_ProductsReadyPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_10_InformCourier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Inform Courier Company -->
+    <bpmn:task id="Seller_Task_InformCourier" name="Inform Courier About Package">
+      <bpmn:incoming>Seller_Flow_10_InformCourier</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_CourierInformsClient</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Courier Task -->
+    <bpmn:sequenceFlow id="Seller_Flow_10_InformCourier" name="" sourceRef="Seller_Task_PreparePackage" targetRef="Seller_Task_InformCourier"/>
+
+    <!-- Courier Task: Inform Client About Delay -->
+    <bpmn:task id="Courrier_Task_InformClientDelay" name="Inform Client of Potential Delay">
+      <bpmn:incoming>Courier_Flow_CourierInformsClient</bpmn:incoming>
+      <bpmn:outgoing>Seller_Gateway_DriverPickupPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Driver Pickup -->
+    <bpmn:exclusiveGateway id="Seller_Gateway_DriverPickup" name="Driver Available?">
+      <bpmn:incoming>Seller_Flow_12_CourierInformsClient</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_PickUpPackage</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Driver Picks Up Package -->
+    <bpmn:task id="Seller_Task_DriverPickup" name="Driver Picks Up Package">
+      <bpmn:incoming>Courier_Flow_PickUpPackage</bpmn:incoming>
+      <bpmn:outgoing>Seller_Gateway_RoutePlanningPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Route Planning -->
+    <bpmn:exclusiveGateway id="Seller_Gateway_RoutePlanning" name="Route Decided?">
+      <bpmn:incoming>Seller_Flow_14_DriverPickup</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_PickUpPackage</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Centralized Service Route Planning -->
+    <bpmn:task id="Seller_Task_RoutePlanning" name="Centralized Service Decides Best Route">
+      <bpmn:incoming>Seller_Flow_14_DriverPickup</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_PickUpPackage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Driver Delivers Package -->
+    <bpmn:task id="Seller_Task_DeliveryComplete" name="Driver Delivers Package">
+      <bpmn:incoming>Seller_Flow_15_RoutePlanning</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_PickUpPackage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Update System -->
+    <bpmn:task id="Seller_Task_UpdateSystem" name="Update System & Notify Stakeholders">
+      <bpmn:incoming>Seller_Flow_16_DeliveryComplete</bpmn:incoming>
+      <bpmn:outgoing>Courier_Flow_PickUpPackage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="Seller_EndEvent_DeliveryComplete" name="Delivery Complete">
+      <bpmn:incoming>Seller_Flow_17_UpdateSystem</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seller_Flow_01" sourceRef="Seller_StartEvent" targetRef="Seller_Task_CheckAvailability"/>
+    <bpmn:sequenceFlow id="Seller_Flow_02" name="" sourceRef="Seller_Task_CheckAvailability" targetRef="Seller_Gateway_ItemsAvailable"/>
+    <bpmn:sequenceFlow id="Seller_Flow_NotAvailablePath" name="No" sourceRef="Seller_Gateway_ItemsAvailable" targetRef="Seller_Task_InformCustomerDelay">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!allItemsAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Seller_Flow_04_OrderMissing" sourceRef="Seller_Task_InformCustomerDelay" targetRef="Seller_Gateway_Discontinued"/>
+    <bpmn:sequenceFlow id="Seller_Flow_DiscontinuedPath" name="Yes (Discontinued)" sourceRef="Seller_Gateway_Discontinued" targetRef="Seller_Task_InformDiscontinuedItem">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isDiscontinued}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

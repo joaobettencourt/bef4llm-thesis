@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Mail Processing Unit" processRef="Process_1"/>
+  </bpmn:collaboration>
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailClerk" name="Mail Clerk">
+        <bpmn:flowNodeRef>StartEvent_DailyCollection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortUnopenedMail</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry">
+        <bpmn:flowNodeRef>Task_OpenAndRegister</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>DataObject_IncomingRegister</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ComplianceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CaptureDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareEnvelopePost</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Cashier" name="Cashier">
+        <bpmn:flowNodeRef>ParallelGateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessFeesDetailsFile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DailyCollection" name="Daily Collection">
+      <bpmn:outgoing>SequenceFlow_SortMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Sort Unopened Mail -->
+    <bpmn:task id="Task_SortUnopenedMail" name="Sort Unopened Mail">
+      <bpmn:incoming>SequenceFlow_SortMail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DistributeToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Open and Register -->
+    <bpmn:task id="Task_OpenAndRegister" name="Open &amp; Sort Mail">
+      <bpmn:incoming>SequenceFlow_DistributeToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Object -->
+    <bpmn:dataObject id="DataObject_IncomingRegister" name="Manual Incoming Mail Register"/>
+
+    <!-- Association for Registration -->
+    <bpmn:association id="Assoc_RegisterTask">
+      <bpmn:sourceRef>DataObject_IncomingRegister</bpmn:sourceRef>
+      <bpmn:targetRef>Task_OpenAndRegister</bpmn:targetRef>
+    </bpmn:association>
+
+    <!-- Task: Quality Check -->
+    <bpmn:task id="Task_QualityCheck" name="Quality Check">
+      <bpmn:incoming>SequenceFlow_QualityCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ComplianceDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Compliance -->
+    <bpmn:exclusiveGateway id="Gateway_ComplianceCheck" name="Compliant?">
+      <bpmn:incoming>SequenceFlow_ComplianceDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Compile Rejection List -->
+    <bpmn:task id="Task_CompileRejectionList" name="Compile Requisition List">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendBackToParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Reject -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Mail Rejected">
+      <bpmn:incoming>SequenceFlow_SendBackToParty</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Capture Details -->
+    <bpmn:task id="Task_CaptureDetails" name="Capture Matter Details">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProvideToCashier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Split">
+      <bpmn:incoming>SequenceFlow_ProvideToCashier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManagerPostTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CashierProcessTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare Envelope Post -->
+    <bpmn:task id="Task_PrepareEnvelopePost" name="Prepare Envelope &amp; Post">
+      <bpmn:incoming>SequenceFlow_ManagerPostTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Process Fees Details File -->
+    <bpmn:task id="Task_ProcessFeesDetailsFile" name="Capture Party Details &amp; Print File">
+      <bpmn:incoming>SequenceFlow_CashierProcessTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinCashierPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="ParallelGateway_Join">
+      <bpmn:incoming>SequenceFlow_JoinProcess</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_JoinCashierPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Mail Processed">
+      <bpmn:incoming>SequenceFlow_FinalizeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SortMail" sourceRef="StartEvent_DailyCollection" targetRef="Task_SortUnopenedMail"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeToRegistry" name="Distributed to Registry" sourceRef="Task_SortUnopenedMail" targetRef="Task_OpenAndRegister"/>
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheckStart" sourceRef="Task_OpenAndRegister" targetRef="Task_QualityCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ComplianceDecision" name="Compliant?" sourceRef="Task_QualityCheck" targetRef="Gateway_ComplianceCheck"/>
+
+    <!-- Reject Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="No - Not Compliant" sourceRef="Gateway_ComplianceCheck" targetRef="Task_CompileRejectionList"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendBackToParty" name="Send Back to Party" sourceRef="Task_CompileRejectionList" targetRef="EndEvent_Rejected"/>
+
+    <!-- Approve Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovePath" name="Yes - Compliant" sourceRef="Gateway_ComplianceCheck" targetRef="Task_CaptureDetails"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProvideToCashier" name="Provide Details" sourceRef="Task_CaptureDetails" targetRef="ParallelGateway_Split"/>
+
+    <!-- Parallel Branches -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManagerPostTask" sourceRef="ParallelGateway_Split" targetRef="Task_PrepareEnvelopePost"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CashierProcessTask" name="Calculate Fees &amp; Print File" sourceRef="ParallelGateway_Split" targetRef="Task_ProcessFeesDetailsFile"/>
+
+    <!-- Join Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_JoinProcess" sourceRef="Task_PrepareEnvelopePost" targetRef="ParallelGateway_Join"/>
+    <bpmn:sequenceFlow id="SequenceFlow_JoinCashierPath" name="Complete File Process" sourceRef="Task_ProcessFeesDetailsFile" targetRef="ParallelGateway_Join"/>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeProcess" sourceRef="ParallelGateway_Join" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_ProvisionProcess">
+    <bpmn:participant name="Provision Team" processRef="Process_ProvisionTeam"/>
+    <bpmn:participant name="Customer" />
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_RequestReceived" sourceElement="_StartEvent_CustomerRequest" targetElement="StartEvent_InvoiceReceived">
+      <bpmn:name>Receive Request</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ProvisionTeam" isExecutable="false">
+    
+    <!-- Global Messages Definition -->
+    <bpmn:message name="RequestMessage"/>
+    <bpmn:message name="InfoResponseMessage"/>
+    <bpmn:message name="PaymentReceivedMessage"/>
+
+    <!-- Start Event: Receive Request from Customer (Internal) -->
+    <bpmn:startEvent id="StartEvent_InvoiceReceived" name="Receive Request">
+      <bpmn:outgoing>SequenceFlow_IdentifyParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Identify Necessary Parts -->
+    <bpmn:task id="Task_IdentifyParts" name="Identify Necessary Parts">
+      <bpmn:incoming>SequenceFlow_IdentifyParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QuestionsGatewayInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Questions? -->
+    <bpmn:exclusiveGateway id="Gateway_HasQuestions" name="Any questions about request?">
+      <bpmn:incoming>SequenceFlow_QuestionsGatewayInbound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AskInfoPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckAvailabilityPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2a (Yes): Ask for more info -->
+    <bpmn:task id="Task_SendAskInfo" name="Request More Information">
+      <bpmn:incoming>SequenceFlow_AskInfoPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResponseInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event 1 (Internal): Wait for Customer Response -->
+    <bpmn:startEvent id="StartEvent_CustomerRequest" name="Customer Request">
+      <bpmn:messageRef>bpmn:RequestMessage</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_MergeToCheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event 2 (Internal): Wait for Info Response -->
+    <bpmn:endEvent id="EndEvent_CustomerResponse" name="Info Received">
+      <bpmn:incoming>SequenceFlow_WaitForResponseInbound</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Intermediate Catch Event 3 (Internal): Wait for Info Response -->
+    <bpmn:startEvent id="_Start_CustomerResponse" name="Info Received">
+      <bpmn:messageRef>bpmn:InfoResponseMessage</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_MergeToCheckAvailability2</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow from Ask Info Task to Wait Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForResponseInbound" sourceRef="Task_SendAskInfo" targetRef="_Start_CustomerResponse">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Wait Event to Check Availability (Merge) -->
+     <bpmn:exclusiveGateway id="Gateway_MergeInfo" name="Wait for Info">
+      <bpmn:incoming>SequenceFlow_WaitForResponseInbound</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CheckAvailabilityPath2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow from Gateway 1 (No) to Check Availability -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailabilityPath" sourceRef="Gateway_HasQuestions" targetRef="Task_CheckParts">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Merge Gateway to Check Availability -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToCheckAvailability2" sourceRef="_Start_CustomerResponse" targetRef="Task_CheckParts"> 
+       <bpmn:name>Yes (Info Received)</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Start Event to Check Availability -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToCheckAvailability" sourceRef="StartEvent_CustomerRequest" targetRef="Task_CheckParts"> 
+       <bpmn:name>No Questions</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 3: Check Parts Availability -->
+    <bpmn:task id="Task_CheckParts" name="Check Parts Availability">
+      <bpmn:incoming>SequenceFlow_MergeToCheckAvailability2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_AvailabilityGatewayInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Parts Available? -->
+    <bpmn:exclusiveGateway id="Gateway_PartsAvailable" name="Parts available?">
+      <bpmn:incoming>SequenceFlow_AvailabilityGatewayInbound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupplyPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderDaisukiPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1 (Yes): Supply Parts -->
+     <bpmn:task id="Task_SupplyParts" name="Supply to Customer">
+      <bpmn:incoming>SequenceFlow_SupplyPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitPaymentInbound</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Path 2 (No): Order Daisuki -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderDaisukiPath" sourceRef="Gateway_PartsAvailable" targetRef="Task_RecordPetition">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Task 2a (No): Record Petition -->
+    <bpmn:task id="Task_RecordPetition" name="Record Petition">
+      <bpmn:incoming>SequenceFlow_OrderDaisukiPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_OrderPartsInbound</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task 2b (No): Order Daisuki -->
+    <bpmn:task id="Task_OrderDaisuki" name="Order from Daisuki">
+      <bpmn:incoming>SequenceFlow_OrderPartsInbound</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitArrivalInbound</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Intermediate Catch Event 4 (Internal): Wait for Parts Arrival -->
+    <bpmn:startEvent id="_Start_PartsArrived" name="Parts Arrived">
+      <bpmn:messageRef>bpmn:DaisukiDeliveryMessage</bpmn:messageRef> 
+       <bpmn:outgoing>SequenceFlow_ContactCustomerInbound</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Sequence Flow from Order Task to Wait Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitArrivalInbound" sourceRef="Task_OrderDaisuki" targetRef="_Start_PartsArrived">
+      <bpmn:name>No</bpmn:name> 
+       <!-- Logic continues after wait -->
+    </bpmn:sequenceFlow>
+
+     <!-- Task 2c (No): Contact Customer -->
+    <bpmn:startEvent id="Task_ContactCustomer" name="Notify Ready">
+      <bpmn:messageRef>bpmn:NotificationMessage</bpmn:messageRef> 
+       <bpmn:outgoing>SequenceFlow_WaitPaymentInbound2</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Sequence Flow from Wait Event to Contact Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContactCustomerInbound" sourceRef="_Start_PartsArrived" targetRef="Task_NotifyReady"> 
+       <bpmn:name>Parts Collected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Task 2c (No): Notify Ready -->
+    <bpmn:task id="Task_NotifyReady" name="Contact Customer">
+       <bpmn:incoming>SequenceFlow_ContactCustomerInbound</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_WaitPaymentInbound2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Intermediate Catch Event 5 (Internal): Wait for Payment -->
+    <bpmn:startEvent id="_Start_PaymentReceived" name="Receive Payment">
+      <bpmn:messageRef>bpmn:PaymentReceivedMessage</bpmn:messageRef> 
+       <bpmn:outgoing>SequenceFlow_EndProcessInbound</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Sequence Flow from Supply Task to Wait Payment -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitPaymentInbound" sourceRef="Task_SupplyParts" targetRef="_Start_PaymentReceived"> 
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Notify Task to Wait Payment -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitPaymentInbound2" sourceRef="Task_NotifyReady" targetRef="_Start_PaymentReceived"> 
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Payment Received">
+      <bpmn:incoming>SequenceFlow_EndProcessInbound</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Wait Payment to End -->
+     <bpmn:sequenceFlow id="SequenceFlow_EndProcessInbound" sourceRef="_Start_PaymentReceived" targetRef="EndEvent_ProcessComplete"> 
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+  
+   <!-- Global Message for Daisuki -->
+   <bpmn:message name="DaisukuDeliveryMessage"/>
+   
+</bpmn:definitions>

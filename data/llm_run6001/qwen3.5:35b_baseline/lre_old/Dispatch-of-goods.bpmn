@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderFulfillment" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrdrProc">
+    <bpmn:participant id="Participant_MainSystem" name="Order Fulfillment System" processRef="Process_OrdrFulfilment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrdrFulfilment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretary" name="Secretary">
+        <bpmn:flowNodeRef>StartEvent_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClariyShipmentMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InviteCompanies</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCompany</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WriteLabel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_LogisticsHead" name="Logistics Department Head">
+        <bpmn:flowNodeRef>Task_InsureParcel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareForPickup</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>ParallelSplit_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageGoods</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ShipGoods" name="Ship Goods">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Secretary Clarifies Method -->
+    <bpmn:task id="Task_ClariyShipmentMethod" name="Clarify Shipment Method">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitMain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split -->
+    <bpmn:parallelGateway id="ParallelSplit_01">
+      <bpmn:incoming>SequenceFlow_SplitMain</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToXOR</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackageGoodsPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- XOR Gateway for Amount Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckAmount" name="Large Amount?">
+      <bpmn:incoming>SequenceFlow_ToXOR</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Large Amount Path -->
+    <bpmn:task id="Task_InviteCompanies" name="Invite 3 Logistic Companies">
+      <bpmn:incoming>SequenceFlow_LargePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCompany</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectCompany" name="Select Logistic Company">
+      <bpmn:incoming>SequenceFlow_SelectCompany</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeMain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small Amount Path -->
+    <bpmn:task id="Task_WriteLabel" name="Write Package Label">
+      <bpmn:incoming>SequenceFlow_SmallPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsureParcelIn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Branch for Packaging -->
+    <bpmn:task id="Task_PackageGoods" name="Package Goods">
+      <bpmn:incoming>SequenceFlow_PackageGoodsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeMainPackaging</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Insurance Task (Logistics Head) -->
+    <bpmn:task id="Task_InsureParcel" name="Take Parcel Insurance">
+      <bpmn:incoming>SequenceFlow_InsureParcelIn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeMainInsurance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Convergence Gateway -->
+    <bpmn:parallelGateway id="ParallelMerge_01">
+      <bpmn:incoming>SequenceFlow_MergeMain</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeMainPackaging</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeMainInsurance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalPrep</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_PrepareForPickup" name="Prepare for Pickup">
+      <bpmn:incoming>SequenceFlow_FinalPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ShipmentReady" name="Shipment Ready">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_ShipGoods" targetRef="Task_ClariyShipmentMethod"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SplitMain" name="" sourceRef="Task_ClariyShipmentMethod" targetRef="ParallelSplit_01"/>
+    
+    <!-- Split to XOR and Packaging -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToXOR" name="" sourceRef="ParallelSplit_01" targetRef="Gateway_CheckAmount"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PackageGoodsPath" name="" sourceRef="ParallelSplit_01" targetRef="Task_PackageGoods"/>
+
+    <!-- XOR Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_LargePath" name="Large Amounts" sourceRef="Gateway_CheckAmount" targetRef="Task_InviteCompanies"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SmallPath" name="Small Amounts" sourceRef="Gateway_CheckAmount" targetRef="Task_WriteLabel"/>
+
+    <!-- Large Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCompany" sourceRef="Task_InviteCompanies" targetRef="Task_SelectCompany"/>
+    
+    <!-- Small Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsureParcelIn" name="" sourceRef="Task_WriteLabel" targetRef="Task_InsureParcel"/>
+
+    <!-- Merge Paths to Parallel Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeMain" sourceRef="Task_SelectCompany" targetRef="ParallelMerge_01"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergeMainPackaging" name="" sourceRef="Task_PackageGoods" targetRef="ParallelMerge_01"/>
+    
+    <!-- Note: Task_InsureParcel also needs to merge. 
+         To keep valid XML structure with single Parallel Gateway, I will connect Insure Parcel output directly to Merge GW as well. -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeMainInsurance" sourceRef="Task_InsureParcel" targetRef="ParallelMerge_01"/>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalPrep" name="" sourceRef="ParallelMerge_01" targetRef="Task_PrepareForPickup"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="" sourceRef="Task_PrepareForPickup" targetRef="EndEvent_ShipmentReady"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_GetNewClient" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_ManagementProcess" name="Get a new client" processRef="Proc_NewClient" />
+    <bpmn:participant id="Pool_Client" name="Potential Client" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_NewClient" isExecutable="false">
+    <bpmn:startEvent id="Start_1" name="New clients needed">
+      <bpmn:outgoing>Flow_Start_Management</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Marketing" name="Marketing Team">
+        <bpmn:flowNodeRef>Task_AnalyzeMarket</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreparePresentation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MarketingSync</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_Responses</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Management Tasks -->
+    <bpmn:task id="Task_NewClientNeeded" name="Management indicates new clients needed">
+      <bpmn:incoming>Flow_Start_Management</bpmn:incoming>
+      <bpmn:outgoing>Flow_MarketingStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Marketing Tasks -->
+    <bpmn:parallelGateway id="Gateway_MarketingSplit">
+      <bpmn:incoming>Flow_MarketingStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_AnalyzeMarket</bpmn:outgoing>
+      <bpmn:outgoing>Flow_PresentationTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_AnalyzeMarket" name="Perform market analysis">
+      <bpmn:incoming>Flow_AnalyzeMarket</bpmn:incoming>
+      <bpmn:outgoing>Flow_MarketToSync</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PreparePresentation" name="Prepare portfolio presentation">
+      <bpmn:incoming>Flow_PresentationTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_PresentToSync</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Marketing Sync Gateway -->
+    <bpmn:parallelGateway id="Gateway_MarketingSync">
+      <bpmn:incoming>Flow_AnalyzeMarket</bpmn:incoming>
+      <bpmn:incoming>Flow_PresentToSync</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendOffersTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Send Offers to Clients -->
+    <bpmn:task id="Task_SendOffers" name="Send offers to potential clients">
+      <bpmn:incoming>Flow_SendOffersTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_OfferSentEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Flow for Offer Sent -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_Offers" name="Send offer">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_OfferSentEvent</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WaitResponse</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Wait for Client Response -->
+    <bpmn:task id="Task_InformManagement" name="Inform management about responses">
+      <bpmn:incoming>Flow_ResponseToManagement</bpmn:incoming>
+      <bpmn:outgoing>Flow_NegotiationStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Management Tasks -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_Responses" name="Receive client responses">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitResponse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ResponseToManagement</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Detailed Offer to Client -->
+    <bpmn:task id="Task_NegotiationStart" name="Analyze responses and start negotiation">
+      <bpmn:incoming>Flow_NegotiationStart</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DetailedOfferSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Client Decision -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_DetailedOffer" name="Send detailed offer">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_DetailedOfferSent</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WaitClientDecision</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ClientAcceptance" name="Client accepts offer?">
+      <bpmn:incoming>Flow_DecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContractPreparation</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AnalyzeFailure</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Success Path -->
+    <bpmn:task id="Task_PrepareContract" name="Prepare contract">
+      <bpmn:incoming>Flow_ContractPreparation</bpmn:incoming>
+      <bpmn:outgoing>Flow_SignContract</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Failure Path -->
+    <bpmn:endEvent id="End_Failure" name="Offer failed - analysis complete">
+      <bpmn:incoming>Flow_AnalyzeFailure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Contract Signing -->
+    <bpmn:task id="Task_SignContract" name="Sign contract">
+      <bpmn:incoming>Flow_SignContract</bpmn:incoming>
+      <bpmn:outgoing>Flow_SuccessEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Success" name="Client acquired successfully">
+      <bpmn:incoming>Flow_SuccessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Flow Connections -->
+    <bpmn:sequenceFlow id="Flow_Start_Management" sourceRef="Start_1" targetRef="Task_NewClientNeeded" />
+    
+    <bpmn:sequenceFlow id="Flow_MarketingStart" sourceRef="Task_NewClientNeeded" targetRef="Gateway_MarketingSplit" />
+    
+    <bpmn:sequenceFlow id="Flow_AnalyzeMarket" sourceRef="Gateway_MarketingSplit" targetRef="Task_AnalyzeMarket" />
+    
+    <bpmn:sequenceFlow id="Flow_PresentationTask" sourceRef="Gateway_MarketingSplit" targetRef="Task_PreparePresentation" />
+    
+    <bpmn:sequenceFlow id="Flow_MarketToSync" sourceRef="Task_AnalyzeMarket" targetRef="Gateway_MarketingSync" />
+    
+    <bpmn:sequenceFlow id="Flow_PresentToSync" sourceRef="Task_PreparePresentation" targetRef="Gateway_MarketingSync" />
+    
+    <bpmn:sequenceFlow id="Flow_SendOffersTask" sourceRef="Gateway_MarketingSync" targetRef="Task_SendOffers" />
+    
+    <bpmn:sequenceFlow id="Flow_OfferSentEvent" sourceRef="Task_SendOffers" targetRef="ThrowEvent_Offers" />
+    
+    <bpmn:sequenceFlow id="Flow_WaitResponse" sourceRef="ThrowEvent_Offers" targetRef="CatchEvent_Responses" />
+    
+    <bpmn:sequenceFlow id="Flow_ResponseToManagement" sourceRef="CatchEvent_Responses" targetRef="Task_InformManagement" />
+    
+    <bpmn:sequenceFlow id="Flow_NegotiationStart" sourceRef="Task_InformManagement" targetRef="Task_NegotiationStart" />
+    
+    <bpmn:sequenceFlow id="Flow_DetailedOfferSent" sourceRef="Task_NegotiationStart" targetRef="ThrowEvent_DetailedOffer" />
+    
+    <bpmn:sequenceFlow id="Flow_WaitClientDecision" sourceRef="ThrowEvent_DetailedOffer" targetRef="CatchEvent_ClientDecision" />
+    
+    <bpmn:intermediateCatchEvent id="CatchEvent_ClientDecision" name="Receive client decision">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitClientDecision</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DecisionGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision Gateway -->
+    <bpmn:sequenceFlow id="Flow_DecisionGateway" sourceRef="CatchEvent_ClientDecision" targetRef="Gateway_ClientAcceptance" />
+    
+    <bpmn:sequenceFlow id="Flow_ContractPreparation" name="Yes" sourceRef="Gateway_ClientAcceptance" targetRef="Task_PrepareContract" />
+    
+    <bpmn:sequenceFlow id="Flow_AnalyzeFailure" name="No - analyze reasons for improvement" sourceRef="Gateway_ClientAcceptance" targetRef="End_Failure" />
+    
+    <bpmn:sequenceFlow id="Flow_SignContract" sourceRef="Task_PrepareContract" targetRef="Task_SignContract" />
+    
+    <bpmn:sequenceFlow id="Flow_SuccessEnd" sourceRef="Task_SignContract" targetRef="End_Success" />
+
+  </bpmn:process>
+</bpmn:definitions>

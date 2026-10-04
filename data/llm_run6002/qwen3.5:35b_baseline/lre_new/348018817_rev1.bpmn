@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_ExpenseProcess_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_ExpenseReportProcess">
+    <bpmn:participant id="Participant_MainProcess" name="Employee Expense Report Process" processRef="Process_Expense001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Expense001" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_FileReport" name="Employee Files Expense Report">
+      <bpmn:outgoing>Flow_StartToCheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if employee has account -->
+    <bpmn:task id="Task_CheckAccount" name="Verify Employee Account Status">
+      <bpmn:incoming>Flow_StartToCheckAccount</bpmn:incoming>
+      <bpmn:outgoing>Flow_AccountDecision</bpmn:outgoing>
+      
+      <!-- Timer Boundary Event for 28 days -->
+      <bpmn:boundaryEvent id="Boundary_28Days" attachedToRef="Task_CheckAccount">
+        <bpmn:timerEventDefinition/>
+        <bpmn:messageFlowRef>Message_ResubmitEmail</bpmn:messageFlowRef>
+        <bpmn:outgoing>Flow_TerminateProcess</bpmn:outgoing>
+      </bpmn:boundaryEvent>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Account Decision -->
+    <bpmn:exclusiveGateway id="Gateway_AccountDecision" name="Has Employee Account?">
+      <bpmn:incoming>Flow_AccountDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_NoAccountCreate</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HasAccountReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Account (if no account) -->
+    <bpmn:task id="Task_CreateAccount" name="Create Employee Account">
+      <bpmn:incoming>Flow_NoAccountCreate</bpmn:incoming>
+      <bpmn:outgoing>Flow_AccountCreatedToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Review Report -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>Flow_HasAccountReview</bpmn:incoming>
+      <bpmn:incoming>Flow_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_AmountCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Amount Check -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &gt; 200?">
+      <bpmn:incoming>Flow_AmountCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReimburseDirectly</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RequestSupervisorApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Reimburse Directly (≤200) -->
+    <bpmn:task id="Task_ReimburseDirect" name="Deposit to Bank Account">
+      <bpmn:incoming>Flow_ReimburseDirectly</bpmn:incoming>
+      <bpmn:outgoing>Flow_DirectToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Direct Reimbursement -->
+    <bpmn:endEvent id="EndEvent_Reimbursed" name="Process Ended - Reimbursed">
+      <bpmn:incoming>Flow_DirectToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Request Supervisor Approval (>200) -->
+    <bpmn:task id="Task_RequestSupervisorApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>Flow_RequestSupervisorApproval</bpmn:incoming>
+      
+      <!-- Timer Boundary Event for 7 days - No Response (Delay Loop Back) -->
+      <bpmn:boundaryEvent id="Boundary_7DaysNoResponse" attachedToRef="Task_RequestSupervisorApproval">
+        <bpmn:timerEventDefinition/>
+        <bpmn:messageFlowRef>Message_ApprovalInProgress</bpmn:messageFlowRef>
+        <bpmn:outgoing>Flow_SupervisorDelayLoopBack</bpmn:outgoing>
+      </bpmn:boundaryEvent>
+
+    <!-- Task: Send Email Notification of Approval in Progress -->
+    <bpmn:endEvent id="EndEvent_Terminated" name="Process Ended - Resubmit">
+        <bpmn:incoming>Flow_TerminateProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+      <!-- Task: Send Email Notification of Approval in Progress -->
+      <bpmn:task id="Task_SendApprovalInProgressEmail" name="Send 'Approval In Progress' Email">
+        <bpmn:incoming>Flow_SupervisorDelayLoopBack</bpmn:incoming>
+        <bpmn:outgoing>Flow_LoopBackToSupervisorRequest</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Process Ended - Rejected">
+        <bpmn:incoming>Flow_SupervisorDecisionPath2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow Definitions -->
+    
+    <!-- Start to Check Account -->
+    <bpmn:sequenceFlow id="Flow_StartToCheckAccount" sourceRef="StartEvent_FileReport" targetRef="Task_CheckAccount"/>
+    
+    <!-- Timer Boundary Event Message Reference (for 28 days) -->
+    <bpmn:message id="Message_ResubmitEmail" name="Resubmit Email Notification">
+      <bpmn:correlationKeyProperty>EmployeeID</bpmn:correlationKeyProperty>
+    </bpmn:message>
+
+    <!-- Timer Boundary Event Message Reference (for 7 days) -->
+    <bpmn:message id="Message_ApprovalInProgress" name="Approval In Progress Email">
+      <bpmn:correlationKeyProperty>EmployeeID</bpmn:correlationKeyProperty>
+    </bpmn:message>
+
+    <!-- Account Decision Paths -->
+    <bpmn:sequenceFlow id="Flow_AccountDecision" sourceRef="Task_CheckAccount" targetRef="Gateway_AccountDecision"/>
+    
+    <!-- No Account Path (Create Account) -->
+    <bpmn:sequenceFlow id="Flow_NoAccountCreate" name="No - Create Account" sourceRef="Gateway_AccountDecision" targetRef="Task_CreateAccount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasAccount == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Has Account Path (Review Report) -->
+    <bpmn:sequenceFlow id="Flow_HasAccountReview" name="Yes - Review Directly" sourceRef="Gateway_AccountDecision" targetRef="Task_ReviewReport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasAccount == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Created Path (to Review) -->
+    <bpmn:sequenceFlow id="Flow_AccountCreatedToReview" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport"/>
+
+    <!-- Amount Check Decision Flow -->
+    <bpmn:sequenceFlow id="Flow_AmountCheckDecision" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountCheck"/>
+
+    <!-- Reimburse Directly Path (≤200) -->
+    <bpmn:sequenceFlow id="Flow_ReimburseDirectly" name="No - ≤ 200" sourceRef="Gateway_AmountCheck" targetRef="Task_ReimburseDirect">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${amount &lt;= 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Request Supervisor Approval Path (>200) -->
+    <bpmn:sequenceFlow id="Flow_RequestSupervisorApproval" name="Yes - > 200" sourceRef="Gateway_AmountCheck" targetRef="Task_RequestSupervisorApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${amount &gt; 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Direct Reimbursement to End -->
+    <bpmn:sequenceFlow id="Flow_DirectToEnd" sourceRef="Task_ReimburseDirect" targetRef="EndEvent_Reimbursed"/>
+
+    <!-- Supervisor Decision Paths (within 7 days) - Using Inclusive Gateway for multiple outcomes -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor Response">
+      <bpmn:incoming>Flow_RequestSupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovedWithin7Days</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectedWithin7Days</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Supervisor Approves (within 7 days) -->
+    <bpmn:task id="Task_ApproveWithin7Days" name="Supervisor Approved">
+      <bpmn:incoming>Flow_RequestSupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_SupervisorDecisionPath1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supervisor Delay Loop Back (after 7 days) -->
+    <bpmn:sequenceFlow id="Flow_TerminateProcess" sourceRef="Boundary_28Days" targetRef="EndEvent_Terminated"/>
+    
+    <!-- Sequence Flow for Direct Reimbursement Path -->
+    <bpmn:sequenceFlow id="Flow_SupervisorDelayLoopBack" name="Timeout - Loop Back" sourceRef="Boundary_7DaysNoResponse" targetRef="Task_SendApprovalInProgressEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${timeout == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back to Supervisor Request -->
+    <bpmn:sequenceFlow id="Flow_LoopBackToSupervisorRequest" sourceRef="Task_SendApprovalInProgressEmail" targetRef="Task_RequestSupervisorApproval"/>
+
+    <!-- Approved Path Flow -->
+    <bpmn:sequenceFlow id="Flow_ApprovedWithin7Days" name="Approved (Yes)" sourceRef="Gateway_SupervisorDecision" targetRef="EndEvent_Reimbursed">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supervisorResponse == 'approved'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejected Path Flow -->
+    <bpmn:sequenceFlow id="Flow_RejectedWithin7Days" name="Rejected (No)" sourceRef="Gateway_SupervisorDecision" targetRef="EndEvent_Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supervisorResponse == 'rejected'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Account Defaulters Processing Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartTimer_Event_01" name="Weekday Morning Backup Process">
+      <bpmn:outgoing>SequenceFlow_Start_Backup</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Database backup -->
+    <bpmn:task id="Task_01" name="Backup database">
+      <bpmn:incoming>SequenceFlow_Start_Backup</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDefaultersTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2 - Check Account Defaulters table -->
+    <bpmn:task id="Task_02" name="Check if new records in Account Defaulters table">
+      <bpmn:incoming>SequenceFlow_CheckDefaultersTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_NewRecords</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 - Decision on new records -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_01" name="New defaulter records?">
+      <bpmn:incoming>SequenceFlow_Gateway_NewRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCRM_Returns</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 - Check CRM for returns -->
+    <bpmn:task id="Task_03" name="Check CRM system for new returns filed">
+      <bpmn:incoming>SequenceFlow_CheckCRM_Returns</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_NewReturns</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 - Decision on new returns -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_02" name="New returns exist?">
+      <bpmn:incoming>SequenceFlow_Gateway_NewReturns</bpmn:incoming>
+      <bpmn:outgoing>Task_RegisterAccounts_Clients</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 - Register accounts and customers -->
+    <bpmn:task id="Task_04" name="Register all defaulting accounts and customers">
+      <bpmn:incoming>SequenceFlow_RegisterAccounts_Clients</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_PreviouslyAdvised</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 - Decision on previously advised codes -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_03" name="Client codes previously advised?">
+      <bpmn:incoming>SequenceFlow_Gateway_PreviouslyAdvised</bpmn:incoming>
+      <bpmn:outgoing>Task_CreateReport_SendManagement</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5 - Create report and send to management -->
+    <bpmn:task id="Task_05" name="Produce table of defaulting accounts, send to account management">
+      <bpmn:incoming>SequenceFlow_CreateReport_SendManagement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCRM_AfterReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6 - Check CRM again after report -->
+    <bpmn:task id="Task_06" name="Check CRM system for new returns filed">
+      <bpmn:incoming>SequenceFlow_CheckCRM_AfterReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_NewReturns2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 - Decision on new returns after report -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_04" name="New returns filed?">
+      <bpmn:incoming>SequenceFlow_Gateway_NewReturns2</bpmn:incoming>
+      <bpmn:outgoing>Task_ReconcileDefaultersTable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7 - Reconcile with defaulters table -->
+    <bpmn:task id="Task_07" name="Reconcile with existing account defaulters table">
+      <bpmn:incoming>SequenceFlow_ReconcileDefaultersTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_01" name="Processing Complete">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary Timer Events for supervisor alerts (Standard BPMN 2.0 boundaryEvent) -->
+    
+    <!-- 2:30 PM Alert - attached to main flow after Task_05 logic path -->
+    <bpmn:boundaryEvent id="Boundary_Event_Alert_PM" name="Alert Supervisor">
+      <bpmn:attachedToRef>Task_05</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_AlertSupervisor_PM</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- 4:00 PM Alert - attached to main flow after Task_07 logic path -->
+    <bpmn:boundaryEvent id="Boundary_Event_Alarm_PM2" name="Alert Supervisor">
+      <bpmn:attachedToRef>Task_07</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_AlertSupervisor_PM2</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_Start_Backup" name="" sourceRef="StartTimer_Event_01" targetRef="Task_01"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CheckDefaultersTable" name="" sourceRef="Task_01" targetRef="Task_02"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_NewRecords" name="" sourceRef="Task_02" targetRef="ExclusiveGateway_01"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CheckCRM_Returns" name="No new records - check CRM" sourceRef="ExclusiveGateway_01" targetRef="Task_03"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_NewReturns" name="" sourceRef="Task_03" targetRef="ExclusiveGateway_02"/>
+  <bpmn:sequenceFlow id="SequenceFlow_RegisterAccounts_Clients" name="New returns exist - register accounts" sourceRef="ExclusiveGateway_02" targetRef="Task_04"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_PreviouslyAdvised" name="" sourceRef="Task_04" targetRef="ExclusiveGateway_03"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CreateReport_SendManagement" name="Codes not previously advised - create report" sourceRef="ExclusiveGateway_03" targetRef="Task_05"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CheckCRM_AfterReport" name="" sourceRef="Task_05" targetRef="Task_06"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_NewReturns2" name="" sourceRef="Task_06" targetRef="ExclusiveGateway_04"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ReconcileDefaultersTable" name="New returns filed - reconcile accounts" sourceRef="ExclusiveGateway_04" targetRef="Task_07"/>
+  <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="" sourceRef="Task_07" targetRef="End_Event_01"/>
+
+</definitions>

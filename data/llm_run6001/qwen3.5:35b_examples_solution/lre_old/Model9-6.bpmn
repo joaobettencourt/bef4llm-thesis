@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_DesignProcess">
+    <bpmn:participant id="Participant_DesignOrg" name="Design Organization" processRef="Process_Design"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Design" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Electrical" name="Electrical Design Department">
+        <bpmn:flowNodeRef>Tsk_ReviewElecDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_RevisedElecDesign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tst_ElecTest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ElecTestResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Physical" name="Physical Design Department">
+        <bpmn:flowNodeRef>Tsk_ReviewPhysDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_RevisedPhysDesign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tst_PhysTest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_PhysTestResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_DesignProcess" name="Design Process Initiated">
+      <bpmn:outgoing>SFlow_StartToLocate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Locate and distribute existing designs -->
+    <bpmn:task id="Tsk_LocateExistingDesigns" name="Locate and Distribute Existing Designs">
+      <bpmn:incoming>SFlow_StartToLocate</bpmn:incoming>
+      <bpmn:incoming>SFlow_RestartFromFinalTest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_LocateToParallelStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway to start both designs -->
+    <bpmn:parallelGateway id="Gw_ParallelDesigns" name="Start Design Development">
+      <bpmn:incoming>SFlow_LocateToParallelStart</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ElecDevPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_PhysDevPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Electrical Design Path -->
+    <bpmn:task id="Tsk_ReviewElecDesigns" name="Review Existing Electrical Designs">
+      <bpmn:incoming>SFlow_ElecReviseLoop</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CreateElecUpdatePlan</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Tsk_RevisedElecDesign" name="Create Revised Electrical Design">
+      <bpmn:incoming>SFlow_ElecDevPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToElecTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for interruption (other design completed) -->
+    <bpmn:boundaryEvent id="Bnd_ElecInterrupted" attachedToRef="Tsk_RevisedElecDesign">
+      <bpmn:signalEventDefinition />
+      <bpmn:outgoing>SFlow_BoundaryELEC</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Electrical Test -->
+    <bpmn:task id="Tst_ElecTest" name="Test Revised Electrical Design">
+      <bpmn:incoming>SFlow_ToElecTest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ElecToGwResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for electrical test result -->
+    <bpmn:exclusiveGateway id="Gw_ElecTestResult" name="Electrical Test Passed?">
+      <bpmn:incoming>SFlow_ElecToGwResult</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ElecPassSignal</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ElecFailLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Signal for electrical design passed -->
+    <bpmn:intermediateThrowEvent id="Sig_ElecPassed" name="Electrical Design Complete">
+      <bpmn:incoming>SFlow_ElecPassSignal</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SignalToPhysRestart</bpmn:outgoing>
+      <bpmn:signalEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Physical Design Path -->
+    <bpmn:task id="Tsk_ReviewPhysDesigns" name="Review Existing Physical Designs">
+      <bpmn:incoming>SFlow_PhysReviseLoop</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CreatePhysUpdatePlan</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Tsk_RevisedPhysDesign" name="Create Revised Physical Design">
+      <bpmn:incoming>SFlow_PhysDevPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToPhysTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for interruption (other design completed) -->
+    <bpmn:boundaryEvent id="Bnd_PhysInterrupted" attachedToRef="Tsk_RevisedPhysDesign">
+      <bpmn:signalEventDefinition />
+      <bpmn:outgoing>SFlow_BoundaryPHYS</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Physical Test -->
+    <bpmn:task id="Tst_PhysTest" name="Test Revised Physical Design">
+      <bpmn:incoming>SFlow_ToPhysTest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_PhysToGwResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for physical test result -->
+    <bpmn:exclusiveGateway id="Gw_PhysTestResult" name="Physical Test Passed?">
+      <bpmn:incoming>SFlow_PhysToGwResult</bpmn:incoming>
+      <bpmn:outgoing>SFlow_PhysPassSignal</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_PhysFailLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Signal for physical design passed -->
+    <bpmn:intermediateThrowEvent id="Sig_PhysPassed" name="Physical Design Complete">
+      <bpmn:incoming>SFlow_PhysPassSignal</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SignalToElecRestart</bpmn:outgoing>
+      <bpmn:signalEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Parallel Gateway to combine both designs -->
+    <bpmn:parallelGateway id="Gw_CombineDesigns" name="Combine Designs">
+      <bpmn:incoming>SFlow_ElecToFinal</bpmn:incoming>
+      <bpmn:incoming>SFlow_PhysToFinal</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToCombinedTest</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Combined Test -->
+    <bpmn:task id="Tst_CombinedDesign" name="Test Combined Design">
+      <bpmn:incoming>SFlow_ToCombinedTest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_FinalToGwResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Gateway for combined test result -->
+    <bpmn:exclusiveGateway id="Gw_FinalTestResult" name="Combined Test Passed?">
+      <bpmn:incoming>SFlow_FinalToGwResult</bpmn:incoming>
+      <bpmn:outgoing>SFlow_DesignComplete</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_RestartCycle</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_DesignComplete" name="Design Complete">
+      <bpmn:incoming>SFlow_DesignComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Electrical Path -->
+    <bpmn:sequenceFlow id="SFlow_StartToLocate" sourceRef="Start_DesignProcess" targetRef="Tsk_LocateExistingDesigns"/>
+    <bpmn:sequenceFlow id="SFlow_LocateToParallelStart" sourceRef="Tsk_LocateExistingDesigns" targetRef="Gw_ParallelDesigns"/>
+
+    <!-- Parallel Gateway to both design paths -->
+    <bpmn:sequenceFlow id="SFlow_ElecDevPath" name="Electrical Design Development" sourceRef="Gw_ParallelDesigns" targetRef="Tsk_ReviewElecDesigns"/>
+    <bpmn:sequenceFlow id="SFlow_PhysDevPath" name="Physical Design Development" sourceRef="Gw_ParallelDesigns" targetRef="Tsk_ReviewPhysDesigns"/>
+
+    <!-- Electrical Path Flows -->
+    <bpmn:sequenceFlow id="SFlow_ElecReviseLoop" sourceRef="Gw_ElecTestResult" name="Failed - Review Again" targetRef="Tsk_ReviewElecDesigns">
+      <bpmn:description>Send back to review if test fails</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_CreateElecUpdatePlan" sourceRef="Tsk_ReviewElecDesigns" targetRef="Tsk_RevisedElecDesign"/>
+    <bpmn:sequenceFlow id="SFlow_ToElecTest" sourceRef="Tsk_RevisedElecDesign" targetRef="Tst_ElecTest"/>
+
+    <!-- Electrical Test Gateway Flows -->
+    <bpmn:sequenceFlow id="SFlow_ElecToGwResult" name="" sourceRef="Tst_ElecTest" targetRef="Gw_ElecTestResult"/>
+    <bpmn:sequenceFlow id="SFlow_ElecPassSignal" name="Passed - Signal Other Dept" sourceRef="Gw_ElecTestResult" targetRef="Sig_ElecPassed">
+      <bpmn:description>Notify other department to restart</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Path Flows -->
+    <bpmn:sequenceFlow id="SFlow_PhysReviseLoop" sourceRef="Gw_PhysTestResult" name="Failed - Review Again" targetRef="Tsk_ReviewPhysDesigns">
+      <bpmn:description>Send back to review if test fails</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_CreatePhysUpdatePlan" sourceRef="Tsk_ReviewPhysDesigns" targetRef="Tsk_RevisedPhysDesign"/>
+    <bpmn:sequenceFlow id="SFlow_ToPhysTest" sourceRef="Tsk_RevisedPhysDesign" targetRef="Tst_PhysTest"/>
+
+    <!-- Physical Test Gateway Flows -->
+    <bpmn:sequenceFlow id="SFlow_PhysToGwResult" name="" sourceRef="Tst_PhysTest" targetRef="Gw_PhysTestResult"/>
+    <bpmn:sequenceFlow id="SFlow_PhysPassSignal" name="Passed - Signal Other Dept" sourceRef="Gw_PhysTestResult" targetRef="Sig_PhysPassed">
+      <bpmn:description>Notify other department to restart</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Boundary Event Flows (Interruption) -->
+    <bpmn:sequenceFlow id="SFlow_BoundaryELEC" sourceRef="Bnd_ElecInterrupted" targetRef="Tsk_ReviewElecDesigns"/>
+    <bpmn:sequenceFlow id="SFlow_BoundaryPHYS" sourceRef="Bnd_PhysInterrupted" targetRef="Tsk_ReviewPhysDesigns"/>
+
+    <!-- Signal Flows (Cross-department communication) -->
+    <bpmn:sequenceFlow id="SFlow_SignalToElecRestart" name="" sourceRef="Sig_ElecPassed" targetRef="Gw_ParallelDesigns">
+      <bpmn:description>Signal to restart electrical design</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_SignalToPhysRestart" name="" sourceRef="Sig_PhysPassed" targetRef="Gw_ParallelDesigns">
+      <bpmn:description>Signal to restart physical design</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Integration Flows -->
+    <bpmn:sequenceFlow id="SFlow_ElecToFinal" sourceRef="Sig_PhysPassed" targetRef="Gw_CombineDesigns"/>
+    <bpmn:sequenceFlow id="SFlow_PhysToFinal" sourceRef="Sig_ElecPassed" targetRef="Gw_CombineDesigns"/>
+
+    <!-- Combined Test Flows -->
+    <bpmn:sequenceFlow id="SFlow_ToCombinedTest" name="" sourceRef="Gw_CombineDesigns" targetRef="Tst_CombinedDesign"/>
+    <bpmn:sequenceFlow id="SFlow_FinalToGwResult" name="" sourceRef="Tst_CombinedDesign" targetRef="Gw_FinalTestResult"/>
+
+    <!-- Final Decision Flows -->
+    <bpmn:sequenceFlow id="SFlow_DesignComplete" name="Passed - Send to Manufacturing" sourceRef="Gw_FinalTestResult" targetRef="End_DesignComplete">
+      <bpmn:description>Design complete, ready for manufacturing</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_RestartCycle" name="Failed - Restart Cycle" sourceRef="Gw_FinalTestResult" targetRef="Tsk_LocateExistingDesigns">
+      <bpmn:description>Send back to beginning for another design cycle</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

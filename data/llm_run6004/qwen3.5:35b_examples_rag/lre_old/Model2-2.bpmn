@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:messageFlow id="MessageFlow_ContractDecision" sourceRef="Task_CS_SendContract" targetRef="Event_Customer_Decision"/>
+    <bpmn:messageFlow id="MessageFlow_GO_Request" sourceRef="Task_CS_RequestConcurrence" targetRef="Start_GO_Check"/>
+    <bpmn:messageFlow id="MessageFlow_GO_Response" sourceRef="End_GO_ConcurrenceOK" targetRef="Event_CS_ReceiveResponse"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CSCS" isExecutable="false">
+    <bpmn:startEvent id="Start_CS_RequestReceived" name="Switch-over Request Received">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Data Entry & Validation -->
+    <bpmn:task id="Task_CS_EnterData" name="Enter Customer Data into CRM">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Validation Loop -->
+    <bpmn:exclusiveGateway id="GW_CS_Validated" name="Data Valid?">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Error Correction -->
+    <bpmn:task id="Task_CS_CorrectErrors" name="Correct Errors">
+      <bpmn:incoming>SequenceFlow_ErrorLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Customer Check -->
+    <bpmn:exclusiveGateway id="GW_CS_CustomerExists" name="Customer Exists?">
+      <bpmn:incoming>SequenceFlow_Validated</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NewCustomer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ExistingCustomer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- New Customer Creation -->
+    <bpmn:task id="Task_CS_CreateObject" name="Create New Customer Object">
+      <bpmn:incoming>SequenceFlow_NewCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Contract Preparation -->
+    <bpmn:task id="Task_CS_PrepareContract" name="Prepare Contract Documents">
+      <bpmn:incoming>SequenceFlow_ExistingCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- CIS Check -->
+    <bpmn:exclusiveGateway id="GW_CS_CISCheck" name="CIS Generation OK?">
+      <bpmn:incoming>SequenceFlow_ContractPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Regenerate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Regeneration Loop -->
+    <bpmn:task id="Task_CS_AnalyzeIssues" name="Analyze & Resolve Issues">
+      <bpmn:incoming>SequenceFlow_Regenerate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Confirmation -->
+    <bpmn:endEvent id="End_CS_Withdrawal" name="Process Ended (Withdrawal)">
+      <bpmn:incoming>SequenceFlow_WithdrawalReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Wait for GO Response -->
+    <bpmn:intermediateCatchEvent id="Event_CS_ReceiveResponse" name="GO Concurrence Response">
+      <bpmn:outgoing>SequenceFlow_GOResponse</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Create Final Contract -->
+    <bpmn:endEvent id="End_CS_WinningCustomer" name="Winning New Customer Process Ended">
+      <bpmn:incoming>SequenceFlow_ProcessContinues</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Timer Event (7 Days) -->
+    <bpmn:intermediateCatchEvent id="Timer_CS_Accepted" name="Acceptance Timeout">
+      <bpmn:outgoing>SequenceFlow_ProcessContinues</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="Start_CS_RequestReceived" targetRef="Task_CS_EnterData"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorLoop" name="Errors Found" sourceRef="GW_CS_Validated" targetRef="Task_CS_CorrectErrors"/>
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="Task_CS_CorrectErrors" targetRef="GW_CS_Validated"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Validated" name="Valid Data" sourceRef="GW_CS_Validated" targetRef="GW_CS_CustomerExists"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NewCustomer" name="New Customer" sourceRef="GW_CS_CustomerExists" targetRef="Task_CS_CreateObject"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ExistingCustomer" name="Existing Customer" sourceRef="GW_CS_CustomerExists" targetRef="Task_CS_PrepareContract"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ContractPrep" sourceRef="Task_CS_CreateObject" targetRef="GW_CS_CISCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Regenerate" name="Generation Failed" sourceRef="GW_CS_CISCheck" targetRef="Task_CS_AnalyzeIssues"/>
+
+  </bpmn:process>
+
+  <!-- Grid Operator Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="Start_GO_Check" name="Concurrence Request Received">
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Concurrence Check -->
+    <bpmn:endEvent id="End_GO_ConcurrenceOK" name="Response Sent (No Objections)">
+      <bpmn:incoming>MessageFlow_GO_Response</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="Start_GO_Check" targetRef="End_GO_ConcurrenceOK"/>
+  </bpmn:process>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Process_Customer" isExecutable="false">
+    <bpmn:startEvent id="Start_Event_ContractReceived" name="Contract Received">
+      <bpmn:outgoing>SequenceFlow_20</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Decision -->
+    <bpmn:endEvent id="End_Customer_Decision" name="Decision Made"/>
+
+     <bpmn:sequenceFlow id="SequenceFlow_20" sourceRef="Start_Event_ContractReceived" targetRef="End_Customer_Decision"/>
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Fragenbogen_Bearbeitung">
+    <bpmn:participant id="Pool_Process" name="Firmenfragebogen Bearbeitung" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Manual" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>StartEvent_Fragenbogen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_Erfassen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ManuellePruefungPartner</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_DatenCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_PruefenUmlagen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_KontaktdatenPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_BearbeitungKlarungsbedarf</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Automated" name="Automatisierte Verarbeitung">
+        <bpmn:flowNodeRef>Service_SuchePartner</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PartnerZuordnung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MeldezeitraumKontrolle</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UmlageZeitenVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_AnlegenUmlagen</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Fragenbogen" name="Firmenfragebogen Eingang">
+      <bpmn:outgoing>bpmn:Flow_StartErfassen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Erfassung -->
+    <bpmn:userTask id="UserTask_Erfassen" name="Fragebogen erfassen und im System verarbeiten">
+      <bpmn:incoming>bpmn:Flow_StartErfassen</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_SuchePartnerStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task 1: Partner Suche -->
+    <bpmn:serviceTask id="Service_SuchePartner" name="Automatische Suche nach Partnerunternehmen">
+      <bpmn:incoming>bpmn:Flow_SuchePartnerStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_PartnerCheckGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Partner Zuordnung -->
+    <bpmn:exclusiveGateway id="Gateway_PartnerZuordnung" name="Eindeutige Zuordnung möglich?">
+      <bpmn:incoming>bpmn:Flow_SuchePartnerStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_ManuellePruefungStart</bpmn:outgoing> <!-- No match -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Manuelle Prüfung (Exception Path) -->
+    <bpmn:userTask id="UserTask_ManuellePruefungPartner" name="Manuelle Prüfung der Partnerzuordnung">
+      <bpmn:incoming>bpmn:Flow_ManuellePruefungStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_DatenCheckMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 3: Unternehmensdaten Check -->
+    <bpmn:userTask id="UserTask_DatenCheck" name="Überprüfung relevanter Unternehmensdaten">
+      <bpmn:incoming>bpmn:Flow_PartnerZuordnung</bpmn:incoming>
+      <bpmn:incoming>bpmn:Flow_ManuellePruefungStart</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- Task 4: Meldezeitraum Kontrolle (System) -->
+    <bpmn:task id="Task_MeldezeitraumKontrolle" name="Meldezeitraum kontrollieren">
+      <bpmn:incoming>bpmn:Flow_DatenCheckEnd</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_UmlageGatewayStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Umlage Zeiten -->
+    <bpmn:exclusiveGateway id="Gateway_UmlageZeitenVorhanden" name="Umlageversicherungszeiten vorhanden?">
+      <bpmn:incoming>bpmn:Flow_UmlageGatewayStart</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_PruefenExistenz</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5a: Prüfen existierender Zeiten (Manual/System) -->
+    <bpmn:userTask id="UserTask_PruefenUmlagen" name="Bestehende Umlagezeiten überprüfen">
+      <bpmn:incoming>bpmn:Flow_PruefenExistenz</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_KontaktdatenStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 5b: Neue Zeiten anlegen (System) -->
+    <bpmn:serviceTask id="Service_AnlegenUmlagen" name="Neue Umlageversicherungszeiten anlegen">
+      <bpmn:incoming>bpmn:Flow_NeuanlageStart</bpmn:incoming> <!-- Default path if No (implied) -->
+      <bpmn:outgoing>bpmn:Flow_KontaktdatenStart2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 6: Kontaktdaten prüfen -->
+    <bpmn:userTask id="UserTask_KontaktdatenPruefung" name="Kontaktdaten (Tel, Fax, Adresse) überprüfen">
+      <bpmn:incoming>bpmn:Flow_KontaktdatenStart</bpmn:incoming>
+      <!-- Boundary Event for Exception Handling -->
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Erfolgreich" name="Bearbeitung abgeschlossen">
+      <bpmn:incoming>bpmn:Flow_KontaktdatenEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Exception Handling Task -->
+    <bpmn:userTask id="UserTask_BearbeitungKlarungsbedarf" name="Zuständiger Mitarbeiter zur weiteren Bearbeitung">
+      <bpmn:incoming>bpmn:Flow_ExceptionTrigger</bpmn:incoming>
+      <bpmn:outgoing>bpmn:Flow_ResolveLoopback</bpmn:outgoing> <!-- Loop back to previous step or specific check -->
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start Flow -->
+    <bpmn:sequenceFlow id="Flow_StartErfassen" sourceRef="StartEvent_Fragenbogen" targetRef="UserTask_Erfassen"/>
+    
+    <!-- Partner Search Flow -->
+    <bpmn:sequenceFlow id="Flow_SuchePartnerStart" name="Automatische Suche starten" sourceRef="UserTask_Erfassen" targetRef="Service_SuchePartner"/>
+
+    <!-- Gateway Decision Flow -->
+    <bpmn:sequenceFlow id="Flow_PartnerCheckGateway" sourceRef="Service_SuchePartner" targetRef="Gateway_PartnerZuordnung"/>
+    
+    <!-- Manual Check Path (No Match) -->
+    <bpmn:sequenceFlow id="Flow_ManuellePruefungStart" name="Keine eindeutige Zuordnung" sourceRef="Gateway_PartnerZuordnung" targetRef="UserTask_DatenCheck">
+      <bpmn:dataInputRefs>bpmn:FragenbogenDaten</bpmn:dataInputRefs>
+    </bpmn:sequenceFlow>
+
+    <!-- Data Check to Reporting Period -->
+    <bpmn:sequenceFlow id="Flow_DatenCheckEnd" sourceRef="UserTask_DatenCheck" targetRef="Task_MeldezeitraumKontrolle"/>
+
+    <!-- Reporting Period to Umlage Gateway -->
+    <bpmn:sequenceFlow id="Flow_UmlageGatewayStart" sourceRef="Task_MeldezeitraumKontrolle" targetRef="Gateway_UmlageZeitenVorhanden"/>
+
+    <!-- Decision Paths for Umlages -->
+    <bpmn:sequenceFlow id="Flow_PruefenExistenz" name="Ja, vorhanden" sourceRef="Gateway_UmlageZeitenVorhanden" targetRef="UserTask_PruefenUmlagen"/>
+
+    <!-- Default Path for No Umlages (Create New) -->
+    <bpmn:sequenceFlow id="Flow_NeuanlageStart" name="Nein, anlegen" sourceRef="Gateway_UmlageZeitenVorhanden" targetRef="Service_AnlegenUmlagen"/>
+
+    <!-- Merge Umlages to Contact Data -->
+    <bpmn:exclusiveGateway id="Gateway_UmlageMerge">
+      <bpmn:incoming>bpmn:Flow_KontaktdatenStart</bpmn:incoming>
+      <bpmn:incoming>bpmn:Flow_AnlegenUmlagenEnd</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <!-- Contact Data Check -->
+    <bpmn:sequenceFlow id="Flow_KontaktdatenStart" name="Kontaktdaten prüfen" sourceRef="UserTask_PruefenUmlagen" targetRef="Gateway_UmlageMerge"/>
+    
+    <bpmn:sequenceFlow id="Flow_AnlegenUmlagenEnd" sourceRef="Service_AnlegenUmlagen" targetRef="Gateway_UmlageMerge"/>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="Flow_KontaktdatenStart2" name="Kontaktdaten prüfen" sourceRef="Gateway_UmlageMerge" targetRef="UserTask_KontaktdatenPruefung"/>
+    
+    <bpmn:sequenceFlow id="Flow_KontaktdatenEnd" sourceRef="UserTask_KontaktdatenPruefung" targetRef="EndEvent_Erfolgreich"/>
+
+    <!-- Exception Handling Flows (Boundary Events) -->
+    
+    <!-- Boundary Event on User Task DatenCheck -->
+    <bpmn:boundaryEvent id="Event_Exception_DatenCheck" attachedToRef="UserTask_DatenCheck">
+      <bpmn:outgoing>bpmn:Flow_ExceptionTrigger</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_01"/>
+    </bpmn:boundaryEvent>
+
+    <!-- Boundary Event on User Task KontaktdatenPruefung -->
+    <bpmn:boundaryEvent id="Event_Exception_Kontaktdaten" attachedToRef="UserTask_KontaktdatenPruefung">
+      <bpmn:outgoing>bpmn:Flow_ExceptionTrigger</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_02"/>
+    </bpmn:boundaryEvent>
+
+    <!-- Exception Flow to Clarification Task -->
+    <bpmn:sequenceFlow id="Flow_ExceptionTrigger" sourceRef="Event_Exception_DatenCheck" targetRef="UserTask_BearbeitungKlarungsbedarf">
+      <bpmn:dataInputRefs>bpmn:Firmendaten</bpmn:dataInputRefs>
+    </bpmn:sequenceFlow>
+
+    <!-- Loopback from Clarification Task -->
+    <bpmn:sequenceFlow id="Flow_ResolveLoopback" sourceRef="UserTask_BearbeitungKlarungsbedarf" targetRef="Gateway_PartnerZuordnung"/>
+
+  </bpmn:process>
+  
+</bpmn:definitions>

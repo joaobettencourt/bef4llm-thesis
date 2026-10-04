@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_WeeklyPaymentProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_PaymentCycle">
+    <bpmn:participant id="Pool_SSP_Org" name="SSP Organization" processRef="Proc_ManagePayments"/>
+    <bpmn:participant id="Pool_Clients_Ext" name="Clients (External)" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ManagePayments" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_SSP_Internal">
+      <bpmn:lane id="Lane_PaymentOffice_1" name="Payment Office of SSP">
+        <bpmn:flowNodeRef>StartEvent_Timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_SendReportsParallel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ARDept_2" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>Task_GenMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChargeNotifyClient</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_RegistryOffice_3" name="Registry Office">
+        <bpmn:flowNodeRef>Task_SelectPaidInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrackPaymentStatus</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Data Objects -->
+    <bpmn:dataObject id="Data_PaymentReport" name="Payment Report"/>
+    <bpmn:dataObject id="Data_Invoice" name="Invoice"/>
+
+    <!-- Start Event (Weekly Timer) -->
+    <bpmn:startEvent id="StartEvent_Timer" name="End of Week">
+      <bpmn:outgoing>SF_StartToGenReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:task id="Task_GenReport" name="Generate Payment Report">
+      <bpmn:incoming>SF_StartToGenReport</bpmn:incoming>
+        <bpmn:dataOutputAssociation ref="Data_PaymentReport"/>
+        <bpmn:outgoing>SF_ReportReadyPayVendor</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PayVendor" name="Pay Vendor">
+      <bpmn:incoming>SF_ReportReadyPayVendor</bpmn:incoming>
+        <bpmn:dataInputAssociation ref="Data_PaymentReport"/>
+        <bpmn:outgoing>SF_SendReportsParallelStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Sending Reports -->
+    <bpmn:parallelGateway id="Gw_SendReportsParallel" name="Send Report Copies">
+      <bpmn:incoming>SF_SendReportsParallelStart</bpmn:incoming>
+        <bpmn:outgoing>SF_SendToClientsFlow</bpmn:outgoing>
+       <bpmn:outgoing>SF_SendToARDeptFlow</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendToRegistryFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- AR Department Tasks -->
+     <bpmn:task id="Task_GenMonthlyInvoice" name="Generate Monthly Invoice">
+        <bpmn:incoming>SF_SendToARDeptFlow</bpmn:incoming>
+          <bpmn:dataOutputAssociation ref="Data_Invoice"/>
+           <bpmn:outgoing>SF_ChargeNotifyClientStart</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:task id="Task_ChargeNotifyClient" name="Charge $35 &amp; Notify Client">
+        <bpmn:incoming>SF_ChargeNotifyClientStart</bpmn:incoming>
+          <bpmn:dataInputAssociation ref="Data_Invoice"/>
+           <bpmn:outgoing>SF_ArchiveFlowTrigger</bpmn:outgoing> 
+    </bpmn:task>
+
+     <!-- Registry Office Tasks -->
+      <bpmn:task id="Task_SelectPaidInvoices" name="Select Paper-based Paid Invoices">
+        <bpmn:incoming>SF_SendToRegistryFlow</bpmn:incoming>
+          <bpmn:dataInputAssociation ref="Data_PaymentReport"/>
+           <bpmn:outgoing>SF_ArchiveStartTask</bpmn:outgoing>
+    </bpmn:task>
+
+      <bpmn:task id="Task_ArchiveInvoices" name="Archive Invoices (Vendor/Data)">
+        <bpmn:incoming>SF_ArchiveStartTask</bpmn:incoming>
+          <bpmn:dataInputAssociation ref="Data_PaymentReport"/>
+           <bpmn:outgoing>SF_TrackPaymentFlow</bpmn:outgoing>
+    </bpmn:task>
+
+      <bpmn:task id="Task_TrackPaymentStatus" name="Track Down Payment">
+        <bpmn:incoming>SF_TrackPaymentFlow</bpmn:incoming>
+          <bpmn:dataInputAssociation ref="Data_PaymentReport"/>
+           <bpmn:outgoing>SF_ProcessEndEventLink</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event --> 
+      <bpmn:endEvent id="EndEvent_Complete" name="Process Complete">
+        <bpmn:incoming>SF_ArchiveFlowTrigger</bpmn:incoming>
+         <bpmn:incoming>SF_ProcessEndEventLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows (Internal) --> 
+      <bpmn:sequenceFlow id="SF_StartToGenReport" sourceRef="StartEvent_Timer" targetRef="Task_GenReport"/>
+       <bpmn:sequenceFlow id="SF_ReportReadyPayVendor" name="Generate Report First" sourceRef="Task_GenReport" targetRef="Task_PayVendor"/>
+        <bpmn:sequenceFlow id="SF_SendReportsParallelStart" sourceRef="Task_PayVendor" targetRef="Gw_SendReportsParallel"/>
+
+       <!-- Flows to Lanes --> 
+         <bpmn:sequenceFlow id="SF_SendToARDeptFlow" name="Send Report for AR Processing" sourceRef="Gw_SendReportsParallel" targetRef="Task_GenMonthlyInvoice">
+            <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+        </bpmn:sequenceFlow>
+
+         <bpmn:sequenceFlow id="SF_SendToRegistryFlow" name="Send Report for Archiving" sourceRef="Gw_SendReportsParallel" targetRef="Task_SelectPaidInvoices">
+            <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+        </bpmn:sequenceFlow>
+
+         <!-- AR to Registry Handover (Optional Logic Link) --> 
+          <bpmn:sequenceFlow id="SF_ArchiveStartTask" sourceRef="Task_SelectPaidInvoices" targetRef="Task_ArchiveInvoices"/>
+           <bpmn:sequenceFlow id="SF_TrackPaymentFlow" sourceRef="Task_ArchiveInvoices" targetRef="Task_TrackPaymentStatus"/>
+
+         <!-- End Flow --> 
+          <bpmn:sequenceFlow id="SF_ProcessEndEventLink" name="Complete Process" sourceRef="Task_TrackPaymentStatus" targetRef="EndEvent_Complete">
+            </bpmn:sequenceFlow>
+             <bpmn:sequenceFlow id="SF_ArchiveFlowTrigger" sourceRef="Task_ChargeNotifyClient" targetRef="EndEvent_Complete"/>
+
+    <!-- Message Flows (External to Clients) --> 
+      <bpmn:messageFlow id="Msg_SendReportToClients" name="Send Report &amp; Invoice">
+        <bpmn:sourceElement ref="Task_GenMonthlyInvoice</bpmn:sourceElement>
+         <bpmn:targetElementPool ref="Pool_Clients_Ext"/> 
+      </bpmn:messageFlow>
+
+       <bpmn:messageFlow id="Msg_ChargeNotification" name="$35 Charge Notification">
+        <bpmn:sourceElement ref="Task_ChargeNotifyClient</bpmn:sourceElement>
+         <bpmn:targetElementPool ref="Pool_Clients_Ext"/> 
+      </bpmn:messageFlow>
+
+  </bpmn:process>
+  
+   <!-- Reusable Elements -->
+    <bpmn:message id="Msg_PaymentReport" name="Payment Report Message">
+        <bpmn:name>Payment Report</bpmn:name>
+    </bpmn:message>
+    
+     <bpmn:message id="Msg_InvoiceNotification" name="Invoice Notification">
+         <bpmn:name>$35 Charge Notification</bpmn:name>
+    </bpmn:message>
+
+  <!-- Note: BPMNDiagram section omitted per instructions to exclude layouting information -->
+</bpmn:definitions>

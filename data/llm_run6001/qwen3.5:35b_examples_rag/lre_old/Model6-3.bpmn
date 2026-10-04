@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Production Planning Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MasterPlanning" name="Master Planning">
+        <bpmn:flowNodeRef>StartEvent_OrderReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_PPS" name="PPS System">
+        <bpmn:flowNodeRef>ServiceTask_EnterPPS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>DataObject_ProcurementList</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ERP" name="ERP System">
+        <bpmn:flowNodeRef>Task_ManualTransferToERP</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Production" name="Production Team">
+        <bpmn:flowNodeRef>ExclusiveGateway_CheckPartsMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ProcureParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_ProductionNotice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ImplementProduction</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OrderReceived" name="Order from Sales Department">
+      <bpmn:outgoing>SequenceFlow_Start_DetermineParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Master determines parts -->
+    <bpmn:userTask id="Task_DetermineParts" name="Determine Parts, Quantities &amp; Delivery Date">
+      <bpmn:incoming>SequenceFlow_Start_DetermineParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Determine_EnterPPS</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task - Enter into PPS -->
+    <bpmn:serviceTask id="ServiceTask_EnterPPS" name="Enter Information in Production Planning System">
+      <bpmn:incoming>SequenceFlow_Determine_EnterPPS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PPS_CreateWorkPackages</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Data Object - Procurement List -->
+    <bpmn:dataObject id="DataObject_ProcurementList" name="Parts to be procured"/>
+
+    <!-- Manual Task - Transfer data manually to ERP -->
+    <bpmn:manualTask id="Task_ManualTransferToERP" name="Manually Transfer Data to ERP System">
+      <bpmn:incoming>SequenceFlow_PPS_CreateWorkPackages</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Transfer_CheckPartsMissing</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- Exclusive Gateway - Decision on missing parts -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckPartsMissing" name="Any Parts Missing?">
+      <bpmn:incoming>SequenceFlow_Transfer_CheckPartsMissing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_ProcureYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Gateway_ProcureNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- User Task - Procure missing parts -->
+    <bpmn:userTask id="UserTask_ProcureParts" name="Procure Missing Parts">
+      <bpmn:incoming>SequenceFlow_Gateway_ProcureYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Procured_ProductionNotice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event - Production Notice -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_ProductionNotice" name="Production Scheduled">
+      <bpmn:incoming>SequenceFlow_Gateway_ProcureNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Notice_ImplementProduction</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- User Task - Implementation -->
+    <bpmn:userTask id="UserTask_ImplementProduction" name="Implement Production">
+      <bpmn:incoming>SequenceFlow_Notice_ImplementProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Implementation_QualityCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Quality Check -->
+    <bpmn:task id="Task_QualityCheck" name="Quality Check">
+      <bpmn:incoming>SequenceFlow_Implementation_QualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Quality_Complete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_Quality_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_Start_DetermineParts" sourceRef="StartEvent_OrderReceived" targetRef="Task_DetermineParts"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Determine_EnterPPS" name="Information Complete" sourceRef="Task_DetermineParts" targetRef="ServiceTask_EnterPPS"/>
+  <bpmn:sequenceFlow id="SequenceFlow_PPS_CreateWorkPackages" name="Optimize Production &amp; Create Procurement List" sourceRef="ServiceTask_EnterPPS" targetRef="DataObject_ProcurementList">
+    <bpmn:dataOutputAssociation>
+      <bpmn:sourceRef>DataObject_ProcurementList</bpmn:sourceRef>
+      <bpmn:targetRef>DataObject_ProcurementList</bpmn:targetRef>
+    </bpmn:dataOutputAssociation>
+  </bpmn:sequenceFlow>
+  <bpmn:sequenceFlow id="SequenceFlow_Transfer_CheckPartsMissing" name="Data Transferred to ERP" sourceRef="Task_ManualTransferToERP" targetRef="ExclusiveGateway_CheckPartsMissing"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_ProcureYes" name="yes - Parts Missing" conditionExpression="${partsMissing == true}" sourceRef="ExclusiveGateway_CheckPartsMissing" targetRef="UserTask_ProcureParts"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_ProcureNo" name="no - No Parts Needed" conditionExpression="${partsMissing == false}" sourceRef="ExclusiveGateway_CheckPartsMissing" targetRef="IntermediateCatchEvent_ProductionNotice"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Procured_ProductionNotice" sourceRef="UserTask_ProcureParts" targetRef="IntermediateCatchEvent_ProductionNotice"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Notice_ImplementProduction" name="System Notice Received" sourceRef="IntermediateCatchEvent_ProductionNotice" targetRef="UserTask_ImplementProduction"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Implementation_QualityCheck" sourceRef="UserTask_ImplementProduction" targetRef="Task_QualityCheck"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Quality_Complete" name="Quality Verified" sourceRef="Task_QualityCheck" targetRef="EndEvent_ProcessComplete"/>
+
+</bpmn:definitions>

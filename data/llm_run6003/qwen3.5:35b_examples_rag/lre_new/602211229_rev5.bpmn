@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ReimbursementProcess">
+    <bpmn:participant id="Participant_ERICSCompany" name="ERICS Company Reimbursement Process" processRef="Process_Reimbursement_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Reimbursement_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Administration" name="Administration">
+        <bpmn:flowNodeRef>StartEvent_RequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChooseBeneficiary</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckVerbandStatus</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Finance" name="Finance Department">
+        <bpmn:flowNodeRef>Task_DetermineDuration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParallelSplit</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service">
+        <bpmn:flowNodeRef>Task_SelectGroupAssociation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ManualSelection</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_PaymentProcessing" name="Payment Processing">
+        <bpmn:flowNodeRef>Gateway_MergePaths</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetThreshold</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Notification" name="Notification">
+        <bpmn:flowNodeRef>Gateway_ParallelJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintCreditNote</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_FinalProcessing" name="Final Processing">
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Reimbursement Request Received">
+      <bpmn:outgoing>SequenceFlow_1_StartToContact</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Create Contact Task -->
+    <bpmn:userTask id="Task_CreateContact" name="Create Reimbursement Contact">
+      <bpmn:incoming>SequenceFlow_1_StartToContact</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2_ContactToBeneficiary</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Choose Beneficiary Task -->
+    <bpmn:userTask id="Task_ChooseBeneficiary" name="Choose Beneficiary">
+      <bpmn:incoming>SequenceFlow_2_ContactToBeneficiary</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3_BeneficiaryToDuration</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Determine Duration Task -->
+    <bpmn:userTask id="Task_DetermineDuration" name="Determine Refund Period Contract Duration">
+      <bpmn:incoming>SequenceFlow_3_BeneficiaryToDuration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_4_DurationToVerbandCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway for Verband Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckVerbandStatus" name="Customer Part of Verband?">
+      <bpmn:incoming>SequenceFlow_4_DurationToVerbandCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_5_VerbandYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_6_VerbandNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Verband Path - Select Group Association -->
+    <bpmn:userTask id="Task_SelectGroupAssociation" name="Select Customer Group Association">
+      <bpmn:incoming>SequenceFlow_5_VerbandYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_7_GroupToThreshold</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Normal Subsidiaries Path - Manual Selection -->
+    <bpmn:userTask id="Task_ManualSelection" name="Select Customers Manually">
+      <bpmn:incoming>SequenceFlow_6_VerbandNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_8_ManualToThreshold</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Paths after Verband decision -->
+    <bpmn:exclusiveGateway id="Gateway_MergePaths" name="">
+      <bpmn:incoming>SequenceFlow_7_GroupToThreshold</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_8_ManualToThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_9_MergeToSetThreshold</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Set Threshold Task -->
+    <bpmn:userTask id="Task_SetThreshold" name="Set Threshold">
+      <bpmn:incoming>SequenceFlow_9_MergeToSetThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10_ThresholdToParallelSplit</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Concurrent Activities -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit" name="">
+      <bpmn:incoming>SequenceFlow_10_ThresholdToParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11_SplitCreditNote</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_12_SplitPaymentCalculation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Credit Note Path -->
+    <bpmn:userTask id="Task_PrintCreditNote" name="Print and Send Credit Note">
+      <bpmn:incoming>SequenceFlow_11_SplitCreditNote</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13_CreditToJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Payment Calculation Path -->
+    <bpmn:userTask id="Task_PaymentCalculation" name="Calculate and Pay Reimbursement">
+      <bpmn:incoming>SequenceFlow_12_SplitPaymentCalculation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_14_PaymentToJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Join Gateway -->
+    <bpmn:parallelGateway id="Gateway_ParallelJoin" name="">
+      <bpmn:incoming>SequenceFlow_13_CreditToJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_14_PaymentToJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_15_JoinToEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_15_JoinToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1_StartToContact" sourceRef="StartEvent_RequestReceived" targetRef="Task_CreateContact" />
+    <bpmn:sequenceFlow id="SequenceFlow_2_ContactToBeneficiary" sourceRef="Task_CreateContact" targetRef="Task_ChooseBeneficiary" />
+    <bpmn:sequenceFlow id="SequenceFlow_3_BeneficiaryToDuration" sourceRef="Task_ChooseBeneficiary" targetRef="Task_DetermineDuration" />
+    <bpmn:sequenceFlow id="SequenceFlow_4_DurationToVerbandCheck" name="" sourceRef="Task_DetermineDuration" targetRef="Gateway_CheckVerbandStatus" />
+
+    <!-- Verband Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_5_VerbandYes" name="Part of Verband" sourceRef="Gateway_CheckVerbandStatus" targetRef="Task_SelectGroupAssociation" />
+    <bpmn:sequenceFlow id="SequenceFlow_6_VerbandNo" name="Normal Subsidiaries" sourceRef="Gateway_CheckVerbandStatus" targetRef="Task_ManualSelection" />
+
+    <!-- Merge Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_7_GroupToThreshold" sourceRef="Task_SelectGroupAssociation" targetRef="Gateway_MergePaths" />
+    <bpmn:sequenceFlow id="SequenceFlow_8_ManualToThreshold" sourceRef="Task_ManualSelection" targetRef="Gateway_MergePaths" />
+
+    <!-- Threshold Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_9_MergeToSetThreshold" name="" sourceRef="Gateway_MergePaths" targetRef="Task_SetThreshold" />
+    <bpmn:sequenceFlow id="SequenceFlow_10_ThresholdToParallelSplit" name="" sourceRef="Task_SetThreshold" targetRef="Gateway_ParallelSplit" />
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_11_SplitCreditNote" name="" sourceRef="Gateway_ParallelSplit" targetRef="Task_PrintCreditNote" />
+    <bpmn:sequenceFlow id="SequenceFlow_12_SplitPaymentCalculation" name="" sourceRef="Gateway_ParallelSplit" targetRef="Task_PaymentCalculation" />
+
+    <!-- Parallel Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_13_CreditToJoin" name="" sourceRef="Task_PrintCreditNote" targetRef="Gateway_ParallelJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_14_PaymentToJoin" name="" sourceRef="Task_PaymentCalculation" targetRef="Gateway_ParallelJoin" />
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_15_JoinToEnd" name="" sourceRef="Gateway_ParallelJoin" targetRef="EndEvent_ProcessComplete" />
+
+  </bpmn:process>
+</bpmn:definitions>

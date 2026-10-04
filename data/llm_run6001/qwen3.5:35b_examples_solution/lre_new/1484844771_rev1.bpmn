@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="_InvoiceProcess_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_InvoiceReview_001">
+    <bpmn:participant id="Participant_InvoiceSystem_001" name="Invoice Process" processRef="Process_InvoiceReview_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvoiceReview_001" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_InvoiceReceived_001" name="Invoice Process Started">
+      <bpmn:outgoing>SequenceFlow_StartToLocateVendor_001</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_LocateVendorSAP_001" name="Locate Vendor in SAP System">
+      <bpmn:incoming>SequenceFlow_StartToLocateVendor_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorFoundGateway_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_VendorFound_001" name="Vendor Found?">
+      <bpmn:incoming>SequenceFlow_VendorFoundGateway_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoNewVendorRecord_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_VendorExistsDirectly_001</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_FillVendorForm_001" name="Fill out new Vendor Master Record form">
+      <bpmn:incoming>SequenceFlow_NoNewVendorRecord_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AttachRequestToInvoice_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_AttachOutboxNewVendor_002" name="Attach request to invoice and put in internal outbox">
+      <bpmn:incoming>SequenceFlow_AttachRequestToInvoice_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClassifyUrgencyGateway_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_UrgentNonUrgent_001" name="Classify Urgency">
+      <bpmn:incoming>SequenceFlow_ClassifyUrgencyGateway_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PathUrgentTimer_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PathNonUrgentTimer_002</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_UrgentWindow_001" name="Max 24 hr window">
+      <bpmn:incoming>SequenceFlow_PathUrgentTimer_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterRequest_001</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_NonUrgentWindow_001" name="1-5 working days">
+      <bpmn:incoming>SequenceFlow_PathNonUrgentTimer_002</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterRequest_001</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AddSAPNumberMerge_002" name="Add SAP Number">
+      <bpmn:incoming>SequenceFlow_MergeAfterRequest_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortDecisionPoint_001</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_AddSAPNumberToInvoice_004" name="Add SAP Vendor Number">
+      <bpmn:incoming>SequenceFlow_VendorExistsDirectly_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortDecisionPoint_002</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MergeAddSAP_001" name="Merge SAP Additions">
+      <bpmn:incoming>SequenceFlow_AddSAPNumberToInvoiceOutgoing</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_VendorExistsDirectly_002</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_SortInvoicesVendor_001" name="Sort Invoices by Vendor">
+      <bpmn:incoming>SequenceFlow_SortByVendorPath_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeSortingTasks_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SortInvoicesAmount_002" name="Sort Invoices by Amount">
+      <bpmn:incoming>SequenceFlow_SortByAmountPath_002</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeSortingTasks_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SortMerge_002" name="Sort Complete">
+      <bpmn:incoming>SequenceFlow_MergeSortingTasks_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterSAPSystem_001</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_EnterInvoicesSAP_003" name="Enter Invoices in SAP System">
+      <bpmn:incoming>SequenceFlow_EnterSAPSystem_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_ProcessFinished_001" name="Process Finished">
+      <bpmn:incoming>SequenceFlow_ToEndEvent_001</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToLocateVendor_001" sourceRef="StartEvent_InvoiceReceived_001" targetRef="Task_LocateVendorSAP_001" />
+    <bpmn:sequenceFlow id="SequenceFlow_VendorFoundGateway_001" sourceRef="Task_LocateVendorSAP_001" targetRef="ExclusiveGateway_VendorFound_001" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoNewVendorRecord_001" name="Not Found" sourceRef="ExclusiveGateway_VendorFound_001" targetRef="Task_FillVendorForm_001" />
+    <bpmn:sequenceFlow id="SequenceFlow_AttachRequestToInvoice_001" sourceRef="Task_FillVendorForm_001" targetRef="Task_AttachOutboxNewVendor_002" />
+    <bpmn:sequenceFlow id="SequenceFlow_ClassifyUrgencyGateway_001" sourceRef="Task_AttachOutboxNewVendor_002" targetRef="ExclusiveGateway_UrgentNonUrgent_001" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_PathUrgentTimer_001" name="Urgent Invoice" sourceRef="ExclusiveGateway_UrgentNonUrgent_001" targetRef="IntermediateCatchEvent_UrgentWindow_001" />
+    <bpmn:sequenceFlow id="SequenceFlow_PathNonUrgentTimer_002" name="Non-Urgent Invoice" sourceRef="ExclusiveGateway_UrgentNonUrgent_001" targetRef="IntermediateCatchEvent_NonUrgentWindow_001" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeAfterRequest_001" sourceRef="IntermediateCatchEvent_UrgentWindow_001" targetRef="ExclusiveGateway_AddSAPNumberMerge_002" />
+    <bpmn:sequenceFlow id="SequenceFlow_VendorExistsDirectly_001" name="Vendor Exists" sourceRef="ExclusiveGateway_VendorFound_001" targetRef="Task_AddSAPNumberToInvoice_004" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_SortDecisionPoint_002" sourceRef="Task_AddSAPNumberToInvoice_004" targetRef="ExclusiveGateway_MergeAddSAP_001" />
+    <bpmn:sequenceFlow id="SequenceFlow_VendorExistsDirectly_002" name="Vendor Exists Direct Merge" sourceRef="ExclusiveGateway_AddSAPNumberMerge_002" targetRef="ExclusiveGateway_MergeAddSAP_001" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_SortDecisionPoint_003" sourceRef="ExclusiveGateway_MergeAddSAP_001" targetRef="ExclusiveGateway_SortMethod_002" />
+    
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SortMethod_002" name="Sort Method?">
+      <bpmn:incoming>SequenceFlow_SortDecisionPoint_003</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortByVendorPath_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SortByAmountPath_002</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SortByVendorPath_001" name="Sort by Vendor" sourceRef="ExclusiveGateway_SortMethod_002" targetRef="Task_SortInvoicesVendor_001" />
+    <bpmn:sequenceFlow id="SequenceFlow_SortByAmountPath_002" name="Sort by Amount" sourceRef="ExclusiveGateway_SortMethod_002" targetRef="Task_SortInvoicesAmount_002" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeSortingTasks_001" sourceRef="Task_SortInvoicesVendor_001" targetRef="ExclusiveGateway_SortMerge_002" />
+    <bpmn:sequenceFlow id="SequenceFlow_MergeSortingAmounts_001" sourceRef="Task_SortInvoicesAmount_002" targetRef="ExclusiveGateway_SortMerge_002" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_EnterSAPSystem_001" sourceRef="ExclusiveGateway_SortMerge_002" targetRef="Task_EnterInvoicesSAP_003" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent_001" sourceRef="Task_EnterInvoicesSAP_003" targetRef="EndEvent_ProcessFinished_001" />
+
+  </bpmn:process>
+</bpmn:definitions>

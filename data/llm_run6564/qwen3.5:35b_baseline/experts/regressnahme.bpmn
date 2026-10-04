@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_RegressionProcess" targetNamespace="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <bpmn:collaboration id="Collab_RegressionHandling">
+    <bpmn:participant id="Participant_ClaimsDept" name="Claims Department - Regression Handling" processRef="Process_RegressionMain"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_RegressionMain" isExecutable="false">
+    <bpmn:laneSet id="Lane_Set_Main">
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeiter (Claims Specialist)">
+        <bpmn:flowNodeRef>StartEvent_Notification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CheckCaseValidity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gtw_IsRegressionPossible</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_SendDemandAndFollowUp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CheckStatusOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gtw_PaymentReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_BookPaymentEntry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gtw_ObjectionFiled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_ReviewObjection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gtw_IsJustified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_SendToInkasso</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Notification" name="Notification of Potential Regression">
+      <bpmn:outgoing>SqFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Case -->
+    <bpmn:userTask id="Tsk_CheckCaseValidity" name="Prüfe Fall auf Regressmöglichkeit">
+      <bpmn:incoming>SqFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_CaseValidGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: Is Regression Possible? -->
+    <bpmn:exclusiveGateway id="Gtw_IsRegressionPossible" name="Möglichkeit besteht?">
+      <bpmn:incoming>SqFlow_CaseValidGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_NoActionEnd</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_SendDemandStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Case Closed (No Regression) -->
+    <bpmn:endEvent id="End_NoAction" name="Vorgang geschlossen">
+      <bpmn:incoming>SqFlow_NoActionEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Send Demand & Set Follow-up -->
+    <bpmn:userTask id="Tsk_SendDemandAndFollowUp" name="Zahlungsauflorderung senden und Wiedervorlage setzen">
+      <bpmn:incoming>SqFlow_SendDemandStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_CheckStatus</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 3: Check Status (Payment/Objection/Deadline) -->
+    <bpmn:userTask id="Tsk_CheckStatusOutcome" name="Prüfe Zahlungseingang, Widerspruch oder Fristablauf">
+      <bpmn:incoming>SqFlow_CheckStatus</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_PaymentCheckGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Payment Received? -->
+    <bpmn:exclusiveGateway id="Gtw_PaymentReceived" name="Zahlung eingegangen?">
+      <bpmn:incoming>SqFlow_PaymentCheckGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_BookEntryStart</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_ObjectionOrDeadline</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Book Payment -->
+    <bpmn:userTask id="Tsk_BookPaymentEntry" name="Eingang verbuchen">
+      <bpmn:incoming>SqFlow_BookEntryStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_EndClosedPaid</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 2: Closed (Payment) -->
+    <bpmn:endEvent id="End_ClosedPaid" name="Vorgang geschlossen">
+      <bpmn:incoming>SqFlow_EndClosedPaid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 3: Objection Filed? -->
+    <bpmn:exclusiveGateway id="Gtw_ObjectionFiled" name="Widerspruch eingegangen oder Frist abgelaufen?">
+      <bpmn:incoming>SqFlow_ObjectionOrDeadline</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ReviewObjStart</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_DeadlineInkasso</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Review Objection -->
+    <bpmn:userTask id="Tsk_ReviewObjection" name="Widerspruch prüfen">
+      <bpmn:incoming>SqFlow_ReviewObjStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_IsJustifiedGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 4: Is Objection Justified? -->
+    <bpmn:exclusiveGateway id="Gtw_IsJustified" name="Widerspruch gerechtfertigt?">
+      <bpmn:incoming>SqFlow_IsJustifiedGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_EndClosedObj</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_SendInkassoStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 3: Closed (Objection Justified) -->
+    <bpmn:endEvent id="End_ClosedObj" name="Vorgang geschlossen">
+      <bpmn:incoming>SqFlow_EndClosedObj</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 6: Send to Inkasso -->
+    <bpmn:userTask id="Tsk_SendToInkasso" name="An Inkassodienstleister abgeben">
+      <bpmn:incoming>SqFlow_DeadlineInkasso</bpmn:incoming>
+      <bpmn:incoming>SqFlow_SendInkassoStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_EndInkassoSent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 4: Sent to Inkasso -->
+    <bpmn:endEvent id="End_InkassoSent" name="Vorgang geschlossen">
+      <bpmn:incoming>SqFlow_EndInkassoSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SqFlow_StartToCheck" sourceRef="StartEvent_Notification" targetRef="Tsk_CheckCaseValidity"/>
+    <bpmn:sequenceFlow id="SqFlow_CaseValidGtw" sourceRef="Tsk_CheckCaseValidity" targetRef="Gtw_IsRegressionPossible"/>
+    <bpmn:sequenceFlow id="SqFlow_NoActionEnd" name="Nein" sourceRef="Gtw_IsRegressionPossible" targetRef="End_NoAction"/>
+    <bpmn:sequenceFlow id="SqFlow_SendDemandStart" name="Ja" sourceRef="Gtw_IsRegressionPossible" targetRef="Tsk_SendDemandAndFollowUp"/>
+    <bpmn:sequenceFlow id="SqFlow_CheckStatus" sourceRef="Tsk_SendDemandAndFollowUp" targetRef="Tsk_CheckStatusOutcome"/>
+    <bpmn:sequenceFlow id="SqFlow_PaymentCheckGtw" sourceRef="Tsk_CheckStatusOutcome" targetRef="Gtw_PaymentReceived"/>
+    <bpmn:sequenceFlow id="SqFlow_BookEntryStart" name="Ja, Zahlung eingegangen" sourceRef="Gtw_PaymentReceived" targetRef="Tsk_BookPaymentEntry"/>
+    <bpmn:sequenceFlow id="SqFlow_EndClosedPaid" sourceRef="Tsk_BookPaymentEntry" targetRef="End_ClosedPaid"/>
+    <bpmn:sequenceFlow id="SqFlow_ObjectionOrDeadline" name="Nein, Zahlung fehlt oder Widerspruch/Frist" sourceRef="Gtw_PaymentReceived" targetRef="Gtw_ObjectionFiled"/>
+    <bpmn:sequenceFlow id="SqFlow_ReviewObjStart" name="Widerspruch eingegangen" sourceRef="Gtw_ObjectionFiled" targetRef="Tsk_ReviewObjection"/>
+    <bpmn:sequenceFlow id="SqFlow_DeadlineInkasso" name="Frist abgelaufen ohne Widerspruch" sourceRef="Gtw_ObjectionFiled" targetRef="Tsk_SendToInkasso"/>
+    <bpmn:sequenceFlow id="SqFlow_IsJustifiedGtw" sourceRef="Tsk_ReviewObjection" targetRef="Gtw_IsJustified"/>
+    <bpmn:sequenceFlow id="SqFlow_EndClosedObj" name="Ja, gerechtfertigt" sourceRef="Gtw_IsJustified" targetRef="End_ClosedObj"/>
+    <bpmn:sequenceFlow id="SqFlow_SendInkassoStart" name="Nein, nicht gerechtfertigt" sourceRef="Gtw_IsJustified" targetRef="Tsk_SendToInkasso"/>
+    <bpmn:sequenceFlow id="SqFlow_EndInkassoSent" sourceRef="Tsk_SendToInkasso" targetRef="End_InkassoSent"/>
+
+  </bpmn:process>
+</bpmn:definitions>

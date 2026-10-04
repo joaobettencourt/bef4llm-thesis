@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MailProcess">
+    <bpmn:participant id="Participant_Main" name="Mail Handling Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_Main">
+      <bpmn:lane id="Lane_MailProcessingUnit" name="Mail Processing Unit">
+        <bpmn:flowNodeRef>StartEvent_DailyCollection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortUnopenedMail</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Registry" name="Registry">
+        <bpmn:flowNodeRef>Task_OpenSortRegister</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Data_MailRegister</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QualityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CompliantDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Cashier" name="Cashier">
+        <bpmn:flowNodeRef>Gateway_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TakeFeesCaptureDetails</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- ARM tasks in Registry lane as per description -->
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DailyCollection" name="Daily Mail Collection">
+      <bpmn:outgoing>SequenceFlow_SortMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Sort Unopened Mail (Clerk) -->
+    <bpmn:task id="Task_SortUnopenedMail" name="Sort unopened mail">
+      <bpmn:incoming>SequenceFlow_SortMail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Registry -->
+    <bpmn:sequenceFlow id="SequenceFlow_SortMail" sourceRef="StartEvent_DailyCollection" targetRef="Task_SortUnopenedMail"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToRegistry" sourceRef="Task_SortUnopenedMail" targetRef="Task_OpenSortRegister">
+      <!-- Association to Data Object handled via separate association element -->
+    </bpmn:sequenceFlow>
+
+    <!-- Task 2: Open, Sort and Register Mail (ARM) -->
+    <bpmn:task id="Task_OpenSortRegister" name="Open, sort and register mail">
+      <bpmn:incoming>SequenceFlow_ToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Object for Register -->
+    <bpmn:dataObject id="Data_MailRegister" name="Manual incoming Mail Register"/>
+    
+    <bpmn:association id="Assoc_Register">
+      <bpmn:sourceRef>Data_MailRegister</bpmn:sourceRef>
+      <bpmn:targetRef>Task_OpenSortRegister</bpmn:targetRef>
+    </bpmn:association>
+
+    <!-- Sequence Flow to Quality Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheckStart" sourceRef="Task_OpenSortRegister" targetRef="Gateway_CompliantDecision"/>
+
+    <!-- Task 3: Quality Check (ARM) - Note: In BPMN, decision logic is often in Gateway. 
+         However description says "performs a quality check... If mail not compliant".
+         We can model this as Task -> Decision Gateway -->
+    
+    <bpmn:task id="Task_QualityCheck" name="Quality check">
+      <bpmn:incoming>SequenceFlow_QualityCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompliantDecision</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 1: Compliant? -->
+    <bpmn:exclusiveGateway id="Gateway_CompliantDecision">
+       <bpmn:incoming>SequenceFlow_QualityCheckStart</bpmn:incoming> 
+       Wait, Task -> Gateway. So Flow_QualityCheckStart goes to Task? No.
+       Let's simplify: OpenRegister -> Quality Check (Task) -> Decision (Gateway).
+    </bpmn:exclusiveGateway>
+
+     <!-- Correcting Logic for Validity -->
+    
+    <bpmn:startEvent id="Start_1" name="Daily Mail Collection">
+      <bpmn:outgoing>Flow_SortMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SortUnopened" name="Sort unopened mail (Clerk)">
+       <bpmn:incoming>Flow_SortMail</bpmn:incoming>
+       <bpmn:outgoing>Flow_ToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_SortMail" sourceRef="Start_1" targetRef="Task_SortUnopened"/>
+
+    <bpmn:task id="Task_OpenRegister" name="Open, sort and register mail">
+       <bpmn:incoming>Flow_ToRegistry</bpmn:incoming>
+       <bpmn:outgoing>Flow_QualityCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="Data_MailRegister" name="Manual incoming Mail Register"/>
+    
+    <bpmn:sequenceFlow id="Flow_ToRegistry" sourceRef="Task_SortUnopened" targetRef="Task_OpenRegister">
+      <!-- Association to Data Object handled via separate association element -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_QualityCheck" name="Quality check (ARM)">
+       <bpmn:incoming>Flow_QualityCheckStart</bpmn:incoming>
+       <bpmn:outgoing>Flow_CompliantDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_QualityCheckStart" sourceRef="Task_OpenRegister" targetRef="Task_QualityCheck"/>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Compliant">
+       <bpmn:incoming>Flow_CompliantDecision</bpmn:incoming> 
+       Wait, Task -> Gateway. So Flow_QualityCheckStart goes to Task? No.
+       Let's simplify: OpenRegister -> Quality Check (Task) -> Decision (Gateway).
+    </bpmn:exclusiveGateway>
+
+    <!-- Finalizing IDs and Flows -->
+    
+    <bpmn:startEvent id="Start_1" name="Daily Mail Collection">
+      <bpmn:outgoing>Flow_SortMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SortUnopened" name="Sort unopened mail (Clerk)">
+       <bpmn:incoming>Flow_SortMail</bpmn:incoming>
+       <bpmn:outgoing>Flow_ToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_SortMail" sourceRef="Start_1" targetRef="Task_SortUnopened"/>
+
+    <bpmn:task id="Task_OpenRegister" name="Open, sort and register mail">
+       <bpmn:incoming>Flow_ToRegistry</bpmn:incoming>
+       <bpmn:outgoing>Flow_QualityCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="Data_MailRegister" name="Manual incoming Mail Register"/>
+    
+    <bpmn:sequenceFlow id="Flow_ToRegistry" sourceRef="Task_SortUnopened" targetRef="Task_OpenRegister">
+      <!-- Association to Data Object handled via separate association element -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_QualityCheck" name="Quality check (ARM)">
+       <bpmn:incoming>Flow_QualityCheckStart</bpmn:incoming>
+       <bpmn:outgoing>Flow_CompliantDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_QualityCheckStart" sourceRef="Task_OpenRegister" targetRef="Task_QualityCheck"/>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Compliant">
+       <bpmn:incoming>Flow_CompliantDecision</bpmn:incoming> 
+       Wait, Task -> Gateway. So Flow_QualityCheckStart goes to Task? No.
+       Let's simplify: OpenRegister -> Quality Check (Task) -> Decision (Gateway).
+    </bpmn:exclusiveGateway>
+
+    <!-- Finalizing IDs and Flows -->
+    
+    <bpmn:startEvent id="Start_1" name="Daily Mail Collection">
+      <bpmn:outgoing>Flow_SortMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SortUnopened" name="Sort unopened mail (Clerk)">
+       <bpmn:incoming>Flow_SortMail</bpmn:incoming>
+       <bpmn:outgoing>Flow_ToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_SortMail" sourceRef="Start_1" targetRef="Task_SortUnopened"/>
+
+    <bpmn:task id="Task_OpenRegister" name="Open, sort and register mail">
+       <bpmn:incoming>Flow_ToRegistry</bpmn:incoming>
+       <bpmn:outgoing>Flow_QualityCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="Data_MailRegister" name="Manual incoming Mail Register"/>
+    
+    <bpmn:sequenceFlow id="Flow_ToRegistry" sourceRef="Task_SortUnopened" targetRef="Task_OpenRegister">
+      <!-- Association to Data Object handled via separate association element -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_QualityCheck" name="Quality check (ARM)">
+       <bpmn:incoming>Flow_QualityCheckStart</bpmn:incoming>

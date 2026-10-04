@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_SSP_Invoice_Process">
+    <bpmn:participant name="SSP Invoice Processing Process" processRef="Process_InvProc_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvProc_Main" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="_LaneSets_Invoice">
+      <bpmn:lane name="Mail Centre Office" id="_Lane_MailCentre">
+        <bpmn:flowNodeRef>StartEvent_InvReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_CategorizeInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="Administration Department" id="_Lane_Admin">
+        <bpmn:flowNodeRef>_SubProcess_ProcessInvoiceAdmin</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Data Entry Office" id="_Lane_DataEntry">
+        <bpmn:flowNodeRef>_Timer_Daily10am</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_EnterSAPData</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Validation Office" id="_Lane_Validation">
+        <bpmn:flowNodeRef>_SubProcess_ValInvoices</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Payment Office" id="_Lane_Payment">
+        <bpmn:flowNodeRef>_Timer_WeeklyStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_ExecutePayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Registry Office" id="_Lane_Registry">
+        <bpmn:flowNodeRef>_Task_ArchiveInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_InvoiceArchived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Invoice Received from Client" id="StartEvent_InvReceived">
+      <bpmn:outgoing>_Flow_CategorizeTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Categorize -->
+    <bpmn:task name="Categorize Invoice by Staff" id="_Task_CategorizeInvoice">
+      <bpmn:incoming>_Flow_CategorizeTask</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AdminProcessStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Subprocess 1: Admin Process (Complex) -->
+    <bpmn:subProcess name="Admin Invoice Processing &amp; Storage" id="_SubProcess_ProcessInvoiceAdmin">
+      <bpmn:startEvent id="_Start_AdminInternal"/>
+      <bpmn:endEvent id="_End_AdminInternal"/>
+      <bpmn:sequenceFlow sourceRef="_Start_AdminInternal" targetRef="_End_AdminInternal" id="_Flow_AdminInternal"/>
+    </bpmn:subProcess>
+
+    <!-- Timer 1: Daily @ 10am -->
+    <bpmn:intermediateCatchEvent name="Daily Check (10 AM)" id="_Timer_Daily10am">
+      <bpmn:incoming>_Flow_AdminStoreComplete</bpmn:incoming>
+      <bpmn:outgoing>_Flow_DataEntryStart</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 2: Enter SAP Data -->
+    <bpmn:task name="Enter Invoice Data in SAP System" id="_Task_EnterSAPData">
+      <bpmn:incoming>_Flow_DataEntryStart</bpmn:incoming>
+      <bpmn:outgoing>_Flow_HourlyReviewTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer 2: Hourly Review -->
+    <bpmn:intermediateCatchEvent name="Hourly System Check" id="_Timer_HourlyReview">
+      <bpmn:incoming>_Flow_HourlyReviewTrigger</bpmn:incoming>
+      <bpmn:outgoing>_Task_ReviewAndForwardLink</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 3: Review & Forward -->
+    <bpmn:task name="Review System and Forward for Validation" id="_Task_ReviewAndForward">
+      <bpmn:incoming>_Flow_HourlyReviewTrigger</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ValProcessStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Subprocess 2: Validation (Big Process) -->
+    <bpmn:subProcess name="Validate Invoices" id="_SubProcess_ValInvoices">
+      <bpmn:startEvent id="_Start_ValInternal"/>
+      <bpmn:endEvent id="_End_ValInternal"/>
+      <bpmn:sequenceFlow sourceRef="_Start_ValInternal" targetRef="_End_ValInternal" id="_Flow_ValInternal"/>
+    </bpmn:subProcess>
+
+    <!-- Timer 3: Weekly Start of Week -->
+    <bpmn:intermediateCatchEvent name="Weekly Payment Trigger (Mon)" id="_Timer_WeeklyStart">
+      <bpmn:incoming>_Flow_ValComplete</bpmn:incoming>
+      <bpmn:outgoing>_Task_PaymentLink</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4: Execute Payment -->
+    <bpmn:task name="Execute Payment of Validated Invoices" id="_Task_ExecutePayment">
+      <bpmn:incoming>_Flow_PaymentLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ArchiveStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Archive -->
+    <bpmn:task name="Archive Invoices" id="_Task_ArchiveInvoices">
+      <bpmn:incoming>_Flow_ArchiveStart</bpmn:incoming>
+      <bpmn:outgoing>_Flow_EndEventLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Invoices Archived" id="EndEvent_InvoiceArchived">
+      <bpmn:incoming>_Flow_EndEventLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_InvReceived" targetRef="_Task_CategorizeInvoice" id="_Flow_CategorizeTask"/>
+    
+    <bpmn:sequenceFlow sourceRef="_Task_CategorizeInvoice" targetRef="_SubProcess_ProcessInvoiceAdmin" id="_Flow_AdminProcessStart">
+      <bpmn:name>Forward to Admin</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Connection from Subprocess (End) to Timer -->
+    <bpmn:sequenceFlow sourceRef="_SubProcess_ProcessInvoiceAdmin" targetRef="_Timer_Daily10am" id="_Flow_AdminStoreComplete"/>
+
+    <!-- Data Entry Flow -->
+    <bpmn:sequenceFlow sourceRef="_Timer_Daily10am" targetRef="_Task_EnterSAPData" id="_Flow_DataEntryStart">
+      <bpmn:name>Take Invoices</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Hourly Review Flow -->
+    <bpmn:sequenceFlow sourceRef="_Timer_HourlyReview" targetRef="_Task_ReviewAndForward" id="_Flow_HourlyReviewTrigger"/>
+    
+    <!-- Validation Start -->
+    <bpmn:sequenceFlow sourceRef="_Task_ReviewAndForward" targetRef="_SubProcess_ValInvoices" id="_Flow_ValProcessStart">
+      <bpmn:name>Forwards for Validation</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Trigger Flow -->
+    <bpmn:sequenceFlow sourceRef="_Timer_WeeklyStart" targetRef="_Task_ExecutePayment" id="_Flow_PaymentLink">
+      <bpmn:name>Execute Weekly Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Validation to Timer Flow -->
+    <bpmn:sequenceFlow sourceRef="_SubProcess_ValInvoices" targetRef="_Timer_WeeklyStart" id="_Flow_ValComplete"/>
+
+    <!-- Archive Start Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_ExecutePayment" targetRef="_Task_ArchiveInvoices" id="_Flow_ArchiveStart">
+      <bpmn:name>After Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Link -->
+    <bpmn:sequenceFlow sourceRef="_Task_ArchiveInvoices" targetRef="EndEvent_InvoiceArchived" id="_Flow_EndEventLink"/>
+
+  </bpmn:process>
+</bpmn:definitions>

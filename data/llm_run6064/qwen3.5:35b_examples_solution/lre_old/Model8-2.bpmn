@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_vacancyProc_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_vacancyProcess">
+    <bpmn:participant id="Participant_mainVacancyProc" name="Organization" processRef="Process_vacancyManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_vacancyManagement" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_hrClerk" name="HR Clerk">
+        <bpmn:flowNodeRef>StartMessageEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_createJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_confusionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_askDepartmentDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageEventCatching_approvalRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_decisionReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_correctJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageEventCatching_approvalDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_postJob</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndNoneEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartMessageEvent_1" name="Vacancy Reported">
+      <bpmn:outgoing>SequenceFlow_initiateProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Create Job Description -->
+    <bpmn:task id="Task_createJobDescription" name="Create job description from information">
+      <bpmn:incoming>SequenceFlow_initiateProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_checkConfusion</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if there is confusion -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_confusionCheck" name="Is message clear?">
+      <bpmn:incoming>SequenceFlow_checkConfusion</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_askDepartmentDetails</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_submitForApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Ask Department for details (if confused) -->
+    <bpmn:task id="Task_askDepartmentDetails" name="Ask the Department again">
+      <bpmn:incoming>SequenceFlow_askDepartmentDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_createJobDescriptionAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Submit for approval -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessageEventCatching_approvalRequest" name="Submit job description">
+      <bpmn:incoming>SequenceFlow_submitForApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_waitDecision</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_waitDecision" sourceRef="IntermediateMessageEventCatching_approvalRequest" targetRef="ExclusiveGateway_decisionReceived">
+      <bpmn:name>Wait for approval/rejection</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2: Decision received -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_decisionReceived" name="Decision from Department?">
+      <bpmn:incoming>SequenceFlow_waitDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_correctDescription</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_postJobApproved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Correct job description (if rejected) -->
+    <bpmn:task id="Task_correctJobDescription" name="Correct the description">
+      <bpmn:incoming>SequenceFlow_correctDescription</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_resubmitForApproval</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Post job (if approved) -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessageEventCatching_approvalDecision" name="Job Description is approved">
+      <bpmn:incoming>SequenceFlow_postJobApproved</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_proceedToPostJob</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 6: Post the job -->
+    <bpmn:task id="Task_postJob" name="Post the job">
+      <bpmn:incoming>SequenceFlow_proceedToPostJob</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_endProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndNoneEvent_1" name="Vacancy Process Completed">
+      <bpmn:incoming>SequenceFlow_endProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_initiateProcess" sourceRef="StartMessageEvent_1" targetRef="Task_createJobDescription"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_checkConfusion" name="Check if message is clear" sourceRef="Task_createJobDescription" targetRef="ExclusiveGateway_confusionCheck">
+      <bpmn:name>Review information</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_askDepartmentDetails" name="No - Confused" sourceRef="ExclusiveGateway_confusionCheck" targetRef="Task_askDepartmentDetails">
+      <bpmn:name>Message unclear</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_createJobDescriptionAgain" name="After clarification" sourceRef="Task_askDepartmentDetails" targetRef="ExclusiveGateway_confusionCheck">
+      <bpmn:name>Return to create description</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_submitForApproval" name="Yes - Clear message" sourceRef="ExclusiveGateway_confusionCheck" targetRef="IntermediateMessageEventCatching_approvalRequest">
+      <bpmn:name>Submit for approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_correctDescription" name="Rejected - Request correction" sourceRef="ExclusiveGateway_decisionReceived" targetRef="Task_correctJobDescription">
+      <bpmn:name>Description rejected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_resubmitForApproval" name="After correction" sourceRef="Task_correctJobDescription" targetRef="ExclusiveGateway_confusionCheck">
+      <bpmn:name>Resubmit for approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_postJobApproved" name="Approved - Post job" sourceRef="ExclusiveGateway_decisionReceived" targetRef="IntermediateMessageEventCatching_approvalDecision">
+      <bpmn:name>Description approved</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_proceedToPostJob" name="Proceed to post job" sourceRef="IntermediateMessageEventCatching_approvalDecision" targetRef="Task_postJob">
+      <bpmn:name>Ready for posting</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_endProcess" name="Complete process" sourceRef="Task_postJob" targetRef="EndNoneEvent_1"/>
+  </bpmn:process>
+</bpmn:definitions>

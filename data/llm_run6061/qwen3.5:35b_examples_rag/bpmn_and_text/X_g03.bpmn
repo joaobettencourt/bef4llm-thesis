@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ViennaNightRun_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_NightRun">
+    <bpmn:participant id="Participant_Runner" name="Vienna Night Run App Process" processRef="Process_ViennaNightRun"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ViennaNightRun" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_UserApp" name="Runner / App User">
+        <bpmn:flowNodeRef>StartEvent_SelectBlock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Run5km</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_TimeCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_TrainLoop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetStartingNumber</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_TransportDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_DuringRun</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RunDuringEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DrinkDuringRun</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FinalTime</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SelectBlock" name="Select Starting Block">
+      <bpmn:outgoing>SF_StartToRun</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Run 5km with time measurement -->
+    <bpmn:task id="Task_Run5km" name="Run 5km &amp; Measure Time">
+      <bpmn:incoming>SF_StartToRun</bpmn:incoming>
+      <bpmn:outgoing>SF_TimeCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway: Check if time is less than 25 minutes -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_TimeCheck" name="Time &lt; 25 min?">
+      <bpmn:incoming>SF_TimeCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>SF_TrainLoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SF_ProceedToNumber</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for training loop (converging) -->
+    <bpmn:parallelGateway id="ParallelGateway_TrainLoop" name="">
+      <bpmn:incoming>SF_ProceedToNumber</bpmn:incoming>
+      <bpmn:outgoing>SF_GetStartingNum</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Get Starting Number -->
+    <bpmn:task id="Task_GetStartingNumber" name="Get Starting Number">
+      <bpmn:incoming>SF_TrainLoopBack</bpmn:incoming>
+      <bpmn:outgoing>SF_TransportDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway: Transport Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_TransportDecision" name="Work End Time?">
+      <bpmn:incoming>SF_GetStartingNum</bpmn:incoming>
+      <bpmn:outgoing>SF_FromHome</bpmn:outgoing>
+      <bpmn:outgoing>SF_FromWork</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for During Run activities -->
+    <bpmn:parallelGateway id="ParallelGateway_DuringRun" name="">
+      <bpmn:incoming>SF_TransportDecision</bpmn:incoming>
+      <bpmn:outgoing>SF_RunDuringEvent</bpmn:outgoing>
+      <bpmn:outgoing>SF_DrinkDuringRun</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Run During Event -->
+    <bpmn:task id="Task_RunDuringEvent" name="Run at Night Run">
+      <bpmn:incoming>SF_FromHome</bpmn:incoming>
+      <bpmn:outgoing>SF_ConvergeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Drink During Run -->
+    <bpmn:task id="Task_DrinkDuringRun" name="Drink While Running">
+      <bpmn:incoming>SF_FromWork</bpmn:incoming>
+      <bpmn:outgoing>SF_ConvergeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for converging before end -->
+    <bpmn:parallelGateway id="ParallelGateway_EndConvergence" name="">
+      <bpmn:incoming>SF_RunDuringEvent</bpmn:incoming>
+      <bpmn:outgoing>SF_FinalTime</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_FinalTime" name="Receive Final Time">
+      <bpmn:incoming>SF_ConvergeEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToRun" sourceRef="StartEvent_SelectBlock" targetRef="Task_Run5km"/>
+    
+    <bpmn:sequenceFlow id="SF_TimeCheckDecision" name="Measure Time" sourceRef="Task_Run5km" targetRef="ExclusiveGateway_TimeCheck"/>
+    
+    <!-- Training Loop Flow (No, need to train again) -->
+    <bpmn:sequenceFlow id="SF_TrainLoopBack" name="Time &gt;= 25 min - Train Again" sourceRef="ExclusiveGateway_TimeCheck" targetRef="Task_Run5km">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${time >= 1500}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Proceed to get starting number (Yes, time is good) -->
+    <bpmn:sequenceFlow id="SF_ProceedToNumber" name="Time &lt; 25 min - Good!" sourceRef="ExclusiveGateway_TimeCheck" targetRef="ParallelGateway_TrainLoop"/>
+
+    <!-- Get Starting Number flow -->
+    <bpmn:sequenceFlow id="SF_GetStartingNum" sourceRef="ParallelGateway_TrainLoop" targetRef="Task_GetStartingNumber"/>
+
+    <!-- Transport Decision flows -->
+    <bpmn:sequenceFlow id="SF_TransportDecision" name="Check Work End Time" sourceRef="Task_GetStartingNumber" targetRef="ExclusiveGateway_TransportDecision"/>
+    
+    <bpmn:sequenceFlow id="SF_FromHome" name="&gt; 1 hour left - Go from Home" sourceRef="ExclusiveGateway_TransportDecision" targetRef="ParallelGateway_DuringRun">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${workEndToStart &amp;gt; 3600}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_FromWork" name="&lt;= 1 hour - Leave from Work" sourceRef="ExclusiveGateway_TransportDecision" targetRef="ParallelGateway_DuringRun">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${workEndToStart &amp;le; 3600}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- During Run parallel flows -->
+    <bpmn:sequenceFlow id="SF_RunDuringEvent" sourceRef="ParallelGateway_DuringRun" targetRef="Task_RunDuringEvent"/>
+    
+    <bpmn:sequenceFlow id="SF_DrinkDuringRun" sourceRef="ParallelGateway_DuringRun" targetRef="Task_DrinkDuringRun"/>
+
+    <!-- Convergence to End -->
+    <bpmn:sequenceFlow id="SF_ConvergeEnd" name="" sourceRef="ParallelGateway_EndConvergence" targetRef="EndEvent_FinalTime"/>
+
+  </bpmn:process>
+</bpmn:definitions>

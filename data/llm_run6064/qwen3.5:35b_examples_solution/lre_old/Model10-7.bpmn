@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_abc123xyz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MSPN_GO">
+    <bpmn:participant id="Pool_MSPN" name="MSPN" processRef="Proc_MSPN"/>
+    <bpmn:participant id="Pool_GO" name="GO" processRef="Proc_GO"/>
+    
+    <!-- Message Flow connecting MSPN to GO -->
+    <bpmn:messageFlow id="Msg_Registration">
+      <bpmn:name>Register Measurement</bpmn:name>
+      <bpmn:sourceRef>ThrowEvent_RegisterMeasurement</bpmn:sourceRef>
+      <bpmn:targetRef>StartMessage_MeasurementReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- MSPN Process -->
+  <bpmn:process id="Proc_MSPN" isExecutable="false">
+    <bpmn:startEvent id="Start_None_Reg">
+      <bpmn:name>MSPN Registration</bpmn:name>
+      <bpmn:outgoing>SeqFlow_RegisterTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_1" name="Register Measurement">
+      <bpmn:incoming>SeqFlow_RegisterTask</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToThrowEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for Message -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_RegisterMeasurement">
+      <bpmn:name>Send Registration</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToThrowEvent</bpmn:incoming>
+      <bpmn:messageRef>Message_RegMsg</bpmn:messageRef>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event for MSPN -->
+    <bpmn:endEvent id="End_None_MSPN">
+      <bpmn:name>MSPN Registration Complete</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToThrowEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_RegisterTask" sourceRef="Start_None_Reg" targetRef="Task_1"/>
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Proc_GO" isExecutable="false">
+    
+    <!-- Start Message Event -->
+    <bpmn:startEvent id="StartMessage_MeasurementReceived" name="Measurement Received from MSPN">
+      <bpmn:messageRef>Message_RegMsg</bpmn:messageRef>
+      <bpmn:outgoing>SeqFlow_ExamineTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to examine application -->
+    <bpmn:task id="Task_2" name="Examine Application of MSPN">
+      <bpmn:incoming>SeqFlow_ExamineTask</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_DecideOutcome</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Outcome" name="Decision on Application">
+      <bpmn:incoming>SeqFlow_DecideOutcome</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reject Path -->
+    <bpmn:endEvent id="End_None_Rejected">
+      <bpmn:name>Application Rejected</bpmn:name>
+      <bpmn:incoming>SeqFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirm Path -->
+    <bpmn:task id="Task_3" name="Assign MSPN">
+      <bpmn:incoming>SeqFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InformMSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Notification Tasks -->
+    <bpmn:task id="Task_4" name="Inform MSPO about Assignment">
+      <bpmn:incoming>SeqFlow_InformMSPO</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InformMPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_5" name="Inform MPO about Assignment">
+      <bpmn:incoming>SeqFlow_InformMPO</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InformSP</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_6" name="Inform SP about Assignment">
+      <bpmn:incoming>SeqFlow_InformSP</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CompleteProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Confirmed Process -->
+    <bpmn:endEvent id="End_None_Confirmed">
+      <bpmn:name>MSPN Assignment Complete</bpmn:name>
+      <bpmn:incoming>SeqFlow_CompleteProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_ExamineTask" sourceRef="StartMessage_MeasurementReceived" targetRef="Task_2"/>
+    
+    <bpmn:sequenceFlow id="SeqFlow_DecideOutcome" name="Examination Complete">
+      <bpmn:name>Decision Point</bpmn:name>
+      <bpmn:sourceRef>Task_2</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_Outcome</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Reject Path -->
+    <bpmn:sequenceFlow id="SeqFlow_RejectPath" name="Reject">
+      <bpmn:name>Decision: Reject Application</bpmn:name>
+      <bpmn:sourceRef>Gateway_Outcome</bpmn:sourceRef>
+      <bpmn:targetRef>End_None_Rejected</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Confirm Path -->
+    <bpmn:sequenceFlow id="SeqFlow_ConfirmPath" name="Confirm">
+      <bpmn:name>Decision: Confirm Application</bpmn:name>
+      <bpmn:sourceRef>Gateway_Outcome</bpmn:sourceRef>
+      <bpmn:targetRef>Task_3</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Notification Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_InformMSPO" sourceRef="Task_3" targetRef="Task_4">
+      <bpmn:name>Assign MSPN</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_InformMPO" sourceRef="Task_4" targetRef="Task_5"/>
+    
+    <bpmn:sequenceFlow id="SeqFlow_InformSP" sourceRef="Task_5" targetRef="Task_6"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_CompleteProcess" sourceRef="Task_6" targetRef="End_None_Confirmed">
+      <bpmn:name>Inform SP</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_RegMsg"/>
+</bpmn:definitions>

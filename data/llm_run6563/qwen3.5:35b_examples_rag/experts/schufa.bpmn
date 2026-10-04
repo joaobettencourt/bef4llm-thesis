@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_SchufaRequest" name="Scoringanfrage an Schufa"/>
+  <bpmn:message id="Message_ResultImmediate" name="Schufascoring Ergebnis (Sofort)"/>
+  <bpmn:message id="Message_DelayNotice" name="Verzögerungsmeldung"/>
+  <bpmn:message id="Message_FinalResult" name="Finale Scoringergebnis"/>
+
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Bank" name="Bank (Kreditvergabe)" processRef="Process_SchufaScoring_Bank"/>
+    <bpmn:participant id="Participant_Schufa" name="Schufasystem" processRef="Process_SchufaSystem"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_Request">
+      <bpmn:sourceRef>Task_Bank_SendRequest</bpmn:sourceRef>
+      <bpmn:targetRef>Event_Schufa_ReceiveRequest</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Bank receives Immediate Result or Delay Notice -->
+    <bpmn:messageFlow id="MessageFlow_Response">
+      <bpmn:sourceRef>Task_Schufa_SendImmediateResult</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_Bank_ResultOrDelay</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Bank receives Final Result -->
+    <bpmn:messageFlow id="MessageFlow_Final">
+      <bpmn:sourceRef>Task_Schufa_SendFinalResult</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_Bank_FinalResult</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_SchufaScoring_Bank" isExecutable="true">
+    
+    <!-- Lane for Frontend/User Interaction -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Frontend" name="Vertriebsmitarbeiter / Frontend">
+        <bpmn:flowNodeRef>StartEvent_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_DisplayResultImmediate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifyDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_DisplayFinalResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- Lane for System Logic -->
+      <bpmn:lane id="Lane_System" name="Bank IT System">
+        <bpmn:flowNodeRef>ServiceTask_SendRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_Bank_ResultOrDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_FeedbackType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_Bank_FinalResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Scoringanfrage starten">
+      <bpmn:outgoing>SequenceFlow_StartToRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send Request Task (System) -->
+    <bpmn:serviceTask id="ServiceTask_SendRequest" name="Scoringanfrage an Schufa senden">
+      <bpmn:incoming>SequenceFlow_StartToRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestSent</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Response (System) -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_Bank_ResultOrDelay" name="Warte auf Antwort">
+      <bpmn:messageEventDefinition messageRef="Message_ResultImmediate"/> 
+       <bpmn:incoming>SequenceFlow_RequestSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveResultOrDelay</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Wait for Final Score in Exception Path -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_Bank_FinalResult" name="Warte auf finales Ergebnis">
+      <bpmn:messageEventDefinition messageRef="Message_FinalResult"/> 
+       <bpmn:incoming>SequenceFlow_WaitFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalReceived</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to decide path based on received message type -->
+    <bpmn:exclusiveGateway id="Gateway_FeedbackType" name="Ergebnis oder Verzögerung?">
+      <bpmn:incoming>SequenceFlow_ReceiveResultOrDelay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PathImmediate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToRequest" sourceRef="StartEvent_Request" targetRef="ServiceTask_SendRequest"/>
+    
+    <!-- Logic to split wait for immediate vs delay. 
+         To model "Wait for result OR Delay Notice", we use a single catch event and gateway logic in this simplified valid XML representation -->
+
+     <bpmn:sequenceFlow id="SequenceFlow_RequestSent" sourceRef="ServiceTask_SendRequest" targetRef="CatchEvent_Bank_ResultOrDelay"/>
+     
+    <!-- Path Immediate (Level 1 OK) -->
+    <bpmn:userTask id="UserTask_DisplayResultImmediate" name="Ergebnis im Frontend anzeigen">
+       <bpmn:incoming>SequenceFlow_PathImmediate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Path Delay (Exception) -->
+    <bpmn:userTask id="UserTask_NotifyDelay" name="Mitarbeiter über Verzögerung informieren">
+       <bpmn:incoming>SequenceFlow_PathImmediate</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_WaitFinalScore</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Wait for Final Score -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitFinal" sourceRef="UserTask_NotifyDelay" targetRef="CatchEvent_Bank_FinalResult"/>
+
+     <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Immediate" name="Scoring abgeschlossen (Sofort)">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UserTask_DisplayFinalResult" name="Finales Ergebnis im Frontend anzeigen">
+       <bpmn:incoming>SequenceFlow_FinalReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess2</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <bpmn:endEvent id="EndEvent_Final" name="Scoring abgeschlossen (Final)">
+       <bpmn:incoming>SequenceFlow_EndProcess2</bpmn:incoming>
+    </bpmn:endEvent>
+
+  <!-- Correcting Sequence Flows for the Bank Process -->
+     <bpmn:sequenceFlow id="SequenceFlow_StartToRequest" sourceRef="StartEvent_Request" targetRef="ServiceTask_SendRequest"/>
+     
+     <!-- Wait Logic Correction: 
+          Since we need to distinguish Immediate Result vs Delay Notice, and both are "Immediate Feedback", but one leads to End and other continues.
+          Let's use a Gateway after the Send Request that splits into two parallel waits? No, standard flow: Send -> Wait (Message).
+          To keep XML valid and simple without listeners in XML only: We assume logic handles either message type at one catch event or separate catches. 
+         Given "Verzögerung

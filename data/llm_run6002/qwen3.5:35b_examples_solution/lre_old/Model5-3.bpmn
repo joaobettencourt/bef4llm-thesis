@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OfficeSupplyRequest_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OfficeSupply">
+    <bpmn:participant id="Participant_Organization" name="Organization Office Supply Process" processRef="Process_OfficeSupply_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OfficeSupply_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee (Petitioner)">
+        <bpmn:flowNodeRef>StartEvent_SubmitRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>Task_ReviewRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_DecisionPoint</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_PurchaseDept" name="Purchase Department">
+        <bpmn:flowNodeRef>Subprocess_MakeQuotations</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_VendorValid</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubmitRequest" name="Submit Office Supply Request">
+      <bpmn:outgoing>SequenceFlow_StartToRegister</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Register request -->
+    <bpmn:task id="Task_RegisterRequest" name="Register Office Supply Requirement">
+      <bpmn:incoming>SequenceFlow_ReturnFromReviewComments</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Supervisor review -->
+    <bpmn:task id="Task_ReviewRequest" name="Supervisor Review Request">
+      <bpmn:incoming>SequenceFlow_ReviewRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision point -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DecisionPoint" name="Request Approved?">
+      <bpmn:name>Decision Point</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangeRequiredPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Subprocess for quotations -->
+    <bpmn:subProcess id="Subprocess_MakeQuotations" name="Make Quotations">
+      <bpmn:name>Making Quotations</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QuoteComplete</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Task 3: Select vendor -->
+    <bpmn:task id="Task_SelectVendor" name="Select Vendor">
+      <bpmn:name>Selecting Vendor</bpmn:name>
+      <bpmn:incoming>SequenceFlow_QuoteComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorValidation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Vendor validation -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_VendorValid" name="Vendor Valid?">
+      <bpmn:name>Vendor Validation</bpmn:name>
+      <bpmn:incoming>SequenceFlow_VendorValidation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InvalidPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Generate purchase order -->
+    <bpmn:task id="Task_GeneratePurchaseOrder" name="Generate Purchase Order">
+      <bpmn:name>Purchase Order Generation</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event for waiting -->
+    <bpmn:intermediateCatchEvent id="IntermediateWait_Delivery" name="Waiting for Delivery">
+      <bpmn:name>Delivery Waiting</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProductReceived</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 5: Process invoice -->
+    <bpmn:task id="Task_ProcessInvoice" name="Process Invoice">
+      <bpmn:name>Processing Invoice</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProductReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalNotification</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete">
+      <bpmn:name>Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FinalNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Notification Tasks -->
+    <bpmn:task id="Task_NotifyApproval" name="Notify Approval">
+      <bpmn:name>Send Approval Notification</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToQuotations</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_NotifyChange" name="Notify Change Required">
+      <bpmn:name>Send Change Notification</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ChangeRequiredPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnToEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for reviewing comments -->
+    <bpmn:task id="Task_ReviewComments" name="Review Comments">
+      <bpmn:name>Review Change Request</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReturnToEmployee</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnFromReviewComments</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_NotifyRejection" name="Notify Rejected">
+      <bpmn:name>Send Rejection Notification</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RejectedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToRegister" sourceRef="StartEvent_SubmitRequest" targetRef="Task_RegisterRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewRequest" name="" sourceRef="Task_RegisterRequest" targetRef="Task_ReviewRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionPoint" name="" sourceRef="Task_ReviewRequest" targetRef="ExclusiveGateway_DecisionPoint"/>
+    
+    <!-- Approved path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedPath" name="Approved" sourceRef="ExclusiveGateway_DecisionPoint" targetRef="Task_NotifyApproval"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToQuotations" name="" sourceRef="Task_NotifyApproval" targetRef="Subprocess_MakeQuotations"/>
+    
+    <!-- Change required path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ChangeRequiredPath" name="Change Required" sourceRef="ExclusiveGateway_DecisionPoint" targetRef="Task_NotifyChange"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnToEmployee" name="" sourceRef="Task_NotifyChange" targetRef="Task_ReviewComments"/>
+
+    <!-- Loop back to register -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnFromReviewComments" name="" sourceRef="Task_ReviewComments" targetRef="Task_RegisterRequest"/>
+
+    <!-- Rejected path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedPath" name="Rejected" sourceRef="ExclusiveGateway_DecisionPoint" targetRef="Task_NotifyRejection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" name="" sourceRef="Task_NotifyRejection" targetRef="EndEvent_ProcessComplete"/>
+
+    <!-- Vendor validation -->
+    <bpmn:sequenceFlow id="SequenceFlow_QuoteComplete" name="" sourceRef="Subprocess_MakeQuotations" targetRef="Task_SelectVendor"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_VendorValidation" name="" sourceRef="Task_SelectVendor" targetRef="ExclusiveGateway_VendorValid"/>
+    
+    <!-- Valid vendor path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidPath" name="Yes - Vendor Valid" sourceRef="ExclusiveGateway_VendorValid" targetRef="Task_GeneratePurchaseOrder"/>
+    
+    <!-- Invalid vendor loop back to select different vendor -->
+    <bpmn:sequenceFlow id="SequenceFlow_InvalidPath" name="No - Choose Different" sourceRef="ExclusiveGateway_VendorValid" targetRef="Task_SelectVendor"/>
+
+    <!-- Purchase order and delivery flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendPO" name="" sourceRef="Task_GeneratePurchaseOrder" targetRef="IntermediateWait_Delivery"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProductReceived" name="" sourceRef="IntermediateWait_Delivery" targetRef="Task_ProcessInvoice"/>
+
+  </bpmn:process>
+</bpmn:definitions>

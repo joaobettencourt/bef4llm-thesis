@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LoanApproval" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_LoanApproval">
+    <bpmn:participant id="Participant_LoanSystem" name="Loan Approval System" processRef="Process_LoanApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LoanApproval" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Operations" name="Operations">
+        <bpmn:flowNodeRef>StartEvent_CustomerRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RiskAssessment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LoanDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApproverService</bpmn:flowNodeRef>
+      </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerRequest" name="Customer Loan Request">
+      <bpmn:outgoing>SeqFlow_StartToRiskAssessment</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Risk Assessment Task -->
+    <bpmn:task id="Task_RiskAssessment" name="Invoke Risk Assessment Web Service">
+      <bpmn:incoming>SeqFlow_StartToRiskAssessment</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToDecisionGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_LoanDecision" name="Loan Approval Decision">
+      <bpmn:incoming>SeqFlow_ToDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_DenyPath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ReviewPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Approve End Event -->
+    <bpmn:endEvent id="EndEvent_Approved" name="Loan Approved">
+      <bpmn:name>Customer Receives Approval Feedback</bpmn:name>
+      <bpmn:incoming>SeqFlow_ApprovePath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Deny End Event -->
+    <bpmn:endEvent id="EndEvent_Denied" name="Loan Denied">
+      <bpmn:name>Customer Receives Denial Feedback</bpmn:name>
+      <bpmn:incoming>SeqFlow_DenyPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Approver Service Task -->
+    <bpmn:task id="Task_ApproverService" name="Invoke Loan Approver Web Service">
+      <bpmn:name>Request Further Review or Large Amount Approval</bpmn:name>
+      <bpmn:incoming>SeqFlow_ReviewPath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToApproveFeedback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Approver Feedback End Event -->
+    <bpmn:endEvent id="EndEvent_ApprovedAfterReview" name="Approved After Review">
+      <bpmn:name>Customer Receives Approval Decision from Approver</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToApproveFeedback</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToRiskAssessment" name="To Risk Assessment" sourceRef="StartEvent_CustomerRequest" targetRef="Task_RiskAssessment"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_ToDecisionGateway" sourceRef="Task_RiskAssessment" targetRef="Gateway_LoanDecision"/>
+
+    <!-- Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_ApprovePath" name="Approve (Small Loan AND Low Risk)" sourceRef="Gateway_LoanDecision" targetRef="EndEvent_Approved"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_DenyPath" name="Deny (High Risk)" sourceRef="Gateway_LoanDecision" targetRef="EndEvent_Denied"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_ReviewPath" name="To Approver Service (Needs Review OR Amount ≥ $10,000)" sourceRef="Gateway_LoanDecision" targetRef="Task_ApproverService"/>
+
+    <!-- Flow from approver to feedback -->
+    <bpmn:sequenceFlow id="SeqFlow_ToApproveFeedback" name="To Customer Feedback" sourceRef="Task_ApproverService" targetRef="EndEvent_ApprovedAfterReview"/>
+
+  </bpmn:process>
+</bpmn:definitions>

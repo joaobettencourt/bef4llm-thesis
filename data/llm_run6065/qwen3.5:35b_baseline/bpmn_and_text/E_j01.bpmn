@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_FindAJob">
+  <bpmn:collaboration id="Collab_JobSeekerProcess">
+    <bpmn:participant name="Find a Job Process" processRef="Proc_FindAJob"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_FindAJob" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_JobSeeker">
+      <bpmn:lane id="Lane_Applicant" name="Applicant (You)">
+        <bpmn:flowNodeRef>StartEvent_ReportCycle</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReportApplications</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_InterviewNegotiation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ScheduleInterview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RateCompany</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_CompanySystem" name="Company/System">
+        <bpmn:flowNodeRef>Task_SystemSendOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmAndRateApp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ProbationRatingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompanyRatesYou</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterProbationPhase</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- System/Review Visibility Constraint -->
+       <bpmn:lane id="Lane_Reviews" name="System Reviews">
+         <bpmn:flowNodeRef>Gw_JobPermanentCheck</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+       </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportCycle" name="Report Job Applications">
+      <bpmn:outgoing>SequenceFlow_Start_ToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Report Apps (Applicant) -->
+    <bpmn:task id="Task_ReportApplications" name="Submit Application Reports">
+       <bpmn:incoming>SequenceFlow_Start_ToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToOffers</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Receive Offers (System) -->
+    <bpmn:task id="Task_SystemSendOffers" name="Receive New Job Offers">
+      <bpmn:incoming>SequenceFlow_TaskToOffers</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_Offers_ToConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Confirm & Rate App (Company) -->
+      <bpmn:task id="Task_ConfirmAndRateApp" name="Confirm Receipt &amp; Rate Application">
+        <bpmn:incoming>SequenceFlow_Offers_ToConfirm</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Confirm_GwInterview</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway: Interview Negotiation -->
+     <bpmn:exclusiveGateway id="Gw_InterviewNegotiation" name="Negotiate Interview?">
+       <bpmn:incoming>SequenceFlow_Confirm_GwInterview</bpmn:incoming> 
+        <bpmn:outgoing>SequenceFlow_Yes_ScheduleInt</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_No_ProbationOffer</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- Task: Schedule Interview (Applicant) -->
+      <bpmn:task id="Task_ScheduleInterview" name="Schedule Job Interview">
+        <bpmn:incoming>SequenceFlow_Yes_ScheduleInt</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Int_ProbationOffer</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway Merge for Interview Path -->
+     <bpmn:exclusiveGateway id="Gw_MergeInterview" name="">
+       <bpmn:incoming>SequenceFlow_No_ProbationOffer</bpmn:incoming> 
+        <bpmn:incoming>SequenceFlow_Int_ProbationOffer</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Merge_ToProbation</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- Task: Enter Probation (Company/System) -->
+      <bpmn:task id="Task_EnterProbationPhase" name="Enter Probation Phase">
+        <bpmn:incoming>SequenceFlow_Merge_ToProbation</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Probation_SplitRating</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway Split for Mutual Rating -->
+     <bpmn:parallelGateway id="Gw_ProbationRatingSplit" name="">
+       <bpmn:incoming>SequenceFlow_Probation_SplitRating</bpmn:incoming> 
+        <bpmn:outgoing>SequenceFlow_RateCompany_Task</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_CompanyRatesYou_Task</bpmn:outgoing>
+     </bpmn:parallelGateway>
+
+    <!-- Task: Rate Company (Applicant) -->
+      <bpmn:task id="Task_RateCompany" name="Rate the Company">
+        <bpmn:incoming>SequenceFlow_RateCompany_Task</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Rating_MergeEnd</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Task: Wait for Company Rating You (System) -->
+     <bpmn:task id="Task_CompanyRatesYou" name="Company Rates Applicant">
+       <bpmn:incoming>SequenceFlow_CompanyRatesYou_Task</bpmn:incoming> 
+        <bpmn:outgoing>SequenceFlow_Rating_MergeEnd2</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway Merge for Ratings -->
+     <bpmn:parallelGateway id="Gw_MergeRatings" name="">
+       <bpmn:incoming>SequenceFlow_Rating_MergeEnd</bpmn:incoming> 
+        <bpmn:incoming>SequenceFlow_Rating_MergeEnd2</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_GwPermanentCheck</bpmn:outgoing>
+     </bpmn:parallelGateway>
+
+    <!-- Gateway: Job Permanent Check -->
+     <bpmn:exclusiveGateway id="Gw_JobPermanentCheck" name="Job Permanent?">
+       <bpmn:incoming>SequenceFlow_GwPermanentCheck</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_Permanent_EndProcess</bpmn:outgoing>
+          <bpmn:outgoing>SequenceFlow_NotPerm_LoopOffers</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- End Event: Success -->
+      <bpmn:endEvent id="End_Success" name="Process Ended (Permanent Job)">
+        <bpmn:incoming>SequenceFlow_Permanent_EndProcess</bpmn:incoming> 
+      </bpmn:endEvent>
+
+     <!-- End Event: Continue Offers Loop -->
+       <bpmn:endEvent id="End_Continue" name="Looping (No Report Required)">
+         <bpmn:incoming>SequenceFlow_NotPerm_LoopOffers</bpmn:incoming> 
+      </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+     <bpmn:sequenceFlow id="SequenceFlow_Start_ToTask" name="" sourceRef="StartEvent_ReportCycle" targetRef="Task_ReportApplications"/>
+     
+     <bpmn:sequenceFlow id="SequenceFlow_TaskToOffers" name="" sourceRef="Task_ReportApplications" targetRef="Task_SystemSendOffers"/> 
+     
+     <bpmn:sequenceFlow id="SequenceFlow_Offers_ToConfirm" name="" sourceRef="Task_SystemSendOffers" targetRef="Task_ConfirmAndRateApp"/>
+      
+    <bpmn:sequenceFlow id="SequenceFlow_Confirm_GwInterview" name="" sourceRef="Task_ConfirmAndRateApp" targetRef="Gw_InterviewNegotiation"/>
+    
+     <bpmn:sequenceFlow id="SequenceFlow_Yes_ScheduleInt" name="Yes - Negotiate Interview" sourceRef="Gw_InterviewNegotiation" targetRef="Task_ScheduleInterview"/> 
+     
+      <bpmn:sequenceFlow id="SequenceFlow_No_ProbationOffer" name="No / Skip Interview" sourceRef="Gw_InterviewNegotiation" targetRef="Gw_MergeInterview"/>
+      
+       <bpmn:sequenceFlow id="SequenceFlow_Int_ProbationOffer" name="" sourceRef="Task_ScheduleInterview" targetRef="Gw_MergeInterview"/> 
+       
+        <bpmn:sequenceFlow id="SequenceFlow_Merge_ToProbation" name="" sourceRef="Gw_MergeInterview" targetRef="Task_EnterProbationPhase"/>
+        
+         <bpmn:sequenceFlow id="SequenceFlow_Probation_SplitRating" name="" sourceRef="Task_EnterProbationPhase" targetRef="Gw_ProbationRatingSplit"/> 
+         
+          <bpmn:sequenceFlow id="SequenceFlow_RateCompany_Task" name="" sourceRef="Gw_ProbationRatingSplit" targetRef="Task_RateCompany"/>
+          
+           <bpmn:sequenceFlow id="SequenceFlow_CompanyRatesYou_Task" name="" sourceRef="Gw_ProbationRatingSplit" targetRef="Task_CompanyRatesYou"/> 
+           
+            <bpmn:sequenceFlow id="SequenceFlow_Rating_MergeEnd" name="" sourceRef="Task_RateCompany" targetRef="Gw_MergeRatings"/>
+            
+             <bpmn:sequenceFlow id="SequenceFlow_Rating_MergeEnd2" name="" sourceRef="Task_CompanyRatesYou" targetRef="Gw_MergeRatings"/> 
+             
+              <!-- Fixing Permanent Check Input from Ratings -->
+               < bpm n : seq uenceF low i d ="S equenc eFl ow_G wPerman entC heck " sourc e Ref = " Gw_Mer geRa ting s" targetRef="Gw_JobPermanentCheck"/> 
+               
+                <!-- Loop Back Logic (Implicitly handled by flow to offers, but for valid XML we need a path) -->
+                 < bpm n : seq uenceF low i d ="S equenc eFl ow_L oop _T oO ffers" name="" sourc e Ref = " End_C ontinue" targetRef=" Task_SystemSendOffers "/> 
+                 
+                  <!-- Permanent Decision Flows -->
+                   <bpmn:sequenceFlow id="SequenceFlow_Permanent_EndProcess" name="Yes &amp; Rating > C" sourceRef="Gw_JobPermanentCheck" targetRef="End_Success"/> 
+                   
+                    < bpm n : seq uenceF low i d ="S equenc eFl ow_N otPerm_L oopOf fers " sourc e Ref = " Gw_J obPerman entC heck" targetRef=" End_C ontinue "/> 
+
+  </bpmn:process>
+</bpmn:definitions>

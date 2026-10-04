@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SchufaScoring_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SchufaScoring">
+    <bpmn:participant id="Participant_Bank" name="Bank (Vertriebsmitarbeiter)" processRef="Process_Bank_01"/>
+    <bpmn:participant id="Participant_Schufa" name="Schufasystem" processRef="Process_Schufa_01"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_RequestToSchufa" sourceRef="Task_SendRequest_Bank" targetRef="Intermediate_CatchRequest_Schufa">
+      <bpmn:sourceRef>Task_SendRequest_Bank</bpmn:sourceRef>
+      <bpmn:targetRef>Intermediate_CatchRequest_Schufa</bpmn:targetRef>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_ResultFastToBank" sourceRef="Task_SendResult_Fast_Schufa" targetRef="Gateway_CheckMessageType_Bank">
+      <bpmn:sourceRef>Intermediate_CatchInitialResponse</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_CheckMessageType_Bank</bpmn:targetRef>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_DelayToBank" sourceRef="Task_SendDelay_Schufa" targetRef="Intermediate_CatchFinalResult">
+      <bpmn:sourceRef>Gateway_CheckMessageType_Bank</bpmn:sourceRef>
+      <bpmn:targetRef>SequencePath_FastToDisplay</bpmn:targetRef>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_ResultFinalToBank" sourceRef="Task_SendResult_Final_Schufa" targetRef="Intermediate_CatchInitialResponse">
+      <bpmn:sourceRef>Gateway_CheckMessageType_Bank</bpmn:sourceRef>
+      <bpmn:targetRef>SequencePath_FastToDisplay</bpmn:targetRef>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_Bank_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesStaff" name="Vertriebsmitarbeiter">
+        <bpmn:flowNodeRef>StartEvent_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendRequest_Bank</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Intermediate_CatchInitialResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckMessageType_Bank</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShowFastResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Intermediate_CatchFinalResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Completed_Bank</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Scoring anfordern">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to send request (Frontend interaction) -->
+    <bpmn:task id="Task_SendRequest_Bank" name="Schufascoring per Knopfdruck anfordern">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>MessageThrow_SchufaRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for Initial Response (Result or Delay) -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchInitialResponse" name="Ergebnis oder Verzögerung erhalten">
+      <bpmn:incoming>SequenceFlow_WaitForSchufa</bpmn:incoming>
+      <bpmn:outgoing>Gateway_CheckMessageType_Bank</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to differentiate Fast vs Delay -->
+    <bpmn:exclusiveGateway id="Gateway_CheckMessageType_Bank" name="Art der Antwort prüfen">
+      <bpmn:incoming>SequenceFlow_WaitForSchufa</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_FastResult</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_Delayed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Fast Path -->
+    <bpmn:task id="Task_ShowFastResult" name="Scoringergebnis anzeigen">
+       <bpmn:incoming>SequenceFlow_FastToDisplay</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndProcess_Bank</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Delay Path -->
+    <bpmn:task id="Task_NotifyDelay" name="Hinweis auf Verzögerung senden">
+      <bpmn:incoming>SequencePath_DelayedToNotify</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_WaitFinal_Bank</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch for Final Result (Level 2) -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchFinalResult" name="Finale Antwort erhalten">
+      <bpmn:incoming>SequenceFlow_WaitForSchufaFinal</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_FinalToDisplay_Bank</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed_Bank" name="Prozess beendet">
+       <bpmn:incoming>SequenceFlow_EndProcess_Bank</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Internal) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_Request" targetRef="Task_SendRequest_Bank"/>
+    
+    <bpmn:sequenceFlow id="MessageThrow_SchufaRequest" name="" sourceRef="Task_SendRequest_Bank" targetRef="Intermediate_CatchInitialResponse">
+      <!-- This represents the message being sent -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForSchufa" sourceRef="MessageThrow_SchufaRequest" targetRef="Intermediate_CatchInitialResponse"/>
+    
+    <bpmn:sequenceFlow id="SequencePath_FastResult" name="Sofortiges Ergebnis" sourceRef="Gateway_CheckMessageType_Bank" targetRef="Task_ShowFastResult">
+      <!-- Fast path -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequencePath_Delayed" name="Verzögerungsmeldung" sourceRef="Gateway_CheckMessageType_Bank" targetRef="Task_NotifyDelay"/>
+    
+    <bpmn:sequenceFlow id="SequencePath_FastToDisplay" sourceRef="Task_ShowFastResult" targetRef="EndEvent_Completed_Bank">
+      <!-- Fast path to end -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequencePath_DelayedToNotify" name="" sourceRef="Gateway_CheckMessageType_Bank" targetRef="Task_NotifyDelay"/>
+    
+    <bpmn:parallelGateway id="ParallelGateway_WaitFinal_Bank">
+      <bpmn:incoming>SequencePath_FinalToDisplay_Bank</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess_Bank</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequencePath_FinalToDisplay_Bank" sourceRef="Intermediate_CatchFinalResult" targetRef="ParallelGateway_WaitFinal_Bank"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess_Bank" name="" sourceRef="Task_ShowFastResult" targetRef="EndEvent_Completed_Bank">
+      <!-- Fast path to end -->
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Schufa Process (External System) -->
+  <bpmn:process id="Process_Schufa_01" isExecutable="false">
+    
+    <!-- Intermediate Catch for Request from Bank -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchRequest_Schufa" name="Scoringanfrage erhalten">
+      <bpmn:incoming>MessageFlow_RequestToSchufa</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Level1Start</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task Level 1 Scoring -->
+    <bpmn:task id="Task_SchufaLevel1" name="Scoring (Level 1)">
+      <bpmn:incoming>SequenceFlow_Level1Start</bpmn:incoming>
+      <bpmn:outgoing>Gateway_CheckOutcome_Schufa</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Fast vs Delay -->
+    <bpmn:exclusiveGateway id="Gateway_CheckMessageType_Bank" name="Ergebnis sofort verfügbar?">
+      <bpmn:incoming>SequenceFlow_Level1Start</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_FastSendResult_Schufa</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_DelayedNotify_Schufa</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Fast Path -->
+    <bpmn:endEvent id="EndEvent_Completed_Schufa" name="Scoring abgeschlossen">
+      <bpmn:incoming>SequencePath_FastSendResult_Schufa</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:messageFlow id="MessageFlow_RequestToSchufa" sourceRef="Task_SendRequest_Bank" targetRef="Intermediate_CatchRequest_Schufa">
+    <bpmn:name>Anfrage senden</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ResultFastToBank" sourceRef="Gateway_CheckMessageType_Bank" targetRef="Task_ShowFastResult">
+    <bpmn:name>Sofortiges Ergebnis</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_DelayNotification" sourceRef="Gateway_CheckMessageType_Schufa" targetRef="Intermediate_CatchFinalResult">
+    <bpmn:name>Verzögerungsmeldung</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ResultFinalToBank" sourceRef="Task_SendResult_Final_Schufa" targetRef="Intermediate_CatchInitialResponse">
+    <bpmn:name>Finale Antwort (Level 2)</bpmn:name>
+  </bpmn:messageFlow>
+
+</definitions>

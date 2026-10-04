@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_EquipmentChange">
+    <bpmn:participant id="Participant_MPON" name="MPON" processRef="Process_MPON"/>
+    <bpmn:participant id="Participant_MPOO" name="MPOO" processRef="Process_MPOO"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Message_01_MPON_to_MPOO">
+      <bpmn:sourceRef>Task_MPON_NotifyIntentions</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_MPOO_NotificationReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_02_MPOO_to_MPON_SelfDismount">
+      <bpmn:sourceRef>ThrowEvent_MPOO_AnnounceSelf</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_MPON_ConfirmationYes</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_03_MPOO_to_MPON_NoSelfDismount">
+      <bpmn:sourceRef>Task_MPOO_NoSelfDismounting</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_MPON_ConfirmationNo</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_04_MPOO_to_GO_DismountInfo">
+      <bpmn:sourceRef>ThrowEvent_MPOO_CompleteDismount</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_GO_ReceivingData</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_05_MPON_to_GO_FinalReading">
+      <bpmn:sourceRef>Task_MPON_SendFinalReadingValues</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_GO_ReceivingData</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- MPON Process -->
+  <bpmn:process id="Process_MPON" isExecutable="false">
+    <bpmn:startEvent id="Start_Event_MPON_Initiate" name="Equipment Change Initiated">
+      <bpmn:outgoing>SFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_MPON_NotifyIntentions" name="Notify MPOO about equipment change intentions">
+      <bpmn:incoming>SFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="CatchEvent_MPON_ConfirmationYes" name="Self-dismounting Confirmation">
+      <bpmn:incoming>Message_02_MPOO_to_MPON_SelfDismount</bpmn:incoming>
+      <bpmn:outgoing>SFlow_03</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MPON_FinalReading" name="Perform final reading">
+      <bpmn:incoming>SFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SFlow_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="CatchEvent_MPON_ConfirmationNo" name="No Self-dismounting Notification">
+      <bpmn:incoming>Message_03_MPOO_to_MPON_NoSelfDismount</bpmn:incoming>
+      <bpmn:outgoing>SFlow_06</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MPON_DismountOld" name="Dismount old equipment">
+      <bpmn:incoming>SFlow_07</bpmn:incoming>
+      <bpmn:outgoing>SFlow_08</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateThrowEvent id="ThrowEvent_MPOO_CompleteDismount" name="Dismount Complete">
+      <bpmn:incoming>SFlow_09</bpmn:incoming>
+      <bpmn:outgoing>SFlow_10</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:task id="Task_MPON_MountNewDevice" name="Mount new device">
+      <bpmn:incoming>SFlow_11</bpmn:incoming>
+      <bpmn:outgoing>SFlow_12</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_MPON_ReadMeterCount" name="Read meter count from installed meter">
+      <bpmn:incoming>SFlow_13</bpmn:incoming>
+      <bpmn:outgoing>SFlow_14</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gw_MPON_Decision" name="Self-dismounting?">
+      <bpmn:incoming>SFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SFlow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Event_MPON_Final" name="Equipment Change Complete">
+      <bpmn:incoming>SFlow_20</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_01" sourceRef="Start_Event_MPON_Initiate" targetRef="Task_MPON_NotifyIntentions"/>
+    <bpmn:sequenceFlow id="SFlow_02" name="Notify MPOO" sourceRef="Task_MPON_NotifyIntentions" targetRef="Gw_MPON_Decision"/>
+
+    <!-- Self-dismounting path -->
+    <bpmn:exclusiveGateway id="Gw_MPOO_DismountCheck" name="Self-dismounting?">
+      <bpmn:incoming>SFlow_21</bpmn:incoming>
+      <bpmn:outgoing>SFlow_26</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No self-dismounting path -->
+    <bpmn:sequenceFlow id="SFlow_03" name="Yes - Self Dismounting Confirmed" sourceRef="CatchEvent_MPON_ConfirmationYes" targetRef="Task_MPON_FinalReading"/>
+
+    <!-- Final reading after self-dismount -->
+    <bpmn:sequenceFlow id="SFlow_04" name="Final Reading Required" sourceRef="Gw_MPOO_DismountCheck" targetRef="Task_MPON_FinalReading"/>
+
+    <!-- No self-dismounting path to MPON -->
+    <bpmn:sequenceFlow id="SFlow_05" name="No Self-Dismounting Notification Received" sourceRef="CatchEvent_MPON_ConfirmationNo" targetRef="Task_MPON_FinalReading"/>
+
+    <!-- Dismount old equipment after final reading -->
+    <bpmn:sequenceFlow id="SFlow_06" name="Proceed to Dismount" sourceRef="Task_MPON_FinalReading" targetRef="Gw_MPOO_DismountCheck"/>
+
+    <!-- Self-dismounting confirmed path from MPOO side (Throw) -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_MPOO_SelfDismountYes" name="Self-Dismounting Confirmed">
+      <bpmn:incoming>SFlow_23</bpmn:incoming>
+      <bpmn:outgoing>Message_02_MPOO_to_MPON_SelfDismount</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- No self-dismounting path -->
+    <bpmn:task id="Task_MPOO_NoSelfDismount" name="Notify MPON about no self-dismounting">
+      <bpmn:incoming>SFlow_24</bpmn:incoming>
+      <bpmn:outgoing>Message_03_MPOO_to_MPON_NoSelfDismount</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Dismount old equipment -->
+    <bpmn:sequenceFlow id="SFlow_07" name="Proceed to Equipment Removal" sourceRef="Task_MPON_FinalReading" targetRef="Gw_MPOO_DismountCheck"/>
+
+    <!-- Self-dismounting confirmed path from MPOO side (Throw) -->
+    <bpmn:exclusiveGateway id="Gw_MPOO_SelfDismDecision" name="Self-Dismount?">
+      <bpmn:incoming>SFlow_25</bpmn:incoming>
+      <bpmn:outgoing>SFlow_26</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Self-dismounting path -->
+    <bpmn:sequenceFlow id="SFlow_08" name="Self-Dismount Confirmed" sourceRef="CatchEvent_MPON_ConfirmationYes" targetRef="Task_MPON_DismountOld"/>
+
+    <!-- No self-dismounting path to MPON -->
+    <bpmn:sequenceFlow id="SFlow_09" name="No Self-Dismount - MPOO Handles Dismount" sourceRef="CatchEvent_MPON_ConfirmationNo" targetRef="Task_MPON_DismountOld"/>
+
+    <!-- After dismount complete -->
+    <bpmn:sequenceFlow id="SFlow_10" name="Notify MPON of Completion" sourceRef="ThrowEvent_MPOO_CompleteDismount" targetRef="CatchEvent_GO_ReceivingData">
+      <!-- Note: Message flow handles cross-pool, sequence flows stay within pool -->
+    </bpmn:sequenceFlow>
+
+    <!-- Mount new device -->
+    <bpmn:sequenceFlow id="SFlow_11" name="Proceed to New Device Installation" sourceRef="Task_MPON_DismountOld" targetRef="Task_MPON_MountNewDevice"/>
+
+    <!-- Read meter count after mounting -->
+    <bpmn:sequenceFlow id="SFlow_12" name="Read Meter Count" sourceRef="Task_MPON_MountNewDevice" targetRef="Task_MPON_ReadMeterCount"/>
+
+    <!-- Send final reading to GO -->
+    <bpmn:task id="Task_MPON_SendFinalReadingValues" name="Send values of final reading to GO">
+      <bpmn:incoming>SFlow_14</bpmn:incoming>
+      <bpmn:outgoing>Message_05_MPON_to_GO_FinalReading</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Tell GO about device changes -->
+    <bpmn:sequenceFlow id="SFlow_13" name="Read Meter Count from Installed Device" sourceRef="Task_MPON_MountNewDevice" targetRef="Task_MPON_ReadMeterCount"/>
+
+    <!-- Send to GO after reading complete -->
+    <bpmn:sequenceFlow id="SFlow_14" name="Send Final Reading Values" sourceRef="Task_MPON_ReadMeterCount" targetRef="Task_MPON_SendFinalReadingValues"/>
+
+    <!-- Complete equipment change process -->
+    <bpmn:endEvent id="End_Event_GO_Final">
+      <bpmn:incoming>SFlow_27</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO" isExecutable="false">
+    <bpmn:startEvent id="Start_Event_MPOO_NotificationReceived" name="Equipment Change Notification Received">
+      <bpmn:outgoing>SFlow_21</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Decision point for self-dismounting -->
+    <bpmn:exclusiveGateway id="Gw_MPOO_DismountCheck" name="Self-Dismount?">
+      <bpmn:incoming>SFlow_21</bpmn:incoming>
+      <bpmn:outgoing>SFlow_26</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Self-dismounting path -->
+    <bpmn:task id="Task_MPOO_SelfDismount" name="Announce self dismounting to MPON">
+      <bpmn:incoming>SFlow_26</bpmn:incoming>
+      <bpmn:outgoing>Message_02_MPOO_to_MPON_SelfDismount</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- No self-dismounting path -->
+    <bpmn:task id="Task_MPOO_NoSelfDismount" name="Notify MPON about no self-dismounting">
+      <bpmn:incoming>SFlow_27</bpmn:incoming>
+      <bpmn:outgoing>Message_03_MPOO_to_MPON_NoSelfDismount</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final reading by MPOO -->
+    <bpmn:task id="Task_MPOO_FinalReading" name="Perform final reading">
+      <bpmn:incoming>SFlow_28</bpmn:incoming>
+      <bpmn:outgoing>Message_04_MPOO_to_GO_DismountInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Dismount old equipment by MPOO -->
+    <bpmn:task id="Task_MPOO_DismountOldEquipment" name="Dismount old equipment">
+      <bpmn:incoming>SFlow_29</bpmn:incoming>
+      <bpmn:outgoing>Message_04_MPOO_to_GO_DismountInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End event for MPOO process -->
+    <bpmn:endEvent id="End_Event_MPOO_Complete" name="Equipment Change Process Complete">
+      <bpmn:incoming>SFlow_30</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for MPOO -->
+    <bpmn:sequenceFlow id="SFlow_21" name="Equipment Change Notification Received" sourceRef="Start_Event_MPOO_NotificationReceived" targetRef="Gw_MPOO_DismountCheck"/>
+
+    <!-- Self-dismounting path from decision gateway -->
+    <bpmn:exclusiveGateway id="Gw_MPON_DecisionConfirmation" name="Self-Dismount Confirmed?">
+      <bpmn:incoming>SFlow_31</bpmn:incoming>
+      <bpmn:outgoing>Message_02_MPOO_to_MPON_SelfDismount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Self-dismount path -->
+    <bpmn:sequenceFlow id="SFlow_26" name="Self-Dismount Yes" sourceRef="Gw_MPOO_DismountCheck" targetRef="Task_MPOO_SelfDismount"/>
+
+    <!-- No self-dismounting path -->
+    <bpmn:sequenceFlow id="SFlow_27" name="No Self-Dismount - MPOO Handles Dismount" sourceRef="Gw_MPOO_DismountCheck" targetRef="Task_MPOO_NoSelfDismount"/>
+
+    <!-- Final reading after self-dismount confirmation -->
+    <bpmn:sequenceFlow id="SFlow_28" name="Proceed to Final Reading" sourceRef="ThrowEvent_MPOO_SelfDismountYes" targetRef="Task_MPOO_FinalReading"/>
+
+    <!-- Dismount old equipment after final reading -->
+    <bpmn:sequenceFlow id="SFlow_29" name="Perform Equipment Removal" sourceRef="Task_MPOO_NoSelfDismount" targetRef="Task_MPOO_DismountOldEquipment"/>
+
+    <!-- Complete MPOO process -->
+    <bpmn:endEvent id="End_Event_MPON_Final">
+      <bpmn:incoming>SFlow_32</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="CatchEvent_GO_ReceivingData" name="Equipment Change Data Received from MPON/MPOO">
+      <bpmn:incoming>Message_04_MPOO_to_GO_DismountInfo</bpmn:incoming>
+      <bpmn:incoming>Message_05_MPON_to_GO_FinalReading</bpmn:incoming>
+      <bpmn:outgoing>SFlow_30</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to notify MSP about all equipment change information -->
+    <bpmn:task id="Task_GO_NotifyMSP" name="Notify MSP about device changes, master data, meter counts">
+      <bpmn:incoming>SFlow_30</bpmn:incoming>
+      <bpmn:outgoing>SFlow_31</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End event for GO process -->
+    <bpmn:endEvent id="End_Event_GO_Final" name="Equipment Change Process Complete">
+      <bpmn:incoming>SFlow_32</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for GO -->
+    <bpmn:sequenceFlow id="SFlow_30" sourceRef="CatchEvent_GO_ReceivingData" targetRef="Task_GO_NotifyMSP"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

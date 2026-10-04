@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+             id="definition" targetNamespace="http://www.example.com">
+  <process id="storageManagementProcess" name="Storage Management Process" isExecutable="true">
+    <startEvent id="readOrder" name="Read Order from Automatic Order Management System">
+      <outgoing>checkInventory</outgoing>
+    </startEvent>
+    <sequenceFlow id="checkInventory" sourceRef="readOrder" targetRef="checkProductAvailability"/>
+    <task id="checkProductAvailability" name="Check if Product is in Stock">
+      <incoming>checkInventory</incoming>
+      <outgoing>inStock</outgoing>
+      <outgoing>notInStock</outgoing>
+    </task>
+    <exclusiveGateway id="productAvailabilityGateway" name="Is Product in Stock?">
+      <incoming>inStock</incoming>
+      <incoming>notInStock</incoming>
+      <outgoing>withdrawProduct</outgoing>
+      <outgoing>reorderProduct</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="inStock" sourceRef="checkProductAvailability" targetRef="productAvailabilityGateway">
+      <conditionExpression xsi:type="tFormalExpression">${productInStock == true}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="notInStock" sourceRef="checkProductAvailability" targetRef="productAvailabilityGateway">
+      <conditionExpression xsi:type="tFormalExpression">${productInStock == false}</conditionExpression>
+    </sequenceFlow>
+    <serviceTask id="withdrawProductTask" name="Withdraw Product from Warehouse">
+      <incoming>withdrawProduct</incoming>
+      <outgoing>registerProduct</outgoing>
+    </serviceTask>
+    <sequenceFlow id="withdrawProduct" sourceRef="productAvailabilityGateway" targetRef="withdrawProductTask"/>
+    <serviceTask id="reorderProductTask" name="Reorder Product from Wholesaler">
+      <incoming>reorderProduct</incoming>
+      <outgoing>waitForProductArrival</outgoing>
+    </serviceTask>
+    <sequenceFlow id="reorderProduct" sourceRef="productAvailabilityGateway" targetRef="reorderProductTask"/>
+    <intermediateEvent id="waitForProductArrivalEvent" name="Wait for Product Arrival">
+      <incoming>waitForProductArrival</incoming>
+      <outgoing>checkDeliveryDelay</outgoing>
+    </intermediateEvent>
+    <sequenceFlow id="waitForProductArrival" sourceRef="reorderProductTask" targetRef="waitForProductArrivalEvent"/>
+    <exclusiveGateway id="deliveryDelayGateway" name="Is Delivery Delayed?">
+      <incoming>checkDeliveryDelay</incoming>
+      <outgoing>demandPenalty</outgoing>
+      <outgoing>registerProduct</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="checkDeliveryDelay" sourceRef="waitForProductArrivalEvent" targetRef="deliveryDelayGateway"/>
+    <serviceTask id="demandPenaltyTask" name="Demand Delivery Delay Penalty from Wholesaler">
+      <incoming>demandPenalty</incoming>
+      <outgoing>registerProduct</outgoing>
+    </serviceTask>
+    <sequenceFlow id="demandPenalty" sourceRef="deliveryDelayGateway" targetRef="demandPenaltyTask"/>
+    <serviceTask id="registerProductTask" name="Register Product in Stock Management System">
+      <incoming>registerProduct</incoming>
+      <outgoing>checkOrderReadiness</outgoing>
+    </serviceTask>
+    <sequenceFlow id="registerProduct" sourceRef="demandPenaltyTask" targetRef="registerProductTask"/>
+    <exclusiveGateway id="orderReadinessGateway" name="Is Order Ready for Shipment?">
+      <incoming>checkOrderReadiness</incoming>
+      <outgoing>shipOrder</outgoing>
+      <outgoing>checkNextProduct</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="checkOrderReadiness" sourceRef="registerProductTask" targetRef="orderReadinessGateway"/>
+    <parallelGateway id="shipOrderGateway" name="Request Courier and Pack Products">
+      <incoming>shipOrder</incoming>
+      <outgoing>requestCourier</outgoing>
+      <outgoing>packProducts</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="shipOrder" sourceRef="orderReadinessGateway" targetRef="shipOrderGateway"/>
+    <serviceTask id="requestCourierTask" name="Request Courier">
+      <incoming)requestCourier</incoming>
+    </serviceTask>
+    <serviceTask id="packProductsTask" name="Pack Products">
+      <incoming>packProducts</incoming>
+    </serviceTask>
+    <endEvent id="orderShipped" name="Ship Products">
+      <!-- incoming not specified -->
+    </endEvent>
+    <sequenceFlow id="requestCourier" sourceRef="shipOrderGateway" targetRef="requestCourierTask"/>
+    <sequenceFlow id="packProducts" sourceRef="shipOrderGateway" targetRef="packProductsTask"/>
+    <sequenceFlow id="checkNextProduct" sourceRef="orderReadinessGateway" targetRef="checkProductAvailability"/>
+  </process>
+</definitions>

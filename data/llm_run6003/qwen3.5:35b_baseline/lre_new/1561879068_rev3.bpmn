@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_RegistrationProcess">
+    <bpmn:participant name="Telecom Registration Process" processRef="Process_RegistMain"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_RegistMain" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent name="Visitor fills registration form" id="StartEvent_RegistrationForm">
+      <bpmn:outgoing>_Flow_CheckCredit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Availability & Credit -->
+    <bpmn:task name="Check Product Availability &amp; Credit Rating" id="_Task_CheckAvailability">
+      <bpmn:incoming>_Flow_CheckCredit</bpmn:incoming>
+      <bpmn:outgoing>_Flow_GatewayDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Credit Decision -->
+    <bpmn:exclusiveGateway name="Credit Score &gt; 9000?" id="_Gateway_CreditCheck">
+      <bpmn:incoming>_Flow_GatewayDecision</bpmn:incoming>
+      <bpmn:outgoing>_Flow_UnsuccessfulPath</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_SuccessfulPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Unsuccessful -->
+    <bpmn:endEvent name="Registration Unsuccessful" id="_End_Unsuccessful">
+      <bpmn:incoming>_Flow_UnsuccessfulPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Create Interim Record (Successful Path) -->
+    <bpmn:task name="Create Interim Customer Dataset" id="_Task_CreateRecord">
+      <bpmn:incoming>_Flow_SuccessfulPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ParallelSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Parallel Split -->
+    <bpmn:parallelGateway name="Parallel Start" id="_Gateway_Split">
+      <bpmn:incoming>_Flow_ParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>_Flow_DeviceProvisioningPath</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_ISPRegistrationPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sub-Process 1: Device Provision -->
+    <bpmn:subProcess name="Device provision" id="_SubProc_DeviceProvision">
+      <bpmn:startEvent name="Start Device Provisioning" id="Start_SubDev_01">
+        <bpmn:outgoing>_Flow_ProvTask</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:task name="Provision Devices" id="_Task_ProvisionDevices">
+        <bpmn:incoming>_Flow_ProvTask</bpmn:incoming>
+        <bpmn:outgoing>_Flow_ProvEndLink</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:endEvent name="Device Provisioning Complete" id="_End_SubDev_01">
+        <bpmn:incoming>_Flow_ProvEndLink</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <!-- Sub-Process 2: ISP Registration -->
+    <bpmn:subProcess name="Register customer account at ISP nodes" id="_SubProc_ISPReg">
+      <bpmn:startEvent name="Start ISP Registration" id="Start_SubISP_01">
+        <bpmn:outgoing>_Flow_ISPTask</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:task name="Register Account at ISP Nodes" id="_Task_RegisterISP">
+        <bpmn:incoming>_Flow_ISPTask</bpmn:incoming>
+        <bpmn:outgoing>_Flow_ISPEndLink</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:endEvent name="ISP Registration Complete" id="_End_SubISP_01">
+        <bpmn:incoming>_Flow_ISPEndLink</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <!-- Gateway 3: Parallel Join -->
+    <bpmn:parallelGateway name="Parallel End" id="_Gateway_Join">
+      <bpmn:incoming>_Flow_ProvEndLink</bpmn:incoming>
+      <bpmn:incoming>_Flow_ISPEndLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_WelcomePackagePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 3: Welcome Package -->
+    <bpmn:task name="Create &amp; Send Welcome Package" id="_Task_WelcomePackage">
+      <bpmn:incoming>_Flow_WelcomePackagePath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_FinalEndLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2: Successful -->
+    <bpmn:endEvent name="Registration Completed Successfully" id="_End_Successful">
+      <bpmn:incoming>_Flow_FinalEndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Main Flow -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_RegistrationForm" targetRef="_Task_CheckAvailability" id="_Flow_CheckCredit"/>
+    
+    <bpmn:sequenceFlow name="Score &gt; 9000 (Unsuccessful)" sourceRef="_Gateway_CreditCheck" targetRef="_End_Unsuccessful" id="_Flow_UnsuccessfulPath">
+      <bpmn:name>Credit Score &gt; 9000</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow name="Score &lt;= 9000 (Successful)" sourceRef="_Gateway_CreditCheck" targetRef="_Task_CreateRecord" id="_Flow_SuccessfulPath">
+      <bpmn:name>Credit Score &le; 9000</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flow -->
+     <bpmn:sequenceFlow sourceRef="_Task_CreateRecord" targetRef="_Gateway_Split" id="_Flow_ParallelSplit"/>
+
+    <!-- Sub-Process Internal Flows (Device) - Connected to Start Events for Expanded View Logic -->
+     <bpmn:sequenceFlow name="Start Device Provisioning" sourceRef="_SubProc_DeviceProvision" targetRef="Start_SubDev_01" id="_Flow_ProvTask">
+       <bpmn:name>Trigger</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Note: In strict BPMN 2.0 without DI, connecting external flow to internal start event of subprocess is often handled by the engine via the SubProcess Activity ID itself or requires specific expansion settings. 
+          To ensure XML validity and standard compliance for this model representation:
+          We will connect flows TO the SubProcess element (as an activity) OR assume expanded view logic where Start Events are targets.
+          Given previous errors, we must ensure IDs match exactly. Below is a valid structure assuming Expanded View connectivity which requires unique global IDs. -->
+
+    <!-- Corrected External Flow to Internal Start Event for Parallel Logic Representation -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_Split" targetRef="Start_SubDev_01" id="_Flow_DeviceProvisioningPath">
+       <bpmn:name>Device Provision</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Internal Flow within SubProcess 1 -->
+     <bpmn:sequenceFlow sourceRef="Start_SubDev_01" targetRef="_Task_ProvisionDevices" id="_Flow_InternalProv"/>
+
+     <bpmn:sequenceFlow sourceRef="_Task_ProvisionDevices" targetRef="_End_SubDev_01" id="_Flow_ProvInternalLink">
+       <!-- Internal flow to end event -->
+    </bpmn:sequenceFlow>
+
+    <!-- Sub-Process 2 Flows -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_Split" targetRef="Start_SubISP_01" id="_Flow_ISPRegistrationPath">
+       <bpmn:name>Register ISP</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow sourceRef="Start_SubISP_01" targetRef="_Task_RegisterISP" id="_Flow_InternalISP"/>
+
+     <bpmn:sequenceFlow sourceRef="_Task_RegisterISP" targetRef="_End_SubISP_01" id="_Flow_ISPInternalLink">
+       <!-- Internal flow to end event -->
+    </bpmn:sequenceFlow>
+
+    <!-- Join Logic - Note: In standard BPMN, flows exit SubProcess from End Events implicitly or via explicit connections if expanded. 
+         For this XML model validity without DI layouting context causing scope errors on targetRef of external join gateways to internal end events:
+         We will connect the Parallel Gateway directly to the Internal End Events as targets for Join logic representation in Expanded View -->
+
+     <bpmn:sequenceFlow sourceRef="_End_SubDev_01" targetRef="_Gateway_Join" id="_Flow_ProvJoinLink"/>
+     
+     <bpmn:sequenceFlow sourceRef="_End_SubISP_01" targetRef="_Gateway_Join" id="_Flow_ISPJoinLink"/>
+
+    <!-- Join to Welcome Package -->
+     <bpmn:sequenceFlow name="Both Complete" sourceRef="_Gateway_Join" targetRef="_Task_WelcomePackage" id="_Flow_WelcomePackagePath">
+       <bpmn:name>Parallel End</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Flow to End -->
+     <bpmn:sequenceFlow sourceRef="_Task_WelcomePackage" targetRef="_End_Successful" id="_Flow_FinalEndLink"/>
+
+  </bpmn:process>
+</bpmn:definitions>

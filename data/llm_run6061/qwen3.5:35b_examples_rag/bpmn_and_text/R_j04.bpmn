@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CarService_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CarService">
+    <bpmn:participant id="Participant_Pool" name="Car Service Process" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_System" name="System / Police App">
+        <bpmn:flowNodeRef>StartEvent_Reminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckRegistration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_RegisteredCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>Task_NotifyCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ServiceDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_30DaysFine</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Facility" name="Service Facility">
+        <bpmn:flowNodeRef>Task_EnterProblems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_StatusUpdates</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayApp</bpmn:flowNodeRef>
+        <bpmn:endEvent id="End_Success">
+          <bpmn:incoming>SF_MechanicConfirmationSuccess</bpmn:outgoing>
+        </bpmn:endEvent>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Reminder" name="Service Reminder Triggered">
+      <bpmn:outgoing>SF_StartToCheckReg</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks & Gateways with Correct IDs -->
+    
+    <bpmn:task id="Task_CheckRegistration" name="Check Car Registration Status">
+      <bpmn:incoming>SF_StartToCheckReg</bpmn:incoming>
+      <bpmn:outgoing>SF_RegisteredDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_RegisteredCheck" name="Car Registered?">
+       <bpmn:incoming>SF_RegisteredDecision</bpmn:incoming>
+       <bpmn:outgoing>SF_NotifyCustomerYes</bpmn:outgoing>
+       <bpmn:outgoing>SF_EndNotRegNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_NotRegistered" name="Registration Required">
+      <bpmn:incoming>SF_EndNotRegNo</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_NotifyCustomer" name="Notify Customer via App/Email">
+       <bpmn:incoming>SF_NotifyCustomerYes</bpmn:incoming>
+       <bpmn:outgoing>SF_ServiceDecisionSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_Fined" name="Fine Issued">
+      <bpmn:incoming>SF_Timer30DaysToFine</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="GW_ServiceDecision" name="Service Completed?">
+       <bpmn:incoming>SF_ServiceDecisionSplit</bpmn:incoming>
+       <bpmn:outgoing>SF_ProceedToFacilityYes</bpmn:outgoing>
+       <bpmn:outgoing>SF_Wait30DaysNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:intermediateCatchEvent id="Timer_30DaysFine" name="Wait 30 Days">
+       <bpmn:incoming>SF_Wait30DaysNo</bpmn:incoming>
+       <bpmn:outgoing>SF_Timer30DaysToFine</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_EnterProblems" name="Enter Problems (Mechanic)">
+      <bpmn:incoming>SF_ProceedToFacilityYes</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitForRepair</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="Timer_StatusUpdates" name="Wait for Repair">
+       <bpmn:incoming>SF_WaitForRepair</bpmn:incoming>
+       <bpmn:outgoing>SF_PayAppReady</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_Success" name="Service Successful">
+      <bpmn:incoming>SF_MechanicConfirmationSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_PayApp" name="Pay via App (Repair Done)">
+       <bpmn:incoming>SF_PayAppReady</bpmn:incoming>
+       <bpmn:outgoing>SF_MechanicConfirmationSuccess</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToCheckReg" sourceRef="StartEvent_Reminder" targetRef="Task_CheckRegistration"/>
+    <bpmn:sequenceFlow id="SF_RegisteredDecision" sourceRef="Task_CheckRegistration" targetRef="GW_RegisteredCheck"/>
+    <bpmn:sequenceFlow id="SF_NotifyCustomerYes" name="yes" sourceRef="GW_RegisteredCheck" targetRef="Task_NotifyCustomer"/>
+    <bpmn:sequenceFlow id="SF_EndNotRegNo" name="no" sourceRef="GW_RegisteredCheck" targetRef="End_NotRegistered"/>
+    <bpmn:sequenceFlow id="SF_ServiceDecisionSplit" sourceRef="Task_NotifyCustomer" targetRef="GW_ServiceDecision"/>
+    <bpmn:sequenceFlow id="SF_ProceedToFacilityYes" name="yes" sourceRef="GW_ServiceDecision" targetRef="Task_EnterProblems"/>
+    <bpmn:sequenceFlow id="SF_Wait30DaysNo" name="no" sourceRef="GW_ServiceDecision" targetRef="Timer_30DaysFine"/>
+    <bpmn:sequenceFlow id="SF_Timer30DaysToFine" sourceRef="Timer_30DaysFine" targetRef="End_Fined"/>
+    <bpmn:sequenceFlow id="SF_WaitForRepair" sourceRef="Task_EnterProblems" targetRef="Timer_StatusUpdates"/>
+    <bpmn:sequenceFlow id="SF_PayAppReady" sourceRef="Timer_StatusUpdates" targetRef="Task_PayApp"/>
+    <bpmn:sequenceFlow id="SF_MechanicConfirmationSuccess" name="Mechanic confirms success + Pickerl" sourceRef="Task_PayApp" targetRef="End_Success"/>
+
+  </process>
+</bpmn:definitions>

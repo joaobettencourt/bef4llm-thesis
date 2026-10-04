@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ChainSaws_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Manufacturing">
+    <bpmn:participant name="Chainsaw Manufacturer" processRef="Process_CustomProduction"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_CustomerFeedback" />
+
+  <bpmn:process isExecutable="false" id="Process_CustomProduction">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Order Management">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DefineSpecs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SplitOrders</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="Production Team">
+        <bpmn:flowNodeRef>Task_OrderPartA</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderPartB</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_JoinParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InspectParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendUpdate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssembleFirstSaw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_CustomerFeedback</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CustomerDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProduceRest</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive Custom Order">
+      <bpmn:outgoing>SequenceFlow_StartToSpecs</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Define Specs (Guide bar, chain width, type) -->
+    <bpmn:task id="Task_DefineSpecs" name="Define Specifications">
+      <bpmn:incoming>SequenceFlow_StartToSpecs</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpecsToSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Ordering Parts -->
+    <bpmn:parallelGateway id="Gateway_SplitOrders">
+      <bpmn:incoming>SequenceFlow_SpecsToSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderPartA</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderPartB</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Order Part A (e.g., Motor) -->
+    <bpmn:task id="Task_OrderPartA" name="Order Engine Source">
+      <bpmn:incoming>SequenceFlow_OrderPartA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartAToJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Order Part B (e.g., Guide Bar) -->
+    <bpmn:task id="Task_OrderPartB" name="Order Parts Source">
+      <bpmn:incoming>SequenceFlow_OrderPartB</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartBToJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Joining Parts Arrival -->
+    <bpmn:parallelGateway id="Gateway_JoinParts">
+      <bpmn:incoming>SequenceFlow_PartAToJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PartBToJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArrivalToInspect</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Manual Inspection -->
+    <bpmn:task id="Task_InspectParts" name="Manual Part Inspection">
+      <bpmn:incoming>SequenceFlow_ArrivalToInspect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InspectToUpdate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Updates (Regularly during production) -->
+    <bpmn:task id="Task_SendUpdate" name="Send Production Update">
+      <bpmn:incoming>SequenceFlow_InspectToUpdate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateToAssemble</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Assemble First Saw -->
+    <bpmn:task id="Task_AssembleFirstSaw" name="Assemble First Chainsaw">
+      <bpmn:incoming>SequenceFlow_UpdateToAssemble</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShipFirstSaw</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for Message -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_CustomerFeedback" name="Await Decision">
+      <bpmn:incoming>SequenceFlow_ShipFirstSaw</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionToGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway for Customer Satisfaction -->
+    <bpmn:exclusiveGateway id="Gateway_CustomerDecision" name="Customer Satisfied?">
+      <bpmn:incoming>SequenceFlow_DecisionToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceRest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Produce Rest of Order -->
+    <bpmn:task id="Task_ProduceRest" name="Produce Remaining Units">
+      <bpmn:incoming>SequenceFlow_ProduceRest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalShip</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_FinalShip</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2 (Cancellation) -->
+    <bpmn:endEvent id="EndEvent_Cancelled" name="Order Cancelled">
+      <bpmn:incoming>SequenceFlow_CancelOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSpecs" sourceRef="StartEvent_1" targetRef="Task_DefineSpecs"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SpecsToSplit" name="Properties Defined" sourceRef="Task_DefineSpecs" targetRef="Gateway_SplitOrders"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_OrderPartA" sourceRef="Gateway_SplitOrders" targetRef="Task_OrderPartA"/>
+    <bpmn:sequenceFlow id="SequenceFlow_OrderPartB" name="Order Parts in Parallel" sourceRef="Gateway_SplitOrders" targetRef="Task_OrderPartB"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PartAToJoin" sourceRef="Task_OrderPartA" targetRef="Gateway_JoinParts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PartBToJoin" sourceRef="Task_OrderPartB" targetRef="Gateway_JoinParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ArrivalToInspect" name="All Parts Arrived" sourceRef="Gateway_JoinParts" targetRef="Task_InspectParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_InspectToUpdate" sourceRef="Task_InspectParts" targetRef="Task_SendUpdate"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_UpdateToAssemble" name="Regular Updates Sent" sourceRef="Task_SendUpdate" targetRef="Task_AssembleFirstSaw"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ShipFirstSaw" sourceRef="Task_AssembleFirstSaw" targetRef="CatchEvent_CustomerFeedback"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionToGateway" name="Feedback Received" sourceRef="CatchEvent_CustomerFeedback" targetRef="Gateway_CustomerDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProduceRest" name="Yes - Likes It" sourceRef="Gateway_CustomerDecision" targetRef="Task_ProduceRest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CancelOrder" name="No - Dislikes" sourceRef="Gateway_CustomerDecision" targetRef="EndEvent_Cancelled"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalShip" sourceRef="Task_ProduceRest" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

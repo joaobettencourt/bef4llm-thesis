@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_OrderFulfillment">
+    <bpmn:participant name="Order Fulfillment Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="_LaneSets_OrderFulfillment">
+      <bpmn:lane name="Logistics / Shipping" id="_Lane_Logistics">
+        <bpmn:flowNodeRef>_Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_ShipGoods</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="Billing / Address Management" id="_Lane_Billing">
+        <bpmn:flowNodeRef>_Gateway_CheckAddressStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_AddParentCompanyAddress</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Join_AddressInvoiceLogic</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_CreateInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Receive Subsidiary Order" id="_Start_ReceiveOrder">
+      <bpmn:outgoing>_Flow_SplitToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split (Concurrent Paths) -->
+    <bpmn:parallelGateway name="Split Logistics & Billing" id="_Gateway_ParallelStart">
+      <bpmn:incoming>_Flow_SplitToParallel</bpmn:incoming>
+      <bpmn:outgoing>_Flow_LogisticsPath</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_BillingCheckPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Logistics Path Tasks (Lane 1) -->
+    <bpmn:task name="Prepare Goods for Shipment" id="_Task_PrepareGoods">
+      <bpmn:incoming>_Flow_LogisticsPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ShipGoodsLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task name="Ship Goods" id="_Task_ShipGoods">
+      <bpmn:incoming>_Flow_ShipGoodsLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_LogisticsToJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Billing Path Logic (Lane 2) -->
+    <bpmn:exclusiveGateway name="Check Customer & ERP Status" id="_Gateway_CheckAddressStatus">
+      <bpmn:incoming>_Flow_BillingCheckPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AddressManagementTaskLink</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_DirectInvoiceCreationLink</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Address Management Task (Lane 2) - Conditional Path -->
+    <bpmn:task name="Add Parent Company as Invoicing Address" id="_Task_AddParentCompanyAddress">
+      <bpmn:incoming>_Flow_AddressManagementTaskLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ToInvoiceJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join Logic for Billing Path -->
+    <bpmn:exclusiveGateway name="Merge Invoice Creation Paths" id="_Join_AddressInvoiceLogic">
+      <bpmn:incoming>_Flow_ToInvoiceJoin</bpmn:incoming>
+      <bpmn:incoming>_Flow_DirectInvoiceCreationLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CreateInvoicePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task Create Invoice (Lane 2) -->
+    <bpmn:task name="Create Invoice" id="_Task_CreateInvoice">
+      <bpmn:incoming>_Flow_CreateInvoicePath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SendInvoiceLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Invoice Task (Lane 2) -->
+    <bpmn:task name="Send Invoice" id="_Task_SendInvoice">
+       <bpmn:incoming>_Flow_SendInvoiceLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_BillingToJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join Gateway for Process Completion (Shipping + Billing) -->
+    <bpmn:parallelGateway name="Merge Shipping & Invoicing" id="_ProcessEndJoin">
+      <bpmn:incoming>_Flow_LogisticsToJoin</bpmn:incoming> 
+      <bpmn:incoming>_Flow_BillingToJoin</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Order Processed" id="_End_OrderProcessed">
+       <bpmn:incoming>_ProcessEndLink</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition (Correcting IDs and Connections) -->
+    
+    <!-- Start to Parallel Split -->
+    <bpmn:sequenceFlow sourceRef="_Start_ReceiveOrder" targetRef="_Gateway_ParallelStart" id="_Flow_SplitToParallel"/>
+
+    <!-- Parallel Branches from Split -->
+    <bpmn:sequenceFlow name="Logistics Path" sourceRef="_Gateway_ParallelStart" targetRef="_Task_PrepareGoods" id="_Flow_LogisticsPath">
+      <bpmn:name>Concurrent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow name="Billing Check Path" sourceRef="_Gateway_ParallelStart" targetRef="_Gateway_CheckAddressStatus" id="_Flow_BillingCheckPath">
+      <bpmn:name>Concurrent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Logistics Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_PrepareGoods" targetRef="_Task_ShipGoods" id="_Flow_ShipGoodsLink"/>
+    
+    <!-- Billing Decision Flows -->
+    <bpmn:sequenceFlow name="Subsidiary & Not Modeled (Yes)" sourceRef="_Gateway_CheckAddressStatus" targetRef="_Task_AddParentCompanyAddress" id="_Flow_AddressManagementTaskLink">
+      <bpmn:name>Condition Met</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow name="Independent or Modeled (No)" sourceRef="_Gateway_CheckAddressStatus" targetRef="_Join_AddressInvoiceLogic" id="_Flow_DirectInvoiceCreationLink">
+      <bpmn:name>Else</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Logic Join -->
+    <bpmn:exclusiveGateway name="Merge Address & Direct" id="_Join_AddressInvoiceLogic">
+       <bpmn:incoming>_Flow_ToInvoiceJoin</bpmn:outgoing> 
+       <bpmn:incoming>_Flow_DirectInvoiceCreationLink</bpmn:incomings> <!-- Fixing below -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Corrected Sequence Flows for Billing Merge and Process End Join (Finalizing XML) -->
+    
+  </bpmn:process>
+</bpmn:definitions>

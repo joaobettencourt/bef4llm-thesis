@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_DataValidationProcess">
+    <bpmn:participant id="Participant_ISSupport" name="IS Support Department" processRef="Process_DataValidationErrorHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_DataValidationErrorHandling" isExecutable="true">
+    <!-- Lane for Drop-off Tech -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_DropoffTech" name="Drop-off Technician">
+        <bpmn:flowNodeRef>StartEvent_ISNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckTypos</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- Lane for Data Technician -->
+      <bpmn:lane id="Lane_DataTech" name="Data Technician">
+        <bpmn:flowNodeRef>Gateway_CustomerCanCorrect</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectMistake</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- Lane for Research Team -->
+      <bpmn:lane id="Lane_ResearchTeam" name="Public Sources Research">
+        <bpmn:flowNodeRef>Task_ScourPublicSources</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ISNotification" name="IS Notified about Data Validation Error">
+      <bpmn:outgoing>SequenceFlow_StartToCheckTypos</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check for Typos -->
+    <bpmn:userTask id="Task_CheckTypos" name="Drop-off tech checks for typos">
+      <bpmn:incoming>SequenceFlow_StartToCheckTypos</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TypoDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Is it a typo? -->
+    <bpmn:exclusiveGateway id="Gateway_IsTypo" name="Is this a typo case?">
+      <bpmn:incoming>SequenceFlow_TypoDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesTypoPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoTypoPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway: Customer Can Correct -->
+    <bpmn:exclusiveGateway id="Gateway_CustomerCanCorrect" name="Customer can correct mistake?">
+      <bpmn:incoming>SequenceFlow_NoTypoPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CanCorrectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CannotCorrectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Customer Corrects Mistake -->
+    <bpmn:userTask id="Task_CorrectMistake" name="Customer corrects the mistake">
+      <bpmn:incoming>SequenceFlow_CanCorrectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeResolved</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Scour Public Sources -->
+    <bpmn:userTask id="Task_ScourPublicSources" name="Scour public sources for solutions">
+      <bpmn:incoming>SequenceFlow_CannotCorrectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResearchResolved</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway to merge resolved paths -->
+    <bpmn:parallelGateway id="Gateway_ResolveMerge" name="">
+      <bpmn:incoming>SequenceFlow_TypoResolvedPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeResolved</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ResearchResolved</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_IssueResolved" name="Issue Resolved">
+      <bpmn:incoming>SequenceFlow_TypoResolvedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheckTypos" sourceRef="StartEvent_ISNotification" targetRef="Task_CheckTypos"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TypoDecision" name="" sourceRef="Task_CheckTypos" targetRef="Gateway_IsTypo"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_YesTypoPath" name="Yes - It is a typo" sourceRef="Gateway_IsTypo" targetRef="EndEvent_IssueResolved">
+      <bpmn:description>Tech can resolve directly</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoTypoPath" name="" sourceRef="Gateway_IsTypo" targetRef="Gateway_CustomerCanCorrect"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CanCorrectPath" name="" sourceRef="Gateway_CustomerCanCorrect" targetRef="Task_CorrectMistake">
+      <bpmn:description>Customer can self-correct</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CannotCorrectPath" name="" sourceRef="Gateway_CustomerCanCorrect" targetRef="Task_ScourPublicSources">
+      <bpmn:description>Customer cannot correct - need external research</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeResolved" name="" sourceRef="Task_CorrectMistake" targetRef="Gateway_ResolveMerge"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResearchResolved" name="" sourceRef="Task_ScourPublicSources" targetRef="Gateway_ResolveMerge">
+      <bpmn:description>Issue resolved through research</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" name="" sourceRef="Gateway_ResolveMerge" targetRef="EndEvent_IssueResolved"/>
+
+  </bpmn:process>
+</bpmn:definitions>

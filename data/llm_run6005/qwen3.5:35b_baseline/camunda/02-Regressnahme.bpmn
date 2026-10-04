@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RegressProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RegressProc">
+    <bpmn:participant id="Participant_Versicherung" name="Versicherungsunternehmen - Regressbearbeitung" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane name="Sachbearbeiter" id="Lane_Sachbearbeiter">
+        <bpmn:flowNodeRef>StartEvent_RegressMeldung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FallPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MoeglichkeitRegress</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ZahlungsaufforderungSenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_GeldEingegangen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerbuchungEingang</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FallAbgeschlossenZahlung</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Versicherungsnehmer" id="Lane_Versicherungsnehmer">
+        <bpmn:flowNodeRef>Gateway_WiderspruchMöglich</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Zwischenevent_ZahlungswiderrufErhalten</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Inkasso-Dienstleister" id="Lane_Inkasso">
+        <bpmn:flowNodeRef>Gateway_AnIinkassoAbgeben</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FallAnInkassoÜbergabe</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Allgemein" id="Lane_Allgemein">
+        <bpmn:flowNodeRef>Gateway_WiderspruchGerechtfertigt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FallAbgeschlossenWiderspruch</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RegressMeldung" name="Regressmeldung erhalten">
+      <bpmn:outgoing>SequenceFlow_StartToFallPruefen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Fall prüfen -->
+    <bpmn:task id="Task_FallPruefen" name="Regressfall prüfen">
+      <bpmn:incoming>SequenceFlow_StartToFallPruefen</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PruefungZuGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Möglichkeit Regress -->
+    <bpmn:exclusiveGateway id="Gateway_MoeglichkeitRegress" name="Möglichkeit Regress?">
+      <bpmn:incoming>SequenceFlow_PruefungZuGateway</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegressJaToAufforderung</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RegressNeinCloseCase</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Zahlungsaufforderung senden -->
+    <bpmn:task id="Task_ZahlungsaufforderungSenden" name="Zahlungsaufforderung an VN senden">
+      <bpmn:incoming>SequenceFlow_RegressJaToAufforderung</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AufforderungAnGatewayGeldEingang</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Geld eingegangen -->
+    <bpmn:exclusiveGateway id="Gateway_GeldEingegangen" name="Zahlung erhalten?">
+      <bpmn:incoming>SequenceFlow_AufforderungAnGatewayGeldEingang</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ZahlungJaToVerbuchung</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ZahlungNeinWiedervorlage</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Verbuchung Eingang -->
+    <bpmn:task id="Task_VerbuchungEingang" name="Zahlungsbeleg verbuchen">
+      <bpmn:incoming>SequenceFlow_ZahlungJaToVerbuchung</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerbuchungEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Fall abgeschlossen (Zahlung) -->
+    <bpmn:endEvent id="EndEvent_FallAbgeschlossenZahlung" name="Fall erfolgreich abgeschlossen">
+      <bpmn:incoming>SequenceFlow_VerbuchungEndEvent</bpmn:outgoing></bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Fall abgelehnt (kein Regress) -->
+    <bpmn:endEvent id="EndEvent_FallAbgeschlossenKeinRegress" name="Fall abgeschlossen - kein Regress">
+      <bpmn:incoming>SequenceFlow_RegressNeinCloseCase</bpmn:outgoing></bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 3: Fall an Inkasso -->
+    <bpmn:endEvent id="EndEvent_FallAnInkassoÜbergabe" name="Fall an Inkassodienstleister übergeben">
+      <bpmn:incoming>SequenceFlow_AnIinkasoAbgabe</bpmn:outgoing></bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 4: Fall abgeschlossen (Widerspruch gerechtfertigt) -->
+    <bpmn:endEvent id="EndEvent_FallAbgeschlossenWiderspruch" name="Fall abgeschlossen - Widerspruch berechtigt">
+      <bpmn:incoming>SequenceFlow_WiderspruchGerechtfertigtClose</bpmn:outgoing></bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 3: Widerspruch möglich -->
+    <bpmn:exclusiveGateway id="Gateway_WiderspruchMöglich" name="Widerspruch VN?">
+      <bpmn:incoming>SequenceFlow_ZahlungNeinWiedervorlage</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WiderrufJaToPruefung</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WiderrufNeinZuInkasso</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 4: Widerspruch gerechtfertigt -->
+    <bpmn:exclusiveGateway id="Gateway_WiderspruchGerechtfertigt" name="Widerspruch berechtigt?">
+      <bpmn:incoming>SequenceFlow_WiderrufJaToPruefung</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BerechtigtCloseCase</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UnberechtigtZuInkasso</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 5: An Inkassodienstleister -->
+    <bpmn:exclusiveGateway id="Gateway_AnIinkasoAbgeben" name="An Inkassodienstleister abgeben">
+      <bpmn:incoming>SequenceFlow_UnberechtigtZuInkasso</bpmn:outgoing></bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WiderrufNeinZuIinkaso</bpmn:outgoing></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnInkassoAbgabeEnde</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToFallPruefen" sourceRef="StartEvent_RegressMeldung" targetRef="Task_FallPruefen">
+      <bpmn:name>Meldung erhalten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PruefungZuGateway" sourceRef="Task_FallPruefen" targetRef="Gateway_MoeglichkeitRegress">
+      <bpmn:name>Fall geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RegressJaToAufforderung" sourceRef="Gateway_MoeglichkeitRegress" targetRef="Task_ZahlungsaufforderungSenden">
+      <bpmn:name>Möglichkeit besteht</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RegressNeinCloseCase" sourceRef="Gateway_MoeglichkeitRegress" targetRef="EndEvent_FallAbgeschlossenKeinRegress">
+      <bpmn:name>Möglichkeit nicht besteht</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AufforderungAnGatewayGeldEingang" sourceRef="Task_ZahlungsaufforderungSenden" targetRef="Gateway_GeldEingegangen">
+      <bpmn:name>Auf Zahlung warten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZahlungJaToVerbuchung" sourceRef="Gateway_GeldEingegangen" targetRef="Task_VerbuchungEingang">
+      <bpmn:name>Zahlung eingegangen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZahlungNeinWiedervorlage" sourceRef="Gateway_GeldEingegangen" targetRef="Gateway_WiderspruchMöglich">
+      <bpmn:name>Zahlung nicht eingegangen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_VerbuchungEndEvent" sourceRef="Task_VerbuchungEingang" targetRef="EndEvent_FallAbgeschlossenZahlung">
+      <bpmn:name>Fall abschließen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WiderrufJaToPruefung" sourceRef="Gateway_WiderspruchMöglich" targetRef="Gateway_WiderspruchGerechtfertigt">
+      <bpmn:name>Widerspruch eingegangen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BerechtigtCloseCase" sourceRef="Gateway_WiderspruchGerechtfertigt" targetRef="EndEvent_FallAbgeschlossenWiderspruch">
+      <bpmn:name>Berechtigt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_UnberechtigtZuInkasso" sourceRef="Gateway_WiderspruchGerechtfertigt" targetRef="Gateway_AnIinkasoAbgeben">
+      <bpmn:name>Nicht berechtigt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WiderrufNeinZuInkasso" sourceRef="Gateway_WiderspruchMöglich" targetRef="Gateway_AnIinkasoAbgeben">
+      <bpmn:name>Kein Widerspruch</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AnInkassoAbgabeEnde" sourceRef="Gateway_AnIinkasoAbgeben" targetRef="EndEvent_FallAnInkassoÜbergabe">
+      <bpmn:name>An Inkassodienstleister übergeben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

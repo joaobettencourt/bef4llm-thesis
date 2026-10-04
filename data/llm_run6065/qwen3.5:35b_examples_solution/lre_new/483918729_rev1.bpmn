@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz">
+  <bpmn:collaboration id="Collaboration_ProvisionProcess">
+    <bpmn:participant id="Participant_ProductionTeam" name="Provision Team" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_Customer" name="Customer"/>
+    <bpmn:participant id="Participant_Daisuki" name="Daisuki"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageRequestReceived" sourceRef="Participant_Customer" targetRef="StartEvent_RequestReceived">
+      <bpmn:name>Customer Request</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageInfoRequested" sourceRef="Task_InformationNeeded" targetRef="Participant_Customer">
+      <bpmn:name>Request More Information</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageCustomerContacted" sourceRef="Task_CollectPartsComplete" targetRef="Participant_Customer">
+      <bpmn:name>Contact Customer</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageOrderPlaced" sourceRef="SubProcess_OrderFromDaisuki" targetRef="Participant_Daisuki">
+      <bpmn:name>Place Order to Daisuki</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" name="Provision Process">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived">
+      <bpmn:name>Request Received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_IdentifyParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Identify Parts -->
+    <bpmn:task id="Task_IdentifyParts" name="Identify Necessary Parts">
+      <bpmn:name>Identify Necessary Parts</bpmn:name>
+      <bpmn:incoming>SequenceFlow_IdentifyParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckQuestions</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check if Questions Need Answering -->
+    <bpmn:exclusiveGateway id="Gateway_QuestionsNeeded">
+      <bpmn:name>Any Questions?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckQuestions</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestMoreInfo</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Request More Information -->
+    <bpmn:task id="Task_InformationNeeded" name="Ask for More Information">
+      <bpmn:name>Elicit Additional Info from Customer</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RequestMoreInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAvailabilityAfterRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Parts Availability -->
+    <bpmn:exclusiveGateway id="Gateway_PartsAvailable">
+      <bpmn:name>All Parts Available?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_CheckAvailabilityAfterRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupplyAvailable</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderPartsNotAvailable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Supply Parts (if available) -->
+    <bpmn:task id="Task_SupplyToCustomer" name="Supply to Customer">
+      <bpmn:name>Supply Available Parts</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SupplyAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentAfterSupply</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Record Petition (if not available) -->
+    <bpmn:task id="Task_RecordPetition" name="Record Customer Petition">
+      <bpmn:name>Record Order Details</bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderPartsNotAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubProcessOrderFromDaisuki</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sub-Process: Order from Daisuki -->
+    <bpmn:subProcess id="SubProcess_OrderFromDaisuki" name="Order and Receive Parts">
+      <bpmn:name>Order from Daisuki</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SubProcessOrderFromDaisuki</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectPartsComplete</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Task: Contact Customer -->
+    <bpmn:task id="Task_CollectPartsComplete" name="Contact Customer">
+      <bpmn:name>Contact After Parts Collected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CollectPartsComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentAfterCollection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Parts Collected by Customer -->
+    <bpmn:task id="Task_PartsCollectedByCustomer" name="Parts Recollected">
+      <bpmn:name>Pick Up Items from Provision Team</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CollectPartsComplete</bpmn:incoming> <!-- Simplified flow for model -->
+      <bpmn:outgoing>SequenceFlow_FinalPaymentReceived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Final Payment -->
+    <bpmn:task id="Task_FinalPayment" name="Receive Final Payment">
+      <bpmn:name>Collect Final Payment</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PaymentAfterSupply</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_FinalPaymentReceived</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_PaymentCompleted">
+      <bpmn:name>Paid and Delivered</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_ProcessComplete</bpmn:incoming> <!-- Corrected tag name from outgoing to incoming -->
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_IdentifyParts" sourceRef="StartEvent_RequestReceived" targetRef="Task_IdentifyParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckQuestions" name="After Identification" sourceRef="Task_IdentifyParts" targetRef="Gateway_QuestionsNeeded">
+      <bpmn:name>Identification Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RequestMoreInfo" name="Yes - Questions Needed" sourceRef="Gateway_QuestionsNeeded" targetRef="Task_InformationNeeded"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailabilityAfterRequest" sourceRef="Task_InformationNeeded" targetRef="Gateway_PartsAvailable">
+      <bpmn:name>Info Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailability" name="No - No Questions Needed" sourceRef="Gateway_QuestionsNeeded" targetRef="Gateway_PartsAvailable"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SupplyAvailable" name="Yes - Available" sourceRef="Gateway_PartsAvailable" targetRef="Task_SupplyToCustomer">
+      <bpmn:name>Parts Available</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderPartsNotAvailable" name="No - Not Available" sourceRef="Gateway_PartsAvailable" targetRef="Task_RecordPetition">
+      <bpmn:name>Parts Not Available</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SubProcessOrderFromDaisuki" name="Record then Order" sourceRef="Task_RecordPetition" targetRef="SubProcess_OrderFromDaisuki"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CollectPartsComplete" sourceRef="SubProcess_OrderFromDaisuki" targetRef="Task_CollectPartsComplete">
+      <bpmn:name>Order Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merging Paths for Payment -->
+    <bpmn:exclusiveGateway id="Gateway_MergePaymentPaths">
+       <bpmn:incoming>SequenceFlow_PaymentAfterSupply</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_FinalPaymentReceived</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Correction: Adjusted flow logic to merge correctly -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentAfterSupply" name="Direct Supply Path" sourceRef="Task_SupplyToCustomer" targetRef="Gateway_MergePaymentPaths">
+      <bpmn:name>Supplied</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Correction: Adjusted flow logic to merge correctly -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentAfterCollection" name="Contact After Collection" sourceRef="Task_CollectPartsComplete" targetRef="Gateway_MergePaymentPaths">
+      <bpmn:name>Contacted</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Correction: Adjusted flow logic to merge correctly -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalPaymentReceived" name="After Supply or Collection" sourceRef="Gateway_MergePaymentPaths" targetRef="Task_FinalPayment"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessComplete" sourceRef="Task_FinalPayment" targetRef="EndEvent_PaymentCompleted">
+      <bpmn:name>Payment Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

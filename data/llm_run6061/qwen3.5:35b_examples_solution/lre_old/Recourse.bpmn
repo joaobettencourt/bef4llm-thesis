@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Recourse Clerk" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ProbableRecourse" name="Probable Recourse Detected">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Case -->
+    <bpmn:task id="Task_CheckCase" name="Check Case">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is recourse possible? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RecoursePossible" name="Recourse Possible?">
+      <bpmn:incoming>SequenceFlow_CheckToGateway1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PossibleYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PossibleNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Recourse Not Possible -->
+    <bpmn:endEvent id="End_CaseClosed_NoRecourse" name="Case Closed">
+      <bpmn:incoming>SequenceFlow_CloseToNoRecourse</bpmn:incoming />
+    </bpmn:endEvent>
+
+    <!-- Path: Recourse Possible - Send Payment Request -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send Request for Payment">
+      <bpmn:incoming>SequenceFlow_PossibleYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestToReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Make Reminder -->
+    <bpmn:task id="Task_MakeReminder" name="Make Reminder">
+      <bpmn:incoming>SequenceFlow_RequestToReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReminderToEventGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway for waiting on multiple events -->
+    <bpmn:eventBasedGateway id="EventGateway_WaitingEvents" name="Waiting Events">
+      <bpmn:incoming>SequenceFlow_ReminderToEventGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementLetterPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReminderDuePath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Path 1: Money Received -->
+    <bpmn:intermediateCatchEvent id="IntermediateMoneyReceived" name="Money Received">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_MoneyReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyToBooking</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Make Booking -->
+    <bpmn:task id="Task_MakeBooking" name="Make Booking">
+      <bpmn:incoming>SequenceFlow_MoneyToBooking</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookingToEndClosedMoney</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Money Received Path -->
+    <bpmn:endEvent id="End_CaseClosed_MoneyReceived" name="Case Closed">
+      <bpmn:incoming>SequenceFlow_BookingToEndClosedMoney</bpmn:incoming />
+    </bpmn:endEvent>
+
+    <!-- Path 2: Disagreement Letter Received -->
+    <bpmn:intermediateCatchEvent id="Intermediate_DisagreementLetter" name="Disagreement Letter Received">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_DisagreementLetterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LetterToCheckReasoning</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Check Reasoning -->
+    <bpmn:task id="Task_CheckReasoning" name="Check Reasoning">
+      <bpmn:incoming>SequenceFlow_LetterToCheckReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReasoningToGateway2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Is reasoning OK? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReasoningOK" name="Is Reasoning OK?">
+      <bpmn:incoming>SequenceFlow_ReasoningToGateway2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OKYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OKNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Reasoning OK (Insurant Right) -->
+    <bpmn:endEvent id="End_CaseClosed_ReasoningOK" name="Case Closed">
+      <bpmn:incoming>SequenceFlow_OKYes</bpmn:incoming />
+    </bpmn:endEvent>
+
+    <!-- Path 2b: Reasoning Not OK (Insurant Wrong) -->
+    <bpmn:task id="Task_ForwardToCollection" name="Forward to Collection Agency">
+      <bpmn:incoming>SequenceFlow_OKNo</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_CollectionToEndOpen</bpmn:outgoing />
+    </bpmn:task>
+
+    <!-- Path 3: Reminder Due (Deadline Reached) -->
+    <bpmn:intermediateCatchEvent id="Intermediate_ReminderDue" name="Reminder Is Due">
+      <bpmn:timerEventDefinition />
+      <bpmn:incoming>SequenceFlow_ReminderDuePath</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_DueToCollection</bpmn:outgoing />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event for Collection Agency Path -->
+    <bpmn:endEvent id="End_CaseOpen_Collection" name="Case Open">
+      <bpmn:incoming>SequenceFlow_CollectionToEndOpen</bpmn:incoming />
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_ProbableRecourse" targetRef="Task_CheckCase" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToGateway1" sourceRef="Task_CheckCase" targetRef="ExclusiveGateway_RecoursePossible" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_PossibleYes" name="yes" sourceRef="ExclusiveGateway_RecoursePossible" targetRef="Task_SendPaymentRequest" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseToNoRecourse" name="no" sourceRef="ExclusiveGateway_RecoursePossible" targetRef="End_CaseClosed_NoRecourse" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_RequestToReminder" sourceRef="Task_SendPaymentRequest" targetRef="Task_MakeReminder" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReminderToEventGateway" sourceRef="Task_MakeReminder" targetRef="EventGateway_WaitingEvents" />
+
+    <!-- Event-Based Gateway Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_MoneyReceivedPath" name="Money Received" sourceRef="EventGateway_WaitingEvents" targetRef="IntermediateMoneyReceived" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementLetterPath" name="Disagreement Letter" sourceRef="EventGateway_WaitingEvents" targetRef="Intermediate_DisagreementLetter" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReminderDuePath" name="Reminder Due" sourceRef="EventGateway_WaitingEvents" targetRef="Intermediate_ReminderDue" />
+    
+    <!-- Reasoning Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_OKYes" name="yes (right)" sourceRef="ExclusiveGateway_ReasoningOK" targetRef="End_CaseClosed_ReasoningOK" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_OKNo" name="no (wrong)" sourceRef="ExclusiveGateway_ReasoningOK" targetRef="Task_ForwardToCollection" />
+    
+    <!-- Collection Agency Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_DueToCollection" sourceRef="Intermediate_ReminderDue" targetRef="Task_ForwardToCollection" />
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LeadProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_LeadManagement">
+    <bpmn:participant name="Lead Management Process" processRef="Proc_LeadMgmt"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_LeadMgmt" isExecutable="false">
+    <bpmn:dataObjectReference id="Data_TopFiveLeads"/>
+    
+    <bpmn:startEvent id="Start_Event_CheckLeads" name="Check Open Leads">
+      <bpmn:outgoing>SequenceFlow_StartToMgr</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Mgr_SelectTopFive" name="Select Top Five Ones">
+      <bpmn:incoming>SequenceFlow_StartToMgr</bpmn:incoming>
+      <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+      <bpmn:outgoing>SequenceFlow_GatewayLoopCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_LoopMoreLeads" name="More Leads?">
+      <bpmn:incoming>SequenceFlow_GatewayLoopCheck</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeAfterProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CallNextCustomer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EndAllProcessed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Event_AllProcessed" name="All Leads Processed">
+      <bpmn:incoming>SequenceFlow_EndAllProcessed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Sales_CallContactPerson" name="Call Contact Person of Lead">
+      <bpmn:incoming>SequenceFlow_CallNextCustomer</bpmn:incoming>
+      <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+      <bpmn:outgoing>SequenceFlow_CallToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_DecisionInterested" name="Customer Interested?">
+      <bpmn:incoming>SequenceFlow_CallToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesInterested</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoSkipLoopBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Event_OrderRejected" name="Order Rejected">
+      <bpmn:incoming/> 
+     </bpmn:endEvent>  
+
+    <bpmn:task id="Task_SendNoteToMgr" name="Send Note to Manager">
+        <bpmn:incoming>SequenceFlow_YesInterested</bpmn:incoming> 
+         <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+       <bpmn:outgoing>SequenceFlow_ProcessLeadStart</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task Process Lead -->
+     <bpmn:task id="Task_Mgr_ProcessLead" name="Process the Lead">
+        <bpmn:incoming>SequenceFlow_YesInterested</bpmn:incoming> 
+         <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+       <bpmn:outgoing>SequenceFlow_MergeAfterProcess</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Sequence Flows -->
+     <bpmn:sequenceFlow id="SequenceFlow_StartToMgr" sourceRef="Start_Event_CheckLeads" targetRef="Task_Mgr_SelectTopFive"/> 
+       <bpmn:sequenceFlow id="SequenceFlow_GatewayLoopCheck" name="More Leads?" sourceRef="Gateway_LoopMoreLeads" targetRef="Task_Sales_CallContactPerson">
+         <bpmn:conditionExpression xsi:type="tFormalExpression">${hasNextLead}</bpmn:conditionExpression>
+       </bpmn:sequenceFlow>
+
+      <!-- Call Task Flow -->
+     <bpmn:task id="Task_Sales_CallContactPerson" name="Call Contact Person of Lead">
+        <bpmn:incoming>SequenceFlow_GatewayLoopCheck</bpmn:incoming> 
+         <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+       <bpmn:outgoing>SequenceFlow_CallToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Decision Flows -->
+     <bpmn:sequenceFlow id="SequenceFlow_YesInterested" name="Yes" sourceRef="Gateway_DecisionInterested" targetRef="Task_SendNoteToMgr"/> 
+       <bpmn:sequenceFlow id="SequenceFlow_NoSkipLoopBack" name="No" sourceRef="Gateway_DecisionInterested" targetRef="Gateway_LoopMoreLeads">
+         <!-- Implicitly calls next customer by looping back to check for more leads -->
+       </bpmn:sequenceFlow>
+
+      <bpmn:task id="Task_SendNoteToMgr" name="Send Note to Manager">
+        <bpmn:incoming>SequenceFlow_YesInterested</bpmn:incoming> 
+         <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+       <bpmn:outgoing>SequenceFlow_ProcessLeadStart</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Process Lead Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_YesInterested" name="Yes" sourceRef="Gateway_DecisionInterested" targetRef="Task_SendNoteToMgr"/> 
+       <bpmn:sequenceFlow id="SequenceFlow_ProcessLeadStart" sourceRef="Task_SendNoteToMgr" targetRef="Task_Mgr_ProcessLead"/>
+      <bpmn:task id="Task_Mgr_ProcessLead" name="Process the Lead">
+        <bpmn:incoming>SequenceFlow_YesInterested</bpmn:incoming> 
+         <bpmn:dataInputAssociation ref="Data_TopFiveLeads"/>
+       <bpmn:outgoing>SequenceFlow_MergeAfterProcess</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Merge Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_NoSkipLoopBack" name="No" sourceRef="Gateway_DecisionInterested" targetRef="Gateway_LoopMoreLeads"/> 
+       <bpmn:sequenceFlow id="SequenceFlow_MergeAfterProcess" sourceRef="Task_Mgr_ProcessLead" targetRef="Gateway_LoopMoreLeads"/>
+
+      <!-- Data Associations -->
+       <bpmn:dataInputAssociation id="Data_Assoc_1">
+         <bpmn:targetRefs>Data_TopFiveLeads</bpmn:targetRefs> 
+          <bpmn:sourceRef>Task_Mgr_SelectTopFive</bpmn:sourceRef> 
+        </bpmn:dataInputAssociation>
+
+      <!-- Lane Assignments -->
+    </bpmn:process>
+
+  <bpmn:laneSet id="LaneSet_1">
+     <bpmn:lane name="Manager" id="Lane_Manager">
+         <bpmn:flowNodeRef>Task_Mgr_SelectTopFive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LoopMoreLeads</bpmn:flowNodeRef>
+       <bpmn:flowNodeRef>End_Event_AllProcessed</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>Task_Mgr_ProcessLead</bpmn:flowNodeRef>
+     </bpmn:lane>
+
+    <bpmn:lane name="Sales Assistant" id="Lane_Sales">
+        <bpmn:flowNodeRef>Start_Event_CheckLeads</bpmn:flowNodeRef> 
+       <bpmn:flowNodeRef>Task_Sales_CallContactPerson</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>Gateway_DecisionInterested</bpmn:flowNodeRef>
+     <bpmn:flowNodeRef>Task_SendNoteToMgr</bpmn:flowNodeRef>
+    </bpmn:lane>
+
+  </bpmn:laneSet>
+  
+   <!-- Associations for Data Object -->
+      <bpmn:dataInputAssociation id="Data_Assoc_2">
+         <bpmn:targetRefs>Data_TopFiveLeads</bpmn:targetRefs> 
+          <bpmn:sourceRef>Task_Sales_CallContactPerson</bpmn:sourceRef> 
+        </bpmn:dataInputAssociation>
+
+      <bpmn:association id="Assoc_Data_1">
+         <bpmn:sourceRefs>Data_TopFiveLeads</bpmn:sourceRefs> 
+          <bpmn:targetRefs>Task_Sales_CallContactPerson</bpmn:targetRefs> 
+        </bpmn:association>
+
+  </bpmn:process>
+
+</bpmn:definitions>

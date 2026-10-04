@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReport" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseProcess">
+    <bpmn:participant id="Participant_AccountingDept" name="Accounting Department" processRef="Process_ExpenseApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseApproval" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Expense Report Received">
+      <bpmn:outgoing>SequenceFlow_CheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if employee has account -->
+    <bpmn:task id="Task_CheckEmployeeAccount" name="Check Employee Account Status">
+      <bpmn:incoming>SequenceFlow_CheckAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Does employee have account? -->
+    <bpmn:exclusiveGateway id="Gateway_HasAccount" name="Has Account?">
+      <bpmn:incoming>SequenceFlow_AccountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedToReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create new account -->
+    <bpmn:task id="Task_CreateEmployeeAccount" name="Create New Employee Account">
+      <bpmn:incoming>SequenceFlow_CreateAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterCreation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge after account creation -->
+    <bpmn:parallelGateway id="ParallelGateway_AccountMerge">
+      <bpmn:incoming>SequenceFlow_ProceedToReview</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeAfterCreation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewReport</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Review report for automatic approval -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>SequenceFlow_ReviewReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Amount Decision -->
+    <bpmn:exclusiveGateway id="Gateway_AmountThreshold" name="Amount >= $200?">
+      <bpmn:incoming>SequenceFlow_AmountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorApprovalRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Supervisor Approval -->
+    <bpmn:userTask id="UserTask_SupervisorReview" name="Supervisor Review">
+      <bpmn:incoming>SequenceFlow_SupervisorApprovalRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Approval Decision -->
+    <bpmn:exclusiveGateway id="Gateway_AppealApproval" name="Approved?">
+      <bpmn:incoming>SequenceFlow_SupervisorReviewComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectionEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Rejection Email -->
+    <bpmn:serviceTask id="ServiceTask_SendRejection" name="Send Rejection Notice">
+      <bpmn:incoming>SequenceFlow_RejectionEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Process Payment -->
+    <bpmn:task id="Task_ProcessPayment" name="Process Reimbursement">
+      <bpmn:incoming>SequenceFlow_ApprovalGranted</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Event: 7 Days -->
+    <bpmn:startEvent id="StartTimer_7Days" name="7 Day Timeout">
+      <bpmn:timerDuration>P7D</bpmn:timerDuration>
+      <bpmn:outgoing>SequenceFlow_ApprovalInProgressEmail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Approval in Progress Email -->
+    <bpmn:serviceTask id="ServiceTask_SendApprovalProgress" name="Send Approval In-Progress Notice">
+      <bpmn:incoming>SequenceFlow_ApprovalInProgressEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueProcessing</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Timer Event: 30 Days -->
+    <bpmn:startEvent id="StartTimer_30Days" name="30 Day Timeout">
+      <bpmn:timerDuration>P30D</bpmn:timerDuration>
+      <bpmn:outgoing>SequenceFlow_CancellationEmail</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Cancellation Email -->
+    <bpmn:serviceTask id="ServiceTask_SendCancellation" name="Send Cancellation Notice">
+      <bpmn:incoming>SequenceFlow_CancellationEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCancelled</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Report Rejected">
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Approved" name="Reimbursement Processed">
+      <bpmn:incoming>SequenceFlow_EndApproved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Cancelled" name="Process Cancelled - Re-submit Required">
+      <bpmn:incoming>SequenceFlow_EndCancelled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAccount" sourceRef="StartEvent_ReportReceived" targetRef="Task_CheckEmployeeAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountDecision" name="Has Account?" sourceRef="Task_CheckEmployeeAccount" targetRef="Gateway_HasAccount">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateAccount" name="No - Create Account" sourceRef="Gateway_HasAccount" targetRef="Task_CreateEmployeeAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedToReview" name="Proceed to Review" sourceRef="Gateway_HasAccount" targetRef="ParallelGateway_AccountMerge">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeAfterCreation" name="Complete Account Creation" sourceRef="Task_CreateEmployeeAccount" targetRef="ParallelGateway_AccountMerge"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewReport" name="Start Review" sourceRef="ParallelGateway_AccountMerge" targetRef="Task_ReviewReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AmountDecision" name="Amount Decision" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountThreshold"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApprovalRequired" name="Yes - Supervisor Review Required" sourceRef="Gateway_AmountThreshold" targetRef="UserTask_SupervisorReview"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalDecision" name="Supervisor Decision Complete" sourceRef="UserTask_SupervisorReview" targetRef="Gateway_AppealApproval">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectionEmail" name="Rejected" sourceRef="Gateway_AppealApproval" targetRef="ServiceTask_SendRejection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" name="End Rejected" sourceRef="ServiceTask_SendRejection" targetRef="EndEvent_Rejected"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalGranted" name="Approved" sourceRef="Gateway_AppealApproval" targetRef="Task_ProcessPayment">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndApproved" name="End Approved" sourceRef="Task_ProcessPayment" targetRef="EndEvent_Approved"/>
+
+    <!-- Timer Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalInProgressEmail" sourceRef="StartTimer_7Days" targetRef="ServiceTask_SendApprovalProgress"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CancellationEmail" name="30 Day Timeout Email" sourceRef="StartTimer_30Days" targetRef="ServiceTask_SendCancellation">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

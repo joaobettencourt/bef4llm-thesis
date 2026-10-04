@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_AccountCreation">
+    <bpmn:participant id="Participant_PayPalProcess" name="PayPal Account Creation Process" processRef="Process_AccountCreation" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AccountCreation" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Client" name="Client">
+        <bpmn:flowNodeRef>StartEvent_CreateAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectAccountType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeclarePEPStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SubmitRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System" name="PayPal System">
+        <bpmn:flowNodeRef>ServiceTask_ValidateInputFields</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckValidationResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifyClientErrors</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_GenerateWelcomeEmail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_AccountCreated</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CreateAccount" name="Client wants to create PayPal account">
+      <bpmn:outgoing>SequenceFlow_StartToSelectType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Client Tasks -->
+    <bpmn:task id="Task_SelectAccountType" name="Determine desired account type (Personal/Premium)">
+      <bpmn:incoming>SequenceFlow_StartToSelectType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectToEnterDetails</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterDetails" name="Enter login details, personal details (name/DOB), telephone and address">
+      <bpmn:incoming>SequenceFlow_SelectToEnterDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DetailsToPEPDeclaration</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_DeclarePEPStatus" name="Declare PEP affiliation">
+      <bpmn:incoming>SequenceFlow_DetailsToPEPDeclaration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PEPToSubmitRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- User Task for Submission -->
+    <bpmn:userTask id="UserTask_SubmitRequest" name="Click create account button">
+      <bpmn:incoming>SequenceFlow_PEPToSubmitRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestSentToSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- System Tasks -->
+    <bpmn:serviceTask id="ServiceTask_ValidateInputFields" name="System validates input fields">
+      <bpmn:incoming>SequenceFlow_RequestSentToSystem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidateResultCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_CheckValidationResult" name="Input Valid?">
+      <bpmn:incoming>SequenceFlow_ValidateResultCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvalidPathNotifyClient</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ValidPathEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Error Handling Path -->
+    <bpmn:userTask id="UserTask_NotifyClientErrors" name="Notify client and correct invalid fields">
+      <bpmn:incoming>SequenceFlow_InvalidPathNotifyClient</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CorrectBackToDetails</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Success Path -->
+    <bpmn:serviceTask id="ServiceTask_GenerateWelcomeEmail" name="Generate and send welcome email">
+      <bpmn:incoming>SequenceFlow_ValidPathEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EmailToAccountCreated</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_AccountCreated" name="Account Created">
+      <bpmn:incoming>SequenceFlow_EmailToAccountCreated</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSelectType" sourceRef="StartEvent_CreateAccount" targetRef="Task_SelectAccountType">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SelectToEnterDetails" name="" sourceRef="Task_SelectAccountType" targetRef="Task_EnterDetails"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DetailsToPEPDeclaration" name="" sourceRef="Task_EnterDetails" targetRef="Task_DeclarePEPStatus"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PEPToSubmitRequest" name="" sourceRef="Task_DeclarePEPStatus" targetRef="UserTask_SubmitRequest"/>
+
+    <!-- Transition to System -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestSentToSystem" name="Details sent to PayPal system" sourceRef="UserTask_SubmitRequest" targetRef="ServiceTask_ValidateInputFields"/>
+
+    <!-- Validation Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidateResultCheck" name="" sourceRef="ServiceTask_ValidateInputFields" targetRef="Gateway_CheckValidationResult"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_InvalidPathNotifyClient" name="No - Invalid Fields" sourceRef="Gateway_CheckValidationResult" targetRef="UserTask_NotifyClientErrors">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_CorrectBackToDetails" name="" sourceRef="UserTask_NotifyClientErrors" targetRef="Task_EnterDetails"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ValidPathEmail" name="Yes - Valid Fields" sourceRef="Gateway_CheckValidationResult" targetRef="ServiceTask_GenerateWelcomeEmail">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Completion -->
+    <bpmn:sequenceFlow id="SequenceFlow_EmailToAccountCreated" name="" sourceRef="ServiceTask_GenerateWelcomeEmail" targetRef="EndEvent_AccountCreated"/>
+
+  </bpmn:process>
+</bpmn:definitions>

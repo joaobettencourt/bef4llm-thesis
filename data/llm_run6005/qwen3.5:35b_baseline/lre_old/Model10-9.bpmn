@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ChangeProcess">
+    <bpmn:participant name="MPO Pool" processRef="Proc_MPO"/>
+    <bpmn:participant name="SP/PU/GO Pool" processRef="Proc_SP_Go"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_RequestInitiated">
+      <bpmn:sourceRef>Task_SendRequest</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_ChangeReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_Rejection">
+      <bpmn:sourceRef>Task_NotifyRejection</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_ReceiveNotification_SP</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_SuccessReport">
+      <bpmn:sourceRef>Task_ReportImplementation</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_ReceiveNotification_SP</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_FailureReport">
+      <bpmn:sourceRef>Task_NotifyFailureExecution</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_ReceiveNotification_SP</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- MPO Process -->
+  <bpmn:process id="Proc_MPO" isExecutable="false">
+    
+    <!-- Start Event (Initiated by SP or Internal) -->
+    <bpmn:startEvent id="StartEvent_ChangeReceived" name="Change Initiated">
+      <bpmn:outgoing>Seq_ReviewRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Review Request -->
+    <bpmn:task id="Task_MPO_Review" name="Review Change Request">
+      <bpmn:incoming>Seq_ReviewRequest</bpmn:incoming>
+      <bpmn:outgoing>XFlow_DecisionConfirmReject</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Reject or Confirm -->
+    <bpmn:exclusiveGateway id="XGate_Decision" name="Decision">
+      <bpmn:incoming>XFlow_DecisionConfirmReject</bpmn:incoming>
+      <bpmn:outgoing>XFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>XFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Reject -->
+    <bpmn:endEvent id="End_MPO_Reject" name="Change Rejected">
+       <bpmn:incoming>XFlow_NotifyRejectionTask</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_NotifyRejection" name="Notify Failure of Change (Reject)">
+      <bpmn:incoming>XFlow_RejectPath</bpmn:incoming>
+       <!-- Message Flow defined in Collaboration -->
+    </bpmn:task>
+
+    <!-- Path 2: Confirm & Perform -->
+    <bpmn:task id="Task_MPO_Perform" name="Perform Measuring Point Change">
+      <bpmn:incoming>XFlow_ConfirmPath</bpmn:incoming>
+       <bpmn:outgoing>XGate_ExecutionOutcome_Incoming</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway: Execution Outcome -->
+    <bpmn:exclusiveGateway id="XGate_Outcome" name="Change Successful?">
+      <bpmn:incoming>XGate_ExecutionOutcome_Incoming</bpmn:incoming> 
+       <bpmn:outgoing>XFlow_SuccessPath</bpmn:outgoing>
+        <bpmn:outgoing>XFlow_FailPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Path 2a: Success -->
+    <bpmn:endEvent id="End_MPO_Success" name="Implementation Reported">
+      <bpmn:incoming>XFlow_ReportTaskOut</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_ReportImplementation" name="Report Implementation to SP/PU/GO">
+       <!-- Incoming from Gateway -->
+        <bpmn:outgoing>XFlow_ReportTaskOut</bpmn:outgoing> 
+         <!-- Message Flow defined in Collaboration -->
+    </bpmn:endEvent>
+
+     <!-- Path 2b: Failure -->
+    <bpmn:endEvent id="End_MPO_Failure" name="Change Failed">
+      <bpmn:incoming>XFlow_NotifyFailureTaskOut</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_NotifyFailureExecution" name="Notify Failure of Changes (Exec)">
+       <!-- Incoming from Gateway -->
+        <bpmn:outgoing>XFlow_NotifyFailureTaskOut</bpmn:outgoing> 
+         <!-- Message Flow defined in Collaboration -->
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows for MPO Process Logic -->
+      <bpmn:sequenceFlow id="Seq_ReviewRequest" sourceRef="StartEvent_ChangeReceived" targetRef="Task_MPO_Review"/>  
+       <bpmn:sequenceFlow id="XFlow_DecisionConfirmReject" name="Decision" sourceRef="Task_MPO_Review" targetRef="XGate_Decision"/>  
+
+      <!-- Reject Path -->
+     <bpmn:sequenceFlow id="XFlow_RejectPath" name="Rejected" sourceRef="XGate_Decision" targetRef="Task_NotifyRejection"/>  
+       <bpmn:sequenceFlow id="XFlow_NotifyRejectionTask" name="" sourceRef="Task_NotifyRejection" targetRef="End_MPO_Reject"/>
+
+     <!-- Confirm Path -->
+      <bpmn:sequenceFlow id="XFlow_ConfirmPath" name="Confirmed" sourceRef="XGate_Decision" targetRef="Task_MPO_Perform"/>  
+       <bpmn:sequenceFlow id="XGate_ExecutionOutcome_Incoming" sourceRef="Task_MPO_Perform" targetRef="XGate_Outcome"/>
+
+      <!-- Success Path -->
+     <bpmn:sequenceFlow id="XFlow_SuccessPath" name="Success" sourceRef="XGate_Outcome" targetRef="Task_ReportImplementation"/>  
+       <bpmn:sequenceFlow id="XFlow_ReportTaskOut" sourceRef="Task_ReportImplementation" targetRef="End_MPO_Success"/>
+
+      <!-- Failure Path -->
+     <bpmn:sequenceFlow id="XFlow_FailPath" name="Failure" sourceRef="XGate_Outcome" targetRef="Task_NotifyFailureExecution"/>  
+       <bpmn:sequenceFlow id="XFlow_NotifyFailureTaskOut" sourceRef="Task_NotifyFailureExecution" targetRef="End_MPO_Failure"/>
+
+  </bpmn:process>
+
+  <!-- SP/PU/GO Process -->
+  <bpmn:process id="Proc_SP_Go">
+    <bpmn:startEvent id="Start_RequestInitiation" name="Request Initiated">
+      <bpmn:outgoing>Seq_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Task to send request -->
+    <bpmn:task id="Task_SendRequest" name="Send Change Request">
+       <bpmn:incoming>Seq_SendRequest</bpmn:incoming/> 
+        <!-- Message Flow defined in Collaboration -->
+      </bpmn:endEvent>
+
+     <!-- Receive Notification End Event (Triggered by incoming message flows) -->
+    <bpmn:endEvent id="EndEvent_ReceiveNotification_SP" name="Notification Received">
+       <bpmn:incoming>XFlow_SpNotify</bpmn:outgoing/> 
+      </bpmn:endEvent>
+
+     <!-- Sequence Flow for SP Process Logic -->
+      <bpmn:sequenceFlow id="Seq_SendRequest" sourceRef="Start_RequestInitiation" targetRef="Task_SendRequest"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

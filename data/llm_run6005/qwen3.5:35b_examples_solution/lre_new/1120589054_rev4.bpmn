@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0a8d6h7">
+    <bpmn:participant id="Participant_SalesDept" name="Sales Department" processRef="Process_OrderToCash"/>
+    <bpmn:participant id="Participant_WarehouseProd" name="Warehouse &amp; Production" processRef="Process_WarehouseProduction"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderToCash">
+    <bpmn:startEvent id="StartEvent_CustomerOrderReceived">
+      <bpmn:name>Customer Order Received</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ProcessOrder" name="Process Customer Order">
+      <bpmn:incoming>SequenceFlow_ProcessOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_OrderFulfilled">
+      <bpmn:name>Product Sold to Customer</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SellProduct</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SellProduct" name="Sell Product to Customer">
+      <bpmn:incoming>SequenceFlow_WaitForProductionInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderFulfilled</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:message id="Message_CustomerOrder" name="Customer Order"/>
+  </bpmn:process>
+
+  <bpmn:process id="Process_WarehouseProduction">
+    <bpmn:startEvent id="StartEvent_ReceiveOrder">
+      <bpmn:name>Receive Customer Order</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_DetermineParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_DetermineParts" name="Determine Parts Required">
+      <bpmn:incoming>SequenceFlow_DetermineParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckStockAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_PartsAvailable" name="Parts Available?">
+      <bpmn:incoming>SequenceFlow_CheckStockAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderMissingParts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartProduction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_PurchaseMissingParts" name="Purchase Missing Parts">
+      <bpmn:incoming>SequenceFlow_OrderMissingParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddToStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_ProductionReady">
+      <bpmn:incoming>SequenceFlow_StartProduction</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AddToStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PerformProduction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_PerformProduction" name="Perform Production">
+      <bpmn:incoming>SequenceFlow_StartProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PerformQualityChecks" name="Perform Quality Checks">
+      <bpmn:incoming>SequenceFlow_QualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProductionFinished</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_InformOTC">
+      <bpmn:name>Inform Order to Cash</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_TransportToWarehouse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DetermineParts" sourceRef="StartEvent_ReceiveOrder" targetRef="Task_DetermineParts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckStockAvailability" sourceRef="Task_DetermineParts" targetRef="Exclusive_Gateway_PartsAvailable"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderMissingParts" name="Yes - Parts Missing" sourceRef="Exclusive_Gateway_PartsAvailable" targetRef="Task_PurchaseMissingParts">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartProduction" name="All Parts Available" sourceRef="Exclusive_Gateway_PartsAvailable" targetRef="Exclusive_Gateway_ProductionReady">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddToStock" name="" sourceRef="Task_PurchaseMissingParts" targetRef="Exclusive_Gateway_ProductionReady"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PerformProduction" sourceRef="Exclusive_Gateway_ProductionReady" targetRef="Task_PerformProduction"/>
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheck" sourceRef="Task_PerformProduction" targetRef="Task_PerformQualityChecks"/>
+
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_ProductionStatus" name="Production Finished?">
+      <bpmn:incoming>SequenceFlow_ProductionFinished</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackageProduct</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProductionFinished" name="" sourceRef="Task_PerformQualityChecks" targetRef="Exclusive_Gateway_ProductionStatus">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_PackageAndLabel" name="Package and Label Product">
+      <bpmn:incoming>SequenceFlow_PackageProduct</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TransportToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PackageProduct" sourceRef="Exclusive_Gateway_ProductionStatus" targetRef="Task_PackageAndLabel"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TransportToWarehouse" sourceRef="Task_PackageAndLabel" targetRef="EndEvent_InformOTC"/>
+
+    <bpmn:message id="Message_ProductionComplete" name="Production Complete"/>
+  </bpmn:process>
+
+  <bpmn:messageFlow id="MessageFlow_SendOrder">
+    <bpmn:name>Send Customer Order</bpmn:name>
+    <bpmn:sourceRef>Task_ProcessOrder</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_ReceiveOrder</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_InformOTC">
+    <bpmn:name>Inform Order to Cash</bpmn:name>
+    <bpmn:sourceRef>EndEvent_InformOTC</bpmn:sourceRef>
+    <bpmn:targetRef>Task_SellProduct</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ProcessOrder" sourceRef="StartEvent_CustomerOrderReceived" targetRef="Task_ProcessOrder"/>
+  <bpmn:sequenceFlow id="SequenceFlow_SendToWarehouse" sourceRef="Task_ProcessOrder" targetRef="EndEvent_OrderFulfilled">
+    <bpmn:name>Send to Warehouse</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_SellProduct" name="" sourceRef="Task_SellProduct" targetRef="EndEvent_OrderFulfilled"/>
+  <bpmn:sequenceFlow id="SequenceFlow_WaitForProductionInfo" sourceRef="StartEvent_CustomerOrderReceived" targetRef="Task_SellProduct">
+    <bpmn:name>Wait for Production Info</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_OrderFulfilled" name="" sourceRef="EndEvent_OrderFulfilled" targetRef="StartEvent_CustomerOrderReceived"/>
+</bpmn:definitions>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_ACME_Purchase" name="ACME Inc Purchase Process" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_RequestingDept" name="Requesting Department">
+        <bpmn:name>Requesting Department</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_DemandIdentified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XorGateway_StockCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConsumeLocally</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_StockMet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateRequisition</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Procurement" name="Central Procurement Dept">
+        <bpmn:name>Central Procurement Department</bpmn:name>
+        <bpmn:flowNodeRef>XorGateway_SupplierCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckSupplierInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterNewSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XorGateway_MergeSuppliers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateOrderTemplate</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Approver" name="Approver">
+        <bpmn:name>Approver Role</bpmn:name>
+        <bpmn:flowNodeRef>Task_ApproveTriggerPO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderPlaced</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DemandIdentified" name="Demand Identified">
+      <bpmn:outgoing>SequenceFlow_StockCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Stock Check Gateway (Lane 1) -->
+    <bpmn:exclusiveGateway id="XorGateway_StockCheck" name="Sufficient Stock?">
+      <bpmn:incoming>SequenceFlow_StockCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConsumePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RequisitionPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Consume Locally -->
+    <bpmn:task id="Task_ConsumeLocally" name="Consume goods locally">
+      <bpmn:incoming>SequenceFlow_ConsumePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndStockMet</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_StockMet" name="Purchase Satisfied">
+      <bpmn:incoming>SequenceFlow_EndStockMet</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Create Requisition (Lane 1) -->
+    <bpmn:task id="Task_CreateRequisition" name="Create Purchase Requisition in ERP">
+      <bpmn:incoming>SequenceFlow_RequisitionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToProcurementCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supplier Check Task (Lane 2) -->
+    <bpmn:task id="Task_CheckSupplierInfo" name="Check ERP for supplier info">
+      <bpmn:incoming>SequenceFlow_ToProcurementCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupplierDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supplier Existence Gateway (Lane 2) -->
+    <bpmn:exclusiveGateway id="XorGateway_SupplierCheck" name="Supplier Exists?">
+      <bpmn:incoming>SequenceFlow_SupplierDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NewSupplierPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_KnownSupplierPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: New Supplier (Lane 2) -->
+    <bpmn:task id="Task_RegisterNewSupplier" name="Create new supplier in ERP">
+      <bpmn:incoming>SequenceFlow_NewSupplierPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeSuppliers</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway (Lane 2) -->
+    <bpmn:exclusiveGateway id="XorGateway_MergeSuppliers" name="Merge Supplier Logic">
+      <bpmn:incoming>SequenceFlow_NewSupplierPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_KnownSupplierPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateTemplate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Order Template Creation (Lane 2) -->
+    <bpmn:task id="Task_CreateOrderTemplate" name="Create order template in ERP">
+      <bpmn:incoming>SequenceFlow_CreateTemplate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToApprover</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Approval Task (Lane 3) -->
+    <bpmn:task id="Task_ApproveTriggerPO" name="Approve and trigger Purchase Order">
+      <bpmn:incoming>SequenceFlow_ToApprover</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndOrderPlaced</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_OrderPlaced" name="Purchase Order Triggered">
+      <bpmn:incoming>SequenceFlow_EndOrderPlaced</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Stock Check Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_StockCheck" name="Demand Identified" sourceRef="StartEvent_DemandIdentified" targetRef="XorGateway_StockCheck">
+      <bpmn:name>Demand identified within department.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows for Stock Check Gateway Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConsumePath" name="Yes - Sufficient stock available." sourceRef="XorGateway_StockCheck" targetRef="Task_ConsumeLocally">
+      <bpmn:name>Sufficient stock available.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows for Stock Check Gateway Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequisitionPath" name="No - Insufficient stock." sourceRef="XorGateway_StockCheck" targetRef="Task_CreateRequisition">
+      <bpmn:name>Insufficient stock.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for End Stock Met -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndStockMet" name="Process Complete" sourceRef="Task_ConsumeLocally" targetRef="EndEvent_StockMet">
+      <bpmn:name>No further action required.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Transition to Procurement Lane -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToProcurementCheck" name="Process Requisition" sourceRef="Task_CreateRequisition" targetRef="XorGateway_SupplierCheck">
+      <bpmn:name>Process requisition.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Supplier Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupplierDecision" name="Supplier Check Result" sourceRef="Task_CheckSupplierInfo" targetRef="XorGateway_SupplierCheck">
+      <bpmn:name>Result of supplier check.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for New Supplier Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NewSupplierPath" name="New - Create Supplier" sourceRef="XorGateway_SupplierCheck" targetRef="Task_RegisterNewSupplier">
+      <bpmn:name>If new, create supplier.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Known Supplier Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_KnownSupplierPath" name="Known - Skip Creation" sourceRef="XorGateway_SupplierCheck" targetRef="XorGateway_MergeSuppliers">
+      <bpmn:name>If known, proceed directly.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Merge to Template -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateTemplate" name="Create Order Template" sourceRef="XorGateway_MergeSuppliers" targetRef="Task_CreateOrderTemplate">
+      <bpmn:name>Create order template.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Transition to Approver Lane -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToApprover" name="Request Approval" sourceRef="Task_CreateOrderTemplate" targetRef="Task_ApproveTriggerPO">
+      <bpmn:name>New order template received.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for End Order Placed -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndOrderPlaced" name="Process Complete" sourceRef="Task_ApproveTriggerPO" targetRef="EndEvent_OrderPlaced">
+      <bpmn:name>Purchase order triggered.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

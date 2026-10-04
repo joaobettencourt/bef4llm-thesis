@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="OEE_Monitoring_Process" isExecutable="false">
+    <!-- Lane for Machine Monitoring -->
+    <laneSet>
+      <lane id="Lane_Operation" name="Machine Operation">
+        <flowNodeRef>StartEvent_MachineConnected</flowNodeRef>
+        <flowNodeRef>Task_CollectInformation</flowNodeRef>
+        <flowNodeRef>Gateway_CheckOEEThreshold</flowNodeRef>
+        <flowNodeRef>IntermediateCatchEvent_Restarted</flowNodeRef>
+        <flowNodeRef>EndEvent_MachineDisconnected</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event - Machine Connected -->
+    <startEvent id="StartEvent_MachineConnected">
+      <bpmn:name>Machine connected to system</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CollectInfo</bpmn:outgoing>
+    </startEvent>
+
+    <!-- Task - Collect Information -->
+    <task id="Task_CollectInformation" name="Collect machine information">
+      <incoming>SequenceFlow_CollectInfo</incoming>
+      <outgoing>SequenceFlow_CalculateOEE</outgoing>
+    </task>
+
+    <!-- Task - Calculate OEE -->
+    <task id="Task_CalculateOEE" name="Calculate Overall Equipment Efficiency (OEE)">
+      <bpmn:incoming>SequenceFlow_CollectInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckThresholdDecision</bpmn:outgoing>
+    </task>
+
+    <!-- Exclusive Gateway - Check OEE Threshold -->
+    <exclusiveGateway id="Gateway_CheckOEEThreshold">
+      <bpmn:name>OEE below threshold?</bpmn:name>
+      <incoming>SequenceFlow_CheckThresholdDecision</incoming>
+      <outgoing>SequenceFlow_OEELowAction</outgoing>
+      <outgoing>SequenceFlow_OKContinueMonitoring</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task - Stop Machine -->
+    <task id="Task_StopMachine" name="Stop machine">
+      <incoming>SequenceFlow_OEELowAction</incoming>
+      <outgoing>SequenceFlow_SendEmailToEngineer</outgoing>
+    </task>
+
+    <!-- Task - Send Email to Engineer -->
+    <task id="Task_SendEmailToEngineer" name="Send email notification to engineer">
+      <incoming>SequenceFlow_SendEmailToEngineer</incoming>
+      <outgoing>SequenceFlow_WaitForRestartOrDisconnect</outgoing>
+    </task>
+
+    <!-- Intermediate Catch Event - Machine Restarted -->
+    <intermediateCatchEvent id="IntermediateCatchEvent_Restarted">
+      <bpmn:name>Machine restarted signal received</bpmn:name>
+      <incoming>SequenceFlow_WaitForRestartOrDisconnect</incoming>
+      <outgoing>SequenceFlow_ContinueMonitoringAfterRestart</outgoing>
+    </intermediateCatchEvent>
+
+    <!-- Intermediate Catch Event - Machine Disconnected -->
+    <intermediateCatchEvent id="IntermediateCatchEvent_Disconnected">
+      <bpmn:name>Machine disconnected signal received</bpmn:name>
+      <incoming>SequenceFlow_WaitForRestartOrDisconnect</incoming>
+      <outgoing>SequenceFlow_EndProcessOnDisconnection</outgoing>
+    </intermediateCatchEvent>
+
+    <!-- End Event - Machine Disconnected -->
+    <endEvent id="EndEvent_MachineDisconnected">
+      <bpmn:name>Machine disconnected, process stopped</bpmn:name>
+      <incoming>SequenceFlow_EndProcessOnDisconnection</incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_CollectInfo" sourceRef="StartEvent_MachineConnected" targetRef="Task_CollectInformation">
+      <bpmn:name>Machine connected</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_CheckThresholdDecision" name="OEE calculated" sourceRef="Task_CalculateOEE" targetRef="Gateway_CheckOEEThreshold"/>
+
+    <sequenceFlow id="SequenceFlow_OEELowAction" name="Yes - OEE below threshold" sourceRef="Gateway_CheckOEEThreshold" targetRef="Task_StopMachine">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${oeeValue &lt; oeeThreshold}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_OKContinueMonitoring" name="No - OEE acceptable" sourceRef="Gateway_CheckOEEThreshold" targetRef="Task_CollectInformation">
+      <bpmn:name>OEE above threshold</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Event-Based Gateway for Restart or Disconnect -->
+    <eventBasedGateway id="Gateway_WaitForRestartOrDisconnect">
+      <incoming>SequenceFlow_SendEmailToEngineer</incoming>
+      <outgoing>SequenceFlow_RestartPath</outgoing>
+      <outgoing>SequenceFlow_DisconnectPath</outgoing>
+    </eventBasedGateway>
+
+    <!-- Sequence Flow to Wait for Restart or Disconnect -->
+    <sequenceFlow id="SequenceFlow_SendEmailToEngineer" sourceRef="Task_StopMachine" targetRef="Gateway_WaitForRestartOrDisconnect">
+      <bpmn:name>Email sent</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow for Restart Path -->
+    <sequenceFlow id="SequenceFlow_RestartPath" name="Wait for restart signal" sourceRef="Gateway_WaitForRestartOrDisconnect" targetRef="IntermediateCatchEvent_Restarted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${machineRestartSignal}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <!-- Sequence Flow for Disconnect Path -->
+    <sequenceFlow id="SequenceFlow_DisconnectPath" name="Wait for disconnect signal" sourceRef="Gateway_WaitForRestartOrDisconnect" targetRef="IntermediateCatchEvent_Disconnected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${machineDisconnectedSignal}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <!-- Sequence Flow for Continue Monitoring After Restart -->
+    <sequenceFlow id="SequenceFlow_ContinueMonitoringAfterRestart" sourceRef="IntermediateCatchEvent_Restarted" targetRef="Task_CollectInformation">
+      <bpmn:name>Machine restarted</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow for End Process on Disconnection -->
+    <sequenceFlow id="SequenceFlow_EndProcessOnDisconnection" sourceRef="IntermediateCatchEvent_Disconnected" targetRef="EndEvent_MachineDisconnected">
+      <bpmn:name>Machine disconnected</bpmn:name>
+    </sequenceFlow>
+
+  </process>
+</bpmn:definitions>

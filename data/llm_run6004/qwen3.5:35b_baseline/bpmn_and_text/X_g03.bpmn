@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ViennaRun" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1a2b3c4d5e6f7g8h">
+    <bpmn:participant id="Participant_AppUser" name="Vienna Night Run App User" processRef="Process_ViennaRun"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ViennaRun" isExecutable="false">
+    
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_StartBlockSelection" name="Selected Starting Block"/>
+    <bpmn:dataObjectReference id="Data_RunTime" name="Measured Run Time (min)"/>
+    <bpmn:dataObjectReference id="Data_WorkEndTime" name="Work End Time"/>
+    <bpmn:dataObjectReference id="Data_RaceStartTime" name="Race Start Time"/>
+    <bpmn:dataObjectReference id="Data_StartNumber" name="Starting Number"/>
+
+    <!-- Flow Elements -->
+    
+    <!-- 1. Start Event -->
+    <bpmn:startEvent id="Start_Event_Participate" name="Participate in Night Run">
+      <bpmn:outgoing>SequenceFlow_SelectBlock</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- 2. Select Starting Block -->
+    <bpmn:task id="Task_SelectBlock" name="Select Starting Block">
+      <bpmn:incoming>SequenceFlow_SelectBlock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartRun</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- 3. Run & Measure Time -->
+    <bpmn:task id="Task_MeasureTime" name="Run 5km and measure time">
+      <bpmn:incoming>SequenceFlow_StartRun</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckGoal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Association for Measurement -->
+    <bpmn:dataInputAssociation id="Assoc_GadgetData" sourceRef="Task_MeasureTime">
+        <bpmn:targetRef>Data_RunTime</bpmn:targetRef>
+    </bpmn:dataInputAssociation>
+
+    <!-- 4. Gateway: Check Goal (<25 mins) -->
+    <bpmn:exclusiveGateway id="Gateway_CheckGoal" name="Achieve &lt;25 min goal?">
+      <bpmn:incoming>SequenceFlow_CheckGoal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoalMet</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TrainLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- 5. Path: Goal Met -->
+    <bpmn:sequenceFlow id="SequenceFlow_GoalMet" name="Yes (&lt;25 min)" sourceRef="Gateway_CheckGoal">
+      <bpmn:name>Time OK</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[time &lt; 25]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- 6. Path: Train Loop -->
+    <bpmn:task id="Task_Train" name="Train and Check Goal">
+      <bpmn:incoming>SequenceFlow_TrainLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartRunAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- 7. Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartRunAgain" name="" sourceRef="Task_Train" targetRef="Task_MeasureTime"/>
+
+    <!-- 8. Get Starting Number (After Goal Met) -->
+    <bpmn:task id="Task_GetNumber" name="Get Starting Number">
+      <bpmn:incoming>SequenceFlow_GoalMet</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSchedule</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Association for Start Number -->
+    <bpmn:dataOutputAssociation id="Assoc_StartNum" sourceRef="Task_GetNumber">
+        <bpmn:targetRef>Data_StartNumber</bpmn:targetRef>
+    </bpmn:dataOutputAssociation>
+
+    <!-- 9. Decision: Travel Mode (Home vs Work) -->
+    <bpmn:task id="Task_CheckSchedule" name="Check Schedule Feasibility">
+      <bpmn:incoming>SequenceFlow_CheckSchedule</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideTravel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Associations for Decision -->
+    <bpmn:dataInputAssociation id="Assoc_WorkEnd" sourceRef="Task_CheckSchedule">
+        <bpmn:targetRef>Data_WorkEndTime</bpmn:targetRef>
+    </bpmn:dataInputAssociation>
+    
+    <bpmn:dataInputAssociation id="Assoc_RaceStart" sourceRef="Task_CheckSchedule">
+        <bpmn:targetRef>Data_RaceStartTime</bpmn:targetRef>
+    </bpmn:dataInputAssociation>
+
+    <!-- 10. Gateway: Travel Decision -->
+    <bpmn:exclusiveGateway id="Gateway_TravelDecision" name="Leave from Home or Work?">
+      <bpmn:incoming>SequenceFlow_DecideTravel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FromHome</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FromWork</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- 11. Path: From Home -->
+    <bpmn:task id="Task_TravelHome" name="Travel from Home">
+      <bpmn:incoming>SequenceFlow_FromHome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRaceStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- 12. Path: From Work -->
+    <bpmn:task id="Task_TravelWork" name="Leave from Work">
+      <bpmn:incoming>SequenceFlow_FromWork</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRaceStart_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- 13. Race Phase (Parallel Run & Drink) -->
+    <bpmn:subProcess id="Subprocess_Race" name="Night Run Participation">
+      <bpmn:startEvent id="StartRaceEntry"/>
+      <bpmn:endEvent id="EndRaceExit"/>
+
+      <!-- Parallel Gateway inside Subprocess -->
+      <bpmn:parallelGateway id="Parallel_RunDrinkSplit">
+        <bpmn:incoming>SequenceFlow_RaceStart</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ActualRun</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_DrinkAction</bpmn:outgoing>
+      </bpmn:parallelGateway>
+
+      <!-- Run Task -->
+      <bpmn:task id="Task_RunRace" name="Run 5km">
+         <bpmn:incoming>SequenceFlow_ActualRun</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_RaceEndJoin1</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Drink Task -->
+      <bpmn:task id="Task_Drink" name="Drink">
+        <bpmn:incoming>SequenceFlow_DrinkAction</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_RaceEndJoin2</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Join -->
+      <bpmn:parallelGateway id="Parallel_RunDrinkJoin">
+         <bpmn:incoming>SequenceFlow_RaceEndJoin1</bpmn:incoming>
+         <bpmn:incoming>SequenceFlow_RaceEndJoin2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_FinishRace</bpmn:outgoing>
+      </bpmn:parallelGateway>
+
+    </bpmn:subProcess>
+
+    <!-- 14. Connect Travel to Race -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRaceStart" sourceRef="Task_TravelHome" targetRef="Subprocess_Race"/>
+    
+    <bpmn:association id="Assoc_SubProcEntry">
+        <bpmn:sourceRef>Parallel_RunDrinkSplit</bpmn:sourceRef>
+        <bpmn:targetRef>Data_StartNumber</bpmn:targetRef>
+    </bpmn:association>
+
+    <!-- 15. Final Time Received (End Event) -->
+    <bpmn:endEvent id="End_Event_FinalTime" name="Receive Final Running Time">
+      <bpmn:incoming>SequenceFlow_FinishRace</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Main Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectBlock" sourceRef="Start_Event_Participate" targetRef="Task_SelectBlock"/>
+    
+    <bpmn:dataInputAssociation id="Assoc_BlockSelect">
+        <bpmn:sourceRef>Task_SelectBlock</bpmn:sourceRef>
+        <bpmn:targetRef>Data_StartBlockSelection</bpmn:targetRef>
+    </bpmn:dataInputAssociation>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartRun" sourceRef="Task_SelectBlock" targetRef="Task_MeasureTime"/>
+    
+    <!-- Data Input for Measurement -->
+    <bpmn:dataOutputAssociation id="Assoc_TimeMeasure">
+        <bpmn:sourceRef>Task_MeasureTime</bpmn:sourceRef>
+        <bpmn:targetRef>Data_RunTime</bpmn:targetRef>
+    </bpmn:dataOutputAssociation>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckGoal" sourceRef="Task_MeasureTime" targetRef="Gateway_CheckGoal"/>
+
+    <!-- Gateway Conditions -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TrainLoop" name="No (&gt;=25 min)" sourceRef="Gateway_CheckGoal" targetRef="Task_Train">
+      <bpmn:name>Time Not OK</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[time &geq 25]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway Conditions -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecideTravel" sourceRef="Task_CheckSchedule" targetRef="Gateway_TravelDecision"/>
+    
+    <!-- Gateway Conditions -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FromHome" name="Yes (&gt;1 hr left)" sourceRef="Gateway_TravelDecision" targetRef="Task_TravelHome">
+      <bpmn:name>From Home</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[WorkEndTime + 1h &lt; RaceStartTime]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Gateway Conditions -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FromWork" name="No (Leave from Work)" sourceRef="Gateway_TravelDecision" targetRef="Task_TravelWork">
+      <bpmn:name>From Work</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[WorkEndTime + 1h &geq RaceStartTime]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Connect to Subprocess -->
+    
+    <!-- Subprocess Internal Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ActualRun" sourceRef="Parallel_RunDrinkSplit" targetRef="Task_RunRace"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DrinkAction" sourceRef="Parallel_RunDrinkSplit" targetRef="Task_Drink"/>
+    
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RaceEndJoin1" name="" sourceRef="Task_RunRace" targetRef="Parallel_RunDrinkJoin"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RaceEndJoin2" name="" sourceRef="Task_Drink" targetRef="Parallel_RunDrinkJoin"/>
+
+    <!-- Exit Subprocess -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishRace" sourceRef="Parallel_RunDrinkJoin" targetRef="End_Event_FinalTime">
+        <bpmn:name>Finish</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_StorageManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_StorageMgmt">
+    <bpmn:participant id="Participant_MainProcess" name="Storage Management Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SystemOps" name="System & Operations">
+        <bpmn:flowNodeRef>StartEvent_ReceiveOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReadOrderDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CheckStockStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WithdrawProduct</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReorderFromWholesaler</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CheckDeliveryDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DemandPenalty</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterProductInSystem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CheckOrderReadyForShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>PWG_ShipmentPreparation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RequestCourier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>PWG_ConvergeShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExecuteShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderShipped</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_ReceiveOrder" name="Receive Order from System">
+      <bpmn:outgoing>SF_ReadOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ReadOrderDetails" name="Read Order Details">
+      <bpmn:incoming>SF_ReadOrder</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckStockFirstProduct</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CheckStockStatus" name="Is first product&#10;in stock?">
+      <bpmn:incoming>SF_CheckStockFirstProduct</bpmn:incoming>
+      <bpmn:outgoing>SF_WithdrawPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_ReorderPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_WithdrawProduct" name="Withdraw from Warehouse">
+      <bpmn:incoming>SF_WithdrawPath</bpmn:incoming>
+      <bpmn:outgoing>SF_RegisterStockYes</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ReorderFromWholesaler" name="Reorder from Wholesaler">
+      <bpmn:incoming>SF_ReorderPath</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitForArrival</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CheckDeliveryDelay" name="Wait time&#10;&gt; 10 days?">
+      <bpmn:incoming>SF_WaitForArrival</bpmn:incoming>
+      <bpmn:outgoing>SF_PenaltyPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_RegisterStockNoPenalty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_DemandPenalty" name="Demand Delivery&#10;Delay Penalty">
+      <bpmn:incoming>SF_PenaltyPath</bpmn:incoming>
+      <bpmn:outgoing>SF_RegisterStockNoPenalty</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectNextProduct" name="Select Next&#10;Product from Order">
+      <bpmn:incoming>SF_NextProductLoop</bpmn:incoming>
+      <bpmn:outgoing>SF_LoopToStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CheckOrderReadyForShipment" name="Is whole order&#10;ready for shipment?">
+      <bpmn:incoming>SF_CheckOrderReady</bpmn:incoming>
+      <bpmn:outgoing>SF_ShipmentPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_NextProductLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="PWG_ConvergeShipment" gatewayDirection="Converging">
+      <bpmn:incoming>SF_RequestCourierFlow</bpmn:incoming>
+      <bpmn:incoming>SF_PackProductsFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_ConvergeShipment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_RegisterProductInSystem" name="Register Product&#10;in Stock System">
+      <bpmn:incoming>SF_RegisterStockYes</bpmn:incoming>
+      <bpmn:incoming>SF_RegisterStockNoPenalty</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckOrderReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="PWG_ShipmentPreparation" gatewayDirection="Diverging">
+      <bpmn:incoming>SF_ShipmentPath</bpmn:incoming>
+      <bpmn:outgoing>SF_RequestCourierFlow</bpmn:outgoing>
+      <bpmn:outgoing>SF_PackProductsFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_RequestCourier" name="Request Courier">
+      <bpmn:incoming>SF_RequestCourierFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_ConvergeShipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PackProducts" name="Pack Products">
+      <bpmn:incoming>SF_PackProductsFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_ConvergeShipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_OrderShipped" name="Order Shipped">
+      <bpmn:incoming>SF_EndOrderShip</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SF_ReadOrder" sourceRef="StartEvent_ReceiveOrder" targetRef="Task_ReadOrderDetails"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckStockFirstProduct" name="" sourceRef="Task_ReadOrderDetails" targetRef="GW_CheckStockStatus"/>
+
+    <bpmn:sequenceFlow id="SF_WithdrawPath" name="Yes (In Stock)" sourceRef="GW_CheckStockStatus" targetRef="Task_WithdrawProduct"/>
+    
+    <bpmn:sequenceFlow id="SF_ReorderPath" name="No (Not In Stock)" sourceRef="GW_CheckStockStatus" targetRef="Task_ReorderFromWholesaler"/>
+
+    <bpmn:sequenceFlow id="SF_WaitForArrival" name="" sourceRef="Task_ReorderFromWholesaler" targetRef="GW_CheckDeliveryDelay"/>
+
+    <bpmn:sequenceFlow id="SF_PenaltyPath" name="Yes (&gt;10 days)" sourceRef="GW_CheckDeliveryDelay" targetRef="Task_DemandPenalty"/>
+    
+    <bpmn:sequenceFlow id="SF_RegisterStockNoPenalty" name="No (Normal Delivery)" sourceRef="GW_CheckDeliveryDelay" targetRef="Task_RegisterProductInSystem"/>
+
+    <bpmn:sequenceFlow id="SF_RegisterStockYes" name="" sourceRef="Task_WithdrawProduct" targetRef="Task_RegisterProductInSystem"/>
+
+    <bpmn:sequenceFlow id="SF_CheckOrderReady" name="" sourceRef="Task_RegisterProductInSystem" targetRef="GW_CheckOrderReadyForShipment"/>
+
+    <bpmn:sequenceFlow id="SF_ShipmentPath" name="Yes (All Ready)" sourceRef="GW_CheckOrderReadyForShipment" targetRef="PWG_ShipmentPreparation"/>
+    
+    <bpmn:sequenceFlow id="SF_NextProductLoop" name="No (Next Product)" sourceRef="GW_CheckOrderReadyForShipment" targetRef="Task_SelectNextProduct"/>
+
+    <bpmn:sequenceFlow id="SF_LoopToStock" name="" sourceRef="Task_SelectNextProduct" targetRef="GW_CheckStockStatus"/>
+
+    <bpmn:sequenceFlow id="SF_RequestCourierFlow" name="" sourceRef="PWG_ShipmentPreparation" targetRef="Task_RequestCourier"/>
+    
+    <bpmn:sequenceFlow id="SF_PackProductsFlow" name="" sourceRef="PWG_ShipmentPreparation" targetRef="Task_PackProducts"/>
+
+    <bpmn:sequenceFlow id="SF_ConvergeShipment" sourceRef="PWG_ConvergeShipment" targetRef="Task_ExecuteShipment"/>
+    
+    <bpmn:task id="Task_ExecuteShipment" name="Execute&#10;Shipment">
+      <bpmn:incoming>SF_ConvergeShipment</bpmn:incoming>
+      <bpmn:outgoing>SF_EndOrderShip</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SF_EndOrderShip" name="" sourceRef="Task_ExecuteShipment" targetRef="EndEvent_OrderShipped"/>
+
+  </bpmn:process>
+</bpmn:definitions>

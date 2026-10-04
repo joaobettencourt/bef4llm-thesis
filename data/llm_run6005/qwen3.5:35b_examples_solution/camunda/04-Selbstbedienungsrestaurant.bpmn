@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RestaurantProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RestaurantOrdering">
+    <bpmn:participant id="Participant_Guest" name="Gast (Kunde)" processRef="Process_Customer"/>
+    <bpmn:participant id="Participant_Staff" name="Angestellter (Service)" processRef="Process_Service"/>
+    <bpmn:participant id="Participant_Cook" name="Koch (Zubereitung)" processRef="Process_Kitchen"/>
+
+    <!-- Message Flows between participants -->
+    <bpmn:messageFlow id="Message_GuestOrdersStaff" sourceRef="Task_CustomerPlacesOrder" targetRef="StartEvent_StaffReceivesOrder"/>
+    <bpmn:messageFlow id="Message_PagerGivenToGuest" sourceRef="Task_StaffGivesPager" targetRef="IntermediateCatchCustomerPagersRings"/>
+    <bpmn:messageFlow id="Message_OrderSentToKitchen" sourceRef="Task_StaffInformsCook" targetRef="StartEvent_CookReceivesOrder"/>
+    <bpmn:messageFlow id="Message_FoodReadyNotification" sourceRef="Task_CookNotifiesStaffFoodReady" targetRef="IntermediateCatchStaffFoodsReady"/>
+    <bpmn:messageFlow id="Message_PagerTriggeredToGuest" sourceRef="Task_StaffTriggersPager" targetRef="IntermediateCatchCustomerPagersRings"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Process_Customer">
+    <bpmn:startEvent id="StartEvent_Hungry" name="Hunger verspürt">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CustomerEntersRestaurant" name="Restaurant betreten">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_Hungry" targetRef="Task_CustomerEntersRestaurant"/>
+
+    <bpmn:task id="Task_SelectDish" name="Gericht auswählen">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_CustomerEntersRestaurant" targetRef="Task_SelectDish"/>
+
+    <bpmn:intermediateCatchEvent id="IntermediateWaitToBeServed" name="An der Reihe warten">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="Task_SelectDish" targetRef="IntermediateWaitToBeServed"/>
+
+    <bpmn:task id="Task_CustomerPlacesOrder" name="Bestellung aufgeben">
+      <bpmn:incoming>Message_GuestOrdersStaff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_04" sourceRef="IntermediateWaitToBeServed" targetRef="Task_CustomerPlacesOrder"/>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCustomerReceivesPager" name="Pieper erhalten">
+      <bpmn:incoming>Message_PagerGivenToGuest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_05" sourceRef="Task_CustomerPlacesOrder" targetRef="IntermediateCustomerReceivesPager"/>
+
+    <bpmn:task id="Task_WaitForFoodSignal" name="Auf Pieper warten">
+      <bpmn:incoming>SequenceFlow_06</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_06" sourceRef="IntermediateCustomerReceivesPager" targetRef="Task_WaitForFoodSignal"/>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchCustomerPagersRings" name="Pieper meldet sich">
+      <bpmn:incoming>Message_PagerTriggeredToGuest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_08</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_07" sourceRef="Task_WaitForFoodSignal" targetRef="IntermediateCatchCustomerPagersRings"/>
+
+    <bpmn:task id="Task_CustomerGoesToPickup" name="Essen abholen">
+      <bpmn:incoming>Message_PagerTriggeredToGuest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_09</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_08" sourceRef="IntermediateCatchCustomerPagersRings" targetRef="Task_CustomerGoesToPickup"/>
+
+    <bpmn:endEvent id="EndEvent_EatMeal" name="Mahlzeit verzehren">
+      <bpmn:incoming>Message_FoodGivenByStaff</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_09" sourceRef="Task_CustomerGoesToPickup" targetRef="EndEvent_EatMeal"/>
+  </bpmn:process>
+
+  <!-- Staff Process -->
+  <bpmn:process id="Process_Service">
+    <bpmn:startEvent id="StartEvent_StaffReceivesOrder" name="Bestellung erhalten">
+      <bpmn:outgoing>SequenceFlow_S01</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_StaffEntersOrder" name="Bestellung eingeben">
+      <bpmn:incoming>SequenceFlow_S01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S01" sourceRef="StartEvent_StaffReceivesOrder" targetRef="Task_StaffEntersOrder"/>
+
+    <bpmn:task id="Task_CollectPayment" name="Geld kassieren">
+      <bpmn:incoming>SequenceFlow_S02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S03</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S02" sourceRef="Task_StaffEntersOrder" targetRef="Task_CollectPayment"/>
+
+    <bpmn:exclusiveGateway id="Gateway_PaymentConfirmed">
+      <bpmn:incoming>SequenceFlow_S03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S03" sourceRef="Task_CollectPayment" targetRef="Gateway_PaymentConfirmed"/>
+
+    <bpmn:task id="Task_StaffSetsPager" name="Pieper einstellen">
+      <bpmn:incoming>SequenceFlow_S04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S05</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S04" sourceRef="Gateway_PaymentConfirmed" targetRef="Task_StaffSetsPager"/>
+
+    <bpmn:task id="Task_StaffGivesPager" name="Pieper übergeben">
+      <bpmn:incoming>Message_GivenByStaff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S06</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S05" sourceRef="Task_StaffSetsPager" targetRef="Task_StaffGivesPager"/>
+
+    <bpmn:task id="Task_StaffInformsCook" name="Koch informieren">
+      <bpmn:incoming>Message_GivenByStaff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S07</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S06" sourceRef="Task_StaffGivesPager" targetRef="Task_StaffInformsCook"/>
+
+    <bpmn:messageFlow id="Message_OrderSentToKitchen" sourceRef="Task_StaffInformsCook" targetRef="StartEvent_CookReceivesOrder">
+      <!-- Message flow to kitchen -->
+    </bpmn:messageFlow>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchStaffFoodsReady" name="Essen fertig (Koch informiert)">
+      <bpmn:incoming>Message_FoodReadyNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S08</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S07" sourceRef="Task_StaffInformsCook" targetRef="IntermediateCatchStaffFoodsReady"/>
+
+    <bpmn:task id="Task_StaffTriggersPager" name="Pieper auslösen">
+      <bpmn:incoming>Message_FoodReadyNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S09</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S08" sourceRef="IntermediateCatchStaffFoodsReady" targetRef="Task_StaffTriggersPager"/>
+
+    <bpmn:eventBasedGateway id="EventBased_GuestResponse">
+      <bpmn:incoming>Message_PagerTriggeredToGuest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_S10</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_S11</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S09" sourceRef="Task_StaffTriggersPager" targetRef="EventBased_GuestResponse"/>
+
+    <!-- Path 1: Guest responds -->
+    <bpmn:intermediateCatchEvent id="IntermediateCustomerAppearsAtPickup" name="Gast erscheint an Ausgabe">
+      <bpmn:incoming>SequenceFlow_S10</bpmn:incoming>
+      <bpmn:outgoing>Message_FoodGivenByStaff</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S10" sourceRef="EventBased_GuestResponse" targetRef="IntermediateCustomerAppearsAtPickup"/>
+
+    <!-- Path 2: Timeout - call guest -->
+    <bpmn:intermediateCatchEvent id="Timer_5MinutesWait" name="5 Minuten warten">
+      <bpmn:incoming>SequenceFlow_S11</bpmn:incoming>
+      <bpmn:outgoing>Task_CallGuestOut</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S11" sourceRef="EventBased_GuestResponse" targetRef="Timer_5MinutesWait"/>
+
+    <!-- Loop for calling guest multiple times -->
+    <bpmn:task id="Task_CallGuestOut" name="Gast ausrufen">
+      <bpmn:incoming>SequenceFlow_S12</bpmn:incoming>
+      <bpmn:outgoing>Message_FoodGivenByStaff</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End event for staff process -->
+    <bpmn:endEvent id="EndEvent_ServiceComplete" name="Service abgeschlossen">
+      <bpmn:incoming>SequenceFlow_S12</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_S12" sourceRef="Task_CallGuestOut" targetRef="EndEvent_ServiceComplete"/>
+  </bpmn:process>
+
+  <!-- Kitchen Process -->
+  <bpmn:process id="Process_Kitchen">
+    <bpmn:startEvent id="StartEvent_CookReceivesOrder" name="Bestellung erhalten (Koch)">
+      <bpmn:outgoing>SequenceFlow_K01</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_PrepareMeal" name="Mahlzeit zubereiten">
+      <bpmn:incoming>SequenceFlow_K01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_K02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_K01" sourceRef="StartEvent_CookReceivesOrder" targetRef="Task_PrepareMeal"/>
+
+    <bpmn:task id="Task_PutFoodInPassThrough" name="Essen in Durchreiche stellen">
+      <bpmn:incoming>SequenceFlow_K02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_K03</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_K02" sourceRef="Task_PrepareMeal" targetRef="Task_PutFoodInPassThrough"/>
+
+    <bpmn:task id="Task_CookNotifiesStaffFoodReady" name="Angestellten informieren">
+      <bpmn:incoming>Message_FoodReadyNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_K04</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_K03" sourceRef="Task_PutFoodInPassThrough" targetRef="Task_CookNotifiesStaffFoodReady"/>
+
+    <bpmn:endEvent id="EndEvent_MealPrepared">
+      <bpmn:incoming>Message_FoodGivenByStaff</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_K04" sourceRef="Task_CookNotifiesStaffFoodReady" targetRef="EndEvent_MealPrepared"/>
+  </bpmn:process>
+
+</bpmn:definitions>

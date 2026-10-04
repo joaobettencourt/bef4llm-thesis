@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_FarmBot_001">
+  <bpmn:collaboration id="Collab_FarmBot_001">
+    <bpmn:participant id="Participant_GameSystem" name="Farming Bot System" processRef="Process_FarmBotLogic"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_FarmBotLogic" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PlayerInteraction" name="Player Interaction">
+        <bpmn:flowNodeRef>StartEvent_CreateBot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SelectResources</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_BotExecution" name="Bot Execution">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckTools</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_CreateTools</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_StartFarming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_GatherResourceA</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifyMilestone</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CreateBot" name="Create Custom Bot">
+      <bpmn:outgoing>SequenceFlow_InitProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Select Resources Task -->
+    <bpmn:userTask id="UserTask_SelectResources" name="Select Up to 10 Resources">
+      <bpmn:incoming>SequenceFlow_InitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToolsReq</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Tools Gateway -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_CheckTools" name="Tools&#10;Ready?">
+      <bpmn:incoming>SequenceFlow_CheckToolsReq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartFarmingPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateToolsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Tools Task -->
+    <bpmn:userTask id="UserTask_CreateTools" name="Create Required Tools">
+      <bpmn:incoming>SequenceFlow_CreateToolsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToolsAgain</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Again Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Ready" name="All&#10;Ready?">
+      <bpmn:incoming>SequenceFlow_CreateToolsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartFarmingLoopBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Start Farming Parallel Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_StartFarming" name="Start&#10;Farming">
+      <bpmn:incoming>SequenceFlow_StartFarmingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatherA</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Gather Resource Task -->
+    <bpmn:userTask id="UserTask_GatherResourceA" name="Gather Resources">
+      <bpmn:incoming>SequenceFlow_GatherA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MilestoneCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary Event for Disaster -->
+    <bpmn:startEvent id="StartEvent_Disaster" name="Disaster&#10;Struck">
+      <bpmn:boundaryEventRef>UserTask_GatherResourceA</bpmn:boundaryEventRef>
+      <bpmn:interrupting>true</bpmn:interrupting>
+    </bpmn:startEvent>
+
+    <!-- Disaster Recovery Task -->
+    <bpmn:userTask id="UserTask_Recover" name="Recover from&#10;Disaster">
+      <bpmn:incoming>SequenceFlow_DisasterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResubmitFarming</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Milestone Notification -->
+    <bpmn:userTask id="UserTask_NotifyMilestone" name="Notify Player&#10;of Milestone">
+      <bpmn:incoming>SequenceFlow_MilestoneCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FarmCompleteJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Join Farming -->
+    <bpmn:parallelGateway id="ParallelGateway_JoinFarming" name="All&#10;Done?">
+      <bpmn:incoming>SequenceFlow_FarmCompleteJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCompletion</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Completion Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Completion" name="All&#10;Resources">
+      <bpmn:incoming>SequenceFlow_CheckToolsAgain</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartFarmingLoopBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Update Config Subprocess -->
+    <bpmn:eventSubProcess id="EventSub_UpdateConfig" triggeredByEvent="Signal_01">
+      <bpmn:startEvent id="StartEvent_SubUpdate" name="Receive&#10;Update Signal"/>
+      <bpmn:sequenceFlow id="Seq_ProcessUpdate" sourceRef="StartEvent_SubUpdate" targetRef="UserTask_UpdateList"/>
+    </bpmn:eventSubProcess>
+
+    <!-- Update List Task -->
+    <bpmn:userTask id="UserTask_UpdateList" name="Update Material&#10;List">
+      <bpmn:incoming>SequenceFlow_ProcessUpdate</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- End Phase Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_EndChoice" name="Brag or Send?">
+      <bpmn:incoming>SequenceFlow_CheckCompletion</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BragPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Brag Task -->
+    <bpmn:userTask id="UserTask_Brag" name="Brag to Friends">
+      <bpmn:incoming>SequenceFlow_BragPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Send Task -->
+    <bpmn:userTask id="UserTask_Send" name="Send Materials">
+      <bpmn:incoming>SequenceFlow_SendPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_EventFinished" name="Bot&#10;Finished">
+      <bpmn:incoming>SequenceFlow_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_InitProcess" sourceRef="StartEvent_CreateBot" targetRef="UserTask_SelectResources"/>
+    
+    <bpmn:sequenceFlow id="Seq_CheckToolsReq" sourceRef="UserTask_SelectResources" targetRef="InclusiveGateway_CheckTools"/>
+
+    <!-- Tool Creation Loop -->
+    <bpmn:sequenceFlow id="Seq_StartFarmingPath" name="Yes Tools" sourceRef="InclusiveGateway_CheckTools" targetRef="ParallelGateway_StartFarming"/>
+    
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReadyLoop">
+      <bpmn:incoming>SequenceFlow_CreateToolsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartFarmingLoopBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Seq_CheckDepsAgain" name="No Tools" sourceRef="InclusiveGateway_CheckTools" targetRef="UserTask_CreateTools"/>
+    
+    <!-- Loop Back -->
+    <bpmn:sequenceFlow id="Seq_StartFarmingLoopBack" sourceRef="ExclusiveGateway_ReadyLoop" targetRef="ParallelGateway_StartFarming"/>
+
+    <!-- Farming Flow -->
+    <bpmn:sequenceFlow id="Seq_GatherA" sourceRef="ParallelGateway_StartFarming" targetRef="UserTask_GatherResourceA"/>
+    
+    <!-- Disaster Boundary Event Connection (Implicit via boundary event) -->
+    <bpmn:startEvent id="StartEvent_DisasterTrigger">
+      <bpmn:outgoing>SequenceFlow_DisasterPath</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="Seq_MilestoneCheck" sourceRef="UserTask_GatherResourceA" targetRef="UserTask_NotifyMilestone"/>
+    
+    <!-- Recovery Flow -->
+    <bpmn:sequenceFlow id="Seq_DisasterPath" name="Disaster Occurred" sourceRef="StartEvent_DisasterTrigger" targetRef="UserTask_Recover"/>
+
+    <bpmn:sequenceFlow id="Seq_ResubmitFarming" sourceRef="UserTask_Recover" targetRef="ParallelGateway_StartFarming"/>
+    
+    <!-- Milestone Flow -->
+    <bpmn:sequenceFlow id="Seq_FarmCompleteJoin" sourceRef="UserTask_NotifyMilestone" targetRef="ParallelGateway_JoinFarming"/>
+
+    <!-- Completion Logic (Simplified for XML validity) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CompletionCheck">
+      <bpmn:incoming>SequenceFlow_FarmCompleteJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCompletionFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Choice -->
+    <bpmn:sequenceFlow id="Seq_CheckCompletion" sourceRef="ParallelGateway_JoinFarming" targetRef="ExclusiveGateway_CompletionCheck"/>
+    
+    <bpmn:sequenceFlow id="Seq_BragPath" name="Brag to Friends" sourceRef="ExclusiveGateway_EndChoice" targetRef="UserTask_Brag"/>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SendOrEnd">
+      <bpmn:incoming>SequenceFlow_CheckCompletionFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Flow -->
+    <bpmn:sequenceFlow id="Seq_SendPath" name="Send Materials" sourceRef="ExclusiveGateway_EndChoice" targetRef="UserTask_Send"/>
+
+    <!-- End Success -->
+    <bpmn:sequenceFlow id="Seq_BragEnd" sourceRef="UserTask_Brag" targetRef="End_EventFinished"/>
+    
+    <bpmn:sequenceFlow id="Seq_SendEnd" sourceRef="UserTask_Send" targetRef="End_EventFinished"/>
+
+  </bpmn:process>
+
+  <!-- Signal for Update -->
+  <bpmn:message id="Message_01_UpdateConfig" name="Update Config Request"/>
+</bpmn:definitions>

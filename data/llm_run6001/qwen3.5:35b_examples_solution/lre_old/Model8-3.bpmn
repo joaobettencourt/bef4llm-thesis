@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Personnel Recruitment Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FunctionalDept" name="Head of Functional Department">
+        <bpmn:flowNodeRef>StartEvent_PersonnelRequirements</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReportVacancy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchMessage_JobDescriptionReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ApprovalDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchMessage_ClarificationReceived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_PersonnelRequirements" name="Personnel requirements detected">
+      <bpmn:outgoing>SFlow_ReportVacancy</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Report vacancy to Personnel Department -->
+    <bpmn:task id="Task_ReportVacancy" name="Report vacancy to Personnel Department">
+      <bpmn:incoming>SFlow_ReportVacancy</bpmn:incoming>
+      <bpmn:outgoing>SFlow_WaitJobDescription</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catching Event: Wait for job description from HR -->
+    <bpmn:intermediateCatchEvent id="CatchMessage_JobDescriptionReceived" name="Wait for job description">
+      <bpmn:incoming>SFlow_WaitJobDescription</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ReviewJD</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Review the job description -->
+    <bpmn:task id="Task_ReviewJobDescription" name="Review job description">
+      <bpmn:incoming>SFlow_ReviewJD</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ApprovalDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway: Is the job description OK? -->
+    <bpmn:exclusiveGateway id="Gw_ApprovalDecision" name="Job description approved?">
+      <bpmn:incoming>SFlow_ApprovalDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AskCorrections</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ReadyForClarification</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Ask for corrections (loop back) -->
+    <bpmn:task id="Task_AskCorrections" name="Ask for job description corrections">
+      <bpmn:incoming>SFlow_AskCorrections</bpmn:incoming>
+      <bpmn:outgoing>SFlow_WaitJobDescriptionAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catching Event: Wait for clarification response -->
+    <bpmn:intermediateCatchEvent id="CatchMessage_ClarificationReceived" name="Wait for HR colleague's questions">
+      <bpmn:incoming>SFlow_ReadyForClarification</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CommunicateTasksRequirements</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Communicate tasks and requirements to HR colleague -->
+    <bpmn:task id="Task_CommunicateClarification" name="Communicate tasks and requirements">
+      <bpmn:incoming>SFlow_CommunicateTasksRequirements</bpmn:incoming>
+      <bpmn:outgoing>SFlow_WaitJobDescriptionAgain2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_JobApproved" name="Job description approved">
+      <bpmn:incoming>SFlow_ApprovedToHR</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_ReportVacancy" sourceRef="StartEvent_PersonnelRequirements" targetRef="Task_ReportVacancy"/>
+    
+    <bpmn:sequenceFlow id="SFlow_WaitJobDescription" name="" sourceRef="Task_ReportVacancy" targetRef="CatchMessage_JobDescriptionReceived"/>
+    
+    <bpmn:sequenceFlow id="SFlow_ReviewJD" sourceRef="CatchMessage_JobDescriptionReceived" targetRef="Task_ReviewJobDescription"/>
+    
+    <bpmn:sequenceFlow id="SFlow_ApprovalDecision" name="" sourceRef="Task_ReviewJobDescription" targetRef="Gw_ApprovalDecision"/>
+    
+    <!-- If corrections needed -->
+    <bpmn:sequenceFlow id="SFlow_AskCorrections" name="No - Ask for corrections" sourceRef="Gw_ApprovalDecision" targetRef="Task_AskCorrections">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${jobDescriptionNeedsCorrection}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- If clarification needed -->
+    <bpmn:sequenceFlow id="SFlow_ReadyForClarification" name="Yes - Questions exist" sourceRef="Gw_ApprovalDecision" targetRef="CatchMessage_ClarificationReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${HRHasQuestions}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- If approved -->
+    <bpmn:sequenceFlow id="SFlow_ApprovedToHR" name="Yes - Approved" sourceRef="Gw_ApprovalDecision" targetRef="EndEvent_JobApproved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${jobDescriptionApproved}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back after corrections -->
+    <bpmn:sequenceFlow id="SFlow_WaitJobDescriptionAgain" sourceRef="Task_AskCorrections" targetRef="CatchMessage_JobDescriptionReceived"/>
+    
+    <!-- After clarification, wait for new job description from HR -->
+    <bpmn:sequenceFlow id="SFlow_CommunicateTasksRequirements" name="" sourceRef="CatchMessage_ClarificationReceived" targetRef="Task_CommunicateClarification"/>
+    
+    <bpmn:sequenceFlow id="SFlow_WaitJobDescriptionAgain2" sourceRef="Task_CommunicateClarification" targetRef="CatchMessage_JobDescriptionReceived"/>
+
+  </bpmn:process>
+</bpmn:definitions>

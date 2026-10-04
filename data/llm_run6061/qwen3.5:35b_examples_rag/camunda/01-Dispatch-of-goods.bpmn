@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ReturnsProcess">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Participant_ProcessReturns" name="Goods Shipment Process" processRef="Proc_GoodsShipment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_GoodsShipment" isExecutable="false">
+    
+    <!-- LaneSet -->
+    <bpmn:laneSet id="LaneSet_001">
+      <bpmn:lane id="Lane_Secretary" name="Secretary">
+        <bpmn:flowNodeRef>Task_CheckShipping</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_LargeAmounts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InviteCompanies</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCompany</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_PrepStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WriteLabel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_LogisticsHead" name="Logistics Dept Head">
+        <bpmn:flowNodeRef>Gate_InsNeeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckInsurance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TakeInsurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehousemen">
+        <bpmn:flowNodeRef>Task_PackageGoods</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_GoodsShipment" name="Goods Shipment Requested">
+      <bpmn:outgoing>Seq_CheckShipping</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Clarify Shipping Method (Secretary) -->
+    <bpmn:userTask id="Task_CheckShipping" name="Clarify who will do shipping">
+      <bpmn:incoming>Seq_CheckShipping</bpmn:incoming>
+      <bpmn:outgoing>Seq_LargeAmountsCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Large Amount Decision -->
+    <bpmn:exclusiveGateway id="Gate_LargeAmounts" name="Large&#10;amount?">
+      <bpmn:incoming>Seq_LargeAmountsCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_InviteCompaniesPath</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>Seq_NormalPostPath</bpmn:outgoing>    <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Large Amounts (Yes) - Invite Companies -->
+    <bpmn:userTask id="Task_InviteCompanies" name="Invite 3 logistic companies">
+      <bpmn:incoming>Seq_InviteCompaniesPath</bpmn:incoming>
+      <bpmn:outgoing>Seq_SelectCompanyFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path: Large Amounts (Yes) - Select Company -->
+    <bpmn:userTask id="Task_SelectCompany" name="Select logistic company">
+      <bpmn:incoming>Seq_SelectCompanyFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_MergePrepStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path: Small Amounts (No) - Normal Post -->
+    <bpmn:sequenceFlow id="Seq_NormalPostPath" sourceRef="Gate_LargeAmounts" targetRef="Gate_PrepStart">
+      <bpmn:name>If&#10;small</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Point for Prep Phase Start -->
+    <bpmn:parallelGateway id="Gate_PrepStart" name="Preparation&#10;Phase">
+      <bpmn:incoming>Seq_MergePrepStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_WriteLabelFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Write Label (Secretary) -->
+    <bpmn:userTask id="Task_WriteLabel" name="Write package label">
+      <bpmn:incoming>Seq_MergePrepStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_LabelDoneFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Split for Prep Tasks -->
+    <bpmn:parallelGateway id="Gate_PrepSplit" name="Parallel&#10;Prep">
+      <bpmn:incoming>Seq_LabelDoneFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckInsuranceFlow</bpmn:outgoing> <!-- Logistics Lane -->
+    </bpmn:parallelGateway>
+
+    <!-- Task: Check Insurance (Logistics Head) -->
+    <bpmn:userTask id="Task_CheckInsurance" name="Check insurance necessity">
+      <bpmn:incoming>Seq_CheckInsuranceFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_InsDecisionGate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Insurance Necessary? -->
+    <bpmn:exclusiveGateway id="Gate_InsNeeded" name="Insurance&#10;needed?">
+      <bpmn:incoming>Seq_InsDecisionGate</bpmn:incoming>
+      <bpmn:outgoing>Seq_TakeInsuranceFlow</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Take Insurance (Logistics Head) - if needed -->
+    <bpmn:userTask id="Task_TakeInsurance" name="Take parcel insurance">
+      <bpmn:incoming>Seq_TakeInsuranceFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_InsDoneJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Package Goods (Warehousemen) -->
+    <bpmn:userTask id="Task_PackageGoods" name="Package goods">
+       <bpmn:incoming>Seq_LabelDoneFlow</bpmn:incoming> 
+      <bpmn:outgoing>Seq_GoodsPackagedJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Join Insurance Path -->
+    <bpmn:parallelGateway id="Gate_InsMerge" name="Insurance&#10;Check">
+      <bpmn:incoming>Seq_TakeInsuranceFlow</bpmn:incoming>
+       <bpmn:outgoing>Seq_PreparePickupJoinIn</bpmn:outgoing> 
+    </bpmn:parallelGateway>
+
+     <!-- Join All Prep Tasks (Label + Insurance Check/Purchase + Packaging) before Pickup Preparation -->
+    <bpmn:parallelGateway id="Gate_PrepEnd" name="All&#10;Ready">
+      <bpmn:incoming>Seq_LabelDoneFlow</bpmn:incoming> 
+       <bpmn:outgoing>Seq_PreparePickupJoinIn</bpmn:outgoing> <!-- Wait, structure needs to be cleaner -->
+    </bpmn:parallelGateway>
+
+     <!-- Correcting Join Logic for Parallel Prep Tasks (Label + Insurance Check/Purchase + Packaging) -->
+     
+  </bpmn:process>
+  
+  <bpmn:endEvent id="End_Prepared" name="Shipment&#10;Prepared">
+    <bpmn:incoming>Seq_FinalPickup</bpmn:outgoing> <!-- Typo in ID ref, fix below -->
+  </bpmn:endEvent>
+
+  <!-- Corrected Sequence Flows for Join Logic -->
+  
+</bpmn:definitions>

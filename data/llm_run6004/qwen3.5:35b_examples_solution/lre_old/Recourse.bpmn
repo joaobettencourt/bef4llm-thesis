@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RecourseProcess_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_recourseClerk">
+    <bpmn:participant id="Participant_recourseClerk" name="Recourse Clerk" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_recourseDetected" name="Probable recourse detected">
+      <bpmn:outgoing>SequenceFlow_checkCase</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task to check case -->
+    <bpmn:task id="Task_checkCase" name="Check case">
+      <bpmn:incoming>SequenceFlow_checkCase</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_recoursePossibleDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_recoursePossible" name="Recourse possible?">
+      <bpmn:incoming>SequenceFlow_recoursePossibleDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_closeCaseNoRecourse</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_sendPaymentRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Close case if no recourse possible -->
+    <bpmn:endEvent id="EndEvent_caseClosedNoRecourse" name="Case closed">
+      <bpmn:incoming>SequenceFlow_closeCaseNoRecourse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Send payment request task -->
+    <bpmn:task id="Task_sendPaymentRequest" name="Send request for payment to insurant">
+      <bpmn:incoming>SequenceFlow_sendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_makeReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Make reminder task -->
+    <bpmn:task id="Task_makeReminder" name="Make reminder">
+      <bpmn:incoming>SequenceFlow_makeReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_eventBasedGatewayStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway for waiting on multiple events -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_waitForEvents" name="Wait for response">
+      <bpmn:incoming>SequenceFlow_eventBasedGatewayStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_disagreementReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_moneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_deadlineReachedPath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Path 1: Disagreement letter received -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_disagreementReceived" name="Disagreement letter received">
+      <bpmn:incoming>SequenceFlow_disagreementReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_checkReasoning</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to check reasoning -->
+    <bpmn:task id="Task_checkReasoning" name="Check reasoning">
+      <bpmn:incoming>SequenceFlow_checkReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_reasoningValidDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision on whether insurant is right -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_reasoningValid" name="Insurant reasoning valid?">
+      <bpmn:incoming>SequenceFlow_reasoningValidDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_closeCaseReasoningOK</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_forwardToCollectionAgencyWrong</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Close case if insurant reasoning is valid -->
+    <bpmn:endEvent id="EndEvent_caseClosedReasoningOK" name="Case closed">
+      <bpmn:incoming>SequenceFlow_closeCaseReasoningOK</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Money received -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_moneyReceived" name="Money received">
+      <bpmn:incoming>SequenceFlow_moneyReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_makeBooking</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to make booking -->
+    <bpmn:task id="Task_makeBooking" name="Make booking">
+      <bpmn:incoming>SequenceFlow_makeBooking</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_closeCaseMoneyReceived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Close case after money received -->
+    <bpmn:endEvent id="EndEvent_caseClosedMoneyReceived" name="Case closed">
+      <bpmn:incoming>SequenceFlow_closeCaseMoneyReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 3: Deadline reached without money -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_deadlineReached" name="Deadline for disagreement reached">
+      <bpmn:incoming>SequenceFlow_deadlineReachedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_forwardToCollectionAgencyDeadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to forward to collection agency -->
+    <bpmn:endEvent id="EndEvent_caseForwarded" name="Case forwarded">
+      <bpmn:incoming>SequenceFlow_forwardToCollectionAgencyWrong</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_forwardToCollectionAgencyDeadline</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_checkCase" sourceRef="StartEvent_recourseDetected" targetRef="Task_checkCase"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_recoursePossibleDecision" name="Recourse possible?" sourceRef="Task_checkCase" targetRef="ExclusiveGateway_recoursePossible">
+      <bpmn:name>Check if recourse is really there</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_closeCaseNoRecourse" name="no - not possible" sourceRef="ExclusiveGateway_recoursePossible" targetRef="EndEvent_caseClosedNoRecourse">
+      <bpmn:name>No recourse possible</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_sendPaymentRequest" name="yes - possible" sourceRef="ExclusiveGateway_recoursePossible" targetRef="Task_sendPaymentRequest">
+      <bpmn:name>Recourse is really there</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_makeReminder" name="After payment request sent" sourceRef="Task_sendPaymentRequest" targetRef="Task_makeReminder"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_eventBasedGatewayStart" name="Wait for response or deadline" sourceRef="Task_makeReminder" targetRef="EventBasedGateway_waitForEvents">
+      <bpmn:name>After reminder made</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Disagreement path -->
+    <bpmn:sequenceFlow id="SequenceFlow_disagreementReceivedPath" sourceRef="EventBasedGateway_waitForEvents" targetRef="IntermediateCatchEvent_disagreementReceived">
+      <bpmn:name>Disagreement letter received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Check reasoning path -->
+    <bpmn:sequenceFlow id="SequenceFlow_checkReasoning" sourceRef="IntermediateCatchEvent_disagreementReceived" targetRef="Task_checkReasoning"/>
+
+    <!-- Decision on insurant's reasoning validity -->
+    <bpmn:sequenceFlow id="SequenceFlow_reasoningValidDecision" name="Check if right or wrong" sourceRef="Task_checkReasoning" targetRef="ExclusiveGateway_reasoningValid">
+      <bpmn:name>Insurant is right?</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Close case if insurant reasoning valid -->
+    <bpmn:sequenceFlow id="SequenceFlow_closeCaseReasoningOK" name="yes - he is right" sourceRef="ExclusiveGateway_reasoningValid" targetRef="EndEvent_caseClosedReasoningOK">
+      <bpmn:name>Insurant's reasoning is correct</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Forward to collection agency if insurant wrong -->
+    <bpmn:sequenceFlow id="SequenceFlow_forwardToCollectionAgencyWrong" name="no - he is wrong" sourceRef="ExclusiveGateway_reasoningValid" targetRef="EndEvent_caseForwarded">
+      <bpmn:name>Insurant's reasoning incorrect</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Money received path -->
+    <bpmn:sequenceFlow id="SequenceFlow_moneyReceivedPath" sourceRef="EventBasedGateway_waitForEvents" targetRef="IntermediateCatchEvent_moneyReceived">
+      <bpmn:name>Money received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Make booking path -->
+    <bpmn:sequenceFlow id="SequenceFlow_makeBooking" sourceRef="IntermediateCatchEvent_moneyReceived" targetRef="Task_makeBooking"/>
+
+    <!-- Close case after money received -->
+    <bpmn:sequenceFlow id="SequenceFlow_closeCaseMoneyReceived" name="After booking made" sourceRef="Task_makeBooking" targetRef="EndEvent_caseClosedMoneyReceived">
+      <bpmn:name>Make booking and close</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Deadline reached path -->
+    <bpmn:sequenceFlow id="SequenceFlow_deadlineReachedPath" sourceRef="EventBasedGateway_waitForEvents" targetRef="IntermediateCatchEvent_deadlineReached">
+      <bpmn:name>Deadline for disagreement reached</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Forward to collection agency if deadline reached -->
+    <bpmn:sequenceFlow id="SequenceFlow_forwardToCollectionAgencyDeadline" name="No money received by deadline" sourceRef="IntermediateCatchEvent_deadlineReached" targetRef="EndEvent_caseForwarded">
+      <bpmn:name>Forward case</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

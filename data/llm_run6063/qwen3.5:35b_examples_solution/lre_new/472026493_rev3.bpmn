@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PurchaseOrderProcess">
+    <bpmn:participant id="Participant_MainSystem" name="Buy of new HW&#10;" processRef="Process_1"/>
+    <bpmn:participant id="Participant_Supplier" name="Supplier"/>
+    
+    <!-- Message Flows for Supplier Interaction -->
+    <bpmn:messageFlow id="MessageFlow_AskPrices" sourceRef="IntermediateThrowEvent_AskPrices" targetRef="Participant_Supplier">
+      <bpmn:name>Ask Prices</bpmn:name>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_ReceiveOffer" sourceRef="Participant_Supplier" targetRef="IntermediateCatchEvent_ReceiveOffer">
+      <bpmn:name>Supplier Offer</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_SendOrder" sourceRef="IntermediateThrowEvent_SendOrder" targetRef="Participant_Supplier">
+      <bpmn:name>Send Order</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_OrderAccepted" sourceRef="Participant_Supplier" targetRef="IntermediateCatchEvent_OrderAccepted">
+      <bpmn:name>Order Accepted</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Lane Definitions -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ITDept" name="IT Department&#10;">
+        <bpmn:flowNodeRef>StartEvent_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ITDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DenialIT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EditCompleteRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrowEvent_AskPrices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_ReceiveOffer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillFormSendMgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_MgmtDecision1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitFinanceIT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareOrderSendSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrowEvent_SendOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Management" name="Management&#10;">
+        <bpmn:flowNodeRef>Task_AnalyzeRequestMgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_MgmtDecision2_DenyEnd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DenialMgmt</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Finance" name="Financial Dept&#10;">
+        <bpmn:flowNodeRef>Task_FindResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_JoinFinanceIT</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Note: Intermediate Catch Event Order Accepted is technically in the flow, usually placed where logic dictates. 
+            Based on text "When this [order] is accepted and financial resources are found", we need a synchronization point. -->
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Receive request for new HW">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_AnalyzeRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IT Department Tasks -->
+    <bpmn:task id="Task_AnalyzeRequest" name="Analyze request">
+      <bpmn:incoming>SequenceFlow_AnalyzeRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ITDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- IT Decision Gateway (Approved?) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ITDecision" name="Request Approved?">
+       <bpmn:incoming>SequenceFlow_ITDecision</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EditCompleteReq</bpmn:outgoing> <!-- Yes -->
+       <bpmn:outgoing>SequenceFlow_DenialIT</bpmn:outgoing>  <!-- No (Deny) -->
+    </bpmn:exclusiveGateway>
+
+    <!-- IT Denial End Event -->
+    <bpmn:endEvent id="EndEvent_DenialIT" name="Inform about denial">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_DenialIT</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Edit and Complete Request -->
+    <bpmn:task id="Task_EditCompleteRequest" name="Edit and complete request">
+       <bpmn:incoming>SequenceFlow_EditCompleteReq</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_AskPrices</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ask Supplier Prices (Message Send) -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_AskPrices" name="Ask supplier about prices">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_AskPrices</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitForOffer</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Receive Offer (Message Catch) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_ReceiveOffer" name="Receive offer">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_WaitForOffer</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToMgmt</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Fill Form and Send to Management -->
+    <bpmn:task id="Task_FillFormSendMgmt" name="Fill form and send request">
+      <bpmn:incoming>SequenceFlow_SendToMgmt</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MgmtAnalysis</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Management Analysis Task (Management Lane) -->
+    <bpmn:task id="Task_AnalyzeRequestMgmt" name="Analyze request">
+      <bpmn:incoming>SequenceFlow_MgmtAnalysis</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MgmtDecision1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Management Decision 1 (Approved?) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MgmtDecision1" name="Management Approved?">
+      <bpmn:incoming>SequenceFlow_MgmtDecision1</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ApproveMgmt</bpmn:outgoing> <!-- Yes -->
+       <bpmn:outgoing>SequenceFlow_NotApprovedMgmt</bpmn:outgoing>  <!-- No (Rework or Deny) -->
+    </bpmn:exclusiveGateway>
+
+     <!-- Management Decision 2 (Rework vs Deny) - Only if not approved by Mgmt initially? 
+          Text says "In the scenario where management does not approve... it can send back for rework OR deny".
+          This implies a decision point after 'Not Approved'. Let's model: Analysis -> Gateway(Yes/No). No->Gateway(Rework/Deny) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MgmtDecision2_ReworkDeny" name="Rework or Deny?">
+      <bpmn:incoming>SequenceFlow_NotApprovedMgmt</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_DenyPath</bpmn:outgoing> <!-- Deny -->
+       <bpmn:outgoing>SequenceFlow_ReworkLoop</bpmn:outgoing>  <!-- Rework -->
+    </bpmn:exclusiveGateway>
+
+     <!-- Management Denial End Event (Management Lane) -->
+    <bpmn:endEvent id="EndEvent_DenialMgmt" name="Deny Request">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_FinalDenial</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Parallel Split (After Management Approval) -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitFinanceIT" name="Split">
+      <bpmn:incoming>SequenceFlow_ApproveMgmt</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_FinancePath</bpmn:outgoing> <!-- Finance -->
+       <bpmn:outgoing>SequenceFlow_ITPath</bpmn:outgoing>  <!-- IT Order Prep -->
+    </bpmn:parallelGateway>
+
+     <!-- Finance Task (Find Resources) -->
+    <bpmn:task id="Task_FindResources" name="Find resources">
+      <bpmn:incoming>SequenceFlow_FinancePath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_JoinFinanceIT</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- IT Task (Prepare Order) -->
+    <bpmn:task id="Task_PrepareOrderSendSupplier" name="Prepare order">
+      <bpmn:incoming>SequenceFlow_ITPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToMgmt_Order</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Send Order (Message Throw) -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendOrder" name="Send order">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_SendToMgmt_Order</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitAcceptance</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+     <!-- Wait for Order Acceptance (Message Catch) - Logic says "When this is accepted... hardware received" -->
+     <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_OrderAccepted" name="Order Accepted">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_WaitAcceptance</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_JoinFinanceIT_Catch</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Parallel Join (Finance Resources Found AND Order Accepted) -->
+    <bpmn:parallelGateway id="ParallelGateway_JoinFinanceIT" name="Join">
+      <bpmn:incoming>SequenceFlow_FinancePath</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_WaitAcceptance_Catch</bpmn:incoming> <!-- From Order Accepted Catch -->
+    </bpmn:parallelGateway>
+
+     <!-- Receive Hardware & Invoice Handling (Final Steps) -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Ended">
+      <bpmn:messageEventDefinition/>
+       <bpmn:incoming>SequenceFlow_FinalInvoice</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows (Corrected IDs and References) -->
+     
+     <!-- Start to Analyze Request -->
+     <bpmn:sequenceFlow id="SequenceFlow_AnalyzeRequest" sourceRef="StartEvent_Request" targetRef="Task_AnalyzeRequest"/>
+     
+     <!-- IT Decision Gateway Outgoing -->
+     <bpmn:sequenceFlow id="SequenceFlow_ITDecision" name="Approved?" sourceRef="ExclusiveGateway_ITDecision" targetRef="Task_EditCompleteRequest">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${approved}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- IT Denial Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_DenialIT" name="Denied?" sourceRef="ExclusiveGateway_ITDecision" targetRef="EndEvent_DenialIT">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${!approved}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Edit Complete Request to Ask Prices -->
+     <bpmn:sequenceFlow id="SequenceFlow_AskPrices" sourceRef="Task_EditCompleteRequest" targetRef="IntermediateThrowEvent_AskPrices"/>
+
+     <!-- Wait for Offer (IT Lane) -->
+     <bpmn:sequenceFlow id="SequenceFlow_WaitForOffer" sourceRef="IntermediateCatchEvent_ReceiveOffer" targetRef="Task_FillFormSendMgmt"/>
+
+     <!-- Fill Form to Management Analysis Task -->
+     <bpmn:sequenceFlow id="SequenceFlow_SendToMgmt" name="Sent for approval" sourceRef="Task_FillFormSendMgmt" targetRef="Task_AnalyzeRequestMgmt"/>
+
+     <!-- Mgmt Decision 1 (Approved?) Outgoing Yes Path to Parallel Split -->
+     <bpmn:sequenceFlow id="SequenceFlow_ApproveMgmt" name="Yes" sourceRef="ExclusiveGateway_MgmtDecision1" targetRef="ParallelGateway_SplitFinanceIT">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${approved}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Mgmt Decision 1 Outgoing No Path to Rework/Deny Gateway -->
+     <bpmn:sequenceFlow id="SequenceFlow_NotApprovedMgmt" name="No" sourceRef="ExclusiveGateway_MgmtDecision1" targetRef="ExclusiveGateway_MgmtDecision2_ReworkDeny">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${!approved}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Rework/Deny Gateway Outgoing Deny Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_DenyPath" name="Deny Request" sourceRef="ExclusiveGateway_MgmtDecision2_ReworkDeny" targetRef="EndEvent_DenialMgmt">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${deny}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Rework/Deny Gateway Outgoing Rework Path (Back to IT) -->
+     <bpmn:sequenceFlow id="SequenceFlow_ReworkLoop" name="Rework Request" sourceRef="ExclusiveGateway_MgmtDecision2_ReworkDeny" targetRef="Task_EditCompleteRequest">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${rework}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Parallel Split Outgoing Finance Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_FinancePath" sourceRef="ParallelGateway_SplitFinanceIT" targetRef="Task_FindResources"/>
+
+     <!-- Parallel Split Outgoing IT Path (Prepare Order) -->
+     <bpmn:sequenceFlow id="SequenceFlow_ITPath" name="Send to Supplier" sourceRef="ParallelGateway_SplitFinanceIT" targetRef="Task_PrepareOrderSendSupplier">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${sendOrder}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <!-- Prepare Order to Send Order Event -->
+     <bpmn:sequenceFlow id="SequenceFlow_SendToMgmt_Order" sourceRef="Task_PrepareOrderSendSupplier" targetRef="IntermediateThrowEvent_SendOrder"/> 
+     
+     <!-- Wait for Acceptance (Catch) after sending order. Note: In BPMN, Catch events usually wait on incoming flow from a Throw or Start Event logic.
+          Here we model the sequence as Task -> Send Order Message -> Wait for Reply. -->
+     <bpmn:sequenceFlow id="SequenceFlow_WaitAcceptance" sourceRef="IntermediateThrowEvent_SendOrder" targetRef="ParallelGateway_JoinFinanceIT"/> 
+     
+     <!-- Correction on Flow Logic based on standard BPMN patterns and text "When this is accepted...":
+          The Catch Event should be in the flow. Let's adjust: Task -> Send Order (Throw) -> Wait for Reply (Catch). Then Join with Finance. -->
+
+  </bpmn:process>
+</bpmn:definitions>

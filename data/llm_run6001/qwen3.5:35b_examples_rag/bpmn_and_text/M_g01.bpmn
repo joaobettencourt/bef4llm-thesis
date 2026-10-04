@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_3DPrintProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_3DPrint">
+    <bpmn:participant id="Participant_Pool" name="Custom 3D Model Creation Process" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_InstructArtist" name="Instruct Artist to Create Project">
+      <bpmn:outgoing>SF_SendSketches</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_SendSketches" name="Send Sketches to Artist">
+      <bpmn:incoming>SF_SendSketches</bpmn:incoming>
+      <bpmn:outgoing>SF_AwaitArtistFeedback</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_TellChanges" name="Tell Artist What to Change">
+      <bpmn:incoming>SF_AwaitArtistFeedback</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckSatisfaction</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ChooseColor" name="Choose Plastic Color">
+      <bpmn:incoming>SF_ColorDecision</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_AddToShoppingList" name="Add Color to Shopping List">
+      <bpmn:incoming>SF_Under100g</bpmn:incoming>
+      <bpmn:outgoing>SF_OrderColorConverge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_OrderColor" name="Order Plastic Color">
+      <bpmn:incoming>SF_NotInStock</bpmn:incoming>
+      <bpmn:outgoing>SF_ColorReceivedConverge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_HeatPrinter" name="Turn on Printer and Heat Bed/Extruder">
+      <bpmn:incoming>SF_PrinterSetupStart</bpmn:incoming>
+      <bpmn:outgoing>SF_StatusFeedbackLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GenerateGcode" name="Generate G-code File from STL">
+      <bpmn:incoming>SF_PrinterSetupStart</bpmn:incoming>
+      <bpmn:outgoing>SF_PrepToPrintConverge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_ModelPrinted" name="Model Printed">
+      <bpmn:incoming>SF_PrintComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="GW_SatisfiedArtist" name="Satisfied with Result?">
+      <bpmn:incoming>SF_CheckSatisfaction</bpmn:incoming>
+      <bpmn:outgoing>SF_ColorDecisionYes</bpmn:outgoing>
+      <bpmn:outgoing>SF_TellChangesLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="GW_CheckStock" name="Color at Home?">
+      <bpmn:incoming>SF_ColorDecisionNo</bpmn:incoming>
+      <bpmn:outgoing>SF_QuantityCheckYes</bpmn:outgoing>
+      <bpmn:outgoing>SF_OrderDirectly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="GW_CheckQuantity" name="Under 100g?">
+      <bpmn:incoming>SF_QuantityCheckYes</bpmn:incoming>
+      <bpmn:outgoing>SF_Under100g</bpmn:outgoing>
+      <bpmn:outgoing>SF_OrderDirectly2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="GW_PrinterSetup" name="">
+      <bpmn:incoming>SF_ColorReceivedConverge</bpmn:incoming>
+      <bpmn:outgoing>SF_HeatPrinterBranch</bpmn:outgoing>
+      <bpmn:outgoing>SF_GenerateGcodeBranch</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_SendSketches" sourceRef="Start_InstructArtist" targetRef="Task_SendSketches"/>
+    
+    <bpmn:sequenceFlow id="SF_AwaitArtistFeedback" name="" sourceRef="Task_SendSketches" targetRef="Task_TellChanges"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckSatisfaction" name="" sourceRef="Task_TellChanges" targetRef="GW_SatisfiedArtist"/>
+    
+    <bpmn:sequenceFlow id="SF_ColorDecisionYes" name="Yes - Satisfied" sourceRef="GW_SatisfiedArtist" targetRef="Task_ChooseColor">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${satisfied}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_TellChangesLoop" name="No - Not Satisfied" sourceRef="GW_SatisfiedArtist" targetRef="Task_SendSketches">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!satisfied}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_ColorDecisionNo" name="" sourceRef="Task_ChooseColor" targetRef="GW_CheckStock"/>
+    
+    <bpmn:sequenceFlow id="SF_QuantityCheckYes" name="At Home - Yes" sourceRef="GW_CheckStock" targetRef="GW_CheckQuantity">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inStock}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_OrderDirectly" name="At Home - No, Order Now" sourceRef="GW_CheckStock" targetRef="Task_OrderColor">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!inStock}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_Under100g" name="Under 100g - Add to List" sourceRef="GW_CheckQuantity" targetRef="Task_AddToShoppingList">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${quantity &lt;= 100}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_OrderDirectly2" name="Over 100g - Order Now" sourceRef="GW_CheckQuantity" targetRef="Task_OrderColor">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${quantity &gt; 100}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Convergence for color acquisition -->
+    <bpmn:exclusiveGateway id="GW_ColorReceived" name="">
+      <bpmn:incoming>SF_AddToShoppingList</bpmn:incoming>
+      <bpmn:incoming>SF_OrderColorConverge</bpmn:incoming>
+      <bpmn:outgoing>SF_PrinterSetupStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Printer Setup Parallel Flow -->
+    <bpmn:sequenceFlow id="SF_HeatPrinterBranch" sourceRef="GW_PrinterSetup" targetRef="Task_HeatPrinter"/>
+    
+    <bpmn:sequenceFlow id="SF_GenerateGcodeBranch" name="" sourceRef="GW_PrinterSetup" targetRef="Task_GenerateGcode"/>
+
+    <!-- Convergence for printing preparation -->
+    <bpmn:exclusiveGateway id="GW_PrepToPrint" name="">
+      <bpmn:incoming>SF_StatusFeedbackLoop</bpmn:incoming>
+      <bpmn:incoming>SF_PrepToPrintConverge</bpmn:incoming>
+      <bpmn:outgoing>SF_PrintComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Final flows -->
+    <bpmn:sequenceFlow id="SF_StatusFeedbackLoop" sourceRef="Task_HeatPrinter" targetRef="GW_PrepToPrint"/>
+    
+    <bpmn:sequenceFlow id="SF_AddToShoppingList" name="" sourceRef="Task_AddToShoppingList" targetRef="GW_ColorReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${shopping}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_OrderColorConverge" name="" sourceRef="Task_OrderColor" targetRef="GW_ColorReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${ordered}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_PrinterSetupStart" sourceRef="GW_ColorReceived" targetRef="GW_PrinterSetup"/>
+    
+    <bpmn:sequenceFlow id="SF_PrepToPrintConverge" name="" sourceRef="Task_GenerateGcode" targetRef="GW_PrepToPrint">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${gcodeReady}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

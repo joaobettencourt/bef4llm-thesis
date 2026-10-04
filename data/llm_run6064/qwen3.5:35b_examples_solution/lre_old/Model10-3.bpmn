@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_abc123xyz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MPOO_GO_Process">
+    <bpmn:participant id="Participant_MPOO" name="MPOO" processRef="Process_MPOO_Deregistration"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO_Assignment"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_01">
+      <bpmn:sourceRef>Task_MPOO_Deregister</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_GO_VerifyRequest</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow for Continuation Confirmation -->
+    <bpmn:messageFlow id="MessageFlow_02">
+      <bpmn:sourceRef>Task_GO_RequestContinuation</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateCatchEvent_MPOO_ConfirmationReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO_Deregistration" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:name>Deregister</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_InitiateDeregistration</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_MPOO_1">
+      <bpmn:name>Deregistration Request Sent</bpmn:name>
+      <bpmn:incoming>SequenceFlow_InitiateDeregistration</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task for Deregistering -->
+    <bpmn:task id="Task_MPOO_Deregister" name="Deregister at GO">
+      <bpmn:incoming>SequenceFlow_InitiateDeregistration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendRequestToGO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitiateDeregistration" sourceRef="StartEvent_1" targetRef="Task_MPOO_Deregister"/>
+    
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO_Assignment" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_GO_VerifyRequest">
+      <bpmn:name>Deregistration Request Received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartVerifyTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Verify Deregistration -->
+    <bpmn:task id="Task_GO_Verify" name="Verify the deregistration">
+      <bpmn:incoming>SequenceFlow_StartVerifyTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionRejectConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Reject or Confirm -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_01" name="Decision on Deregistration">
+      <bpmn:incoming>SequenceFlow_DecisionRejectConfirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Reject -->
+    <bpmn:endEvent id="EndEvent_GO_Reject">
+      <bpmn:name>Deregistration Rejected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Confirm -->
+    <bpmn:task id="Task_GO_Confirm" name="Preliminarily confirm the deregistration">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareReadmission</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Prepare Readmission -->
+    <bpmn:task id="Task_GO_PrepareReadmission" name="Prepare the readmission of the measuring point">
+      <bpmn:incoming>SequenceFlow_PrepareReadmission</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObligationDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Oblige to continue operations? (Optional) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_02" name="Obligate MPOO to continue operations?">
+      <bpmn:incoming>SequenceFlow_ObligationDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObligedYesPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ObligedNoPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Oblige Yes (Wait for Confirmation) -->
+    <bpmn:task id="Task_GO_RequestContinuation" name="Oblige MPOO to continue operations">
+      <bpmn:incoming>SequenceFlow_ObligedYesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitConfirmationSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for MPOO Confirmation (in GO Pool) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_GO_WaitConfirmation">
+      <bpmn:name>MPOO Confirms Continuation</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_RequestContinuationSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterConfirmation</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Path 2b: Oblige No (Skip Confirmation) -->
+    
+    <!-- Task: Equipment Acquisition/Changes -->
+    <bpmn:task id="Task_GO_Equipment" name="Perform equipment acquisition and/or changes">
+      <bpmn:incoming>SequenceFlow_MergeAfterObligation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssignMPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Assign GO as MPO -->
+    <bpmn:task id="Task_GO_AssignMPO" name="Assign the GO as MPO">
+      <bpmn:incoming>SequenceFlow_AssignMPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformationsStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Informations (MPOO, MSPO, SP) -->
+    <bpmn:task id="Task_GO_Inform_MPOO" name="Inform MPOO about assignment">
+      <bpmn:incoming>SequenceFlow_InformationsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GO_Inform_MSPO" name="Inform MSPO about assignment">
+      <bpmn:incoming>SequenceFlow_InformationsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GO_Inform_SP" name="Inform SP about assignment">
+      <bpmn:incoming>SequenceFlow_InformationsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway for Obliged Paths -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_03" name="Merge After Obligation">
+      <bpmn:incoming>SequenceFlow_ObligedNoPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterObligation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Merge Gateway for Confirmation Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_01" name="Merge After Obligation">
+      <bpmn:incoming>SequenceFlow_MergeAfterObligation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EquipmentDone</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Final End Event -->
+    <bpmn:endEvent id="EndEvent_GO_Complete">
+      <bpmn:name>All Assignments Informed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FinalMerge</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+  
+  <!-- Sequence Flows for GO Process -->
+  <bpmn:sequenceFlow id="SequenceFlow_StartVerifyTask" sourceRef="StartEvent_GO_VerifyRequest" targetRef="Task_GO_Verify"/>
+  <bpmn:sequenceFlow id="SequenceFlow_DecisionRejectConfirm" sourceRef="Task_GO_Verify" targetRef="ExclusiveGateway_01"/>
+  <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Deregistration" sourceRef="ExclusiveGateway_01" targetRef="EndEvent_GO_Reject"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm Deregistration" sourceRef="ExclusiveGateway_01" targetRef="Task_GO_Confirm"/>
+  <bpmn:sequenceFlow id="SequenceFlow_PrepareReadmission" sourceRef="Task_GO_Confirm" targetRef="Task_GO_PrepareReadmission"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ObligationDecision" sourceRef="Task_GO_PrepareReadmission" targetRef="ExclusiveGateway_02"/>
+  
+  <!-- Obligate Yes Path -->
+  <bpmn:sequenceFlow id="SequenceFlow_ObligedYesPath" name="Oblige to Continue" sourceRef="ExclusiveGateway_02" targetRef="Task_GO_RequestContinuation"/>
+  <bpmn:sequenceFlow id="SequenceFlow_WaitConfirmationSent" sourceRef="Task_GO_RequestContinuation" targetRef="IntermediateCatchEvent_GO_WaitConfirmation">
+    <bpmn:name>Request Sent</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Obligate No Path -->
+  <bpmn:sequenceFlow id="SequenceFlow_ObligedNoPath" name="Do Not Oblige" sourceRef="ExclusiveGateway_02" targetRef="Task_GO_Equipment"/>
+
+  <!-- Equipment and Assignment Tasks -->
+  <bpmn:sequenceFlow id="SequenceFlow_AssignMPO" sourceRef="Task_GO_Equipment" targetRef="Task_GO_AssignMPO"/>
+  
+  <!-- Information Tasks (Parallel) -->
+  <bpmn:parallelGateway id="ParallelGateway_01" name="Inform All Parties">
+    <bpmn:incoming>SequenceFlow_InformationsStart</bpmn:incoming>
+    <bpmn:outgoing>SequenceFlow_InformMPOO</bpmn:outgoing>
+    <bpmn:outgoing>SequenceFlow_InformMSPO</bpmn:outgoing>
+    <bpmn:outgoing>SequenceFlow_InformSP</bpmn:outgoing>
+  </bpmn:parallelGateway>
+
+  <!-- Final Merge Gateway -->
+  <bpmn:exclusiveGateway id="ExclusiveGateway_04" name="Merge Information Flows">
+    <bpmn:incoming>SequenceFlow_FinalMerge_MPOO</bpmn:incoming>
+    <bpmn:incoming>SequenceFlow_FinalMerge_MSPO</bpmn:incoming>
+    <bpmn:incoming>SequenceFlow_FinalMerge_SP</bpmn:incoming>
+    <bpmn:outgoing>SequenceFlow_FinalMerge</bpmn:outgoing>
+  </bpmn:exclusiveGateway>
+
+  <!-- Information Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_InformationsStart" sourceRef="Task_GO_AssignMPO" targetRef="ParallelGateway_01"/>
+  <bpmn:sequenceFlow id="SequenceFlow_InformMPOO" name="Inform MPOO" sourceRef="ParallelGateway_01" targetRef="Task_GO_Inform_MPOO"/>
+  <bpmn:sequenceFlow id="SequenceFlow_FinalMerge_MPOO" sourceRef="Task_GO_Inform_MPOO" targetRef="ExclusiveGateway_04"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_InformMSPO" name="Inform MSPO" sourceRef="ParallelGateway_01" targetRef="Task_GO_Inform_MSPO"/>
+  <bpmn:sequenceFlow id="SequenceFlow_FinalMerge_MSPO" sourceRef="Task_GO_Inform_MSPO" targetRef="ExclusiveGateway_04"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_InformSP" name="Inform SP" sourceRef="ParallelGateway_01" targetRef="Task_GO_Inform_SP"/>
+  <bpmn:sequenceFlow id="SequenceFlow_FinalMerge_SP" sourceRef="Task_GO_Inform_SP" targetRef="ExclusiveGateway_04"/>
+
+</bpmn:definitions>

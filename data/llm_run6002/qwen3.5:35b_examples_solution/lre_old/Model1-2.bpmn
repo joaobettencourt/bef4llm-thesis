@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_ComputerRepairService" name="Computer Repair Service" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerBringsComputer" name="Customer brings defective computer">
+      <bpmn:outgoing>SequenceFlow_StartToCheckDefect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check defect and calculate repair cost -->
+    <bpmn:task id="Task_CheckDefectAndCalculateCost" name="CRS checks defect and calculates repair cost">
+      <bpmn:incoming>SequenceFlow_StartToCheckDefect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CostCalculationDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for customer decision on costs -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerAcceptsCost" name="Customer accepts cost?">
+      <bpmn:incoming>SequenceFlow_CostCalculationDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AcceptRepairPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectRepairPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for two repair activities in arbitrary order -->
+    <bpmn:parallelGateway id="ParallelGateway_StartRepairs" name="Start repairs (arbitrary order)">
+      <bpmn:incoming>SequenceFlow_AcceptRepairPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareCheckPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SoftwareConfigPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 2a: Check and repair hardware -->
+    <bpmn:task id="Task_CheckRepairHardware" name="Check and repair hardware">
+      <bpmn:incoming>SequenceFlow_HardwareCheckPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestAfterHardware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2b: Check and configure software -->
+    <bpmn:task id="Task_CheckConfigureSoftware" name="Check and configure software">
+      <bpmn:incoming>SequenceFlow_SoftwareConfigPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestAfterSoftware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for testing after hardware repair -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HardwareTestResult" name="Error detected?">
+      <bpmn:incoming>SequenceFlow_TestAfterHardware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorDetectedFromHardware</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoErrorFromHardware</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Exclusive Gateway for testing after software repair -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SoftwareTestResult" name="Error detected?">
+      <bpmn:incoming>SequenceFlow_TestAfterSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorDetectedFromSoftware</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoErrorFromSoftware</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3a: Test system functionality after hardware repair -->
+    <bpmn:task id="Task_TestFunctionalityAfterHardware" name="Test system functionality (after hardware)">
+      <bpmn:incoming>SequenceFlow_TestAfterHardware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareTestResultDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3b: Test system functionality after software repair -->
+    <bpmn:task id="Task_TestFunctionalityAfterSoftware" name="Test system functionality (after software)">
+      <bpmn:incoming>SequenceFlow_TestAfterSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SoftwareTestResultDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for rework decision (merge error paths) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReworkRequired" name="Rework required?">
+      <bpmn:incoming>SequenceFlow_ErrorDetectedFromHardware</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ErrorDetectedFromSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueReworkPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4a: Additional repair activity (arbitrary) -->
+    <bpmn:task id="Task_AdditionalRepairActivity" name="Execute additional arbitrary repair">
+      <bpmn:incoming>SequenceFlow_ContinueReworkPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryHardwareCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheckDefect" sourceRef="StartEvent_CustomerBringsComputer" targetRef="Task_CheckDefectAndCalculateCost" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CostCalculationDecision" name="" sourceRef="Task_CheckDefectAndCalculateCost" targetRef="ExclusiveGateway_CustomerAcceptsCost" />
+
+    <!-- Customer accepts cost path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AcceptRepairPath" name="Yes, costs acceptable" sourceRef="ExclusiveGateway_CustomerAcceptsCost" targetRef="ParallelGateway_StartRepairs" />
+
+    <!-- Customer rejects cost path (takes computer home unrepaired) -->
+    <bpmn:task id="Task_TakeComputerHomeUnrepaired" name="Take computer home unrepaired">
+      <bpmn:incoming>SequenceFlow_RejectRepairPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnrepairedEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectRepairPath" name="No, costs not acceptable" sourceRef="ExclusiveGateway_CustomerAcceptsCost" targetRef="Task_TakeComputerHomeUnrepaired" />
+
+    <!-- Parallel paths for repairs -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareCheckPath" name="" sourceRef="ParallelGateway_StartRepairs" targetRef="Task_CheckRepairHardware" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareConfigPath" name="" sourceRef="ParallelGateway_StartRepairs" targetRef="Task_CheckConfigureSoftware" />
+
+    <!-- Test paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestAfterHardware" name="" sourceRef="Task_CheckRepairHardware" targetRef="Task_TestFunctionalityAfterHardware" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TestAfterSoftware" name="" sourceRef="Task_CheckConfigureSoftware" targetRef="Task_TestFunctionalityAfterSoftware" />
+
+    <!-- Test result decisions -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareTestResultDecision" name="" sourceRef="Task_TestFunctionalityAfterHardware" targetRef="ExclusiveGateway_HardwareTestResult" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareTestResultDecision" name="" sourceRef="Task_TestFunctionalityAfterSoftware" targetRef="ExclusiveGateway_SoftwareTestResult" />
+
+    <!-- Error detected paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorDetectedFromHardware" name="Yes, error detected" sourceRef="ExclusiveGateway_HardwareTestResult" targetRef="ExclusiveGateway_ReworkRequired" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoErrorFromHardware" name="No error" sourceRef="ExclusiveGateway_HardwareTestResult" targetRef="ParallelGateway_MergeBeforeFinalTest" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorDetectedFromSoftware" name="Yes, error detected" sourceRef="ExclusiveGateway_SoftwareTestResult" targetRef="ExclusiveGateway_ReworkRequired" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoErrorFromSoftware" name="No error" sourceRef="ExclusiveGateway_SoftwareTestResult" targetRef="ParallelGateway_MergeBeforeFinalTest" />
+
+    <!-- Rework loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueReworkPath" name="" sourceRef="ExclusiveGateway_ReworkRequired" targetRef="Task_AdditionalRepairActivity" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RetryHardwareCheck" name="" sourceRef="Task_AdditionalRepairActivity" targetRef="ParallelGateway_StartRepairs" />
+
+    <!-- Merge point before final test -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeBeforeFinalTest" name="Both tests complete">
+      <bpmn:incoming>SequenceFlow_NoErrorFromHardware</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_NoErrorFromSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTestPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final test of system functionality -->
+    <bpmn:task id="Task_FinalSystemFunctionalityTest" name="Final test of proper system functionality">
+      <bpmn:incoming>SequenceFlow_FinalTestPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairFinishedDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final decision gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RepairFinished" name="Error detected?">
+      <bpmn:incoming>SequenceFlow_RepairFinishedDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorDetectedFinal</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoErrorFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence flows for final test -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalTestPath" name="" sourceRef="ParallelGateway_MergeBeforeFinalTest" targetRef="Task_FinalSystemFunctionalityTest" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RepairFinishedDecision" name="" sourceRef="Task_FinalSystemFunctionalityTest" targetRef="ExclusiveGateway_RepairFinished" />
+
+    <!-- Error detected in final test (loop back to rework) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorDetectedFinal" name="Yes, error detected" sourceRef="ExclusiveGateway_RepairFinished" targetRef="ParallelGateway_StartRepairs" />
+
+    <!-- Repair finished path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoErrorFinal" name="No error - repair finished" sourceRef="ExclusiveGateway_RepairFinished" targetRef="EndEvent_RepairCompleted" />
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_UnrepairedComputer">
+      <bpmn:name>Unrepaired</bpmn:name>
+      <bpmn:incoming>SequenceFlow_UnrepairedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_RepairCompleted" name="Repair completed">
+      <bpmn:name>Computer repaired and ready for return</bpmn:name>
+      <bpmn:incoming>SequenceFlow_NoErrorFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flow to unrepaired end -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnrepairedEnd" sourceRef="Task_TakeComputerHomeUnrepaired" targetRef="EndEvent_UnrepairedComputer" />
+
+  </bpmn:process>
+</bpmn:definitions>

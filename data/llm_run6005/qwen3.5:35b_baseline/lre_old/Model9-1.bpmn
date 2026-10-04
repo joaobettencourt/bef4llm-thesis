@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_BatchProcess">
+    <bpmn:participant name="Automated Batch System" processRef="Proc_MorningBatch"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_MorningBatch" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_WeekdayMorning" name="Every Weekday Morning">
+      <bpmn:outgoing>Seq_BackupDB</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Backup Database -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>Seq_BackupDB</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckDefaulterTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Defaulters Table -->
+    <bpmn:exclusiveGateway id="GW_NewRecordsInDB" name="New Records in Defaulter Table?">
+      <bpmn:incoming>Seq_CheckDefaulterTable</bpmn:incoming>
+      <bpmn:outgoing>Seq_NoNewRecords_CRMCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: No New Records -->
+    <bpmn:task id="Task_CheckCRMReturns1" name="Check CRM for Returns">
+      <bpmn:incoming>Seq_NoNewRecords_CRMCheck</bpmn:incoming>
+      <bpmn:outgoing>GW_NewReturnsExist_1_In</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: New Returns Found? -->
+    <bpmn:exclusiveGateway id="GW_NewReturnsFound" name="New Returns Filed?">
+      <bpmn:incoming>Seq_CheckCRMReturns1</bpmn:incoming>
+      <bpmn:outgoing>Task_RegisterAccounts_In</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Register Accounts -->
+    <bpmn:task id="Task_RegistrationLogic" name="Register Defaulting Accounts">
+      <bpmn:incoming>Seq_NewReturnsFound_Register</bpmn:incoming>
+       <bpmn:outgoing>GW_AdvisedStatus_Check_In</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 3: Previously Advised? -->
+    <bpmn:exclusiveGateway id="GW_AdvisedStatus" name="Previously Advised?">
+      <bpmn:incoming>Seq_RegisterAccounts_Complete</bpmn:incoming> 
+       <bpmn:outgoing>Task_SendReport_In</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task 3: Send Report -->
+    <bpmn:task id="Task_ProduceReport" name="Produce &amp; Send Defaulting Accounts Table">
+      <bpmn:incoming>Seq_AdvisedStatus_No</bpmn:incoming> 
+       <bpmn:outgoing>Seq_AfternoonCheckStart_In</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 4: Afternoon Check -->
+    <bpmn:exclusiveGateway id="GW_NewReturnsFound_2" name="New Returns Filed?">
+      <bpmn:incoming>Seq_AfternoonCheckStart</bpmn:incoming> 
+       <bpmn:outgoing>Task_Reconcile_In</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task 4: Reconciliation -->
+    <bpmn:task id="Task_Reconcile" name="Reconcile with Defaulters Table">
+      <bpmn:incoming>Seq_NewReturnsFound_2</bpmn:incoming> 
+       <bpmn:outgoing>Seq_EndProcess_In</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Batch Process Complete">
+      <bpmn:incoming>Seq_Reconcile_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary Events for Deadlines (Simplified Logic) -->
+    
+    <!-- 2:30 PM Alert - Attached to Morning Block Task -->
+    <bpmn:startEvent id="Start_AlertSupervisor" name="Alert Supervisor">
+      <bpmn:outgoing>Seq_SendAlert</bpmn:outgoing> 
+       <!-- Note: In a real model, this would be triggered by boundary event logic attached to the task -->
+    </bpmn:startEvent>
+
+  </bpmn:process>
+  
+  <!-- Sequence Flows (Corrected for Logic) -->
+  <bpmn:sequenceFlow id="Seq_BackupDB" sourceRef="Start_WeekdayMorning" targetRef="Task_BackupDatabase"/>
+  <bpmn:sequenceFlow id="Seq_CheckDefaulterTable" sourceRef="Task_BackupDatabase" targetRef="GW_NewRecordsInDB"/>  
+    <!-- Logic Correction for Flow -->
+    
+     <bpmn:exclusiveGateway id="GW_MergeRegistration">
+        <bpmn:incoming>Seq_NoNewRecords_CRMCheck</bpmn:incoming> 
+       <bpmn:outgoing>Task_CheckCRMReturns1_In</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+   <!-- Corrected Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_NoNewRecords_CRMCheck" sourceRef="GW_NewRecordsInDB" targetRef="Task_CheckCRMReturns1"/>  
+     <bpmn:sequenceFlow id="Seq_HasNewRecords_Register" sourceRef="GW_NewRecordsInDB" targetRef="Task_RegistrationLogic"/>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="GW_NewReturnsExist_1">
+      <bpmn:incoming>Seq_CheckCRMReturns1</bpmn:incoming> 
+       <bpmn:outgoing>GW_AdvisedStatus_Check_In</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+    <!-- Gateway 3 -->
+    <bpmn:exclusiveGateway id="GW_AdvisedStatus_Check">
+      <bpmn:incoming>Seq_NewReturnsFound_Register</bpmn:incoming> 
+       <bpmn:outgoing>Task_SendReport_In</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_SendReport">
+      <bpmn:incoming>Seq_AdvisedStatus_No</bpmn:incoming> 
+       <bpmn:outgoing>Seq_AfternoonCheckStart_In</bpmn:outgoing> 
+     </bpmn:task>
+
+    <!-- Gateway 4 -->
+    <bpmn:exclusiveGateway id="GW_NewReturnsExist_2">
+      <bpmn:incoming>Seq_AdvisedStatus_Check_In</bpmn:incoming> 
+       <bpmn:outgoing>Task_Reconcile_In</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_Reconcile">
+      <bpmn:incoming>Seq_NewReturnsFound_2</bpmn:incoming> 
+       <bpmn:outgoing>Seq_EndProcess_In</bpmn:outgoing> 
+     </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete">
+      <bpmn:incoming>Seq_Reconcile_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

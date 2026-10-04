@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseProcess_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Expense_Process">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Process" processRef="Process_Expense_01" />
+  </bpmn:collaboration>
+
+  <bpmn:message id="Msg_SupervisorApproval" name="Supervisor Approval Message" />
+  <bpmn:message id="Msg_SupervisorRejects" name="Supervisor Rejection Message" />
+  <bpmn:message id="Msg_Resubmit" name="Resubmit Email Message" />
+
+  <bpmn:process id="Process_Expense_01" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_NewExpenseReport" name="New Expense Report Filed">
+      <bpmn:outgoing>SF_StartToReceive</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Receive and Check Account -->
+    <bpmn:task id="Task_ReceiveReport" name="Receive Expense Report">
+      <bpmn:incoming>SF_StartToReceive</bpmn:incoming>
+      <bpmn:outgoing>SF_ToAccountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="GW_AccountExists" name="Employee Has Account?">
+      <bpmn:incoming>SF_ToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SF_ReviewReportIfHas</bpmn:outgoing>
+      <bpmn:outgoing>SF_CreateAccountNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer for 28 days -->
+    <bpmn:intermediateCatchEvent id="Timer_28Days" name="Wait up to 28 Days">
+      <bpmn:incoming>SF_TimerStart</bpmn:incoming>
+      <bpmn:outgoing>SF_SendResubmitEmail</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Create Account Task -->
+    <bpmn:task id="Task_CreateAccount" name="Create Employee Account">
+      <bpmn:incoming>SF_CreateAccountNo</bpmn:incoming>
+      <bpmn:outgoing>SF_ToReviewReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Review Report Task -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>SF_ReviewReportIfHas</bpmn:incoming>
+      <bpmn:incoming>SF_ToReviewReport</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckAmountGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Amount Check Gateway -->
+    <bpmn:exclusiveGateway id="GW_AmountCheck" name="Amount &gt; 200?">
+      <bpmn:incoming>SF_CheckAmountGateway</bpmn:incoming>
+      <bpmn:outgoing>SF_DirectDepositLow</bpmn:outgoing>
+      <bpmn:outgoing>SF_RequestApprovalHigh</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Direct Deposit Task -->
+    <bpmn:task id="Task_DepositReimbursement" name="Deposit Reimbursement to Bank Account">
+      <bpmn:incoming>SF_DirectDepositLow</bpmn:incoming>
+      <bpmn:outgoing>SF_ToEndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ask Supervisor Task -->
+    <bpmn:task id="Task_RequestSupervisorApproval" name="Request Approval from Supervisor">
+      <bpmn:incoming>SF_RequestApprovalHigh</bpmn:incoming>
+      <bpmn:outgoing>SF_SupervisorWaitTimer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer for 7 days supervisor response -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="Wait up to 7 Days">
+      <bpmn:incoming>SF_SupervisorWaitTimer</bpmn:incoming>
+      <bpmn:outgoing>SF_SendApprovalInProgressEmail</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Supervisor Approval Message -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorApproval" name="Supervisor Approves">
+      <bpmn:incoming>SF_WaitForApproval</bpmn:incoming>
+      <bpmn:outgoing>SF_DepositAfterApproval</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Msg_SupervisorApproval" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Supervisor Rejection Message -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorRejects" name="Supervisor Rejects">
+      <bpmn:incoming>SF_WaitForRejection</bpmn:incoming>
+      <bpmn:outgoing>SF_SendRejectionEmail</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Msg_SupervisorRejects" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Approval In Progress Email -->
+    <bpmn:task id="Task_SendApprovalInProgressEmail" name="Send 'Approval in Progress' Email">
+      <bpmn:incoming>SF_SendApprovalInProgressEmail</bpmn:incoming>
+      <bpmn:outgoing>SF_ReenterSupervisorWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Rejection Notification -->
+    <bpmn:task id="Task_SendRejectionNotification" name="Send 'Request Rejected' Email">
+      <bpmn:incoming>SF_SendRejectionEmail</bpmn:incoming>
+      <bpmn:outgoing>SF_ToEndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Resubmit Email -->
+    <bpmn:endEvent id="End_ResubmitRequired" name="Process Stopped - Resubmit Required">
+      <bpmn:incoming>SF_SendResubmitEmail</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Msg_Resubmit" />
+    </bpmn:endEvent>
+
+    <!-- End Event for Rejected -->
+    <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+      <bpmn:incoming>SF_ToEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for Approved/Deposited -->
+    <bpmn:endEvent id="End_Completed" name="Process Completed - Deposit Made">
+      <bpmn:incoming>SF_ToEndProcess</bpmn:incoming>
+      <bpmn:incoming>SF_DepositAfterApproval</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToReceive" sourceRef="Start_NewExpenseReport" targetRef="Task_ReceiveReport">
+      <bpmn:name>New Expense Report Filed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Check Paths -->
+    <bpmn:sequenceFlow id="SF_ToAccountCheck" sourceRef="Task_ReceiveReport" targetRef="GW_AccountExists">
+      <bpmn:name>Process Report Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- If has account -->
+    <bpmn:sequenceFlow id="SF_ReviewReportIfHas" name="Employee Has Account" sourceRef="GW_AccountExists" targetRef="Task_ReviewReport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${employeeHasAccount}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No account - wait 28 days -->
+    <bpmn:sequenceFlow id="SF_TimerStart" name="No Account Found" sourceRef="GW_AccountExists" targetRef="Timer_28Days">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!employeeHasAccount}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Create account path -->
+    <bpmn:sequenceFlow id="SF_CreateAccountNo" name="Create Account First" sourceRef="GW_AccountExists" targetRef="Task_CreateAccount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!employeeHasAccount}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- After creating account, review report -->
+    <bpmn:sequenceFlow id="SF_ToReviewReport" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport">
+      <bpmn:name>Create Account Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount Check Paths -->
+    <bpmn:sequenceFlow id="SF_CheckAmountGateway" sourceRef="Task_ReviewReport" targetRef="GW_AmountCheck">
+      <bpmn:name>Complete Review</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Low amount - direct deposit -->
+    <bpmn:sequenceFlow id="SF_DirectDepositLow" name="Amount ≤ 200" sourceRef="GW_AmountCheck" targetRef="Task_DepositReimbursement">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${expenseAmount &lt;= 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- High amount - supervisor approval -->
+    <bpmn:sequenceFlow id="SF_RequestApprovalHigh" name="Amount > 200" sourceRef="GW_AmountCheck" targetRef="Task_RequestSupervisorApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${expenseAmount &gt; 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor wait timer -->
+    <bpmn:sequenceFlow id="SF_SupervisorWaitTimer" sourceRef="Task_RequestSupervisorApproval" targetRef="Timer_7Days">
+      <bpmn:name>Request Approval Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for approval message -->
+    <bpmn:sequenceFlow id="SF_WaitForApproval" name="Awaiting Approval Message" sourceRef="GW_AmountCheck" targetRef="Message_SupervisorApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${expenseAmount &gt; 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for rejection message -->
+    <bpmn:sequenceFlow id="SF_WaitForRejection" name="Awaiting Rejection Message" sourceRef="GW_AmountCheck" targetRef="Message_SupervisorRejects">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${expenseAmount &gt; 200}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- After approval - deposit -->
+    <bpmn:sequenceFlow id="SF_DepositAfterApproval" sourceRef="Message_SupervisorApproval" targetRef="Task_DepositReimbursement">
+      <bpmn:name>Supervisor Approved</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Send rejection email -->
+    <bpmn:sequenceFlow id="SF_SendRejectionEmail" name="Send Rejection Email (Rejected Within 7 Days)" sourceRef="Message_SupervisorRejects" targetRef="Task_SendRejectionNotification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supervisorRejectedWithin7Days}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Send approval in progress email -->
+    <bpmn:sequenceFlow id="SF_SendApprovalInProgressEmail" name="Send Progress Email (After 7 Days)" sourceRef="Timer_7Days" targetRef="Task_SendApprovalInProgressEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supervisorNoResponseWithin7Days}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back to supervisor wait -->
+    <bpmn:sequenceFlow id="SF_ReenterSupervisorWait" sourceRef="Task_SendApprovalInProgressEmail" targetRef="GW_AmountCheck">
+      <bpmn:name>Repeat Approval Process</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- To end events -->
+    <bpmn:sequenceFlow id="SF_ToEndProcess" sourceRef="Task_DepositReimbursement" targetRef="End_Completed">
+      <bpmn:name>Deposit Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Resubmit Email -->
+    <bpmn:sequenceFlow id="SF_SendResubmitEmail" name="Send Resubmit Email (After 28 Days)" sourceRef="Timer_28Days" targetRef="End_ResubmitRequired">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${noAccountWithin28Days}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- To end rejected -->
+    <bpmn:sequenceFlow id="SF_ToEndRejected" sourceRef="Task_SendRejectionNotification" targetRef="End_Rejected">
+      <bpmn:name>Send Rejection Email</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

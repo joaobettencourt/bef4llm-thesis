@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Subrogation Process" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubrogationCheck" name="Receive Subrogation Information">
+      <bpmn:outgoing>SequenceFlow_CheckPossibility</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Get information -->
+    <bpmn:task id="Task_GetInformation" name="Get information about subrogation possibility">
+      <bpmn:incoming>SequenceFlow_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EvaluateSubrogation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Check case -->
+    <bpmn:task id="Task_CheckCase" name="Check case">
+      <bpmn:incoming>SequenceFlow_EvaluateSubrogation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecidePossibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is subrogation possible? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PossiblyPossible" name="Is possibility really there?">
+      <bpmn:incoming>SequenceFlow_DecidePossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPaymentRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send payment request -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send request for payment to insurant">
+      <bpmn:incoming>SequenceFlow_SendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Create reminder -->
+    <bpmn:task id="Task_CreateReminder" name="Create reminder">
+      <bpmn:incoming>SequenceFlow_CreateReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResponseOrDeadline</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for waiting -->
+    <bpmn:parallelGateway id="ParallelGateway_Waiting" name="Wait">
+      <bpmn:incoming>SequenceFlow_WaitForResponseOrDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Gateway: Money received? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MoneyReceived" name="Money received?">
+      <bpmn:incoming>SequenceFlow_MoneyReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookingAndClose</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Make booking -->
+    <bpmn:task id="Task_MakeBooking" name="Make booking">
+      <bpmn:incoming>SequenceFlow_BookingAndClose</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseMoneyReceived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Case closed (money received) -->
+    <bpmn:endEvent id="EndEvent_CaseClosed_Money" name="Case closed (money received)">
+      <bpmn:incoming>SequenceFlow_CloseCaseMoneyReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway: Insurant disagrees? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DisagreementPossible" name="Insurant disagrees?">
+      <bpmn:incoming>SequenceFlow_DisagreementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDisagreementReasoning</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Check reasoning of disagreement -->
+    <bpmn:task id="Task_CheckDisagreement" name="Check reasoning of that">
+      <bpmn:incoming>SequenceFlow_CheckDisagreementReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisagreementValid?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is disagreement valid? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DisagreementValid" name="Is he right?">
+      <bpmn:incoming>SequenceFlow_DisagreementReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseDisagreementRight</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Case closed (disagreement right) -->
+    <bpmn:endEvent id="EndEvent_CaseClosed_Right" name="Case closed (insurant right)">
+      <bpmn:incoming>SequenceFlow_CloseCaseDisagreementRight</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway: Deadline reached? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DeadlineReached" name="Deadline reached without payment?">
+      <bpmn:incoming>SequenceFlow_DisagreementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToCollectionAgencyDeadLine</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Forward to collection agency (deadline) -->
+    <bpmn:task id="Task_ForwardToCollectionAgencyDeadline" name="Forward case to collection agency">
+      <bpmn:incoming>SequenceFlow_ForwardToCollectionAgencyDeadLine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseAfterCollection2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Case closed (deadline reached) -->
+    <bpmn:endEvent id="EndEvent_CaseClosed_Deadline" name="Case closed (deadline)">
+      <bpmn:incoming>SequenceFlow_CloseCaseAfterCollection2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Forward to collection agency (disagreement wrong) -->
+    <bpmn:task id="Task_ForwardToCollectionAgencyWrongReasoning" name="Forward case to collection agency">
+      <bpmn:incoming>SequenceFlow_DisagreementInvalid</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseAfterCollection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Case closed (disagreement wrong) -->
+    <bpmn:endEvent id="EndEvent_CaseClosed_WrongReasoning" name="Case closed (insurant wrong)">
+      <bpmn:incoming>SequenceFlow_CloseCaseAfterCollection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway: No subrogation possible -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NoSubrogation" name="Possibility really there?">
+      <bpmn:outgoing>SequenceFlow_CloseCaseNoPossibility</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Case closed (no subrogation) -->
+    <bpmn:endEvent id="EndEvent_CaseClosed_NoPossibility" name="Case closed">
+      <bpmn:incoming>SequenceFlow_CloseNoSubrogation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPossibility" sourceRef="StartEvent_SubrogationCheck" targetRef="Task_GetInformation" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EvaluateSubrogation" name="Evaluate possibility" sourceRef="Task_GetInformation" targetRef="ExclusiveGateway_NoSubrogation" />
+
+    <!-- No subrogation path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DecidePossibility" name="Is possibility really there?">
+      <bpmn:incoming>SequenceFlow_EvaluateSubrogation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPaymentRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Payment request path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DecidePossibility" sourceRef="ExclusiveGateway_NoSubrogation" targetRef="Task_CheckCase" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendPaymentRequest" name="Yes - possibility exists" sourceRef="ExclusiveGateway_PossiblyPossible" targetRef="Task_SendPaymentRequest" />
+
+    <!-- Wait for response or deadline -->
+    <bpmn:parallelGateway id="ParallelGateway_Waiting">
+      <bpmn:incoming>SequenceFlow_CreateReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Money received path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MoneyReceivedPath" sourceRef="ParallelGateway_Waiting" targetRef="ExclusiveGateway_MoneyReceived">
+      <bpmn:name />
+    </bpmn:sequenceFlow>
+
+    <!-- Disagreement path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementPath" name="Insurant disagrees?" sourceRef="ParallelGateway_Waiting" targetRef="ExclusiveGateway_DisagreementPossible">
+      <bpmn:name />
+    </bpmn:sequenceFlow>
+
+    <!-- Deadline reached path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DeadlineReached2" name="Deadline reached without payment?">
+      <bpmn:incoming>SequenceFlow_DisagreementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToCollectionAgencyDeadLine</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Booking and close -->
+    <bpmn:sequenceFlow id="SequenceFlow_BookingAndClose" name="Yes - money received" sourceRef="ExclusiveGateway_MoneyReceived" targetRef="Task_MakeBooking" />
+
+    <!-- Disagreement check reasoning path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DisagreementValid2">
+      <bpmn:incoming>SequenceFlow_CheckDisagreementReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseDisagreementRight</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Valid disagreement closes case -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDisagreementReasoning" name="Insurant disagrees with recourse" sourceRef="ExclusiveGateway_DisagreementPossible" targetRef="Task_CheckDisagreement" />
+
+    <!-- Invalid disagreement goes to collection -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_InvalidDisagreement">
+      <bpmn:incoming>SequenceFlow_DisagreementReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseDisagreementRight</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Invalid disagreement goes to collection -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementInvalid" name="No - reasoning invalid" sourceRef="ExclusiveGateway_InvalidDisagreement" targetRef="Task_ForwardToCollectionAgencyWrongReasoning" />
+
+    <!-- Deadline reached without payment path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DeadlineReached3">
+      <bpmn:incoming>SequenceFlow_DisagreementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToCollectionAgencyDeadLine</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Deadline reached without payment path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardToCollectionAgencyDeadLine" name="Yes - deadline reached, no money received" sourceRef="ExclusiveGateway_DeadlineReached3" targetRef="Task_ForwardToCollectionAgencyDeadline" />
+
+  </bpmn:process>
+</bpmn:definitions>

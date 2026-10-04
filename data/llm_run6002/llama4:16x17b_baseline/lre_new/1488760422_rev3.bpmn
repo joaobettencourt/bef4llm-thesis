@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+                 id="definitions" name="Invoice Process">
+
+  <bpmn:process id="invoiceProcess" isExecutable="true">
+    <bpmn:startEvent id="startEvent1">
+      <bpmn:outgoing>sortInvoice</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="sortInvoice" sourceRef="startEvent1" targetRef="sortTask"/>
+
+    <bpmn:task id="sortTask" name="Sort invoice per client and vendor">
+      <bpmn:incoming>sortInvoice</bpmn:incoming>
+      <bpmn:outgoing>attachForm</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="attachForm" sourceRef="sortTask" targetRef="attachTask"/>
+
+    <bpmn:task id="attachTask" name="Attach invoice entry form to invoice">
+      <bpmn:incoming>attachForm</bpmn:incoming>
+      <bpmn:outgoing>enterInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="enterInfo" sourceRef="attachTask" targetRef="enterTask"/>
+
+    <bpmn:task id="enterTask" name="Enter required info on the invoice entry form">
+      <bpmn:incoming>enterInfo</bpmn:incoming>
+      <bpmn:outgoing>checkCompleteness</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="checkCompleteness" sourceRef="enterTask" targetRef="exclusiveGateway1"/>
+
+    <bpmn:exclusiveGateway id="exclusiveGateway1">
+      <bpmn:incoming>checkCompleteness</bpmn:incoming>
+      <bpmn:outgoing>incomplete</bpmn:outgoing>
+      <bpmn:outgoing>complete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="incomplete" name="Invoice not completed" sourceRef="exclusiveGateway1" targetRef="sendMessage">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${invoiceComplete == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="complete" name="Invoice complete" sourceRef="exclusiveGateway1" targetRef="enterSLATask">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${invoiceComplete == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="sendMessage" name="Send message to client">
+      <bpmn:incoming>incomplete</bpmn:incoming>
+      <bpmn:outgoing>endEvent1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="enterSLAInfo" sourceRef="complete" targetRef="enterSLATask"/>
+
+    <bpmn:task id="enterSLATask" name="Enter info for SLA and check priority">
+      <bpmn:incoming>enterSLAInfo</bpmn:incoming>
+      <bpmn:outgoing>checkPriority</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="checkPriority" sourceRef="enterSLATask" targetRef="exclusiveGateway2"/>
+
+    <bpmn:exclusiveGateway id="exclusiveGateway2">
+      <bpmn:incoming>checkPriority</bpmn:incoming>
+      <bpmn:outgoing>highPriority</bpmn:outgoing>
+      <bpmn:outgoing>normalPriority</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="highPriority" name="High priority" sourceRef="exclusiveGateway2" targetRef="applyRedStamp">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${priority == 'high'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="normalPriority" name="Normal priority" sourceRef="exclusiveGateway2" targetRef="checkComplianceTask">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${priority != 'high'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="applyRedStamp" name="Apply red stamp on entry invoice">
+      <bpmn:incoming>highPriority</bpmn:incoming>
+      <bpmn:outgoing>checkComplianceAfterStamp</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="checkComplianceAfterStamp" sourceRef="applyRedStamp" targetRef="checkComplianceTask"/>
+
+    <bpmn:task id="checkComplianceTask" name="Check invoice compliance">
+      <bpmn:incoming>checkCompliance</bpmn:incoming>
+      <bpmn:outgoing>incompleteCompliance</bpmn:outgoing>
+      <bpmn:outgoing>completeCompliance</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="exclusiveGateway3">
+      <bpmn:incoming>incompleteCompliance</bpmn:incoming>
+      <bpmn:outgoing>sendToExperienceStaff</bpmn:outgoing>
+      <bpmn:outgoing>callClient</bpmn:outgoing>
+      <bpmn:outgoing>sendPostalMail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="incompleteCompliance" sourceRef="checkComplianceTask" targetRef="exclusiveGateway3">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${complianceComplete == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="completeCompliance" sourceRef="checkComplianceTask" targetRef="allocateToDEO">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${complianceComplete == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="sendToExperienceStaff" name="Send to experience staff">
+      <bpmn:incoming>sendToExperienceStaff</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:task id="callClient" name="Call client and request information">
+      <bpmn:incoming>callClient</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:task id="sendPostalMail" name="Send postal mail requesting information">
+      <bpmn:incoming>sendPostalMail</bpmn:incoming>
+      <bpmn:outgoing>reminderSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="reminderSent" sourceRef="sendPostalMail" targetRef="intermediateCatchEvent1"/>
+
+    <bpmn:intermediateCatchEvent id="intermediateCatchEvent1">
+      <bpmn:incoming>reminderSent</bpmn:incoming>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P10H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+      <bpmn:outgoing>getMissingInfo</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="getMissingInfo" sourceRef="intermediateCatchEvent1" targetRef="enterTask"/>
+
+    <bpmn:task id="allocateToDEO" name="Allocate invoice to DEO">
+      <bpmn:incoming>completeCompliance</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:endEvent id="endEvent1">
+      <bpmn:incoming>sendMessage</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LANParty_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LAN_Party">
+    <bpmn:participant id="Participant_Organizer" name="LAN Party Organizer" processRef="Process_LANParty"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LANParty" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SendInvitations" name="Send Invitations to Friends">
+      <bpmn:outgoing>SequenceFlow_ToWaitForGames</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch for Game List -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchGameList" name="Receive Games Wanted">
+      <bpmn:messageEventDefinition messageRef="Message_GameList"/>
+      <bpmn:incoming>SequenceFlow_ToWaitForGames</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitPrep</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Parallel Gateway Diverging -->
+    <bpmn:parallelGateway id="Parallel_GatewaySplit" name="">
+      <bpmn:incoming>SequenceFlow_SplitPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DateLoopStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GameCheckStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Date Selection Loop Branch -->
+    
+    <!-- Task to Appoint Date (Initial) -->
+    <bpmn:userTask id="UserTask_AppointDate" name="Appoint a Date">
+      <bpmn:incoming>SequenceFlow_DateLoopStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuggestAppointmentThrow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Throw Suggestion -->
+    <bpmn:intermediateThrowEvent id="Intermediate_ThrowSuggestDate" name="Suggest Appointment">
+      <bpmn:messageEventDefinition messageRef="Message_SuggestAppointment"/>
+      <bpmn:incoming>SequenceFlow_SuggestAppointmentThrow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitConfirmationCatch</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Catch Confirmation -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchConfirm" name="Receive Answers">
+      <bpmn:messageEventDefinition messageRef="Message_Confirmation"/>
+      <bpmn:incoming>SequenceFlow_WaitConfirmationCatch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckFriendsCount</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway Check Friends Count -->
+    <bpmn:exclusiveGateway id="Exclusive_GatewayCheckFriends" name="8+ Friends Agree?">
+      <bpmn:incoming>SequenceFlow_CheckFriendsCount</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_BackToSuggest</bpmn:outgoing> <!-- No -->
+      <bpmn:outgoing>SequenceDateConfirmed</bpmn:outgoing>     <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Date Confirmed Flow (Yes) -->
+    
+    <!-- Game Preparation Branch -->
+    
+    <!-- Check Games Inventory -->
+    <bpmn:userTask id="UserTask_CheckGames" name="Check Available Games">
+      <bpmn:incoming>SequenceFlow_GameCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayGameAvailable</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway Check Availability -->
+    <bpmn:exclusiveGateway id="Exclusive_GatewayGames" name="All Games Available?">
+      <bpmn:incoming>SequenceFlow_GatewayGameAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceDownloadMissing</bpmn:outgoing> <!-- No -->
+      <bpmn:outgoing>SequenceGamesReadyDirectly</bpmn:outgoing>     <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Download Missing Games (If needed) -->
+    <bpmn:userTask id="UserTask_DownloadMissing" name="Download Missing Games">
+      <bpmn:incoming>SequenceDownloadMissing</bpmn:incoming>
+      <bpmn:outgoing>SequenceGamesReadyFromDownload</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Game Prep to Convergence -->
+    <bpmn:parallelGateway id="Parallel_GatewayJoinPrep" name="">
+      <bpmn:incoming>SequenceDateConfirmed</bpmn:incoming>
+      <bpmn:incoming>SequenceGamesReadyDirectly</bpmn:incoming> <!-- From Direct Check -->
+      <bpmn:incoming>SequenceGamesReadyFromDownload</bpmn:incoming> <!-- From Download Path -->
+      <bpmn:outgoing>SequenceFlow_ToBeerCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Beer Preparation Branch (Sequential after convergence) -->
+    
+    <!-- Calculate Need -->
+    <bpmn:userTask id="UserTask_CalculateBeer" name="Calculate Beer Requirement">
+      <bpmn:incoming>SequenceFlow_ToBeerCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayEnoughBeer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Stock -->
+    <bpmn:exclusiveGateway id="Exclusive_GatewayBeer" name="Have Enough Beer?">
+      <bpmn:incoming>SequenceFlow_GatewayEnoughBeer</bpmn:incoming>
+      <bpmn:outgoing>SequenceBuyMissing</bpmn:outgoing> <!-- No -->
+      <bpmn:outgoing>SequenceProceedToPartyDirectly</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Buy Missing Beer (If needed) -->
+    <bpmn:userTask id="UserTask_BuyBeer" name="Buy Missing Beer">
+      <bpmn:incoming>SequenceBuyMissing</bpmn:incoming>
+      <bpmn:outgoing>SequenceProceedToPartyFromBuy</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_StartParty" name="Enjoy LAN Party">
+      <bpmn:incoming>SequenceProceedToPartyDirectly</bpmn:incoming>
+      <bpmn:incoming>SequenceProceedToPartyFromBuy</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definitions -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToWaitForGames" sourceRef="StartEvent_SendInvitations" targetRef="Intermediate_CatchGameList"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SplitPrep" name="" sourceRef="Parallel_GatewaySplit" targetRef="UserTask_AppointDate"> <!-- Date Path -->
+      <bpmn:name>Date Prep</bpmn:name>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DateLoopStart" name="" sourceRef="Parallel_GatewaySplit" targetRef="UserTask_AppointDate"/> <!-- Initial Date Task -->
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuggestAppointmentThrow" name="" sourceRef="UserTask_AppointDate" targetRef="Intermediate_ThrowSuggestDate"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitConfirmationCatch" name="" sourceRef="Intermediate_ThrowSuggestDate" targetRef="Intermediate_CatchConfirm"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckFriendsCount" name="" sourceRef="Intermediate_CatchConfirm" targetRef="Exclusive_GatewayCheckFriends"/>
+
+    <!-- Game Prep Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceDownloadMissing" name="No, Download Needed" sourceRef="Exclusive_GatewayGames" targetRef="UserTask_DownloadMissing">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceGamesReadyFromDownload" name="" sourceRef="UserTask_DownloadMissing" targetRef="Parallel_GatewayJoinPrep"/> <!-- From Download -->
+    
+    <bpmn:sequenceFlow id="SequenceGameCheckStart" name="" sourceRef="Parallel_GatewaySplit" targetRef="UserTask_CheckGames">
+      <bpmn:name>Game Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Game Prep to Convergence -->
+    
+    <bpmn:sequenceFlow id="SequenceDownloadDirectlyToMerge" name="Yes, All Available" sourceRef="Exclusive_GatewayGames" targetRef="Parallel_GatewayJoinPrep">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Beer Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceBuyMissing" name="No, Buy Needed" sourceRef="Exclusive_GatewayBeer" targetRef="UserTask_BuyBeer">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceProceedToPartyFromBuy" name="" sourceRef="UserTask_BuyBeer" targetRef="EndEvent_StartParty"/> <!-- From Buy -->
+    
+    <bpmn:sequenceFlow id="SequenceDateConfirmed" name="Yes, 8+ Friends Agree" sourceRef="Exclusive_GatewayCheckFriends" targetRef="Parallel_GatewayJoinPrep">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back Flow (No) -->
+    
+    <bpmn:sequenceFlow id="SequenceLoop_BackToSuggest" name="Less than 8 Friends Agree" sourceRef="Exclusive_GatewayCheckFriends" targetRef="UserTask_AppointDate">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Beer Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceProceedToPartyDirectly" name="Yes, Enough Beer" sourceRef="Exclusive_GatewayBeer" targetRef="EndEvent_StartParty">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_GameList"/>
+  <bpmn:message id="Message_SuggestAppointment"/>
+  <bpmn:message id="Message_Confirmation"/>
+
+</bpmn:definitions>

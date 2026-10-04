@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_InvoiceProcess">
+    <bpmn:participant name="Invoice Process" processRef="Proc_InvoiceMain" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_InvoiceMain" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent name="Invoice Received" id="Start_01">
+      <bpmn:outgoing>SF_StartToLookup</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Vendor Lookup Task -->
+    <bpmn:task name="Look up vendor in SAP system" id="Task_LookupVendorSAP">
+      <bpmn:incoming>SF_StartToLookup</bpmn:incoming>
+      <bpmn:outgoing>SF_LookupToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to check if vendor exists -->
+    <bpmn:exclusiveGateway name="Vendor in SAP?" id="GW_VendorExists">
+      <bpmn:incoming>SF_LookupToGateway</bpmn:incoming>
+      <bpmn:outgoing>SF_YesVendorFound</bpmn:outgoing>
+      <bpmn:outgoing>SF_NoNewVendorRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sub-process for new vendor record -->
+    <bpmn:subProcess name="Create New Vendor Record" id="SubProc_NewVendor">
+      <bpmn:startEvent id="Start_SubNewVendor">
+        <bpmn:outgoing>SF_StartToForm</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <!-- Fill vendor master record form -->
+      <bpmn:task name="Fill new Vendor Master Record form" id="Task_FillVendorForm">
+        <bpmn:incoming>SF_StartToForm</bpmn:incoming>
+        <bpmn:outgoing>SF_FormToAttach</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Attach to invoice -->
+      <bpmn:task name="Attach request to invoice" id="Task_AttachRequest">
+        <bpmn:incoming>SF_FormToAttach</bpmn:incoming>
+        <bpmn:outgoing>SF_ToOutbox</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Put in internal outbox -->
+      <bpmn:task name="Put request in internal outbox" id="Task_PutInOutbox">
+        <bpmn:incoming>SF_ToOutbox</bpmn:incoming>
+        <bpmn:outgoing>SF_OutboxToClassify</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Classify urgent/non-urgent -->
+      <bpmn:exclusiveGateway name="Invoice Classification" id="GW_UrgentNonUrgent">
+        <bpmn:incoming>SF_OutboxToClassify</bpmn:incoming>
+        <bpmn:outgoing>SF_IsUrgentYes</bpmn:outgoing>
+        <bpmn:outgoing>SF_IsUrgentNo</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+      <!-- Timer for urgent (24 hours) -->
+      <bpmn:intermediateCatchEvent name="After 24 hr window" id="Timer_Urgent">
+        <bpmn:incoming>SF_IsUrgentYes</bpmn:incoming>
+        <bpmn:outgoing>SF_TimerToMerge</bpmn:outgoing>
+      </bpmn:intermediateCatchEvent>
+
+      <!-- Timer for non-urgent (1-5 working days) -->
+      <bpmn:intermediateCatchEvent name="After 1-5 working days" id="Timer_NonUrgent">
+        <bpmn:incoming>SF_IsUrgentNo</bpmn:incoming>
+        <bpmn:outgoing>SF_TimerToMerge2</bpmn:outgoing>
+      </bpmn:intermediateCatchEvent>
+
+      <!-- Merge after timers -->
+      <bpmn:exclusiveGateway name="Request Finished?" id="GW_RequestFinished">
+        <bpmn:incoming>SF_TimerToMerge</bpmn:incoming>
+        <bpmn:incoming>SF_TimerToMerge2</bpmn:incoming>
+        <bpmn:outgoing>SF_MergeBackMainProcess</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+    </bpmn:subProcess>
+
+    <!-- Main process continues after vendor found or request finished -->
+    
+    <!-- Add SAP number to invoice -->
+    <bpmn:task name="Add SAP number to invoice" id="Task_AddSAPNumberToInvoice">
+      <bpmn:incoming>SF_MergeBackMainProcess</bpmn:incoming>
+      <bpmn:outgoing>SF_ToSortInvoices</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sort invoices -->
+    <bpmn:task name="Sort invoices by amount and vendor" id="Task_SortInvoices">
+      <bpmn:incoming>SF_ToSortInvoices</bpmn:incoming>
+      <bpmn:outgoing>SF_ToSAPEntry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Enter into SAP -->
+    <bpmn:task name="Enter invoices in SAP system" id="Task_EnterInSAP">
+      <bpmn:incoming>SF_ToSAPEntry</bpmn:incoming>
+      <bpmn:outgoing>SF_SapToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Invoice Process Finished" id="End_01">
+      <bpmn:incoming>SF_SapToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Main Process -->
+    <bpmn:sequenceFlow sourceRef="Start_01" targetRef="Task_LookupVendorSAP" id="SF_StartToLookup"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_LookupVendorSAP" targetRef="GW_VendorExists" id="SF_LookupToGateway"/>
+
+    <!-- Vendor exists path -->
+    <bpmn:exclusiveGateway name="Merge Paths" id="GW_MergePaths">
+      <bpmn:incoming>SF_YesVendorFound</bpmn:incoming>
+      <bpmn:outgoing>SF_ToAddSAPNumber</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- From sub-process back to main flow -->
+    <bpmn:sequenceFlow sourceRef="GW_RequestFinished" targetRef="Task_AddSAPNumberToInvoice" id="SF_MergeBackMainProcess"/>
+
+    <bpmn:sequenceFlow sourceRef="Task_AddSAPNumberToInvoice" targetRef="Task_SortInvoices" id="SF_ToSortInvoices"/>
+    
+    <!-- From sub-process completion -->
+    <bpmn:exclusiveGateway name="Merge Vendor Paths" id="GW_MergeVendorPaths">
+      <bpmn:incoming>SF_NoNewVendorRequired</bpmn:incoming>
+      <bpmn:outgoing>SF_ToAddSAPNumber2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- From merge point to add SAP number -->
+    <bpmn:sequenceFlow sourceRef="GW_MergeVendorPaths" targetRef="Task_AddSAPNumberToInvoice" id="SF_ToAddSAPNumber2"/>
+
+    <bpmn:sequenceFlow name="" sourceRef="GW_VendorExists" targetRef="SubProc_NewVendor" id="SF_NoNewVendorRequired"/>
+    
+    <!-- From merge point to add SAP number -->
+    <bpmn:sequenceFlow sourceRef="Task_AddSAPNumberToInvoice" targetRef="End_01" id="SF_SapToEnd"/>
+
+  </bpmn:process>
+</bpmn:definitions>

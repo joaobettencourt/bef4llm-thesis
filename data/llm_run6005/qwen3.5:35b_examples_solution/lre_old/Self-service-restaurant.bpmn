@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_0" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RestaurantOrdering">
+    <bpmn:participant id="Participant_Guest" name="Guest" processRef="Process_Guest"/>
+    <bpmn:participant id="Participant_Employee" name="Employee" processRef="Process_Employee"/>
+    <bpmn:participant id="Participant_Chef" name="Chef" processRef="Process_Chef"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_OrderPlaced" sourceRef="Task_GuestPlaceOrder" targetRef="StartEvent_EmployeeReceived"/>
+    <bpmn:messageFlow id="Msg_PaymentConfirmed" sourceRef="EndEvent_EmployeePaymentComplete" targetRef="IntermediateCatch_BuzzerReady"/>
+    <bpmn:messageFlow id="Msg_OrderToChef" sourceRef="Task_EmployeeInformChef" targetRef="StartEvent_ChefOrderReceived"/>
+    <bpmn:messageFlow id="Msg_MealReady" sourceRef="EndEvent_ChefMealPrepared" targetRef="IntermediateCatch_InfEmployee"/>
+
+  </bpmn:collaboration>
+
+  <!-- Guest Process -->
+  <bpmn:process id="Process_Guest">
+    <bpmn:startEvent id="StartEvent_Hungry" name="Hunger noticed">
+      <bpmn:outgoing>SeqFlow_EnterRestaurant</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GuestEnter" name="Enter restaurant">
+      <bpmn:incoming>SeqFlow_EnterRestaurant</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ChooseDish</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_EnterRestaurant" sourceRef="StartEvent_Hungry" targetRef="Task_GuestEnter"/>
+
+    <bpmn:task id="Task_ChooseDish" name="Choose dish">
+      <bpmn:incoming>SeqFlow_ChooseDish</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_WaitTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_ChooseDish" sourceRef="Task_GuestEnter" targetRef="Task_ChooseDish"/>
+
+    <bpmn:intermediateCatchEvent id="IntermediateWaitTurn">
+      <bpmn:name>Wait for turn</bpmn:name>
+      <bpmn:incoming>SeqFlow_WaitTurn</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_PlaceOrder</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SeqFlow_WaitTurn" sourceRef="Task_ChooseDish" targetRef="IntermediateWaitTurn"/>
+
+    <bpmn:task id="Task_GuestPlaceOrder" name="Place order">
+      <bpmn:incoming>SeqFlow_PlaceOrder</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_WaitBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_PlaceOrder" sourceRef="IntermediateWaitTurn" targetRef="Task_GuestPlaceOrder"/>
+
+    <!-- Wait for buzzer -->
+    <bpmn:intermediateCatchEvent id="Intermediate_BuzzerReady">
+      <bpmn:name>Buzzer rings</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SeqFlow_WaitBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_PickupMeal</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SeqFlow_WaitBuzzer" sourceRef="Task_GuestPlaceOrder" targetRef="Intermediate_BuzzerReady"/>
+
+    <!-- Pick up meal -->
+    <bpmn:task id="Task_PickupMeal" name="Pick up meal">
+      <bpmn:incoming>SeqFlow_PickupMeal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_EatMeal</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_PickupMeal" sourceRef="Intermediate_BuzzerReady" targetRef="Task_PickupMeal"/>
+
+    <!-- Eat meal -->
+    <bpmn:task id="Task_EatMeal" name="Eat meal">
+      <bpmn:incoming>SeqFlow_EatMeal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_EndHungry</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_EatMeal" sourceRef="Task_PickupMeal" targetRef="Task_EatMeal"/>
+
+    <!-- End -->
+    <bpmn:endEvent id="End_HungrySatisfied">
+      <bpmn:name>Hunger satisfied</bpmn:name>
+      <bpmn:incoming>SeqFlow_EndHungry</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SeqFlow_EndHungry" sourceRef="Task_EatMeal" targetRef="End_HungrySatisfied"/>
+  </bpmn:process>
+
+  <!-- Employee Process -->
+  <bpmn:process id="Process_Employee">
+    <bpmn:startEvent id="StartEvent_EmployeeReceived">
+      <bpmn:name>Order received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SeqFlow_EnterPOS</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Enter order into POS -->
+    <bpmn:task id="Task_EmployeeEnterOrder" name="Enter order in POS">
+      <bpmn:name>Enter order in POS system</bpmn:name>
+      <bpmn:incoming>SeqFlow_EnterPOS</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CollectMoney</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_EnterPOS" sourceRef="StartEvent_EmployeeReceived" targetRef="Task_EmployeeEnterOrder"/>
+
+    <!-- Collect money -->
+    <bpmn:task id="Task_CollectMoney" name="Collect payment">
+      <bpmn:name>Collect money from guest</bpmn:name>
+      <bpmn:incoming>SeqFlow_CollectMoney</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SetBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_CollectMoney" sourceRef="Task_EmployeeEnterOrder" targetRef="Task_CollectMoney"/>
+
+    <!-- Set up buzzer -->
+    <bpmn:task id="Task_SetBuzzer" name="Set up buzzer">
+      <bpmn:name>Prepare buzzer</bpmn:name>
+      <bpmn:incoming>SeqFlow_SetBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_HandOverBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_SetBuzzer" sourceRef="Task_CollectMoney" targetRef="Task_SetBuzzer"/>
+
+    <!-- Hand over buzzer -->
+    <bpmn:task id="Task_HandOverBuzzer" name="Hand over buzzer">
+      <bpmn:name>Pass buzzer to guest</bpmn:name>
+      <bpmn:incoming>SeqFlow_HandOverBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InformChef</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_HandOverBuzzer" sourceRef="Task_SetBuzzer" targetRef="Task_HandOverBuzzer"/>
+
+    <!-- Inform chef -->
+    <bpmn:task id="Task_EmployeeInformChef" name="Inform chef">
+      <bpmn:name>Notify chef of order</bpmn:name>
+      <bpmn:incoming>SeqFlow_InformChef</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_WaitMealReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_InformChef" sourceRef="Task_HandOverBuzzer" targetRef="Task_EmployeeInformChef"/>
+
+    <!-- Wait for meal ready notification -->
+    <bpmn:intermediateCatchEvent id="Intermediate_InfEmployee">
+      <bpmn:name>Meal in hatch</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SeqFlow_WaitMealReady</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SetBuzzerForGuest</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SeqFlow_WaitMealReady" sourceRef="Task_EmployeeInformChef" targetRef="Intermediate_InfEmployee"/>
+
+    <!-- Set off buzzer for guest -->
+    <bpmn:task id="Task_SetBuzzerForGuest" name="Ring buzzer">
+      <bpmn:name>Set off guest's buzzer</bpmn:name>
+      <bpmn:incoming>SeqFlow_SetBusterForGuest</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_WaitGuestArrival</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_SetBuzzerForGuest" sourceRef="Intermediate_InfEmployee" targetRef="Task_SetBusterForGuest"/>
+
+    <!-- Wait for guest arrival -->
+    <bpmn:eventBasedGateway id="Event_GuestArrival">
+      <bpmn:name>Wait for Guest</bpmn:name>
+      <bpmn:incoming>SeqFlow_WaitGuestArrival</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_HandMeal</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Timer for 5 minutes -->
+    <bpmn:intermediateCatchEvent id="Intermediate_5MinTimer">
+      <bpmn:name>Wait 5 min</bpmn:name>
+      <bpmn:timerEventDefinition/>
+      <bpmn:incoming>SeqFlow_WaitGuestArrival</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CallGuest</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Call guest -->
+    <bpmn:task id="Task_CallGuest" name="Call guest">
+      <bpmn:name>Call for guest</bpmn:name>
+      <bpmn:incoming>SeqFlow_CallGuest</bpmn:incoming>
+      <bpmn:outgoing>SeqLoopBackToWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to wait -->
+    <bpmn:sequenceFlow id="SeqCallGuest" sourceRef="Intermediate_5MinTimer" targetRef="Task_CallGuest"/>
+    <bpmn:sequenceFlow id="SeqLoopBackToWait" sourceRef="Task_CallGuest" targetRef="Event_GuestArrival"/>
+
+    <!-- Hand over meal -->
+    <bpmn:task id="Task_HandMeal" name="Hand over meal">
+      <bpmn:name>Give meal to guest</bpmn:name>
+      <bpmn:incoming>SeqFlow_HandMeal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_EmployeeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End -->
+    <bpmn:endEvent id="EndEmployeeOrderComplete">
+      <bpmn:name>Order processed</bpmn:name>
+      <bpmn:incoming>SeqFlow_EmployeeEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Chef Process -->
+  <bpmn:process id="Process_Chef">
+    <bpmn:startEvent id="StartEvent_ChefOrderReceived">
+      <bpmn:name>New order received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SeqFlow_PrepareMeal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Prepare meal -->
+    <bpmn:task id="Task_ChefPrepare" name="Prepare meal">
+      <bpmn:name>Cook the dish</bpmn:name>
+      <bpmn:incoming>SeqFlow_PrepareMeal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_PlaceHatch</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_PrepareMeal" sourceRef="StartEvent_ChefOrderReceived" targetRef="Task_ChefPrepare"/>
+
+    <!-- Place in hatch -->
+    <bpmn:task id="Task_PlaceHatch" name="Place meal">
+      <bpmn:name>Put dish in service hatch</bpmn:name>
+      <bpmn:incoming>SeqFlow_PlaceHatch</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InformEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_PlaceHatch" sourceRef="Task_ChefPrepare" targetRef="Task_PlaceHatch"/>
+
+    <!-- Inform employee -->
+    <bpmn:task id="Task_InformEmployee" name="Inform employee">
+      <bpmn:name>Notify employee</bpmn:name>
+      <bpmn:incoming>SeqFlow_InformEmployee</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ChefEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SeqFlow_InformEmployee" sourceRef="Task_PlaceHatch" targetRef="Task_InformEmployee"/>
+
+    <!-- End -->
+    <bpmn:endEvent id="EndMealPrepared">
+      <bpmn:name>Dish ready</bpmn:name>
+      <bpmn:incoming>SeqFlow_ChefEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

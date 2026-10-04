@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Firmenfragebogen Bearbeitung" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Maschinell" name="Maschinelle Bearbeitung">
+        <bpmn:flowNodeRef>StartEvent_0</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Erfassen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SuchePartner</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PartnerZuordnung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DatenPruefungStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Unternehmensdaten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Problem1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Meldezeitraum</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UmlageZeiten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NeueUmlagezeitenAnlegen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KontaktdatenPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Problem2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Erfolg</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Manuell" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>Task_ManuellePruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KlarungMitarbeiter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Weitergabe</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_0" name="Firmenfragebogen Eingang">
+      <bpmn:outgoing>SequenceFlow_Erfassen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Erfassen und Verarbeiten -->
+    <bpmn:serviceTask id="Task_Erfassen" name="Erfassen und im System verarbeiten">
+      <bpmn:incoming>SequenceFlow_Erfassen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuchePartner</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 2: Automatische Partnersuche -->
+    <bpmn:serviceTask id="Task_SuchePartner" name="Automatische Suche nach Partnerunternehmen">
+      <bpmn:incoming>SequenceFlow_SuchePartner</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartnerZuordnung</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Partner eindeutig zuordenbar? -->
+    <bpmn:exclusiveGateway id="Gateway_PartnerZuordnung" name="Partner eindeutig&#xa;zuzuordnen?" default="SequenceFlow_DatenPruefungStart">
+      <bpmn:incoming>SequenceFlow_PartnerZuordnung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManuellePruefung</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 (Manual Lane): Manuelle Prüfung -->
+    <bpmn:userTask id="Task_ManuellePruefung" name="Manuelle Prüfung durch Sachbearbeiter">
+      <bpmn:incoming>SequenceFlow_ManuellePruefung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DatenPruefungStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Gateway for Partner Search Paths -->
+    <bpmn:exclusiveGateway id="Gateway_DatenPruefungStart" name="Datenprüfung starten?">
+      <bpmn:incoming>SequenceFlow_PartnerZuordnung</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ManuellePruefung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnternehmensdatenCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Unternehmensdaten prüfen -->
+    <bpmn:userTask id="Task_Unternehmensdaten" name="Unternehmensdaten prüfen">
+      <bpmn:incoming>SequenceFlow_UnternehmensdatenCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProblemPruefung1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exception Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gateway_Problem1" name="Problem/Klärungsbedarf?">
+      <bpmn:incoming>SequenceFlow_ProblemPruefung1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KlarungMitarbeiter</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Meldezeitraum und Versicherungszeiten -->
+    <bpmn:userTask id="Task_Meldezeitraum" name="Meldezeitraum kontrollieren">
+      <bpmn:incoming>SequenceFlow_UnternehmensdatenCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProblemPruefung2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Umlage Zeiten -->
+    <bpmn:exclusiveGateway id="Gateway_UmlageZeiten" name="Umlageversicherungszeiten prüfen?">
+      <bpmn:incoming>SequenceFlow_ProblemPruefung2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NeueAnlegen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6: Neue Umlagezeiten anlegen -->
+    <bpmn:userTask id="Task_NeueUmlagezeitenAnlegen" name="Neue Umlageversicherungszeiten&#xa;anlegen">
+      <bpmn:incoming>SequenceFlow_NeueAnlegen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KontaktdatenCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 7: Kontaktdaten prüfen -->
+    <bpmn:userTask id="Task_KontaktdatenPruefung" name="Kontaktdaten überprüfen">
+      <bpmn:incoming>SequenceFlow_NeueAnlegen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProblemPruefung3</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exception Gateway 2 (Merged logic) -->
+    <bpmn:exclusiveGateway id="Gateway_Problem2" name="Problem/Klärungsbedarf?">
+      <bpmn:incoming>SequenceFlow_ProblemPruefung1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KlarungMitarbeiter</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Exception Gateway 3 (Merged logic) -->
+    <bpmn:exclusiveGateway id="Gateway_Problem3" name="Problem/Klärungsbedarf?">
+      <bpmn:incoming>SequenceFlow_ProblemPruefung3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KlarungMitarbeiter_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8 (Manual Lane): Klärung durch Mitarbeiter -->
+    <bpmn:userTask id="Task_KlarungMitarbeiter" name="Klärung durch zuständigen&#xa;Mitarbeiter">
+      <bpmn:description>Vorgang zur weiteren Bearbeitung übergeben</bpmn:description>
+      <bpmn:incoming>SequenceFlow_KlarungMitarbeiter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WeitergabeEnde</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 1: Success -->
+    <bpmn:endEvent id="EndEvent_Erfolg" name="Bearbeitung abgeschlossen">
+      <bpmn:incoming>SequenceFlow_KontaktdatenCheck</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Handover -->
+    <bpmn:endEvent id="EndEvent_Weitergabe" name="An Mitarbeiter&#xa;weitergegeben">
+      <bpmn:incoming>SequenceFlow_KlarungMitarbeiter</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Erfassen" sourceRef="StartEvent_0" targetRef="Task_Erfassen">
+      <bpmn:name>Eingang</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PartnerZuordnung" name="Nein (Keine eindeutige Zuordnung)" sourceRef="Gateway_PartnerZuordnung" targetRef="Task_ManuellePruefung">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partnerFound == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DatenPruefungStart" name="Ja / Manuell erledigt" sourceRef="Task_ManuellePruefung" targetRef="Gateway_DatenPruefungStart">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Data Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnternehmensdatenCheck" name="Datenprüfung starten" sourceRef="Gateway_DatenPruefungStart" targetRef="Task_Meldezeitraum">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Exception Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProblemPruefung1" name="Problem/Klärungsbedarf?" sourceRef="Task_Unternehmensdaten" targetRef="Gateway_Problem2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${problemDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 5 Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProblemPruefung2" name="Problem/Klärungsbedarf?" sourceRef="Task_Meldezeitraum" targetRef="Gateway_UmlageZeiten">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${problemDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 6 Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_NeueAnlegen" name="Neu anlegen erforderlich" sourceRef="Gateway_UmlageZeiten" targetRef="Task_KontaktdatenPruefung">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 7 Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProblemPruefung3" name="Problem/Klärungsbedarf?" sourceRef="Task_KontaktdatenPruefung" targetRef="Gateway_Problem3">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${problemDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Exception Handling Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_KlarungMitarbeiter" name="Klärungsbedarf vorhanden" sourceRef="Gateway_Problem2" targetRef="Task_KlarungMitarbeiter">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${problemDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_KlarungMitarbeiter_2" name="Klärungsbedarf vorhanden" sourceRef="Gateway_Problem3" targetRef="Task_KlarungMitarbeiter">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${problemDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Handover Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WeitergabeEnde" sourceRef="Task_KlarungMitarbeiter" targetRef="EndEvent_Erfolg">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

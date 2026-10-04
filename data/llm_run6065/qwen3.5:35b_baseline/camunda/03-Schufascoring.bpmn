@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_SchufaScoringProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_SchufaProc">
+    <bpmn:participant id="Participant_Bank" name="Bank Schufascoring Process" processRef="Proc_SchufaScoring" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_SchufaScoring" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane name="Bank Process System" id="Lane_BankSystem">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendScoringRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ResultAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_Level1Result</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Immediate</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="Sales Employee" id="Lane_SalesEmployee">
+        <bpmn:flowNodeRef>Task_DelayNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_Level2Result</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Delayed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Scoring Request Initiated">
+      <bpmn:outgoing>SequenceFlow_StartToRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Scoring Request to Schufa -->
+    <bpmn:task id="Task_SendScoringRequest" name="Send Scoring Request">
+      <bpmn:incoming>SequenceFlow_StartToRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Result Availability Decision -->
+    <bpmn:exclusiveGateway id="Gateway_ResultAvailable" name="Result Available Immediately?">
+      <bpmn:incoming>SequenceFlow_RequestToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ImmediateYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DelayedNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Service Task for Level 1 Result (Normal Case) -->
+    <bpmn:serviceTask id="ServiceTask_Level1Result" name="Receive Scoring Result">
+      <bpmn:incoming>SequenceFlow_ImmediateYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResultToDisplay</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event for Immediate Result -->
+    <bpmn:endEvent id="EndEvent_Immediate" name="Scoring Complete">
+      <bpmn:incoming>SequenceFlow_ResultToDisplay</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task for Delay Notification -->
+    <bpmn:task id="Task_DelayNotification" name="Notify Sales Employee of Delay">
+      <bpmn:incoming>SequenceFlow_DelayedNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyToWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Service Task for Level 2 Result (Delayed Case) -->
+    <bpmn:serviceTask id="ServiceTask_Level2Result" name="Receive Final Scoring Result">
+      <bpmn:incoming>SequenceFlow_NotifyToWait</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalResultToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event for Delayed Result -->
+    <bpmn:endEvent id="EndEvent_Delayed" name="Scoring Complete (Delayed)">
+      <bpmn:incoming>SequenceFlow_FinalResultToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToRequest" sourceRef="StartEvent_1" targetRef="Task_SendScoringRequest">
+      <bpmn:name>Initiate Request</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RequestToGateway" name="Await Response from Schufa" sourceRef="Task_SendScoringRequest" targetRef="Gateway_ResultAvailable">
+      <!-- This represents the wait for response -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ImmediateYes" name="Result Available (Level 1)" sourceRef="Gateway_ResultAvailable" targetRef="ServiceTask_Level1Result">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DelayedNo" name="Delayed Response (Level 2)" sourceRef="Gateway_ResultAvailable" targetRef="Task_DelayNotification">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResultToDisplay" name="Return Result to Frontend" sourceRef="ServiceTask_Level1Result" targetRef="EndEvent_Immediate">
+      <!-- Represents result display in frontend -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyToWait" name="Notify &amp; Wait for Final Result" sourceRef="Task_DelayNotification" targetRef="ServiceTask_Level2Result">
+      <!-- Sales employee can do other work while waiting -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalResultToEnd" name="Final Result Available" sourceRef="ServiceTask_Level2Result" targetRef="EndEvent_Delayed">
+      <!-- Final result now available in frontend -->
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <bpmn:message id="Message_SchufaRequest" name="Scoring Request Message" />
+  <bpmn:message id="Message_SchufaResult" name="Scoring Result Message" />
+</bpmn:definitions>

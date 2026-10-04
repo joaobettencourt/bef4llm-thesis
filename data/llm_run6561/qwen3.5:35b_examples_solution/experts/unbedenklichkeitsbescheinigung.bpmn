@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1a2b3c4d" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Unbedenklichkeit">
+    <bpmn:participant id="Participant_Process" name="Unbedenklichkeitsbescheinigung Prozess" processRef="Process_1x2y3z4a" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1x2y3z4a" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_Main">
+      <bpmn:lane id="Lane_SystemAutomation" name="System / Automatisierung">
+        <bpmn:flowNodeRef>StartEvent_RequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InitProcess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_EmployerRole</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckInsuranceTimes</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_UncertaintyAmounts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckEstimates</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckOutstandingClaims</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_AssessmentResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IssueCertStandard</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IssueCertNote</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ManualHandling" name="Sachbearbeiter / Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>User_CreateLetterInfoRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>User_HandOverCaseWorker</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Anfrage Unbedenklichkeitsbescheinigung">
+      <bpmn:outgoing>SequenceFlow_01InitProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Initialize System -->
+    <bpmn:task id="Task_InitProcess" name="Prozess initialisieren &amp; Anzahl auf null setzen">
+      <bpmn:incoming>SequenceFlow_01InitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02CheckEmployerRole</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Employer Role Check -->
+    <bpmn:exclusiveGateway id="Gate_EmployerRole" name="Ist Absender Arbeitgeber?">
+      <bpmn:incoming>SequenceFlow_02CheckEmployerRole</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03CreateLetterInfoRequest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_04ProceedChecks</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path No: Create Letter -->
+    <bpmn:userTask id="User_CreateLetterInfoRequest" name="Anschreiben zur Info-Einholung erstellen">
+      <bpmn:incoming>SequenceFlow_03CreateLetterInfoRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05LetterCreated</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event (Waiting/Handover) -->
+    <bpmn:endEvent id="End_WaitingForInfo" name="Warten auf weitere Informationen">
+      <bpmn:incoming>SequenceFlow_05LetterCreated</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path Yes: Proceed Checks -->
+    <bpmn:task id="Task_CheckInsuranceTimes" name="Versicherungszeiten &amp; Beitragsnachweise prüfen">
+      <bpmn:incoming>SequenceFlow_04ProceedChecks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06CheckUncertainty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Uncertainty Check -->
+    <bpmn:exclusiveGateway id="Gate_UncertaintyAmounts" name="Unsicherheit Beitragshöhe?">
+      <bpmn:incoming>SequenceFlow_06CheckUncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07CheckEstimatesYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_08ProceedToClaimsNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2.1: Check Estimates (if uncertainty) -->
+    <bpmn:task id="Task_CheckEstimates" name="Beitragsschätzungen prüfen">
+      <bpmn:incoming>SequenceFlow_07CheckEstimatesYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_09MergeToClaims</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Outstanding Claims Check (Common path) -->
+    <bpmn:task id="Task_CheckOutstandingClaims" name="Offene Forderungen prüfen">
+      <bpmn:incoming>SequenceFlow_08ProceedToClaimsNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10MergeToAssessment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Estimate & Outstanding Claims -->
+    <bpmn:sequenceFlow id="SequenceFlow_09MergeToClaims" sourceRef="Task_CheckEstimates" targetRef="Task_CheckOutstandingClaims">
+      <bpmn:name>Schätzung geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 3: Assessment Result -->
+    <bpmn:exclusiveGateway id="Gate_AssessmentResult" name="Unbedenklichkeit bewertet">
+      <bpmn:incoming>SequenceFlow_10MergeToAssessment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11FullStandingYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_12PartialOrNoCert</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: Full Standing -->
+    <bpmn:task id="Task_IssueCertStandard" name="Unbedenklichkeitsbescheinigung ausstellen">
+      <bpmn:incoming>SequenceFlow_11FullStandingYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13MergeToLogHistory</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B: Partial/Open Amounts -->
+    <bpmn:task id="Task_IssueCertNote" name="Bescheinigung mit Hinweis ausstellen">
+      <bpmn:incoming>SequenceFlow_12PartialOrNoCert</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_14MergeToLogHistory</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path C: Handover Required (Conditions not met) -->
+    <bpmn:userTask id="User_HandOverCaseWorker" name="Fall an Sachbearbeiter übergeben">
+      <bpmn:incoming>SequenceFlow_15HandoverRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_16ToProcessEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Point for Logging History (Paths A & B) -->
+    <bpmn:task id="Task_LogHistory" name="Eintrag in Kontakthistorie vornehmen">
+      <bpmn:incoming>SequenceFlow_13MergeToLogHistory</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_17ToProcessEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_ProcessCompleted" name="Prozess abgeschlossen">
+      <bpmn:incoming>SequenceFlow_16ToProcessEnd</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_17ToProcessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_01InitProcess" sourceRef="StartEvent_RequestReceived" targetRef="Task_InitProcess">
+      <bpmn:name>Anfrage erhalten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_02CheckEmployerRole" sourceRef="Task_InitProcess" targetRef="Gate_EmployerRole">
+      <bpmn:name>Vorgang initialisiert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Employer Check Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_03CreateLetterInfoRequest" sourceRef="Gate_EmployerRole" targetRef="User_CreateLetterInfoRequest">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Letter Task Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_05LetterCreated" sourceRef="User_CreateLetterInfoRequest" targetRef="End_WaitingForInfo">
+      <bpmn:name>Anschreiben erstellt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Proceed Checks Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_04ProceedChecks" sourceRef="Gate_EmployerRole" targetRef="Task_CheckInsuranceTimes">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_06CheckUncertainty" sourceRef="Task_CheckInsuranceTimes" targetRef="Gate_UncertaintyAmounts">
+      <bpmn:name>Vorgang geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Uncertainty Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_07CheckEstimatesYes" sourceRef="Gate_UncertaintyAmounts" targetRef="Task_CheckEstimates">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Skip Estimate Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_08ProceedToClaimsNo" sourceRef="Gate_UncertaintyAmounts" targetRef="Task_CheckOutstandingClaims">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Estimate & Outstanding Claims -->
+    <bpmn:sequenceFlow id="SequenceFlow_10MergeToAssessment" sourceRef="Task_CheckOutstandingClaims" targetRef="Gate_AssessmentResult">
+      <bpmn:name>Bewertung starten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Assessment Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_11FullStandingYes" sourceRef="Gate_AssessmentResult" targetRef="Task_IssueCertStandard">
+      <bpmn:name>Vollständige Unbedenklichkeit</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Partial Standing Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_12PartialOrNoCert" sourceRef="Gate_AssessmentResult" targetRef="Task_IssueCertNote">
+      <bpmn:name>Offene Beträge / Hinweis</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Handover Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_15HandoverRequired" sourceRef="Gate_AssessmentResult" targetRef="User_HandOverCaseWorker">
+      <bpmn:name>Voraussetzungen nicht erfüllt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Cert Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_13MergeToLogHistory" sourceRef="Task_IssueCertStandard" targetRef="Task_LogHistory">
+      <bpmn:name>Cert issued</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Partial Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_14MergeToLogHistory" sourceRef="Task_IssueCertNote" targetRef="Task_LogHistory">
+      <bpmn:name>Cert issued</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Log History Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_17ToProcessEnd" sourceRef="Task_LogHistory" targetRef="End_ProcessCompleted">
+      <bpmn:name>Historie eingetragen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Handover Flow to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_16ToProcessEnd" sourceRef="User_HandOverCaseWorker" targetRef="End_ProcessCompleted">
+      <bpmn:name>Fall übergeben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

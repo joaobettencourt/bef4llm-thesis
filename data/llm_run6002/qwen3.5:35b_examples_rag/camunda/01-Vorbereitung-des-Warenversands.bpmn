@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1aeg7k2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1geryc1">
+    <bpmn:participant id="Participant_0ygkg4f" name="Versandprozess Computer-Hardware Shop" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_0viot5w">
+      <bpmn:lane id="Lane_Sekretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XOR_GroßeMenge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HoleAngebote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaehleAngebot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FuellePaketschein</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XOR_VersicherungNötig</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Logistikleiter" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_AbschließeVersicherung</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Lagerarbeiter" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>ParallelGateway_StartSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerpackeWare</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_JoinVorbereitungen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StelleZurAbholungBereit</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_Split</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split (Warehouse & Secretary) -->
+    <bpmn:parallelGateway id="ParallelGateway_StartSplit" name="Vorbereitungen starten">
+      <bpmn:incoming>SequenceFlow_Split</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSecretaryXOR</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackGoods</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Secretary Lane Tasks & Gateways -->
+    
+    <!-- Decision: Large Quantity? (Exclusive Gateway) -->
+    <bpmn:exclusiveGateway id="XOR_GroßeMenge" name="Große Menge?">
+      <bpmn:incoming>SequenceFlow_ToSecretaryXOR</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargeQtyYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallQtyNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: Large Quantity -->
+    <bpmn:task id="Task_HoleAngebote" name="Hole 3 Angebote von Spediteuren">
+      <bpmn:incoming>SequenceFlow_LargeQtyYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_WaehleAngebot" name="Wähle Angebot aus &amp; beauftrage">
+      <bpmn:incoming>SequenceFlow_SelectOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargeQtyDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B: Small Quantity -->
+    <bpmn:task id="Task_FuellePaketschein" name="Fülle standardisierten Paketschein aus">
+      <bpmn:incoming>SequenceFlow_SmallQtyNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckInsurance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision: Insurance Needed? -->
+    <bpmn:exclusiveGateway id="XOR_VersicherungNötig" name="Versicherung nötig?">
+      <bpmn:incoming>SequenceFlow_CheckInsurance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsurYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InsurNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path B1: Insurance Needed (Crosses to Logistics Manager Lane) -->
+    <bpmn:task id="Task_AbschließeVersicherung" name="Abschließe Versicherung">
+      <bpmn:incoming>SequenceFlow_InsurYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogisticsDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Warehouse Lane Task (Parallel) -->
+    <bpmn:task id="Task_VerpackeWare" name="Verpacke Ware">
+      <bpmn:incoming>SequenceFlow_PackGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WarehouseDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join (All Preparations) -->
+    <bpmn:parallelGateway id="ParallelGateway_JoinVorbereitungen" name="Alle Vorbereitungen abgeschlossen">
+      <bpmn:incoming>SequenceFlow_LargeQtyDone</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InsurNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_LogisticsDone</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WarehouseDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:userTask id="Task_StelleZurAbholungBereit" name="Stelle Ware zur Abholung bereit">
+      <bpmn:incoming>SequenceFlow_FinalTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Shipment prepared">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Split Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Split" sourceRef="StartEvent_1" targetRef="ParallelGateway_StartSplit"/>
+    
+    <!-- To Secretary XOR (via Parallel Gateway) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSecretaryXOR" name="Kläre Versandart" sourceRef="ParallelGateway_StartSplit" targetRef="XOR_GroßeMenge"/>
+
+    <!-- To Warehouse Pack -->
+    <bpmn:sequenceFlow id="SequenceFlow_PackGoods" name="Verpacke Ware (Parallel)" sourceRef="ParallelGateway_StartSplit" targetRef="Task_VerpackeWare"/>
+
+    <!-- Large Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LargeQtyYes" name="Ja (Große Menge)" sourceRef="XOR_GroßeMenge" targetRef="Task_HoleAngebote"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SelectOrder" sourceRef="Task_HoleAngebote" targetRef="Task_WaehleAngebot"/>
+
+    <!-- Small Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SmallQtyNo" name="Nein (Kleine Menge)" sourceRef="XOR_GroßeMenge" targetRef="Task_FuellePaketschein"/>
+
+    <!-- Insurance Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsurance" sourceRef="Task_FuellePaketschein" targetRef="XOR_VersicherungNötig"/>
+
+    <!-- Yes to Insurance (Crosses Lane) -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsurYes" name="Ja, Versicherung nötig" sourceRef="XOR_VersicherungNötig" targetRef="Task_AbschließeVersicherung"/>
+
+    <!-- No to Insurance -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsurNo" name="Nein, keine Versicherung nötig" sourceRef="XOR_VersicherungNötig" targetRef="ParallelGateway_JoinVorbereitungen"/>
+
+    <!-- Logistics Manager Task Output -->
+    <bpmn:sequenceFlow id="SequenceFlow_LogisticsDone" sourceRef="Task_AbschließeVersicherung" targetRef="ParallelGateway_JoinVorbereitungen"/>
+
+    <!-- Warehouse Packing Output to Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_WarehouseDone" name="Ware verpackt" sourceRef="Task_VerpackeWare" targetRef="ParallelGateway_JoinVorbereitungen"/>
+
+    <!-- Large Quantity Path Output to Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_LargeQtyDone" sourceRef="Task_WaehleAngebot" targetRef="ParallelGateway_JoinVorbereitungen"/>
+
+    <!-- Final Task Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalTask" name="Alle Vorbereitungen abgeschlossen" sourceRef="ParallelGateway_JoinVorbereitungen" targetRef="Task_StelleZurAbholungBereit"/>
+
+    <!-- End Event Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" sourceRef="Task_StelleZurAbholungBereit" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

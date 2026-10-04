@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Computer Repair Service" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerBringsDefectiveComputer" name="Customer brings defective computer">
+      <bpmn:outgoing>SequenceFlow_CheckCost</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: CRS checks defect and calculates cost -->
+    <bpmn:task id="Task_CRSCheckDefect" name="CRS checks defect &amp; calculates repair cost">
+      <bpmn:incoming>SequenceFlow_CheckCost</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideAcceptance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Customer decides if costs are acceptable -->
+    <bpmn:exclusiveGateway id="Gateway_CostsAcceptable" name="Costs acceptable?">
+      <bpmn:incoming>SequenceFlow_DecideAcceptance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Accepted</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Computer taken home unrepaired -->
+    <bpmn:endEvent id="EndEvent_TakenHomeUnrepaired" name="Computer taken home unrepaired">
+      <bpmn:incoming>SequenceFlow_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway Split for two repair activities -->
+    <bpmn:parallelGateway id="ParallelSplit_Repairs" name="Start repairs (arbitrary order)">
+      <bpmn:incoming>SequenceFlow_Accepted</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareRepair</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Hardware Repair Path -->
+    <bpmn:task id="Task_HardwareCheck" name="Check and repair hardware">
+      <bpmn:incoming>SequenceFlow_HardwareRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestHardware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Hardware Test -->
+    <bpmn:exclusiveGateway id="Gateway_HardwareError" name="Hardware error detected?">
+      <bpmn:incoming>SequenceFlow_TestHardware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorRepairHW</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Error Repair for Hardware -->
+    <bpmn:task id="Task_HardwareErrorRepair" name="Execute additional hardware repair">
+      <bpmn:incoming>SequenceFlow_ErrorRepairHW</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestHardwareAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Hardware Test Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestHardwareAgain" sourceRef="Task_HardwareErrorRepair" targetRef="Gateway_HardwareError"/>
+
+    <!-- Software Repair Path -->
+    <bpmn:parallelGateway id="ParallelSplit_SoftwarePath">
+      <bpmn:incoming>SequenceFlow_Accepted</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SoftCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Software Check -->
+    <bpmn:task id="Task_SoftwareConfig" name="Check and configure software">
+      <bpmn:incoming>SequenceFlow_SoftCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestSoftware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Software Test -->
+    <bpmn:exclusiveGateway id="Gateway_SoftwareError" name="Software error detected?">
+      <bpmn:incoming>SequenceFlow_TestSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorRepairSW</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Error Repair for Software -->
+    <bpmn:task id="Task_SoftwareErrorRepair" name="Execute additional software repair">
+      <bpmn:incoming>SequenceFlow_ErrorRepairSW</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestSoftwareAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Software Test Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestSoftwareAgain" sourceRef="Task_SoftwareErrorRepair" targetRef="Gateway_SoftwareError"/>
+
+    <!-- Merge Point for Both Paths to Final End Event -->
+    <bpmn:parallelGateway id="ParallelMerge_Final">
+      <bpmn:incoming>SequenceFlow_HardwareOK</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SoftOK</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final End Event -->
+    <bpmn:endEvent id="EndEvent_RepairFinished" name="Repair finished">
+      <bpmn:incoming>SequenceFlow_FinalMerge</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Main Flow from Start to CRS Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCost" sourceRef="StartEvent_CustomerBringsDefectiveComputer" targetRef="Task_CRSCheckDefect"/>
+
+    <!-- From CRS Check to Cost Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_DecideAcceptance" name="Calculate cost completed" sourceRef="Task_CRSCheckDefect" targetRef="Gateway_CostsAcceptable">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Cost Decision to Rejected End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_Rejected" name="No (costs not acceptable)" sourceRef="Gateway_CostsAcceptable" targetRef="EndEvent_TakenHomeUnrepaired">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!acceptable]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Cost Decision to Accepted Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Accepted" name="Yes (costs acceptable)" sourceRef="Gateway_CostsAcceptable" targetRef="ParallelSplit_Repairs">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[acceptable]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Accepted to Hardware Repair -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareRepair" sourceRef="ParallelSplit_Repairs" targetRef="Task_HardwareCheck"/>
+
+    <!-- From Hardware Check to Test Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestHardware" name="Test hardware functionality" sourceRef="Task_HardwareCheck" targetRef="Gateway_HardwareError">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Hardware Test to Error Repair -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorRepairHW" name="Error detected (yes)" sourceRef="Gateway_HardwareError" targetRef="Task_HardwareErrorRepair">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[errorDetected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Hardware Test to OK Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareOK" name="No error (no)" sourceRef="Gateway_HardwareError" targetRef="ParallelMerge_Final">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!errorDetected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Accepted to Software Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_SoftCheck" sourceRef="ParallelSplit_Repairs" targetRef="Task_SoftwareConfig"/>
+
+    <!-- From Software Config to Test Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestSoftware" name="Test software functionality" sourceRef="Task_SoftwareConfig" targetRef="Gateway_SoftwareError">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Software Test to Error Repair -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorRepairSW" name="Error detected (yes)" sourceRef="Gateway_SoftwareError" targetRef="Task_SoftwareErrorRepair">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[errorDetected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Software Test to OK Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SoftOK" name="No error (no)" sourceRef="Gateway_SoftwareError" targetRef="ParallelMerge_Final">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!errorDetected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Both Paths to Final End Event -->
+    <bpmn:parallelGateway id="ParallelMerge_Final">
+      <bpmn:incoming>SequenceFlow_HardwareOK</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SoftOK</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+  </bpmn:process>
+  
+  <!-- Data Definitions (Optional but valid) -->
+</bpmn:definitions>

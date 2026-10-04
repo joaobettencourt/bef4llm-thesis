@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_abc123xyz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_DailyProcess">
+    <bpmn:participant id="Pool_MainProc" name="Daily Backup &amp; Defaulters Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_MorningTrigger" name="Every weekday morning">
+      <bpmn:outgoing>Flow_InitiateBackup</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>Flow_InitiateBackup</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckDBRecords</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="GW_DBNewRecords" name="Account Defaulters table has new records?">
+      <bpmn:incoming>Flow_CheckDBRecords</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProceedToRegisterYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CRMReturnsCheckNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 (Path Yes) -->
+    <bpmn:task id="Task_RegisterAccounts" name="Register defaulting accounts and customers">
+      <bpmn:incoming>Flow_ProceedToRegisterYes</bpmn:outgoing>
+      <bpmn:incoming>Flow_CRMReturnsExistMerge</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CheckAdvisedStatus</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3 (Path No) -->
+    <bpmn:task id="Task_CRMReturnsCheck" name="Check CRM system for new returns">
+      <bpmn:incoming>Flow_CRMReturnsCheckNo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DecideNewReturns</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="GW_NewReturns" name="New returns filed?">
+      <bpmn:incoming>Flow_DecideNewReturns</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProceedToRegisterFromCRM</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow Yes Path from Gateway 2 -->
+    <bpmn:sequenceFlow id="Flow_ProceedToRegisterFromCRM" name="Yes - New Returns Exist" sourceRef="GW_NewReturns" targetRef="Task_RegisterAccounts"/>
+
+    <!-- Task 4 (Advised Check) -->
+    <bpmn:task id="Task_CheckAdvisedStatus" name="Check if client codes previously advised">
+      <bpmn:name>Previous defaulting clients</bpmn:name>
+      <bpmn:incoming>Flow_CheckAdvisedStatus</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 -->
+    <bpmn:exclusiveGateway id="GW_Advised" name="Previously advised?">
+      <bpmn:incoming>Flow_CheckAdvisedStatus</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProduceTableNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5 (Produce Table) -->
+    <bpmn:task id="Task_ProduceTable" name="Produce table of defaulting accounts and send to account management">
+      <bpmn:incoming>Flow_ProduceTableNo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReportCompletedCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow Yes Path from Gateway 3 (Skip Table) -->
+    <bpmn:sequenceFlow id="Flow_SkipTable" name="Yes - Previously Advised" sourceRef="GW_Advised" targetRef="Task_ReportCompletedCheck"/>
+
+    <!-- Task 6 (Report Check / CRM Second Time) -->
+    <bpmn:task id="Task_CheckCRMSecondTime" name="New defaulting account report completed">
+      <bpmn:name>Complete Report</bpmn:name>
+      <bpmn:incoming>Flow_ReportCompletedCheck</bpmn:outgoing>
+      <bpmn:incoming>Flow_SkipTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 (Second CRM Check) -->
+    <bpmn:exclusiveGateway id="GW_SecondReturns" name="New returns filed?">
+      <bpmn:name>Check Returns Status</bpmn:name>
+      <bpmn:incoming>Flow_CheckCRMSecondTime</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReconcileIfYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7 (Reconcile) -->
+    <bpmn:task id="Task_ReconcileTable" name="Reconcile with existing account defaulters table">
+      <bpmn:name>Reconcile Table</bpmn:name>
+      <bpmn:incoming>Flow_ReconcileIfYes</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event 1 (2:30 PM) -->
+    <bpmn:boundaryEvent id="BE_230PM" name="Deadline Alert">
+      <bpmn:timerEventDefinition/>
+      <bpmn:attachedToRef>Task_RegisterAccounts</bpmn:attachedToRef>
+      <bpmn:outgoing>Flow_AlertSupervisor1</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task 8 (Alert Morning) -->
+    <bpmn:task id="Task_AlertMorning" name="Send alert to supervisor">
+      <bpmn:name>2:30 PM Alert</bpmn:name>
+      <bpmn:incoming>Flow_AlertSupervisor1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event 2 (4:00 PM) -->
+    <bpmn:boundaryEvent id="BE_4PM" name="Deadline Alert">
+      <bpmn:timerEventDefinition/>
+      <bpmn:attachedToRef>Task_ReconcileTable</bpmn:attachedToRef>
+      <bpmn:outgoing>Flow_AlertSupervisor2</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task 9 (Alert Afternoon) -->
+    <bpmn:task id="Task_AlertAfternoon" name="Send message to supervisor">
+      <bpmn:name>4:00 PM Alert</bpmn:name>
+      <bpmn:incoming>Flow_AlertSupervisor2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Success" name="Process Completed">
+      <bpmn:incoming>Flow_ReconcileTableDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_AlertSent" name="Alert Sent (Supervisor Notified)">
+      <bpmn:incoming>Flow_AlertMorningDone</bpmn:outgoing>
+      <bpmn:incoming>Flow_AlertAfternoonDone</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_InitiateBackup" sourceRef="Start_MorningTrigger" targetRef="Task_BackupDatabase"/>
+    
+    <bpmn:sequenceFlow id="Flow_CheckDBRecords" name="Proceed to Inventory Check" sourceRef="Task_BackupDatabase" targetRef="GW_DBNewRecords"/>
+
+    <bpmn:sequenceFlow id="Flow_ProceedToRegisterYes" name="Yes - New Records Found" sourceRef="GW_DBNewRecords" targetRef="Task_RegisterAccounts"/>
+    
+    <bpmn:sequenceFlow id="Flow_CRMReturnsCheckNo" name="No - No New Records in DB" sourceRef="GW_DBNewRecords" targetRef="Task_CRMReturnsCheck"/>
+
+    <bpmn:sequenceFlow id="Flow_DecideNewReturns" name="Check Returns Status" sourceRef="Task_CRMReturnsCheck" targetRef="GW_NewReturns"/>
+    
+    <!-- Merge flow from CRM Check to Register Task -->
+    <bpmn:sequenceFlow id="Flow_ProceedToRegisterFromCRM" name="Yes - New Returns Exist" sourceRef="GW_NewReturns" targetRef="Task_RegisterAccounts"/>
+
+    <bpmn:sequenceFlow id="Flow_CheckAdvisedStatus" sourceRef="Task_RegisterAccounts" targetRef="Task_CheckAdvisedStatus"/>
+    
+    <!-- Task Check Advised Status to Gateway -->
+    <bpmn:sequenceFlow id="Flow_AdvisedCheckOut" name="Proceed to Advisory Check" sourceRef="Task_CheckAdvisedStatus" targetRef="GW_Advised"/>
+
+    <bpmn:sequenceFlow id="Flow_ProduceTableNo" name="No - Not Advised Before" sourceRef="GW_Advised" targetRef="Task_ProduceTable"/>
+    
+    <!-- Merge flow from Produce Table to Report Check -->
+    <bpmn:sequenceFlow id="Flow_ReportCompletedCheck" sourceRef="Task_ProduceTable" targetRef="Task_CheckCRMSecondTime"/>
+
+    <!-- Sequence Flow for Yes Path (Skip) -->
+    <bpmn:sequenceFlow id="Flow_SkipTable" name="Yes - Previously Advised" sourceRef="GW_Advised" targetRef="Task_CheckCRMSecondTime"/>
+
+    <!-- Second CRM Check to Gateway 4 -->
+    <bpmn:sequenceFlow id="Flow_CheckCRMSecondTime" sourceRef="Task_CheckCRMSecondTime" targetRef="GW_SecondReturns"/>
+
+    <bpmn:sequenceFlow id="Flow_ReconcileIfYes" name="Yes - New Returns Filed" sourceRef="GW_SecondReturns" targetRef="Task_ReconcileTable"/>
+    
+    <!-- Flow from Reconcile to End -->
+    <bpmn:sequenceFlow id="Flow_ReconcileTableDone" sourceRef="Task_ReconcileTable" targetRef="End_Success"/>
+
+    <!-- Boundary Event Flows -->
+    <bpmn:sequenceFlow id="Flow_AlertSupervisor1" name="Trigger Alert Morning" sourceRef="BE_230PM" targetRef="Task_AlertMorning"/>
+    
+    <bpmn:sequenceFlow id="Flow_AlertMorningDone" sourceRef="Task_AlertMorning" targetRef="End_AlertSent"/>
+
+    <bpmn:sequenceFlow id="Flow_AlertSupervisor2" name="Trigger Alert Afternoon" sourceRef="BE_4PM" targetRef="Task_AlertAfternoon"/>
+    
+    <bpmn:sequenceFlow id="Flow_AlertAfternoonDone" sourceRef="Task_AlertAfternoon" targetRef="End_AlertSent"/>
+
+  </bpmn:process>
+</bpmn:definitions>

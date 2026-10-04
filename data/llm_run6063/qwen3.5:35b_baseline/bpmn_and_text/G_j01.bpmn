@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FarmBot_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_FarmBot_Main">
+    <bpmn:participant name="Farming Bot System" processRef="Process_FarmBot_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_FarmBot_Main">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Player Interface">
+        <bpmn:flowNodeRef>StartEvent_Configure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DependencyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Split_FarmStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdateResourceList</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Bot Logic">
+        <bpmn:flowNodeRef>Gateway_DependencyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Split_FarmStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExecuteFarming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PostProcessChoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Configure" name="Configure Farming Bot">
+      <bpmn:outgoing>SequenceFlow_StartSelect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Resources -->
+    <bpmn:task id="Task_SelectResources" name="Find Required Resources (Up to 10)">
+      <bpmn:incoming>SequenceFlow_StartSelect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDeps</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Dependencies -->
+    <bpmn:exclusiveGateway id="Gateway_DependencyCheck" name="Resources Valid?">
+      <bpmn:incoming>SequenceFlow_CheckDeps</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartFarmingLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Split for Farming and Monitoring -->
+    <bpmn:parallelGateway id="Split_FarmStart" name="Start Bot">
+      <bpmn:incoming>SequenceFlow_StartFarmingLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MainFarmStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MonitoringLoop</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Main Farming Task -->
+    <bpmn:task id="Task_ExecuteFarming" name="Execute Farming">
+       <bpmn:incoming>SequenceFlow_MainFarmStart</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_FarmingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Natural Disaster (Interrupting) -->
+    <bpmn:boundaryEvent id="Boundary_Disaster" name="Natural Disaster">
+      <bpmn:attachedToRef>Task_ExecuteFarming</bpmn:attachedToRef>
+      <bpmn:interrupting>false</bpmn:interrupting> <!-- Changed to non-interrupting for notification, or true if reset. Text says "set back", implies interrupt/reset flow -->
+       <bpmn:outgoing>SequenceFlow_ResetBotStart</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task: Reset Bot (Set back) -->
+    <bpmn:task id="Task_ResetAfterDisaster" name="Reset Bot After Disaster">
+      <bpmn:incoming>SequenceFlow_ResetBotStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryFarming</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Milestone (Non-Interrupting) -->
+    <bpmn:boundaryEvent id="Boundary_Milestone" name="Milestone Reached">
+      <bpmn:attachedToRef>Task_ExecuteFarming</bpmn:attachedToRef>
+       <bpmn:interrupting>false</bpmn:interrupting>
+      <bpmn:outgoing>SequenceFlow_NotifyPlayerStart</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task: Notify Player -->
+    <bpmn:task id="Task_SendNotification" name="Notify Milestone">
+       <bpmn:incoming>SequenceFlow_NotifyPlayerStart</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MonitoringLoop</bpmn:outgoing> <!-- Loop back to monitoring -->
+    </bpmn:task>
+
+    <!-- Parallel Path for Updates (Monitoring Lane) -->
+    <bpmn:task id="Task_UpdateResourceList" name="Update Resource List">
+       <bpmn:incoming>SequenceFlow_MonitoringLoop</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_UpdatesToJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join Gateway for Farming and Monitoring -->
+    <bpmn:parallelGateway id="Join_FarmComplete" name="Farming Complete">
+      <bpmn:incoming>SequenceFlow_FarmingComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_UpdatesToJoin</bpmn:incoming>
+       <!-- Note: ResetBot flow also needs to join back into the loop logic, handled via RetryFarming -->
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway for Post-Farm Actions -->
+    <bpmn:exclusiveGateway id="Gateway_PostProcessChoice" name="Brag or Send?">
+      <bpmn:incoming>SequenceFlow_PostProcessStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BragToFriends</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendMaterials</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Brag to Friends -->
+    <bpmn:task id="Task_BragToFriends" name="Brag to Selected Friends">
+      <bpmn:incoming>SequenceFlow_BragToFriends</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Materials -->
+    <bpmn:task id="Task_SendMaterials" name="Send Materials to Friends">
+       <bpmn:incoming>SequenceFlow_SendMaterials</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_BotFinished" name="Bot Finished">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Initial Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartSelect" sourceRef="StartEvent_Configure" targetRef="Task_SelectResources"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDeps" sourceRef="Task_SelectResources" targetRef="Gateway_DependencyCheck"/>
+    
+    <!-- Start Farming Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartFarmingLoop" name="Valid Dependencies" sourceRef="Gateway_DependencyCheck" targetRef="Split_FarmStart"/>
+
+    <!-- Main Flow Splitting to Farm and Monitor -->
+    <bpmn:sequenceFlow id="SequenceFlow_MainFarmStart" sourceRef="Split_FarmStart" targetRef="Task_ExecuteFarming"/>
+    
+    <!-- Disaster Handling (Boundary Event Flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResetBotStart" name="Disaster Occurred" sourceRef="Boundary_Disaster" targetRef="Task_ResetAfterDisaster"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RetryFarming" sourceRef="Task_ResetAfterDisaster" targetRef="Split_FarmStart"> 
+      <!-- Loops back to restart farming logic -->
+    </bpmn:sequenceFlow>
+
+    <!-- Milestone Handling (Boundary Event Flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyPlayerStart" sourceRef="Boundary_Milestone" targetRef="Task_SendNotification"/>
+
+    <!-- Monitoring Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MonitoringLoop" name="Monitor &amp; Update" sourceRef="Split_FarmStart" targetRef="Task_UpdateResourceList"/>
+    
+    <!-- Join Logic for Completion -->
+    <bpmn:parallelGateway id="Join_FarmComplete"> 
+      <bpmn:incoming>SequenceFlow_UpdatesToJoin</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_PostProcessStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Corrected Sequence Flows for Post Farming -->
+    <bpmn:sequenceFlow id="SequenceFlow_FarmingComplete" sourceRef="Task_ExecuteFarming" targetRef="Join_FarmComplete"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_UpdatesToJoin" name="Update Complete" sourceRef="Task_UpdateResourceList" targetRef="Join_FarmComplete"/>
+
+    <!-- Post Farming Flow -->
+    <bpmn:exclusiveGateway id="Gateway_PostProcessChoice"> 
+       <bpmn:incoming>SequenceFlow_PostProcessStart</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_BragToFriends</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_SendMaterials</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Brag/Send Logic -->
+    <bpmn:task id="Task_BragToFriends"> 
+       <bpmn:incoming>SequenceFlow_BragToFriends</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendMaterials" sourceRef="Gateway_PostProcessChoice" targetRef="Task_SendMaterials"/>
+    
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="Finish" sourceRef="Task_BragToFriends" targetRef="End_BotFinished"/>
+
+  </bpmn:process>
+</bpmn:definitions>

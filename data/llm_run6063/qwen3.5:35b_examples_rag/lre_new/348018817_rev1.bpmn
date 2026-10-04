@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseReport">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Report Process" processRef="Process_ExpenseProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseProcessing" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartFileReport" name="File Expense Report">
+      <bpmn:outgoing>Flow_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Account Check and Timer Split -->
+    <bpmn:parallelGateway id="Parallel_AccountTimerSplit" name="">
+      <bpmn:incoming>Flow_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_TimerStart28Days</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToAccountGateway</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 28 days -->
+    <bpmn:intermediateCatchEvent id="Intermediate_28Days" name="28 Days">
+      <bpmn:incoming>Flow_TimerStart28Days</bpmn:incoming>
+      <bpmn:outgoing>Flow_TimerExpired</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Resubmit Email Task -->
+    <bpmn:userTask id="Task_SendResubmitEmail" name="Send Resubmit Email">
+      <bpmn:incoming>Flow_TimerExpired</bpmn:incoming>
+      <bpmn:outgoing>Flow_ResubmitEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Stopped Process -->
+    <bpmn:endEvent id="End_Stopped" name="Process Stopped">
+      <bpmn:incoming>Flow_ResubmitEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AccountCheck" name="Employee Has Account?">
+      <bpmn:incoming>Flow_ToAccountGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateAccountPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReviewReportDirectly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Task -->
+    <bpmn:userTask id="Task_CreateAccount" name="Create Employee Account">
+      <bpmn:incoming>Flow_CreateAccountPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterCreateToReview</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Review Report Task -->
+    <bpmn:userTask id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>Flow_ReviewReportDirectly</bpmn:incoming>
+      <bpmn:incoming>Flow_AfterCreateToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAmountCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Amount Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &gt; 200?">
+      <bpmn:incoming>Flow_ToAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_DirectReimbursement</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RequestSupervisorApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Direct Reimbursement Task -->
+    <bpmn:userTask id="Task_DirectReimbursement" name="Deposit to Bank Account">
+      <bpmn:incoming>Flow_DirectReimbursement</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Completed Process -->
+    <bpmn:endEvent id="End_Completed" name="Process Completed">
+      <bpmn:incoming>Flow_ToEndCompleted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Supervisor Approval Task -->
+    <bpmn:userTask id="Task_RequestSupervisorApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>Flow_RequestSupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_SupervisorTimerStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Timer for 7 days supervisor response -->
+    <bpmn:intermediateCatchEvent id="Intermediate_7Days" name="7 Days">
+      <bpmn:incoming>Flow_SupervisorTimerStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_TimerExpired7Days</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor Response?">
+      <bpmn:incoming>Flow_TimerExpired7Days</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovedPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Approval In Progress Email Task -->
+    <bpmn:userTask id="Task_SendApprovalInProgress" name="Send Approval In Progress Email">
+      <bpmn:incoming>Flow_NoResponseAfter7Days</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepeatSupervisorCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Repeated Process -->
+    <bpmn:endEvent id="End_Repeated" name="Process Repeated">
+      <bpmn:incoming>Flow_AfterCreateToReview</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Send Rejection Email Task -->
+    <bpmn:userTask id="Task_SendRejectionEmail" name="Send Rejection Email">
+      <bpmn:incoming>Flow_RejectedPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Rejected Process -->
+    <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+      <bpmn:incoming>Flow_ToEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Parallel Split -->
+    <bpmn:sequenceFlow id="Flow_StartToAccountCheck" sourceRef="StartFileReport" targetRef="Parallel_AccountTimerSplit"/>
+    
+    <!-- Timer 28 Days Flow -->
+    <bpmn:sequenceFlow id="Flow_TimerStart28Days" sourceRef="Parallel_AccountTimerSplit" targetRef="Intermediate_28Days"/>
+    
+    <!-- Timer Expired to Send Email -->
+    <bpmn:sequenceFlow id="Flow_TimerExpired" sourceRef="Intermediate_28Days" targetRef="Task_SendResubmitEmail"/>
+    
+    <!-- Send Email to End Stopped -->
+    <bpmn:sequenceFlow id="Flow_ResubmitEnd" sourceRef="Task_SendResubmitEmail" targetRef="End_Stopped"/>
+
+    <!-- Account Check Gateway Flows -->
+    <bpmn:sequenceFlow id="Flow_ToAccountGateway" name="" sourceRef="Parallel_AccountTimerSplit" targetRef="Gateway_AccountCheck"/>
+    
+    <bpmn:sequenceFlow id="Flow_CreateAccountPath" name="No - Create Account" sourceRef="Gateway_AccountCheck" targetRef="Task_CreateAccount"/>
+    
+    <bpmn:sequenceFlow id="Flow_ReviewReportDirectly" name="Yes - Review Report" sourceRef="Gateway_AccountCheck" targetRef="Task_ReviewReport"/>
+
+    <!-- After Creating Account to Review -->
+    <bpmn:sequenceFlow id="Flow_AfterCreateToReview" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport"/>
+
+    <!-- Amount Check Gateway Flows -->
+    <bpmn:sequenceFlow id="Flow_ToAmountCheck" name="" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="Flow_DirectReimbursement" name="No - &lt;= 200" sourceRef="Gateway_AmountCheck" targetRef="Task_DirectReimbursement"/>
+    
+    <bpmn:sequenceFlow id="Flow_RequestSupervisorApproval" name="Yes - &gt; 200" sourceRef="Gateway_AmountCheck" targetRef="Task_RequestSupervisorApproval"/>
+
+    <!-- Supervisor Approval Timer Flow -->
+    <bpmn:sequenceFlow id="Flow_SupervisorTimerStart" sourceRef="Task_RequestSupervisorApproval" targetRef="Intermediate_7Days"/>
+
+    <!-- 7 Days Timer Expired to Decision Gateway -->
+    <bpmn:sequenceFlow id="Flow_TimerExpired7Days" name="" sourceRef="Intermediate_7Days" targetRef="Gateway_SupervisorDecision"/>
+
+    <!-- Supervisor Approved Path -->
+    <bpmn:sequenceFlow id="Flow_ApprovedPath" name="Approved - Reimburse" sourceRef="Gateway_SupervisorDecision" targetRef="Task_DirectReimbursement"/>
+
+    <!-- No Response After 7 Days (Timer) Flow to Send Email and Repeat -->
+    <bpmn:exclusiveGateway id="Gateway_NoResponseAfter7Days">
+      <bpmn:incoming>Flow_TimerExpired7Days</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendApprovalInProgressEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReimburseApproved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Supervisor Rejects Path -->
+    <bpmn:sequenceFlow id="Flow_RejectedPath" name="Rejected - Email Notification" sourceRef="Gateway_SupervisorDecision" targetRef="Task_SendRejectionEmail"/>
+
+    <!-- Send Rejection to End -->
+    <bpmn:sequenceFlow id="Flow_ToEndRejected" sourceRef="Task_SendRejectionEmail" targetRef="End_Rejected"/>
+
+    <!-- Direct Reimbursement to Completed End -->
+    <bpmn:sequenceFlow id="Flow_ToEndCompleted" name="" sourceRef="Task_DirectReimbursement" targetRef="End_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

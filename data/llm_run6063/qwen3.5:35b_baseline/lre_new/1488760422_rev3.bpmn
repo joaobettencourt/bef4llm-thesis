@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_InvoiceProcess">
+    <bpmn:participant name="Admin Office (SSP)" processRef="Process_InvoiceProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvoiceProcessing" isExecutable="false">
+    <bpmn:laneSet id="_LaneSets_01">
+      <bpmn:lane name="Admin Office (SSP)" id="_Lane_AdminOffice"/>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Invoice Received from SSP" id="StartEvent_InvoiceReceived">
+      <bpmn:outgoing>_Flow_SortInvoices</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Sort Invoice per Client -->
+    <bpmn:task name="Sort Invoice per Client" id="_Task_SortClient">
+      <bpmn:incoming>_Flow_SortInvoices</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SortVendor</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Sort Invoice per Vendor -->
+    <bpmn:task name="Sort Invoice per Vendor" id="_Task_SortVendor">
+      <bpmn:incoming>_Flow_SortVendor</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AttachForm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Attach Invoice Entry Form -->
+    <bpmn:task name="Attach Invoice Entry Form" id="_Task_AttachForm">
+      <bpmn:incoming>_Flow_AttachForm</bpmn:incoming>
+      <bpmn:outgoing>_Flow_EnterInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Enter Required Info -->
+    <bpmn:task name="Enter Required Info on Form" id="_Task_EnterInfo">
+      <bpmn:incoming>_Flow_EnterInfo</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CheckCompleteness</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Invoice Completeness -->
+    <bpmn:exclusiveGateway name="Invoice Complete?" id="_Gateway_CompletenessCheck">
+      <bpmn:incoming>_Flow_CheckCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SendMessageIncomplete</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_EnterSLAInfo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Invoice Incomplete -->
+    <bpmn:endEvent name="Invoice Rejected (Incomplete)" id="_End_InvoiceRejected">
+      <bpmn:incoming>_Flow_SendMessageIncomplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 5: Enter SLA Info and Check Priority -->
+    <bpmn:task name="Enter SLA Info &amp; Check Priority" id="_Task_EnterSLAPriority">
+      <bpmn:incoming>_Flow_EnterSLAInfo</bpmn:incoming>
+      <bpmn:outgoing>_Gateway_HighPriorityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Check High Priority -->
+    <bpmn:exclusiveGateway name="High Priority?" id="_Gateway_HighPriorityCheck">
+      <bpmn:incoming>_Flow_EnterSLAInfo</bpmn:incoming>
+      <bpmn:outgoing>_ApplyRedStampPath</bpmn:outgoing>
+      <bpmn:outgoing>_SkipRedStampPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6a: Apply Red Stamp (High Priority) -->
+    <bpmn:task name="Apply Red Stamp on Entry Invoice" id="_Task_ApplyRedStamp">
+      <bpmn:incoming>_Flow_EnterSLAInfo</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CheckCompliance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Check Invoice Compliance -->
+    <bpmn:exclusiveGateway name="Invoice Compliant?" id="_Gateway_ComplianceCheck">
+      <bpmn:incoming>_Flow_CheckCompliance</bpmn:incoming>
+      <bpmn:outgoing>_AllocateToDEOPath</bpmn:outgoing>
+      <bpmn:outgoing>_NoncomplianceHandling</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7a: Allocate to DEO (Compliant) -->
+    <bpmn:task name="Allocate Invoice to DEO" id="_Task_AllocateDEO">
+      <bpmn:incoming>_Flow_CheckCompliance</bpmn:incoming>
+      <bpmn:outgoing>_End_SuccessfulAllocation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2: Successful Allocation -->
+    <bpmn:endEvent name="Invoice Allocated to DEO" id="_End_AllocationSuccess">
+      <bpmn:incoming>_Flow_CheckCompliance</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway for Non-compliant Invoice Handling Options -->
+    <bpmn:exclusiveGateway name="Handle Non-Compliance?" id="_Gateway_NoncomplianceOptions">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_SendToExperienceStaffPath</bpmn:outgoing>
+      <bpmn:outgoing>_CallClientPath</bpmn:outgoing>
+      <bpmn:outgoing>_PostalMailRequestPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8a: Send to Experience Staff -->
+    <bpmn:task name="Send Non-Compliance Invoice to Experience Staff" id="_Task_SendToExperienceStaff">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_Flow_InformationObtained1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 8b: Call Client -->
+    <bpmn:task name="Call Client &amp; Request Information" id="_Task_CallClient">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_Flow_InformationObtained2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 8c: Send Postal Mail -->
+    <bpmn:task name="Send Postal Mail Requesting Complete Info" id="_Task_SendPostalMail">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ReminderSent10Hours</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event for 10 Hour Reminder -->
+    <bpmn:startEvent name="Reminder Sent (After 10 Hours)" id="_Start_10HourTimer">
+      <bpmn:timerDuration>P10H</bpmn:timerDuration>
+      <bpmn:outgoing>_Flow_ReminderSentToClient</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 9: Information Obtained -->
+    <bpmn:task name="Obtain Missing Information" id="_Task_ObtainMissingInfo">
+      <bpmn:incoming>_Flow_InformationObtained1</bpmn:incoming>
+      <bpmn:incoming>_Flow_InformationObtained2</bpmn:incoming>
+      <bpmn:outgoing>_AllocateToDEOPathFromMissingInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3: Invoice Rejected (Non-Compliant) -->
+    <bpmn:endEvent name="Invoice Processing Failed" id="_End_ProcessingFailed">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition -->
+    
+    <!-- Initial Flow -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_InvoiceReceived" targetRef="_Task_SortClient" id="_Flow_SortInvoices"/>
+    <bpmn:sequenceFlow sourceRef="_Task_SortClient" targetRef="_Task_SortVendor" id="_Flow_SortVendor"/>
+    <bpmn:sequenceFlow sourceRef="_Task_SortVendor" targetRef="_Task_AttachForm" id="_Flow_AttachForm"/>
+    <bpmn:sequenceFlow sourceRef="_Task_AttachForm" targetRef="_Task_EnterInfo" id="_Flow_EnterInfo"/>
+
+    <!-- Completeness Check -->
+    <bpmn:sequenceFlow sourceRef="_Task_EnterInfo" targetRef="_Gateway_CompletenessCheck" id="_Flow_CheckCompleteness"/>
+
+    <!-- Incomplete Path -->
+    <bpmn:sequenceFlow name="No - Send Message" sourceRef="_Gateway_CompletenessCheck" targetRef="_End_InvoiceRejected" id="_Flow_SendMessageIncomplete">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Complete Path -->
+    <bpmn:sequenceFlow name="Yes - Enter SLA Info" sourceRef="_Gateway_CompletenessCheck" targetRef="_Task_EnterSLAPriority" id="_Flow_EnterSLAInfo">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Priority Check -->
+    <bpmn:exclusiveGateway name="High Priority?" id="_Gateway_HighPriorityCheck_2">
+      <bpmn:incoming>_Flow_EnterSLAInfo</bpmn:incoming>
+      <bpmn:outgoing>_ApplyRedStampPath</bpmn:outgoing>
+      <bpmn:outgoing>_SkipRedStampPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- High Priority Path -->
+    <bpmn:sequenceFlow name="Yes - Apply Red Stamp" sourceRef="_Task_EnterSLAPriority" targetRef="_Task_ApplyRedStamp" id="_ApplyRedStampPath">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Priority Path -->
+    <bpmn:sequenceFlow name="No - Skip Red Stamp" sourceRef="_Task_EnterSLAPriority" targetRef="_Gateway_ComplianceCheck_2" id="_SkipRedStampPath">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Compliance Check -->
+    <bpmn:exclusiveGateway name="Invoice Compliant?" id="_Gateway_ComplianceCheck_2">
+      <bpmn:incoming>_Flow_CheckCompliance</bpmn:incoming>
+      <bpmn:outgoing>_AllocateToDEOPath</bpmn:outgoing>
+      <bpmn:outgoing>_NoncomplianceHandling</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Compliance Check Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_ApplyRedStamp" targetRef="_Gateway_ComplianceCheck_2" id="_Flow_CheckCompliance"/>
+    
+    <!-- Compliant Path -->
+    <bpmn:sequenceFlow name="Yes - Allocate to DEO" sourceRef="_Gateway_ComplianceCheck_2" targetRef="_Task_AllocateDEO" id="_AllocateToDEOPath">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Non-Compliant Path -->
+    <bpmn:exclusiveGateway name="Handle Non-Compliance?" id="_Gateway_NoncomplianceOptions_2">
+      <bpmn:incoming>_Flow_CheckNonCompleteness</bpmn:incoming>
+      <bpmn:outgoing>_SendToExperienceStaffPath</bpmn:outgoing>
+      <bpmn:outgoing>_CallClientPath</bpmn:outgoing>
+      <bpmn:outgoing>_PostalMailRequestPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Non-Compliance Handling Flow -->
+    <bpmn:sequenceFlow name="No - Handle Options" sourceRef="_Gateway_ComplianceCheck_2" targetRef="_Gateway_NoncomplianceOptions_2" id="_NoncomplianceHandling">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Experience Staff Path -->
+    <bpmn:sequenceFlow name="Send to Experience Staff" sourceRef="_Gateway_NoncomplianceOptions_2" targetRef="_Task_SendToExperienceStaff" id="_SendToExperienceStaffPath">
+      <bpmn:name>Option 1</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Call Client Path -->
+    <bpmn:sequenceFlow name="Call Client for Info" sourceRef="_Gateway_NoncomplianceOptions_2" targetRef="_Task_CallClient" id="_CallClientPath">
+      <bpmn:name>Option 2</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Postal Mail Path -->
+    <bpmn:sequenceFlow name="Send Postal Mail Requesting Info" sourceRef="_Gateway_NoncomplianceOptions_2" targetRef="_Task_SendPostalMail" id="_PostalMailRequestPath">
+      <bpmn:name>Option 3</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Information Obtained Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_SendToExperienceStaff" targetRef="_Task_ObtainMissingInfo" id="_Flow_InformationObtained1"/>
+    <bpmn:sequenceFlow sourceRef="_Task_CallClient" targetRef="_Task_ObtainMissingInfo" id="_Flow_InformationObtained2"/>
+
+    <!-- 10 Hour Reminder Timer -->
+    <bpmn:startEvent name="Reminder Sent (After 10 Hours)" id="_Start_10HourTimer">
+      <bpmn:timerDuration>P10H</bpmn:timerDuration>
+      <bpmn:outgoing>_Flow_ReminderSentToClient</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Reminder Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_SendPostalMail" targetRef="_Start_10HourTimer" id="_Flow_ReminderSent10Hours"/>
+
+    <!-- Final Allocation from Missing Info Path -->
+    <bpmn:sequenceFlow name="Allocate to DEO (After Info Obtained)" sourceRef="_Task_ObtainMissingInfo" targetRef="_End_AllocationSuccess" id="_AllocateToDEOPathFromMissingInfo">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ClaimsProcess">
+    <bpmn:participant id="Pool_ProcessingSystem" name="Claims Processing System" processRef="Proc_ClaimHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimHandling" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Organization" name="Claims Department">
+        <bpmn:flowNodeRef>StartEvent_ReceiveClaim</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_IsInsured</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EvaluateSeverity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_FormType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendSimpleForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendComplexForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_InitialReturn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCompleteness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CompleteCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterClaim</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessDone</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveClaim" name="Claim Received">
+      <bpmn:outgoing>SequenceFlow_CheckInsured</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Insurance Check -->
+    <bpmn:exclusiveGateway id="GW_IsInsured" name="Is Insured?">
+      <bpmn:incoming>SequenceFlow_CheckInsured</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EvaluatePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 1: Inform Rejection -->
+    <bpmn:task id="Task_InformRejection" name="Inform Claimant of Rejection">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Claim Rejected">
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Evaluate Severity -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+      <bpmn:incoming>SequenceFlow_EvaluatePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DetermineFormType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Form Type Decision -->
+    <bpmn:exclusiveGateway id="GW_FormType" name="Claim Complexity">
+      <bpmn:incoming>SequenceFlow_DetermineFormType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSimpleFormsPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendComplexFormsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3a: Send Simple Forms -->
+    <bpmn:task id="Task_SendSimpleForms" name="Send Relevant Forms (Simple)">
+      <bpmn:incoming>SequenceFlow_SendSimpleFormsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitInitialReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3b: Send Complex Forms -->
+    <bpmn:task id="Task_SendComplexForms" name="Send Relevant Forms (Complex)">
+      <bpmn:incoming>SequenceFlow_SendComplexFormsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitInitialReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catching Event 1 -->
+    <bpmn:messageIntermediateCatchEvent id="CatchEvent_InitialReturn" name="Forms Returned (Initial)">
+      <bpmn:incoming>SequenceFlow_WaitInitialReturn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCompletenessStart</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Task 4: Check Completeness -->
+    <bpmn:task id="Task_CheckCompleteness" name="Check Form Completeness">
+      <bpmn:incoming>SequenceFlow_CheckCompletenessStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Complete Check -->
+    <bpmn:exclusiveGateway id="GW_CompleteCheck" name="Forms Valid?">
+      <bpmn:incoming>SequenceFlow_CompleteDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UpdatePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5a: Register Claim -->
+    <bpmn:task id="Task_RegisterClaim" name="Register in Claims System">
+      <bpmn:incoming>SequenceFlow_RegisterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ProcessDone" name="Claims Notification Process Ended">
+      <bpmn:incoming>SequenceFlow_EndProcessDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 5b: Inform Update -->
+    <bpmn:task id="Task_InformUpdate" name="Inform to Update Forms">
+      <bpmn:incoming>SequenceFlow_UpdatePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitUpdatedReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catching Event 2 -->
+    <bpmn:messageIntermediateCatchEvent id="CatchEvent_UpdatedReturn" name="Updated Forms Received">
+      <bpmn:incoming>SequenceFlow_WaitUpdatedReturn</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_CheckCompletenessStart</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsured" sourceRef="StartEvent_ReceiveClaim" targetRef="GW_IsInsured"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="No" sourceRef="GW_IsInsured" targetRef="Task_InformRejection">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${isInsured == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EvaluatePath" name="Yes" sourceRef="GW_IsInsured" targetRef="Task_EvaluateSeverity">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${isInsured == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" sourceRef="Task_InformRejection" targetRef="EndEvent_Rejected"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DetermineFormType" sourceRef="Task_EvaluateSeverity" targetRef="GW_FormType"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendSimpleFormsPath" name="Simple Claim" sourceRef="GW_FormType" targetRef="Task_SendSimpleForms">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${claimComplexity == 'simple'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendComplexFormsPath" name="Complex Claim" sourceRef="GW_FormType" targetRef="Task_SendComplexForms">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${claimComplexity == 'complex'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitInitialReturn" sourceRef="Task_SendSimpleForms" targetRef="CatchEvent_InitialReturn"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitComplexReturn" sourceRef="Task_SendComplexForms" targetRef="CatchEvent_InitialReturn"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCompletenessStart" sourceRef="CatchEvent_InitialReturn" targetRef="Task_CheckCompleteness"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteDecision" sourceRef="Task_CheckCompleteness" targetRef="GW_CompleteCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterPath" name="Yes - Complete" sourceRef="GW_CompleteCheck" targetRef="Task_RegisterClaim">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${formsComplete == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_UpdatePath" name="No - Incomplete" sourceRef="GW_CompleteCheck" targetRef="Task_InformUpdate">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${formsComplete == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceLoop_CheckCompletenessStart" sourceRef="CatchEvent_UpdatedReturn" targetRef="Task_CheckCompleteness"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitUpdatedReturn" sourceRef="Task_InformUpdate" targetRef="CatchEvent_UpdatedReturn"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcessDone" sourceRef="Task_RegisterClaim" targetRef="EndEvent_ProcessDone"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Pool_CustomerService" name="Customer Service" processRef="Process_CS"/>
+    <bpmn:participant id="Pool_ServiceManagement" name="Service Management" processRef="Process_SM"/>
+    <bpmn:participant id="Pool_ResourceProvisioning" name="Resource Provisioning" processRef="Process_RP"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="StartCS_01" name="Service degradation perceived">
+      <bpmn:outgoing>SequenceFlow_CS_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_EnterReport" name="Enter problem report into system T">
+      <bpmn:incoming>SequenceFlow_CS_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_CompareSLA</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CS_Significance" name="Customer significance affects measures?">
+      <bpmn:incoming>SequenceFlow_CS_CheckSignificance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_Reprioritize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CS_CompareSLA" name="Compare problem report with customer SLA">
+      <bpmn:incoming>SequenceFlow_CS_CompareSLA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_DetermineMeasures</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CS_Premium" name="Premium customer?">
+      <bpmn:incoming>SequenceFlow_CS_CheckSignificance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_EndPremiun</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="EndCS_Premium" name="Link to extra problem fix process">
+      <bpmn:incoming>SequenceFlow_CS_EndPremium</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_CS_DetermineMeasures" name="Determine counter measures and priorities">
+      <bpmn:incoming>SequenceFlow_CS_CompareSLA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_CheckSignificance</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CS_Reprioritize" name="Re-prioritize measures?">
+      <bpmn:incoming>SequenceFlow_CS_DetermineMeasures</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_CompareSLA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CS_CreateReport" name="Create detailed problem report">
+      <bpmn:incoming>SequenceFlow_CS_Reprioritize</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_SendToSM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message flows -->
+    <bpmn:message id="Msg_ProblemReport" name="Problem Report"/>
+    
+    <bpmn:endEvent id="EndCS_01" name="Process ends">
+      <bpmn:incoming>SequenceFlow_CS_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel activities at end -->
+    <bpmn:parallelGateway id="PG_CS_Concurrent" name="">
+      <bpmn:incoming>SequenceFlow_CS_ReceiveReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_CreateCustomerReport</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CS_ReportRebate</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_CS_CustomerReport" name="Create report for customer">
+      <bpmn:incoming>SequenceFlow_CS_CreateCustomerReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_SendToCustomer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CS_Start" sourceRef="StartCS_01" targetRef="Task_CS_EnterReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_CompareSLA" name="" sourceRef="GW_CS_Significance" targetRef="Task_CS_CompareSLA"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_DetermineMeasures" name="" sourceRef="Task_CS_CompareSLA" targetRef="Task_CS_DetermineMeasures"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_CheckSignificance" name="" sourceRef="Task_CS_DetermineMeasures" targetRef="GW_CS_Premium"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_EndPremium" name="yes - premium customer" sourceRef="GW_CS_Premium" targetRef="EndCS_Premium"/>
+
+  </bpmn:process>
+
+  <!-- Service Management Process -->
+  <bpmn:process id="Process_SM" isExecutable="false">
+    <bpmn:startEvent id="StartSM_01" name="Receive detailed problem report">
+      <bpmn:outgoing>SequenceFlow_SM_Investigate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Receive from Customer Service -->
+    <bpmn:intermediateCatchEvent id="IntSM_ReceiveProblemReport" name="">
+      <bpmn:messageRef>Msg_ProblemReport</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_SM_Investigate</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Receive from Resource Provisioning -->
+    <bpmn:intermediateThrowEvent id="IntSM_SendRestorationRequest" name="">
+      <bpmn:messageRef>Msg_Restoration</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_SM_WaitForRP</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Receive from Resource Provisioning (restoration complete) -->
+    <bpmn:intermediateCatchEvent id="IntSM_ReceiveRestorationComplete" name="">
+      <bpmn:messageRef>Msg_RestorationComplete</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_SM_CreateResolution2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Receive from Resource Provisioning (normal execution) -->
+    <bpmn:intermediateThrowEvent id="IntSM_SendToCS" name="">
+      <bpmn:messageRef>Msg_ResolutionReport</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_SM_CSReceiveEnd</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Receive from Resource Provisioning (trouble report) -->
+    <bpmn:endEvent id="EndSM_01" name="">
+      <bpmn:incoming>SequenceFlow_IntSM_ToCS_Final</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SM_InvestigateAnalyzable" name="Investigate whether problem analyzable at this level">
+      <bpmn:incoming>SequenceFlow_SM_Investigate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_DecideAnalyzable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final status report creation -->
+    <bpmn:exclusiveGateway id="GW_SM_Analyzable" name="Problem analyzable here?">
+      <bpmn:incoming>SequenceFlow_SM_DecideAnalyzable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_SendToRP</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End events -->
+    <bpmn:endEvent id="EndSM_AnalyzableNo" name="">
+      <bpmn:incoming>SequenceFlow_SM_SendToRP</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SM_Investigate" sourceRef="StartSM_01" targetRef="Task_SM_InvestigateAnalyzable"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SM_DecideAnalyzable" name="" sourceRef="GW_SM_Analyzable" targetRef="EndSM_AnalyzableNo">
+
+  </bpmn:process>
+
+  <!-- Resource Provisioning Process -->
+  <bpmn:process id="Process_RP" isExecutable="false">
+    <bpmn:startEvent id="StartRP_01" name="">
+      <bpmn:outgoing>SequenceFlow_RP_CheckProblems</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Receive detailed problem report -->
+    <bpmn:message id="Msg_ProblemReport"/>
+    
+    <!-- Check for possible problems -->
+    <bpmn:task id="TaskRP_CheckProblems" name="Check whether there are any possible problems">
+      <bpmn:incoming>SequenceFlow_RP_CheckProblems</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GWPR_ProblemDetected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Problem detected gateway -->
+    <bpmn:endEvent id="EndRP_01" name="">
+      <bpmn:incoming>SequenceFlow_RP_SendNormalExecutionToSM</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RP_CheckProblems" sourceRef="StartRP_01" targetRef="TaskRP_CheckProblems"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

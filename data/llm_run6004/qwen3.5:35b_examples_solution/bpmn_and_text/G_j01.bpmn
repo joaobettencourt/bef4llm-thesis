@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FarmingBot_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_FarmingBot" isExecutable="false">
+    <!-- Data Objects -->
+    <bpmn:dataObject id="DataFarmingList" name="Farming List"/>
+    <bpmn:dataObject id="DataTableTools" name="Tool List"/>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_CreateBot" name="Create Farming Bot">
+      <bpmn:outgoing>Flow_StartToPreferences</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Determine Resources -->
+    <bpmn:userTask id="Task_DetermineResources" name="Determine Required Resources">
+      <bpmn:incoming>Flow_StartToPreferences</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToParallelCollection</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Resource Collection -->
+    <bpmn:parallelGateway id="GW_ParallelResources" name="Collect Resources">
+      <bpmn:incoming>Flow_ToParallelCollection</bpmn:incoming>
+      <bpmn:outgoing>Flow_Resource1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Resource2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToolCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Resource Collection Tasks (up to 10 in parallel) -->
+    <bpmn:userTask id="Task_ResourceCollection" name="Collect Resources">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConvergence</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Tool Dependency Check -->
+    <bpmn:serviceTask id="Task_CheckTools" name="Check Available Tools">
+      <bpmn:incoming>Flow_ToolCheck</bpmn:incoming>
+      <bpmn:outgoing>GW_IfToolsNeeded</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway for Tool Decision -->
+    <bpmn:exclusiveGateway id="GW_IfToolsNeeded" name="Need Tools?">
+      <bpmn:incoming>Flow_ToolCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateTools</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToFarmingStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Tool Creation Task -->
+    <bpmn:userTask id="Task_CreateTools" name="Create Required Tools">
+      <bpmn:incoming>Flow_CreateTools</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFarmingStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Farming Start -->
+    <bpmn:parallelGateway id="GW_FarmAndMonitor" name="Start Farming">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFarmingLoop</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Main Farming Loop -->
+    <bpmn:userTask id="Task_Farm" name="Farm for Resources">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>GW_MilestoneCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway - Milestone Check -->
+    <bpmn:exclusiveGateway id="GW_MilestoneCheck" name="Milestone Reached?">
+      <bpmn:incoming>Flow_ToFarmingLoop</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifyPlayer</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ContinueFarming</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Notification Task -->
+    <bpmn:userTask id="Task_NotifyMilestone" name="Notify Player">
+      <bpmn:incoming>Flow_NotifyPlayer</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFarmingLoop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Event-Based Gateway for Disasters and Updates -->
+    <bpmn:eventBasedGateway id="GW_DisasterOrUpdate" name="">
+      <bpmn:incoming>Flow_ContinueFarming</bpmn:incoming>
+      <bpmn:outgoing>Flow_NaturalDisaster</bpmn:outgoing>
+      <bpmn:outgoing>Flow_UpdateList</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Natural Disaster Catch Event -->
+    <bpmn:intermediateCatchEvent id="Event_NaturalDisaster" name="Natural Disaster">
+      <bpmn:incoming>Flow_DisasterTriggered</bpmn:incoming>
+      <bpmn:outgoing>Flow_SetBackToFarm</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Update List Task -->
+    <bpmn:userTask id="Task_UpdateList" name="Update Farming Materials">
+      <bpmn:incoming>Flow_UpdateList</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFarmingLoop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway - Finished Check -->
+    <bpmn:exclusiveGateway id="GW_FinishedCheck" name="All Resources Collected?">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Process Gateway -->
+    <bpmn:parallelGateway id="GW_EndConvergence" name="">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndDecision</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway - End Decision -->
+    <bpmn:exclusiveGateway id="GW_EndDecision" name="Brag or Send?">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_BragFriends</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendMaterials</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Brag Task -->
+    <bpmn:userTask id="Task_Brag" name="Brag to Friends">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Send Materials Task -->
+    <bpmn:userTask id="Task_SendMaterials" name="Send Materials to Friends">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_FarmingBotFinished" name="Farming Bot Finished">
+      <bpmn:incoming>Flow_ParallelToResource</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToPreferences" sourceRef="Start_CreateBot" targetRef="Task_DetermineResources"/>
+    <bpmn:sequenceFlow id="Flow_ToParallelCollection" sourceRef="Task_DetermineResources" targetRef="GW_ParallelResources"/>
+
+    <!-- Resource Collection Flows -->
+    <bpmn:sequenceFlow id="Flow_Resource1" name="Resource 1-5" sourceRef="GW_ParallelResources" targetRef="Task_Farm"/>
+    <bpmn:sequenceFlow id="Flow_ToolCheck" sourceRef="GW_ParallelResources" targetRef="Task_CheckTools"/>
+
+    <!-- Tool Decision Flows -->
+    <bpmn:sequenceFlow id="Flow_CreateTools" name="Yes - Need Tools" sourceRef="GW_IfToolsNeeded" targetRef="Task_CreateTools"/>
+    <bpmn:sequenceFlow id="Flow_ToFarmingStart" name="No/Ready" sourceRef="GW_IfToolsNeeded" targetRef="GW_FarmAndMonitor"/>
+
+    <!-- Farming Loop Flows -->
+    <bpmn:sequenceFlow id="Flow_ParallelToResource" sourceRef="GW_FarmAndMonitor" targetRef="Task_Farm"/>
+    <bpmn:sequenceFlow id="Flow_ToConvergence" name="" sourceRef="Task_CreateTools" targetRef="GW_FarmAndMonitor"/>
+
+    <!-- Milestone Check Flows -->
+    <bpmn:sequenceFlow id="Flow_MilestoneYes" name="Yes - Milestone Reached" sourceRef="GW_MilestoneCheck" targetRef="Task_NotifyMilestone"/>
+    <bpmn:sequenceFlow id="Flow_ContinueFarming" name="" sourceRef="GW_FarmAndMonitor" targetRef="GW_DisasterOrUpdate"/>
+
+    <!-- Notification Flow -->
+    <bpmn:sequenceFlow id="Flow_ToFarmingLoop" sourceRef="Task_NotifyMilestone" targetRef="GW_MilestoneCheck"/>
+
+    <!-- Disaster and Update Flows -->
+    <bpmn:sequenceFlow id="Flow_DisasterTriggered" name="" sourceRef="Event_NaturalDisaster" targetRef="Task_Farm"/>
+    <bpmn:sequenceFlow id="Flow_UpdateList" name="" sourceRef="GW_DisasterOrUpdate" targetRef="Task_UpdateList"/>
+
+    <!-- Update Flow Back -->
+    <bpmn:sequenceFlow id="Flow_ToFarmingLoop2" sourceRef="Task_UpdateList" targetRef="GW_MilestoneCheck"/>
+
+    <!-- End Process Flows -->
+    <bpmn:sequenceFlow id="Flow_EndDecisionYes" name="" sourceRef="GW_FarmAndMonitor" targetRef="GW_ParallelResources"/>
+    <bpmn:sequenceFlow id="Flow_ToEndProcess" name="All Resources Collected?" sourceRef="GW_MilestoneCheck" targetRef="GW_EndConvergence"/>
+
+    <!-- End Decision Flows -->
+    <bpmn:sequenceFlow id="Flow_BragFriends" name="Brag to Friends" sourceRef="GW_EndDecision" targetRef="Task_Brag"/>
+    <bpmn:sequenceFlow id="Flow_SendMaterials" name="Send Materials" sourceRef="GW_EndDecision" targetRef="Task_SendMaterials"/>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="Flow_ToEndEvent" sourceRef="Task_SendMaterials" targetRef="End_FarmingBotFinished"/>
+  </bpmn:process>
+</bpmn:definitions>

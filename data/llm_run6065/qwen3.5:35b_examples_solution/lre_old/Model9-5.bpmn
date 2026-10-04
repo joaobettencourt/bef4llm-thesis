@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReport" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ExpenseProcess">
+    <bpmn:participant id="Participant_EmployeeFinance" name="Employee Finance Process" processRef="Proc_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Administration" name="Administration">
+        <bpmn:flowNodeRef>StartEvent_ReportReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckAccountExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateEmployeeAccount</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="Finance">
+        <bpmn:flowNodeRef>Gw_AutoApprovalCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SupervisorReview</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Expense Report Received">
+      <bpmn:outgoing>SF_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="Gw_CheckAccountExists" name="Employee Has Account?">
+      <bpmn:incoming>SF_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SF_AccountYesReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Task -->
+    <bpmn:task id="Task_CreateEmployeeAccount" name="Create Employee Account">
+      <bpmn:incoming>SF_NoAccountPath</bpmn:incoming>
+      <bpmn:outgoing>SF_AccountCreatedToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Auto Approval Check Gateway -->
+    <bpmn:exclusiveGateway id="Gw_AutoApprovalCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>SF_AccountYesReview</bpmn:incoming>
+      <bpmn:outgoing>SF_SupervisorRequiredPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Supervisor Review Task -->
+    <bpmn:task id="Task_SupervisorReview" name="Supervisor Reviews Request">
+      <bpmn:incoming>SF_SupervisorRequiredPath</bpmn:incoming>
+      <bpmn:outgoing>SF_RevewApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supervisor Approval Gateway -->
+    <bpmn:exclusiveGateway id="Gw_SupervisorDecision" name="Supervisor Approved?">
+      <bpmn:incoming>SF_RevewApproved</bpmn:incoming>
+      <bpmn:outgoing>SF_RejectionEmailPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Rejection Email Task -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send Rejection Notice">
+      <bpmn:incoming>SF_RejectionEmailPath</bpmn:incoming>
+      <bpmn:outgoing>SF_ReviewRejectedEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Process Reimbursement Task -->
+    <bpmn:task id="Task_ProcessReimbursement" name="Process Direct Deposit">
+      <bpmn:incoming>SF_AutoApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SF_ReimbursedEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Events -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 Days">
+      <bpmn:incoming>SF_TimerStartPath</bpmn:incoming>
+      <bpmn:outgoing>SF_SendInProgressEmailFlow</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send In Progress Email Task -->
+    <bpmn:task id="Task_SendInProgressEmail" name="Send Approval In Progress Email">
+      <bpmn:incoming>SF_SendInProgressEmailFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_Timer30DaysPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- 30 Days Timer -->
+    <bpmn:intermediateCatchEvent id="Timer_30Days" name="30 Days">
+      <bpmn:incoming>SF_Timer30DaysPath</bpmn:incoming>
+      <bpmn:outgoing>SF_SendCancellationEmailFlow</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Cancellation Email Task -->
+    <bpmn:task id="Task_SendCancellationEmail" name="Send Cancellation Notice">
+      <bpmn:incoming>SF_SendCancellationEmailFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_CanceledEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_ReviewRejected" name="Request Rejected">
+      <bpmn:incoming>SF_ReviewRejectedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Reimbursed" name="Reimbursement Processed">
+      <bpmn:incoming>SF_ReimbursedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Canceled" name="Process Canceled - Re-submit Required">
+      <bpmn:incoming>SF_CanceledEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToAccountCheck" sourceRef="StartEvent_ReportReceived" targetRef="Gw_CheckAccountExists"/>
+    
+    <bpmn:parallelGateway id="PG_TimerStart">
+      <bpmn:name>Timer Start</bpmn:name>
+      <bpmn:incoming>SF_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SF_TimerStartPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SF_AccountYesReview" sourceRef="Gw_CheckAccountExists" targetRef="Gw_AutoApprovalCheck"/>
+    
+    <bpmn:exclusiveGateway id="Gw_AccountDecision">
+      <bpmn:name>No Account?</bpmn:name>
+      <bpmn:incoming>SF_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SF_NoAccountPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SF_NoAccountPath" sourceRef="Gw_AccountDecision" targetRef="Task_CreateEmployeeAccount"/>
+    
+    <bpmn:parallelGateway id="PG_TimerStart2">
+      <bpmn:name>Main Flow Split</bpmn:name>
+      <bpmn:incoming>SF_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SF_AccountYesReview</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer Flow -->
+    <bpmn:sequenceFlow id="SF_TimerStartPath" sourceRef="PG_TimerStart2" targetRef="Timer_7Days"/>
+    
+    <bpmn:exclusiveGateway id="Gw_AutoApprovalCheck">
+      <bpmn:name>Amount &lt; $200?</bpmn:name>
+      <bpmn:incoming>SF_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>SF_SupervisorRequiredPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Supervisor Flow -->
+    <bpmn:sequenceFlow id="SF_RevewApproved" sourceRef="Task_SupervisorReview" targetRef="Gw_SupervisorDecision"/>
+    
+    <bpmn:sequenceFlow id="SF_RejectionEmailPath" sourceRef="Gw_SupervisorDecision" targetRef="Task_SendRejectionEmail"/>
+    
+    <bpmn:exclusiveGateway id="Gw_AutoApproved">
+      <bpmn:name>Auto Approved?</bpmn:name>
+      <bpmn:incoming>SF_AccountYesReview</bpmn:incoming>
+      <bpmn:outgoing>SF_SupervisorRequiredPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer Flow -->
+    <bpmn:sequenceFlow id="SF_SendInProgressEmailFlow" sourceRef="Timer_7Days" targetRef="Task_SendInProgressEmail"/>
+    
+    <bpmn:parallelGateway id="PG_TimerMerge">
+      <bpmn:name>30 Days Start</bpmn:name>
+      <bpmn:incoming>SF_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>SF_SupervisorRequiredPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer Flow -->
+    <bpmn:sequenceFlow id="SF_Timer30DaysPath" sourceRef="Task_SendInProgressEmail" targetRef="Timer_30Days"/>
+    
+    <bpmn:exclusiveGateway id="Gw_SupervisorRequired">
+      <bpmn:name>Supervisor Required?</bpmn:name>
+      <bpmn:incoming>SF_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>SF_AutoApprovedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer Flow -->
+    <bpmn:sequenceFlow id="SF_SendCancellationEmailFlow" sourceRef="Timer_30Days" targetRef="Task_SendCancellationEmail"/>
+    
+    <bpmn:parallelGateway id="PG_TimerEnd">
+      <bpmn:name>All Paths Merge</bpmn:name>
+      <bpmn:incoming>SF_ReimbursedEnd</bpmn:incoming>
+      <bpmn:outgoing>SF_CanceledEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+  </bpmn:process>
+</bpmn:definitions>

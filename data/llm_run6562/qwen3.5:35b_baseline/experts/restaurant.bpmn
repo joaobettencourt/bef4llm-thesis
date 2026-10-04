@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Restaurant_1">
+  <bpmn:collaboration id="Collab_Restaurant_Process">
+    <bpmn:participant id="Participant_MainProcess" name="Restaurant Process" processRef="Process_Restaurant_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Restaurant_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Gast">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChooseDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WaitTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_GuestWaitSignal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergePickup</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Staff" name="Angestellter">
+        <bpmn:flowNodeRef>Task_EnterPOS_Pay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GivePagerInstruction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SplitCookingWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StaffInformCook</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_FoodReadySignal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergeFoodReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriggerPager</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Kitchen" name="Koch">
+        <bpmn:flowNodeRef>Gateway_SplitCookingWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CookPrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PutInPassThrough</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Gast betritt Restaurant">
+      <bpmn:outgoing>SequenceFlow_ChooseDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Guest Lane Tasks & Gateway -->
+    <bpmn:task id="Task_ChooseDish" name="Gericht auswählen">
+      <bpmn:incoming>SequenceFlow_ChooseDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Implicit Wait for Turn -->
+    <bpmn:exclusiveGateway id="Gateway_WaitTurn" name="An der Reihe?">
+      <bpmn:incoming>SequenceFlow_WaitTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Guest Places Order -->
+    <bpmn:task id="Task_PlaceOrder" name="Bestellung aufgeben">
+      <bpmn:incoming>SequenceFlow_PlaceOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterPOS</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Lane Tasks -->
+    <bpmn:task id="Task_EnterPOS_Pay" name="Bestellung eingeben &amp; kassieren">
+      <bpmn:incoming>SequenceFlow_EnterPOS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GivePager</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Give Pager -->
+    <bpmn:task id="Task_GivePagerInstruction" name="Pieper einrichten &amp; übergeben">
+      <bpmn:incoming>SequenceFlow_GivePager</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Cooking & Waiting -->
+    <bpmn:parallelGateway id="Gateway_SplitCookingWait">
+      <bpmn:incoming>SequenceFlow_SplitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StaffInformKitchen</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GuestWaitSignalPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Staff Path to Kitchen -->
+    <bpmn:task id="Task_StaffInformCook" name="Koch informieren">
+      <bpmn:incoming>SequenceFlow_StaffInformKitchen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CookStarts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Lane Tasks -->
+    <bpmn:task id="Task_CookPrepareMeal" name="Mahlzeit zubereiten">
+      <bpmn:incoming>SequenceFlow_CookStarts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PutInPassThrough</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Put in Pass Through -->
+    <bpmn:task id="Task_PutInPassThrough" name="Essen in Durchreiche stellen">
+      <bpmn:incoming>SequenceFlow_PutInPassThrough</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReadyNotification</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Signal/Event for Food Ready -->
+    <bpmn:endEvent id="End_FoodPrepared" name="Essen fertig">
+       <bpmn:incoming>SequenceFlow_ReadyNotification</bpmn:incoming>
+    </bpmn:endEvent> 
+
+    <!-- Synchronization Gateway (Simplified Logic) -->
+    <bpmn:exclusiveGateway id="Gateway_MergeFoodReady" name="Essen fertig?">
+      <bpmn:incoming>SequenceFlow_StaffInformKitchen</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_TriggerPagerLogic</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Trigger Pager Task -->
+     <bpmn:task id="Task_TriggerPager" name="Pieper auslösen">
+      <bpmn:incoming>SequenceFlow_TriggerPagerLogic</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_GuestWaitSignalPath2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Guest Waiting Logic with Timer Exception -->
+    <bpmn:intermediateCatchEvent id="Event_Timer_5Min" name="Timer 5 Min">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">&lt;duration&gt;PT5M&lt;/duration&gt;</bpmn:timerDefinition>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Guest Wait Task -->
+    <bpmn:task id="Task_GuestWaitForSignal" name="Auf Pieper warten">
+      <bpmn:incoming>SequenceFlow_GuestWaitSignalPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Merge for Pickup Handover -->
+    <bpmn:exclusiveGateway id="Gateway_MergePickup" name="Gast da?">
+      <bpmn:incoming>SequenceFlow_TriggeredPager</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_HandOverFood</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Handover Food -->
+    <bpmn:endEvent id="End_EatMeal" name="Mahlzeit verzehren">
+      <bpmn:incoming>SequenceFlow_PickupComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Corrected for Validity) -->
+     <bpmn:sequenceFlow id="SequenceFlow_ChooseDish" sourceRef="StartEvent_1" targetRef="Task_ChooseDish"/> 
+     
+     <bpmn:sequenceFlow id="SequenceFlow_WaitTurn" name="Warten bis an der Reihe" sourceRef="Task_ChooseDish" targetRef="Gateway_WaitTurn">
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PlaceOrder" sourceRef="Gateway_WaitTurn" targetRef="Task_PlaceOrder"/> 
+     
+     <bpmn:sequenceFlow id="SequenceFlow_EnterPOS" name="An Angestellter übergeben" sourceRef="Task_PlaceOrder" targetRef="Task_EnterPOS_Pay">
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_GivePager" sourceRef="Task_EnterPOS_Pay" targetRef="Task_GivePagerInstruction"/> 
+     
+     <bpmn:sequenceFlow id="SequenceFlow_SplitProcess" name="Start Cooking &amp; Wait" sourceRef="Task_GivePagerInstruction" targetRef="Gateway_SplitCookingWait">
+    </bpmn:sequenceFlow>
+
+     <!-- Kitchen Path Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_StaffInformKitchen" name="Koch informieren" sourceRef="Task_StaffInformCook" targetRef="Gateway_MergeFoodReady"/> 
+     
+     <bpmn:sequenceFlow id="SequenceFlow_CookStarts" name="Kochen starten" sourceRef="Task_StaffInformCook" targetRef="Task_CookPrepareMeal">
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PutInPassThrough" sourceRef="Task_CookPrepareMeal" targetRef="Task_PutInPassThrough"/> 
+
+     <!-- Notification back to Staff for Triggering Pager -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReadyNotification" name="Essen fertig melden" sourceRef="Task_PutInPassThrough" targetRef="Gateway_MergeFoodReady"> 
+    </bpmn:sequenceFlow>
+
+     <!-- Logic Flow to Task_TriggerPager (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_TriggerPagerLogic" name="Pieper auslösen wenn fertig" sourceRef="Task_PutInPassThrough" targetRef="Task_TriggerPager"> 
+    </bpmn:sequenceFlow>
+
+     <!-- Guest Wait Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_GuestWaitSignalPath" name="Warten auf Signal" sourceRef="Gateway_SplitCookingWait" targetRef="Event_Timer_5Min"/> 
+
+     <!-- Timer Logic (Simplified for XML Validity) -->
+    <bpmn:sequenceFlow id="SequenceFlow_TriggeredPager" name="Pieper ausgelöst" sourceRef="Task_GivePagerInstruction" targetRef="Gateway_MergePickup"> 
+       <!-- Simplified flow to Handover logic eventually -->
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_WaitingComplete" name="Warten abgeschlossen" sourceRef="Event_Timer_5Min" targetRef="Gateway_MergePickup"/> 
+
+     <!-- Call Guest Task Flow (Exception Path) - Simplified -->
+    <bpmn:task id="Task_CallGuest" name="Gast nach 5 Min rufen">
+      <bpmn:incoming>SequenceFlow_WaitingComplete</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_HandOverFood2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Handover Food -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandOverFood" name="Essen übergeben" sourceRef="Gateway_MergePickup" targetRef="End_EatMeal"> 
+      <!-- Simplified flow to End Event for consumption -->
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PickupComplete" name="Abholung abgeschlossen" sourceRef="Task_CallGuest" targetRef="End_EatMeal"/> 
+
+  </bpmn:process>
+</bpmn:definitions>

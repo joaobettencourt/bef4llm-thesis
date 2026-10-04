@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_VisitorRegistartion">
+    <bpmn:participant id="Pool_MainProcess" name="Visitor Registration Process" processRef="Proc_RegistrationFlow"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_RegistrationFlow" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_VisitorSystem">
+      <bpmn:lane id="Lane_CustomerSide" name="Visitor/Client">
+        <bpmn:flowNodeRef>StartEvent_Registration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillForm</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SystemSide" name="System/Admin">
+        <bpmn:flowNodeRef>Gw_ChecksSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckProductAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCreditRating</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ChecksJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CreditDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInterimRecord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_SubprocessesSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProc_DeviceProvision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProc_RegisterISP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_WelcomeMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateWelcomePackage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendWelcomePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_Registration" name="Visitor Registration Request">
+        <bpmn:outgoing>SF_Start_FillForm</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_FillForm" name="Fill Out Registration Form">
+      <bpmn:incoming>SF_Start_FillForm</bpmn:incoming>
+        <bpmn:outgoing>SF_FormToChecksSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Checks -->
+    <bpmn:parallelGateway id="Gw_ChecksSplit" name="Check Availability &amp; Credit">
+      <bpmn:incoming>SF_FormToChecksSplit</bpmn:incoming>
+        <bpmn:outgoing>SF_Split_ProductCheck</bpmn:outgoing>
+       <bpmn:outgoing>SF_Split_CreditCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Check Tasks -->
+      <bpmn:task id="Task_CheckProductAvailability" name="Check Product Availability">
+        <bpmn:incoming>SF_Split_ProductCheck</bpmn:incoming>
+          <bpmn:outgoing>SF_ProdToJoin</bpmn:outgoing>
+      </bpmn:task>
+
+       <bpmn:task id="Task_CheckCreditRating" name="Check Credit Rating (Schufa)">
+        <bpmn:incoming>SF_Split_CreditCheck</bpmn:incoming>
+          <bpmn:outgoing>SF_CredToJoin</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Parallel Join after Checks -->
+     <bpmn:parallelGateway id="Gw_ChecksJoin">
+        <bpmn:incoming>SF_ProdToJoin</bpmn:incoming>
+          <bpmn:incoming>SF_CredToJoin</bpmn:incoming>
+            <bpmn:outgoing>SF_JoinToDecision</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Decision Gateway for Credit Rating -->
+      <bpmn:exclusiveGateway id="Gw_CreditDecision" name="Credit &gt; 9000?">
+        <bpmn:incoming>SF_JoinToDecision</bpmn:incoming>
+          <bpmn:outgoing>SF_FailFlow</bpmn:outgoing> <!-- Yes, Unsuccessful -->
+           <bpmn:outgoing>SF_SuccessRecordFlow</bpmn:outgoing> <!-- No, Continue -->
+    </bpmn:exclusiveGateway>
+
+     <!-- End Event for Failure --> 
+        <bpmn:endEvent id="End_FailRegistration" name="Unsuccessful Registration">
+             <bpmn:incoming>SF_FailFlow</bpmn:outgoing/>
+        </bpmn:endEvent>
+
+    <!-- Task for Interim Record (Only if Credit OK) --> 
+       <bpmn:task id="Task_CreateInterimRecord" name="Create Interim Customer Dataset">
+         <bpmn:incoming>SF_SuccessRecordFlow</bpmn:outgoing/>
+           <bpmn:outgoing>SF_RecordToSubprocessSplit</bpmn:outgoing> 
+       </bpmn:task>
+
+    <!-- Parallel Split for Sub-processes -->
+     <bpmn:parallelGateway id="Gw_SubprocessesSplit">
+        <bpmn:incoming>SF_RecordToSubprocessSplit</bpmn:incoming>
+          <bpmn:outgoing>SF_Split_DeviceProvision</bpmn:outgoing> 
+           <bpmn:outgoing>SF_Split_RegisterISP</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Sub-processes (Modeled as embedded subProcesses) -->
+      <bpmn:subProcess id="SubProc_DeviceProvision" name="Device Provision">
+        <bpmn:startEvent id="Start_SubDev"/>
+         <bpmn:endEvent id="End_SubDev"/>
+          <!-- Internal flow for validity, though not detailed in text --> 
+           <bpmn:sequenceFlow id="SF_InternalSub1" sourceRef="Start_SubDev" targetRef="End_SubDev"/>
+      </bpmn:subProcess>
+
+       <bpmn:subProcess id="SubProc_RegisterISP" name="Register Customer Account at ISP Nodes">
+        <bpmn:startEvent id="Start_RegISP"/>
+         <bpmn:endEvent id="End_RegISP"/>
+           <!-- Internal flow for validity --> 
+            <bpmn:sequenceFlow id="SF_InternalReg1" sourceRef="Start_RegISP" targetRef="End_RegISP"/>
+      </bpmn:subProcess>
+
+    <!-- Parallel Join after Sub-processes -->
+     <bpmn:parallelGateway id="Gw_WelcomeMerge">
+        <bpmn:incoming>SF_DeviceProvisionComplete</bpmn:outgoing/> 
+         <bpmn:incoming>SF_RegisterISPCompleteLink</bpmn:outgoing/>
+          <bpmn:outgoing>SF_MergeToWelcomeTask2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Final Tasks --> 
+        <bpmn:task id="Task_CreateWelcomePackage" name="Create Welcome Package">
+             <bpmn:incoming>SF_MergeToWelcomeTask2</bpmn:incoming/>
+               <bpmn:outgoing>SF_WelcomeSendFlow</bpmn:outgoing> 
+        </bpmn:task>
+
+         <bpmn:task id="Task_SendWelcomePackage" name="Send Welcome Package">
+             <bpmn:incoming>SF_WelcomeSendLink</bpmn:incoming/>
+               <bpmn:outgoing>SF_FinalSuccessLink</bpmn:outgoing> 
+        </bpmn:task>
+
+    <!-- End Event for Success --> 
+         <bpmn:endEvent id="End_SuccessRegistration" name="Registration Completed Successfully">
+             <bpmn:incoming>SF_FinalSuccessLink</bpmn:incoming/>
+        </bpmn:endEvent>
+
+
+       <!-- Sequence Flows (Corrected IDs) -->
+
+      <bpmn:sequenceFlow id="SF_Start_FillForm" sourceRef="StartEvent_Registration" targetRef="Task_FillForm"/>
+
+     <bpmn:sequenceFlow id="SF_FormToChecksSplit" name="Submit Form" sourceRef="Task_FillForm" targetRef="Gw_ChecksSplit">
+        </bpmn:sequenceFlow>
+
+    <!-- Check Flows --> 
+      <bpmn:sequenceFlow id="SF_Split_ProductCheck" sourceRef="Gw_ChecksSplit" targetRef="Task_CheckProductAvailability"/>
+       <bpmn:sequenceFlow id="SF_Split_CreditCheck" name="Credit Rating Check" sourceRef="Gw_ChecksSplit" targetRef="Task_CheckCreditRating">
+        </bpmn:sequenceFlow>
+
+    <!-- Join Flows --> 
+      <bpmn:sequenceFlow id="SF_ProdToJoin" sourceRef="Task_CheckProductAvailability" targetRef="Gw_ChecksJoin"/>
+       <bpmn:sequenceFlow id="SF_CredToJoin" name="Credit Check Result" sourceRef="Task_CheckCreditRating" targetRef="Gw_ChecksJoin">
+        </bpmn:sequenceFlow>
+
+    <!-- Decision Flows --> 
+      <bpmn:sequenceFlow id="SF_JoinToDecision" sourceRef="Gw_ChecksJoin" targetRef="Gw_CreditDecision"/>
+       <bpmn:sequenceFlow id="SF_FailFlow" name="Credit &gt; 9000 (Unsuccessful)" sourceRef="Gw_CreditDecision" targetRef="End_FailRegistration">
+        </bpmn:sequenceFlow>
+
+      <bpmn:sequenceFlow id="SF_SuccessRecordFlow" name="Credit OK" sourceRef="Gw_CreditDecision" targetRef="Task_CreateInterimRecord"/>
+
+    <!-- Subprocess Flows --> 
+       <bpmn:sequenceFlow id="SF_RecordToSubprocessSplit" sourceRef="Task_CreateInterimRecord" targetRef="Gw_SubprocessesSplit"/>
+        <bpmn:sequenceFlow id="SF_Split_DeviceProvision" name="Device Provision Start" sourceRef="Gw_SubprocessesSplit" targetRef="SubProc_DeviceProvision">
+         </bpmn:sequenceFlow>
+
+          <bpmn:sequenceFlow id="SF_Split_RegisterISP" name="Register ISP Account" sourceRef="Gw_SubprocessesSplit" targetRef="SubProc_RegisterISP"/>
+
+    <!-- Merge Flows --> 
+      <bpmn:sequenceFlow id="SF_DeviceProvisionComplete" sourceRef="SubProc_DeviceProvision" targetRef="Gw_WelcomeMerge">
+       </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="SF_RegisterISPCompleteLink" name="ISP Registration Complete" sourceRef="SubProc_RegisterISP" targetRef="Gw_WelcomeMerge"/>
+
+    <!-- Welcome Flows --> 
+      <bpmn:sequenceFlow id="SF_MergeToWelcomeTask2" sourceRef="Gw_WelcomeMerge" targetRef="Task_CreateWelcomePackage">
+       </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="SF_WelcomeSendLink" name="Create Package" sourceRef="Task_CreateWelcomePackage" targetRef="Task_SendWelcomePackage"/>
+
+      <bpmn:sequenceFlow id="SF_FinalSuccessLink" name="Completed Successfully" sourceRef="Task_SendWelcomePackage" targetRef="End_SuccessRegistration">
+       </bpmn:sequenceFlow>
+
+
+  </bpmn:process>
+
+
+</bpmn:definitions>

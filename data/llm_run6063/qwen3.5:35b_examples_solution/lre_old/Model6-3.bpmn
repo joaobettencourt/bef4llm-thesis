@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1v5l1xs">
+    <bpmn:participant id="Participant_1kcgy3u" name="Organization" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MasterProduction" name="Master Individual Production">
+        <bpmn:flowNodeRef>StartEvent_NewOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPPSData</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>IntermediateThrowEvent_ProductionNotice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ImplementProduction</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_QualityInspector" name="Quality Inspector">
+        <bpmn:flowNodeRef>Task_CheckQuality</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessFinished</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_PartsDecision" name="Parts Decision">
+        <bpmn:flowNodeRef>Gateway_CheckPartsAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcureMissingParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NewOrder" name="New order from sales department">
+      <bpmn:outgoing>SequenceFlow_StartToDetermine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Determine parts -->
+    <bpmn:userTask id="Task_DetermineParts" name="Determine necessary parts, quantities and delivery date">
+      <bpmn:incoming>SequenceFlow_StartToDetermine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToPPSDataEntry</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 2: Enter PPS data -->
+    <bpmn:userTask id="Task_EnterPPSData" name="Enter information into production planning system (PPS)">
+      <bpmn:incoming>SequenceFlow_ToPPSDataEntry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PPSDecisionPoint</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: Check parts availability -->
+    <bpmn:exclusiveGateway id="Gateway_CheckPartsAvailability" name="Are all parts available?">
+      <bpmn:incoming>SequenceFlow_PPSDecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcureMissing</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AllPartsAvailable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Procure missing parts (conditional) -->
+    <bpmn:userTask id="Task_ProcureMissingParts" name="Procure missing parts">
+      <bpmn:incoming>SequenceFlow_ProcureMissing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToProductionNotice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Throw Event: Production notice from system -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_ProductionNotice" name="Ready to start production">
+      <bpmn:incoming>SequenceFlow_AllPartsAvailable</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToProductionNotice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartImplementation</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 4: Implement production -->
+    <bpmn:userTask id="Task_ImplementProduction" name="Implement order based on system notice">
+      <bpmn:incoming>SequenceFlow_StartImplementation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToQualityCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 5: Quality check -->
+    <bpmn:userTask id="Task_CheckQuality" name="Check order for quality">
+      <bpmn:incoming>SequenceFlow_ToQualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishedToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessFinished" name="Process of production is finished">
+      <bpmn:incoming>SequenceFlow_FinishedToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToDetermine" sourceRef="StartEvent_NewOrder" targetRef="Task_DetermineParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToPPSDataEntry" name="Transfer data to PPS (manual)" sourceRef="Task_DetermineParts" targetRef="Task_EnterPPSData"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PPSDecisionPoint" sourceRef="Task_EnterPPSData" targetRef="Gateway_CheckPartsAvailability"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProcureMissing" name="Yes, parts are missing" sourceRef="Gateway_CheckPartsAvailability" targetRef="Task_ProcureMissingParts"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AllPartsAvailable" name="No, all parts are present" sourceRef="Gateway_CheckPartsAvailability" targetRef="IntermediateThrowEvent_ProductionNotice"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToProductionNotice" name="After procurement completed" sourceRef="Task_ProcureMissingParts" targetRef="IntermediateThrowEvent_ProductionNotice"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_StartImplementation" sourceRef="IntermediateThrowEvent_ProductionNotice" targetRef="Task_ImplementProduction"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToQualityCheck" name="After implementation completed" sourceRef="Task_ImplementProduction" targetRef="Task_CheckQuality"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinishedToEndEvent" sourceRef="Task_CheckQuality" targetRef="EndEvent_ProcessFinished"/>
+
+  </bpmn:process>
+</bpmn:definitions>

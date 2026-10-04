@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1y0blh3">
+    <bpmn:participant id="Participant_frontend" name="Credit Scoring Frontend (Bank)" processRef="Process_frontend"/>
+    <bpmn:participant id="Participant_banking" name="Credit Scoring Process (Bank)" processRef="Process_banking"/>
+    <bpmn:participant id="Participant_agency" name="Scoring Service Agency" processRef="Process_agency"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_1" sourceRef="Task_frontend_request" targetRef="StartEvent_banking"/>
+    <bpmn:messageFlow id="MessageFlow_2" sourceRef="Task_bank_sendRequest" targetRef="Participant_agency"/>
+    <bpmn:messageFlow id="MessageFlow_3" sourceRef="IntermediateCatchEvent_immediateResult" targetRef="Task_frontend_display"/>
+    <bpmn:messageFlow id="MessageFlow_4" sourceRef="Task_bank_reportDelay" targetRef="StartEvent_banking_delay"/>
+    <bpmn:messageFlow id="MessageFlow_5" sourceRef="Task_agency_sendScore" targetRef="Participant_banking"/>
+
+  </bpmn:collaboration>
+
+  <!-- Frontend Process (Bank Clerk Interface) -->
+  <bpmn:process id="Process_frontend" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_frontend_request" name="Request Credit Score">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_result_displayed" name="Result Displayed"/>
+    
+    <bpmn:task id="Task_frontend_request" name="Request Credit Score">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for immediate result -->
+    <bpmn:endEvent id="EndEvent_delay_check" name="Check Later"/>
+    
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_immediateResult" name="Credit Score Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for delay notification -->
+    <bpmn:endEvent id="EndEvent_delay_notification" name="Delay Notification"/>
+    
+    <bpmn:task id="Task_frontend_display" name="Display Credit Score">
+      <bpmn:incoming>SequenceFlow_4</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_5</bpmn:outgoing>
+    </bpmn:task>
+
+  </bpmn:process>
+
+  <!-- Banking Process (Internal System) -->
+  <bpmn:process id="Process_banking" isExecutable="false">
+    
+    <bpmn:startEvent id="StartEvent_banking" name="Scoring Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Event-based Gateway for immediate result vs delay -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_result_or_delay" name="Result or Delay?">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Wait for immediate result -->
+    <bpmn:endEvent id="EndEvent_result_displayed_banking" name="Result Displayed">
+      <bpmn:name>Pending Customer Reply</bpmn:name>
+      <bpmn:incoming SequenceFlow_4"/>
+    </bpmn:endEvent>
+
+    <!-- Wait for delay notification -->
+    <bpmn:startEvent id="StartEvent_banking_delay" name="Delay Notification Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing SequenceFlow_5</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Wait for final result after delay -->
+    <bpmn:endEvent id="EndEvent_check_later_bank" name="Check Later">
+      <bpmn:name>Pending Customer Reply</bpmn:name>
+      <bpmn:incoming SequenceFlow_6"/>
+    </bpmn:endEvent>
+
+    <!-- Task to report delay back -->
+    <bpmn:task id="Task_bank_reportDelay" name="Report Delay">
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing SequenceFlow_7"/>
+    </bpmn:task>
+
+    <!-- Task to send scoring request -->
+    <bpmn:task id="Task_bank_sendRequest" name="Send Scoring Request">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing SequenceFlow_2"/>
+    </bpmn:task>
+
+  </bpmn:process>
+
+  <!-- Agency Process (External Service) -->
+  <bpmn:process id="Process_agency" isExecutable="false">
+    
+    <bpmn:startEvent id="StartEvent_agency_request" name="Scoring Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Level 1 Scoring (Quick) -->
+    <bpmn:endEvent id="EndEvent_immediateResult" name="Scoring Request Handled">
+      <bpmn:name>Pending Customer Reply</bpmn:name>
+      <bpmn:incoming SequenceFlow_2"/>
+    </bpmn:endEvent>
+
+    <!-- Send delay notification -->
+    <bpmn:startEvent id="StartEvent_agency_delay" name="Delay Notification Sent">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing SequenceFlow_3</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Level 2 Scoring (Takes longer) -->
+    <bpmn:endEvent id="EndEvent_delayHandled" name="Scoring Request Handled">
+      <bpmn:name>Pending Customer Reply</bpmn:name>
+      <bpmn:incoming SequenceFlow_4"/>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Messages -->
+  <bpmn:message id="Message_creditScoreRequest" name="Credit Score Request"/>
+  <bpmn:message id="Message_delayNotification" name="Delay Notification"/>
+  <bpmn:message id="Message_immediateResult" name="Immediate Credit Score Result"/>
+  <bpmn:message id="Message_finalResult" name="Final Credit Score Result"/>
+
+</bpmn:definitions>

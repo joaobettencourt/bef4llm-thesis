@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_CustomerService">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Registration Process" processRef="Process_Registration"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Registration" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_VisitorForm" name="Visitor fills registration form">
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckAvailabilityCredit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Product Availability -->
+    <bpmn:userTask id="Task_CheckProductAvailability" name="Check product availability">
+      <bpmn:incoming>bpmn:SequenceFlow_CheckAvailabilityCredit</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CreditRatingDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Credit Rating -->
+    <bpmn:userTask id="Task_CheckCreditRating" name="Check credit rating (Schufa)">
+      <bpmn:incoming>bpmn:SequenceFlow_CreditRatingDecision</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_GatewayCreditScore</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway for Credit Rating Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CreditRating" name="Credit Score &gt; 9000?">
+      <bpmn:incoming>bpmn:SequenceFlow_GatewayCreditScore</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RegistrationUnsuccessful</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_CreateInterimRecord</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Unsuccessful Registration Path -->
+    <bpmn:endEvent id="EndEvent_RegistrationFailed" name="Registration unsuccessful">
+      <bpmn:incoming>bpmn:SequenceFlow_RegistrationUnsuccessful</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Create Interim Customer Dataset Record -->
+    <bpmn:userTask id="Task_CreateInterimRecord" name="Create interim customer dataset record">
+      <bpmn:incoming>bpmn:SequenceFlow_CreateInterimRecord</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_StartParallelProcesses</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Sub-processes -->
+    <bpmn:parallelGateway id="ParallelGateway_SubprocessStart" name="Device provision &amp; ISP registration">
+      <bpmn:incoming>bpmn:SequenceFlow_StartParallelProcesses</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_DeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_ISPRegistration</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Device Provision Sub-process -->
+    <bpmn:userTask id="Task_DeviceProvision" name="Device provision">
+      <bpmn:incoming>bpmn:SequenceFlow_DeviceProvision</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_JoinParallelProcesses1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ISP Registration Sub-process -->
+    <bpmn:userTask id="Task_ISPRegistration" name="Register customer account at ISP nodes">
+      <bpmn:incoming>bpmn:SequenceFlow_ISPRegistration</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_JoinParallelProcesses2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="ParallelGateway_SubprocessJoin" name="Wait for both sub-processes">
+      <bpmn:incoming>bpmn:SequenceFlow_JoinParallelProcesses1</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_JoinParallelProcesses2</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WelcomePackageCreation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Welcome Package Creation -->
+    <bpmn:userTask id="Task_CreateWelcomePackage" name="Create welcome package">
+      <bpmn:incoming>bpmn:SequenceFlow_WelcomePackageCreation</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_SendWelcomePackage</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Send Welcome Package -->
+    <bpmn:userTask id="Task_SendWelcomePackage" name="Send welcome package to customer">
+      <bpmn:incoming>bpmn:SequenceFlow_SendWelcomePackage</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RegistrationComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Success" name="Registration completed successfully">
+      <bpmn:incoming>bpmn:SequenceFlow_RegistrationComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_CheckAvailabilityCredit" sourceRef="StartEvent_VisitorForm" targetRef="Task_CheckProductAvailability"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_CreditRatingDecision" name="Check credit rating first" sourceRef="Task_CheckProductAvailability" targetRef="Task_CheckCreditRating"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_GatewayCreditScore" sourceRef="Task_CheckCreditRating" targetRef="ExclusiveGateway_CreditRating">
+    <bpmn:name>After checking credit rating</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_RegistrationUnsuccessful" name="Yes (score greater than 9000)" sourceRef="ExclusiveGateway_CreditRating" targetRef="EndEvent_RegistrationFailed">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${creditScore > 9000}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_CreateInterimRecord" name="No (score less than or equal to 9000)" sourceRef="ExclusiveGateway_CreditRating" targetRef="Task_CreateInterimRecord">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${creditScore &lt;= 9000}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_StartParallelProcesses" sourceRef="Task_CreateInterimRecord" targetRef="ParallelGateway_SubprocessStart"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_DeviceProvision" name="Device provision sub-process" sourceRef="ParallelGateway_SubprocessStart" targetRef="Task_DeviceProvision">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${subProcess1}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ISPRegistration" name="ISP registration sub-process" sourceRef="ParallelGateway_SubprocessStart" targetRef="Task_ISPRegistration">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${subProcess2}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_JoinParallelProcesses1" sourceRef="Task_DeviceProvision" targetRef="ParallelGateway_SubprocessJoin"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_JoinParallelProcesses2" sourceRef="Task_ISPRegistration" targetRef="ParallelGateway_SubprocessJoin"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_WelcomePackageCreation" name="After both sub-processes complete" sourceRef="ParallelGateway_SubprocessJoin" targetRef="Task_CreateWelcomePackage">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${subProcess1 AND subProcess2}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_SendWelcomePackage" sourceRef="Task_CreateWelcomePackage" targetRef="Task_SendWelcomePackage"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_RegistrationComplete" name="Successfully completed registration process" sourceRef="Task_SendWelcomePackage" targetRef="EndEvent_Success">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${registrationSuccessful}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+</bpmn:definitions>

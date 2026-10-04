@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TELECO_Process_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CustomerServiceProcess">
+    <bpmn:participant id="Participant_Customer" name="Customer" processRef="Proc_Customer_01" />
+    <bpmn:participant id="Participant_TELECO" name="TELECO" processRef="Proc_TELECO_01" />
+  </bpmn:collaboration>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Proc_Customer_01">
+    <bpmn:startEvent id="Start_Event_PerceiveDegradedService" name="Perceives degraded service">
+      <bpmn:outgoing>SequenceFlow_SendProblemParameters</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_Event_CustomerProcessEnded" name="Customer process ended">
+      <bpmn:incoming>SequenceFlow_ReceiveReportFromCS</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <!-- TELECO Process -->
+  <bpmn:process id="Proc_TELECO_01">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service">
+        <bpmn:flowNodeRef>Start_Event_TELECO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterProblemReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CheckSignificance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CreateDetailedReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Event_TELECOProcessEnded</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ServiceManagement" name="Service Management">
+        <bpmn:flowNodeRef>InclusiveGateway_SM_Analyzable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InvestigateProblem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CreateTroubleReportInternal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_SM_CounterMeasures</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareFinalStatusReport</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ResourceProvisioning" name="Resource Provisioning">
+        <bpmn:flowNodeRef>InclusiveGateway_RP_ProblemDetected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckPossibleProblems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CreateTroubleReportRP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_RP_RequestReceived</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <bpmn:lane id="Lane_BillingCollections" name="Billing & Collections">
+         <!-- No flow nodes, just receives notification -->
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event (Triggered by Message from Customer) -->
+    <bpmn:startEvent id="Start_Event_TELECO" name="Receive Problem Parameters">
+       <bpmn:messageRefMessageFlowId>Msg_SendProblemParameters</bpmn:messageRefMessageFlowId>
+      <bpmn:outgoing>SequenceFlow_EnterReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Customer Service Lane Tasks -->
+    <bpmn:task id="Task_EnterProblemReport" name="Enter problem report into system T">
+       <bpmn:incoming>SequenceFlow_EnterReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompareSLA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Logic Task for SLA Check (Electronic Service) -->
+    <bpmn:serviceTask id="ServiceTask_CheckSignificance" name="Determine customer significance">
+      <bpmn:incoming>SequenceFlow_CompareSLA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayCheckPriority</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway for Priority Adjustment -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_CheckSignificance">
+       <bpmn:incoming>SequenceFlow_GatewayCheckPriority</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RePrioritizePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ContinueProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Re-prioritization Task -->
+    <bpmn:task id="Task_RePrioritize" name="Re-prioritize measures">
+      <bpmn:incoming>SequenceFlow_RePrioritizePath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ContinueProcessLoop</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Create Detailed Report Task (CS Lane) -->
+    <bpmn:serviceTask id="ServiceTask_CreateDetailedReport" name="Create detailed problem report">
+      <bpmn:incoming>SequenceFlow_ContinueProcess</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToSM</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Service Management Lane -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_SM_Analyzable" name="Analyzable by SM?">
+      <bpmn:incoming>SequenceFlow_SendToSM</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SentToRP_NoAnalysis</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_SM_Analyze_Internal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- SM Analysis Tasks -->
+    <bpmn:task id="Task_InvestigateProblem" name="Investigate problem analyzability">
+      <bpmn:incoming>SequenceFlow_SendToSM</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SM_Analyze_Internal</bpmn:outgoing> <!-- Simplified flow for decision -->
+    </bpmn:task>
+
+     <bpmn:serviceTask id="ServiceTask_CreateTroubleReportInternal" name="Create trouble report (SM)">
+      <bpmn:incoming>SequenceFlow_SM_Analyze_Internal</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeStatusRP</bpmn:outgoing> <!-- Merging with RP path -->
+    </bpmn:serviceTask>
+
+     <!-- Convergence for Status Report Creation (SM Lane) -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_SM_CounterMeasures" name="Determine Counter Measures">
+      <bpmn:incoming>SequenceFlow_ConvergeStatusRP</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NoProblemPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_MinorActionPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_RestorationPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- RP Lane Tasks -->
+    <bpmn:task id="Task_CheckPossibleProblems" name="Check for possible problems">
+      <bpmn:incoming>SequenceFlow_SentToRP_NoAnalysis</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RP_ProblemDetected_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- RP Gateway -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_RP_ProblemDetected" name="Problem Detected?">
+      <bpmn:incoming>SequenceFlow_RP_ProblemDetected_Gateway</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NoProblemsPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_AnalyzeRPProblem_Path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- RP Analysis Tasks -->
+    <bpmn:serviceTask id="ServiceTask_CreateTroubleReportRP" name="Create trouble report (RP)">
+      <bpmn:incoming>SequenceFlow_AnalyzeRPProblem_Path</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeStatusRP_RP</bpmn:outgoing> <!-- Merge back to SM -->
+    </bpmn:serviceTask>
+
+     <!-- End Event for Normal Execution (Internal) -->
+    <bpmn:endEvent id="End_Event_NormalExecution" name="Normal Service Execution">
+      <bpmn:incoming>SequenceFlow_NoProblemsPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeStatusRP_RP_2</bpmn:outgoing> <!-- Merge back to SM -->
+    </bpmn:endEvent>
+
+     <!-- Convergence Task in SM Lane (Create Status Report) -->
+    <bpmn:task id="Task_CreateFinalStatusReport" name="Prepare final status report">
+      <bpmn:incoming>SequenceFlow_ConvergeStatusRP</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Gateway_CounterMeasures</bpmn:outgoing> <!-- Connect to Gateway -->
+    </bpmn:task>
+
+     <!-- Restoration Path (SM Lane) -->
+    <bpmn:serviceTask id="ServiceTask_CreateRestorationRequest" name="Create restoration request">
+      <bpmn:incoming>SequenceFlow_RestorationPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToRP_Request</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- RP Lane - Wait for Request (Timer Boundary) -->
+    <bpmn:startEvent id="Start_Event_RestorationRequest" name="Receive Restoration Request">
+      <bpmn:messageRefMessageFlowId>Msg_RequestRestoration</bpmn:messageRefMessageFlowId>
+       <bpmn:outgoing>SequenceFlow_TrackErrors_Path</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- RP Lane - Error Tracking -->
+    <bpmn:task id="Task_TrackErrors" name="Track all possible errors">
+      <bpmn:incoming>SequenceFlow_TrackErrors_Path</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CorrectiveActions_RP</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- RP Lane - Corrective Actions -->
+    <bpmn:task id="Task_UndertakeCorrectiveRP" name="Undertake corrective actions">
+      <bpmn:incoming>SequenceFlow_CorrectiveActions_RP</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CreateTroubleShootingReport_Path</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- RP Lane - Create Report -->
+    <bpmn:serviceTask id="ServiceTask_CreateTroubleShootingRP" name="Create trouble-shooting report">
+      <bpmn:incoming>SequenceFlow_CreateTroubleShootingReport_Path</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToSM_RP_Report</bpmn:outgoing> <!-- Send back to SM -->
+    </bpmn:serviceTask>
+
+     <!-- Convergence for Resolution Report (SM Lane) -->
+    <bpmn:task id="Task_CreateResolutionReport" name="Create problem resolution report">
+      <bpmn:incoming>SequenceFlow_SendToSM_RP_Report</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeFinalCS_Path</bpmn:outgoing> <!-- Merge to CS Lane -->
+    </bpmn:task>
+
+     <!-- Minor Action Path (SM Lane) -->
+    <bpmn:serviceTask id="ServiceTask_UndertakeCorrectiveActions" name="Undertake corrective actions">
+      <bpmn:incoming>SequenceFlow_MinorActionPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeFinalCS_Path_2</bpmn:outgoing> <!-- Merge to CS Lane -->
+    </bpmn:serviceTask>
+
+     <!-- No Problem Path (SM Lane) -->
+    <bpmn:task id="Task_SendPerformanceData" name="Send actual service performance">
+      <bpmn:incoming>SequenceFlow_NoProblemPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ConvergeFinalCS_Path_3</bpmn:outgoing> <!-- Merge to CS Lane -->
+    </bpmn:task>
+
+     <!-- Customer Service Final Tasks (Convergence) -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_CS_Final" name="Receive Report?">
+      <bpmn:incoming>SequenceFlow_ConvergeFinalCS_Path</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ParallelSplit_ReportBilling</bpmn:outgoing> <!-- Parallel Split -->
+    </bpmn:exclusiveGateway>
+
+     <!-- Parallel Activities in CS Lane -->
+    <bpmn:task id="Task_CreateCustomerReport" name="Create report for customer">
+      <bpmn:incoming>SequenceFlow_ParallelSplit_ReportBilling</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendToCustomer_Path</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Billing Notification -->
+    <bpmn:serviceTask id="ServiceTask_NotifyBilling" name="Report SLA violation rebate">
+      <bpmn:incoming>SequenceFlow_ParallelSplit_ReportBilling</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_BillingComplete_Path</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- End Event for TELECO -->
+    <bpmn:endEvent id="End_Event_TELECOProcessEnded" name="Customer Service Process Ended">
+      <bpmn:incoming>SequenceFlow_SendToCustomer_Path</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_BillingComplete_Path</bpmn:incoming> <!-- Wait for both -->
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows (TELECO) -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterReport" sourceRef="Start_Event_TELECO" targetRef="Task_EnterProblemReport" />
+    <bpmn:sequenceFlow id="SequenceFlow_CompareSLA" sourceRef="Task_EnterProblemReport" targetRef="ServiceTask_CheckSignificance" />
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayCheckPriority" sourceRef="ServiceTask_CheckSignificance" targetRef="InclusiveGateway_CheckSignificance" />
+
+     <!-- Priority Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_RePrioritizePath" name="Re-prioritize needed" sourceRef="InclusiveGateway_CheckSignificance" targetRef="Task_RePrioritize" />
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueProcessLoop" name="Adjustment Complete" sourceRef="Task_RePrioritize" targetRef="ServiceTask_CreateDetailedReport" />
+
+     <!-- Detailed Report to SM -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToSM" sourceRef="ServiceTask_CreateDetailedReport" targetRef="InclusiveGateway_SM_Analyzable" />
+
+     <!-- SM Analysis Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_SentToRP_NoAnalysis" name="Not analyzable by SM" sourceRef="InclusiveGateway_SM_Analyzable" targetRef="Task_CheckPossibleProblems" />
+    <bpmn:sequenceFlow id="SequenceFlow_SM_Analyze_Internal" name="Analyzable internally" sourceRef="InclusiveGateway_SM_Analyzable" targetRef="ServiceTask_CreateTroubleReportInternal" />
+
+     <!-- RP Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_RP_ProblemDetected_Gateway" sourceRef="Task_CheckPossibleProblems" targetRef="InclusiveGateway_RP_ProblemDetected" />
+    <bpmn:sequenceFlow id="SequenceFlow_NoProblemsPath" name="No problems detected" sourceRef="InclusiveGateway_RP_ProblemDetected" targetRef="End_Event_NormalExecution" />
+    <bpmn:sequenceFlow id="SequenceFlow_AnalyzeRPProblem_Path" name="Problem detected" sourceRef="InclusiveGateway_RP_ProblemDetected" targetRef="ServiceTask_CreateTroubleReportRP" />
+
+     <!-- Convergence to Final Status -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeStatusRP" sourceRef="ServiceTask_CreateTroubleReportInternal" targetRef="Task_CreateFinalStatusReport" />
+    <bpmn:sequenceFlow id="SequenceFlow_SendToSM_RP_Report_Fixed" name="Send Report to SM for Resolution Creation" sourceRef="ServiceTask_CreateTroubleShootingRP" targetRef="Task_CreateResolutionReport" />
+
+     <!-- Final CS Convergence -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeFinalCS_Path_2" sourceRef="ServiceTask_UndertakeCorrectiveActions" targetRef="InclusiveGateway_CS_Final" />
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeFinalCS_Path_3" name="Send Performance Data to CS Lane" sourceRef="Task_SendPerformanceData" targetRef="InclusiveGateway_CS_Final" />
+
+     <!-- Final Status Gateway Logic (Revised) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Gateway_CounterMeasures" sourceRef="Task_CreateFinalStatusReport" targetRef="InclusiveGateway_SM_CounterMeasures" />
+    <bpmn:sequenceFlow id="SequenceFlow_NoProblemPath_Final" name="No problem detected" sourceRef="InclusiveGateway_SM_CounterMeasures" targetRef="Task_SendPerformanceData" />
+    <bpmn:sequenceFlow id="SequenceFlow_MinorActionPath_Final" name="Minor corrective actions required" sourceRef="InclusiveGateway_SM_CounterMeasures" targetRef="ServiceTask_UndertakeCorrectiveActions" />
+    <bpmn:sequenceFlow id="SequenceFlow_RestorationPath_Final" name="Automatic restoration required" sourceRef="InclusiveGateway_SM_CounterMeasures" targetRef="ServiceTask_CreateRestorationRequest" />
+
+     <!-- Restoration Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToRP_Request" sourceRef="ServiceTask_CreateRestorationRequest" targetRef="Start_Event_RestorationRequest" messageRefMessageFlowId="Msg_RequestRestoration" />
+    <bpmn:sequenceFlow id="SequenceFlow_TrackErrors_Path_Final" name="Receive Request & Track Errors" sourceRef="Start_Event_RestorationRequest" targetRef="Task_TrackErrors" />
+
+     <!-- RP Corrective Actions -->
+    <bpmn:sequenceFlow id="SequenceFlow_CorrectiveActions_RP_Final" sourceRef="Task_TrackErrors" targetRef="Task_UndertakeCorrectiveRP" />
+    <bpmn:sequenceFlow id="SequenceFlow_CreateTroubleShootingReport_Path_Final" sourceRef="Task_UndertakeCorrectiveRP" targetRef="ServiceTask_CreateTroubleShootingRP" />
+
+     <!-- Final CS Convergence -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeFinalCS_Path_4" name="Send Performance Data to CS Lane 2" sourceRef="End_Event_NormalExecution" targetRef="InclusiveGateway_CS_Final" />
+    <bpmn:sequenceFlow id="SequenceFlow_ParallelSplit_ReportBilling_Final" sourceRef="InclusiveGateway_CS_Final" targetRef="Task_CreateCustomerReport" />
+
+     <!-- Final Parallel Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToCustomer_Path_Final" name="Send Report to Customer" sourceRef="Task_CreateCustomerReport" targetRef="End_Event_TELECOProcessEnded" />
+    <bpmn:sequenceFlow id="SequenceFlow_BillingComplete_Path_Final" sourceRef="ServiceTask_NotifyBilling" targetRef="End_Event_TELECOProcessENDED" />
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:messageFlow id="Msg_SendProblemParameters" name="Send Problem Parameters">
+    <bpmn:sourceRef>Start_Event_PerceiveDegradedService</bpmn:sourceRef>
+    <bpmn:targetRef>Start_Event_TELECO</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="Msg_RequestRestoration" name="Request Restoration">
+     <bpmn:sourceRef>ServiceTask_CreateRestorationRequest</bpmn:sourceRef>
+    <bpmn:targetRef>Start_Event_RestorationRequest</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+   <!-- Message Flow for Final Report to Customer -->
+  <bpmn:messageFlow id="Msg_ReportToCustomer" name="Send Problem Resolution">
+    <bpmn:sourceRef>Task_CreateCustomerReport</bpmn:sourceRef>
+     <bpmn:targetRef>End_Event_CustomerProcessEnded</bpmn:targetRef> <!-- Simplified connection to Customer End -->
+  </bpmn:messageFlow>
+
+   <!-- Global Message Definitions (Optional but good for completeness) -->
+    <bpmn:message id="Message_ProblemParams" name="Problem Parameters"/>
+     <bpmn:message id="Message_RestorationRequest" name="Restoration Request"/>
+      <bpmn:message id="Message_FinalReport" name="Final Report"/>
+
+</bpmn:definitions>

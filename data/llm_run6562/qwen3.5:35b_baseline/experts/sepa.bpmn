@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SEPA_Process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Participant_SEPA_Mandate" name="SEPA Mandate Processing Process" processRef="Process_SEPA_Main" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SEPA_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_System_Automation" name="System Automation">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckIBAN_Country</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IBAN_Valid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SearchPerson_ValidateInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InfoComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SignaturePresent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateLetterRequestSig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateEvent_WaitResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ReceivedInTime</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckMandateDetails_BankExistence</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DataBankOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ActiveMandatExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckNewConditions</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NewRelevantConditionsMet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_MandateCreated_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckUnpaidInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UnpaidBillsExist</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CalculateTotalAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountExceeds5k</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Employee" name="Sachbearbeiter / Manual Review">
+        <bpmn:flowNodeRef>Task_ManualReviewMissingData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_ResumeValidation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateOrCheckBankConnection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_BankOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TerminateOldCreateNewMandate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateNewMandate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_MandateCreated_02</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignAndCommunicateDebt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ManualReviewHighAmount</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="SEPA Mandate Data Received">
+      <bpmn:outgoing>SequenceFlow_CheckIBAN</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check IBAN & Country -->
+    <bpmn:task id="Task_CheckIBAN_Country" name="Check IBAN and Identify Country">
+      <bpmn:incoming>SequenceFlow_CheckIBAN</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IBAN_Valid_Gate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: IBAN Valid? -->
+    <bpmn:exclusiveGateway id="Gateway_IBAN_Valid" name="IBAN Valid?">
+      <bpmn:incoming>SequenceFlow_IBAN_Valid_Gate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProceedToSearch</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Invalid IBAN -->
+    <bpmn:endEvent id="End_IBAN_Error" name="Process Error - No IBAN">
+      <bpmn:incoming>SequenceFlow_RejectIBAN</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Invalid IBAN -->
+     <bpmn:sequenceFlow id="SequenceFlow_RejectIBAN" sourceRef="Gateway_IBAN_Valid" targetRef="End_IBAN_Error">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Valid IBAN -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProceedToSearch" sourceRef="Gateway_IBAN_Valid" targetRef="Task_SearchPerson_ValidateInfo">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 2: Search Person & Validate Info -->
+    <bpmn:task id="Task_SearchPerson_ValidateInfo" name="Search Person and Check Data Completeness">
+      <bpmn:incoming>SequenceFlow_ProceedToSearch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InfoComplete_Gate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: All Info Complete? -->
+    <bpmn:exclusiveGateway id="Gateway_InfoComplete" name="All Data Complete?">
+      <bpmn:incoming>SequenceFlow_InfoComplete_Gate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualReviewPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedToMandateCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path for Incomplete Data -->
+     <bpmn:sequenceFlow id="SequenceFlow_ManualReviewPath" sourceRef="Gateway_InfoComplete" targetRef="Task_CheckSignature_Presence">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 3: Signature Present? -->
+    <bpmn:exclusiveGateway id="Gateway_SignaturePresent" name="Signature Present?">
+      <bpmn:incoming>SequenceFlow_CheckSig_Presence</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualReviewTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateLetterPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow to check signature presence -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckSig_Presence" sourceRef="Task_SearchPerson_ValidateInfo" targetRef="Gateway_SignaturePresent">
+       <bpmn:name>Check Signature</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 4a: Manual Review Missing Data -->
+    <bpmn:task id="Task_ManualReviewMissingData" name="Manual Check of Missing Data">
+      <bpmn:incoming>SequenceFlow_ManualReviewTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge_ResumeValidation</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow for Manual Review -->
+     <bpmn:sequenceFlow id="SequenceFlow_ManualReviewTask" sourceRef="Gateway_SignaturePresent" targetRef="Task_ManualReviewMissingData">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Point for Manual Review -->
+     <bpmn:exclusiveGateway id="Merge_ResumeValidation" name="Re-Check Info?">
+        <bpmn:incoming>SequenceFlow_Merge_ResumeValidation</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_ProceedToMandateCheck</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+    <!-- Task 4b: Create Letter Requesting Signature -->
+    <bpmn:task id="Task_CreateLetterRequestSig" name="Create Letter Requesting Signature">
+      <bpmn:incoming>SequenceFlow_CreateLetterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponseStart</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow for Letter Creation -->
+     <bpmn:sequenceFlow id="SequenceFlow_CreateLetterPath" sourceRef="Gateway_SignaturePresent" targetRef="Task_CreateLetterRequestSig">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Intermediate Timer Event (Wait for Response) -->
+     <bpmn:intermediateCatchEvent id="IntermediateEvent_WaitResponse" name="Wait 28 Days / Response">
+       <bpmn:incoming>SequenceFlow_WaitResponseStart</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ReceivedInTime_Gate</bpmn:outgoing>
+     </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow to Wait -->
+     <bpmn:sequenceFlow id="SequenceFlow_WaitResponseStart" sourceRef="Task_CreateLetterRequestSig" targetRef="IntermediateEvent_WaitResponse">
+       <bpmn:name>Send Letter</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 4: Received in Time? -->
+     <bpmn:exclusiveGateway id="Gateway_ReceivedInTime" name="Response Within 28 Days?">
+       <bpmn:incoming>SequenceFlow_ReceivedInTime_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Merge_ProceedToMandateCheck</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ProcessStoppedPath</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Wait Event -->
+     <bpmn:sequenceFlow id="SequenceFlow_ReceivedInTime_Gate" sourceRef="IntermediateEvent_WaitResponse" targetRef="Gateway_ReceivedInTime">
+       <bpmn:name>Timer Expired</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event for Process Stopped (No Response) -->
+     <bpmn:endEvent id="End_ProcessStopped" name="Process Stopped">
+       <bpmn:incoming>SequenceFlow_ProcessStoppedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+      <!-- Sequence Flow for No Response -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProcessStoppedPath" sourceRef="Gateway_ReceivedInTime" targetRef="End_ProcessStopped">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Yes Response -->
+     <bpmn:sequenceFlow id="SequenceFlow_Merge_ProceedToMandateCheck" sourceRef="Gateway_ReceivedInTime" targetRef="Task_CheckMandateDetails_BankExistence">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Manual Review Merge -->
+     <bpmn:sequenceFlow id="SequenceFlow_Merge_ResumeValidation" sourceRef="Task_ManualReviewMissingData" targetRef="Merge_ResumeValidation">
+       <bpmn:name>Data Resolved</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Manual Review Merge to Main -->
+     <bpmn:sequenceFlow id="SequenceFlow_Merge_ManualToMain" sourceRef="Merge_ResumeValidation" targetRef="Task_CheckMandateDetails_BankExistence">
+       <bpmn:name>Proceed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Info Complete to Mandate Check -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProceedToMandateCheck" sourceRef="Gateway_InfoComplete" targetRef="Task_CheckMandateDetails_BankExistence">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 5: Check Mandate Details & Bank Existence -->
+     <bpmn:task id="Task_CheckMandateDetails_BankExistence" name="Check Validity and Bank Connection">
+       <bpmn:incoming>SequenceFlow_ProceedToMandateCheck</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_DataBankOK_Gate</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Gateway 5: Data/Bank OK? -->
+     <bpmn:exclusiveGateway id="Gateway_DataBankOK" name="Data and Bank Connection Valid?">
+       <bpmn:incoming>SequenceFlow_DataBankOK_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CreateCheckBankPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ProceedToMandatExists</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow for Invalid Data/Bank -->
+     <bpmn:sequenceFlow id="SequenceFlow_CreateCheckBankPath" sourceRef="Gateway_DataBankOK" targetRef="Task_CreateOrCheckBankConnection">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 6a: Create/Review Bank Connection -->
+     <bpmn:task id="Task_CreateOrCheckBankConnection" name="Create or Review Bank Connection">
+       <bpmn:incoming>SequenceFlow_CreateCheckBankPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Merge_BankOK</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Merge Point for Bank Connection -->
+     <bpmn:exclusiveGateway id="Merge_BankOK" name="Bank OK?">
+       <bpmn:incoming>SequenceFlow_Merge_BankOK</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ProceedToMandatExists</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow for Bank OK Merge -->
+     <bpmn:sequenceFlow id="SequenceFlow_Merge_BankOK" sourceRef="Task_CreateOrCheckBankConnection" targetRef="Merge_BankOK">
+       <bpmn:name>Resolved</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Bank OK to Next Step -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProceedToMandatExists" sourceRef="Merge_BankOK" targetRef="Gateway_ActiveMandatExists">
+       <bpmn:name>Proceed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Valid Data/Bank to Next Step -->
+     <bpmn:sequenceFlow id="SequenceFlow_DataBankOK_Valid" sourceRef="Gateway_DataBankOK" targetRef="Gateway_ActiveMandatExists">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Gateway 6: Active Mandate Exists? -->
+     <bpmn:exclusiveGateway id="Gateway_ActiveMandatExists" name="Active SEPA Mandate Exists?">
+       <bpmn:incoming>SequenceFlow_ProceedToMandatExists</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CheckSigDateNewPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_NewRelevantCheckPath</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+      <!-- Path for No Active Mandate -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckSigDateNewPath" sourceRef="Gateway_ActiveMandatExists" targetRef="Task_CreateNewMandate">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 7a: Create New Mandate -->
+     <bpmn:task id="Task_CreateNewMandate" name="Create New SEPA Mandate">
+       <bpmn:incoming>SequenceFlow_CheckSigDateNewPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Merge_MandateCreated_01</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Path for Active Mandate Exists -->
+     <bpmn:sequenceFlow id="SequenceFlow_NewRelevantCheckPath" sourceRef="Gateway_ActiveMandatExists" targetRef="Task_CheckNewConditions">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 7b Check Conditions (Logic) -->
+     <bpmn:task id="Task_CheckNewConditions" name="Check New Mandate Validity & Relevance">
+       <bpmn:incoming>SequenceFlow_NewRelevantCheckPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MandateCond_Gate</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Gateway 7: Conditions Met? -->
+     <bpmn:exclusiveGateway id="Gateway_NewRelevantConditionsMet" name="New Mandate Valid & Relevant?">
+       <bpmn:incoming>SequenceFlow_MandateCond_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TerminateCreatePath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ReplacementInvalidPath</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow for Conditions Met -->
+     <bpmn:sequenceFlow id="SequenceFlow_MandateCond_Gate" sourceRef="Task_CheckNewConditions" targetRef="Gateway_NewRelevantConditionsMet">
+       <bpmn:name>Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 7c: Terminate Old & Create New -->
+     <bpmn:task id="Task_TerminateOldCreateNewMandate" name="Terminate Old and Create New Mandate">
+       <bpmn:incoming>SequenceFlow_TerminateCreatePath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Merge_MandateCreated_02</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Sequence Flow for Conditions Met -->
+     <bpmn:sequenceFlow id="SequenceFlow_TerminateCreatePath" sourceRef="Gateway_NewRelevantConditionsMet" targetRef="Task_TerminateOldCreateNewMandate">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- End Event for Invalid Replacement -->
+     <bpmn:endEvent id="End_ReplacementInvalid" name="Replacement Rejected">
+       <bpmn:incoming>SequenceFlow_MandateCond_Gate_Invalid</bpmn:incoming> 
+    </bpmn:endEvent>
+
+      <!-- Sequence Flow for Invalid Replacement -->
+     <bpmn:sequenceFlow id="SequenceFlow_ReplacementInvalidPath" sourceRef="Gateway_NewRelevantConditionsMet" targetRef="End_ReplacementInvalid">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Merge Point for Mandates -->
+     <bpmn:exclusiveGateway id="Merge_MandateCreated_01" name="Mandate Created?">
+        <bpmn:incoming>SequenceFlow_CreateNewPath</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_CheckInvoices_Gate</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+      <!-- Merge Point for Mandates -->
+     <bpmn:exclusiveGateway id="Merge_MandateCreated_02" name="Mandate Created?">
+        <bpmn:incoming>SequenceFlow_TerminateCreatePath2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_CheckInvoices_Gate</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow for Create New Mandate -->
+     <bpmn:sequenceFlow id="SequenceFlow_CreateNewPath" sourceRef="Task_CreateNewMandate" targetRef="Merge_MandateCreated_01">
+       <bpmn:name>New Created</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow for Terminate/Create New -->
+     <bpmn:sequenceFlow id="SequenceFlow_TerminateCreatePath2" sourceRef="Task_TerminateOldCreateNewMandate" targetRef="Merge_MandateCreated_02">
+       <bpmn:name>New Created</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 8: Check Unpaid Invoices -->
+     <bpmn:task id="Task_CheckUnpaidInvoices" name="Check for Open Claims/Invoices">
+       <bpmn:incoming>SequenceFlow_CheckInvoices_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_InvoiceExistence_Gate</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Sequence Flow from Merge -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckInvoices_Gate" sourceRef="Merge_MandateCreated_01" targetRef="Task_CheckUnpaidInvoices">
+       <bpmn:name>Proceed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Sequence Flow from Merge -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckInvoices_Gate_02" sourceRef="Merge_MandateCreated_02" targetRef="Task_CheckUnpaidInvoices">
+       <bpmn:name>Proceed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Gateway 8: Unpaid Bills Exist? -->
+     <bpmn:exclusiveGateway id="Gateway_UnpaidBillsExist" name="Open Invoices Exist?">
+       <bpmn:incoming>SequenceFlow_InvoiceExistence_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NoDebtPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_CheckAmountPath</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow from Task -->
+     <bpmn:sequenceFlow id="SequenceFlow_InvoiceExistence_Gate" sourceRef="Task_CheckUnpaidInvoices" targetRef="Gateway_UnpaidBillsExist">
+       <bpmn:name>Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- End Event for No Debt -->
+     <bpmn:endEvent id="End_CompletedNoDebt" name="Mandate Completed (No Debt)">
+        <bpmn:incoming>SequenceFlow_NoDebtPath</bpmn:incoming> 
+    </bpmn:endEvent>
+
+      <!-- Sequence Flow for No Debt -->
+     <bpmn:sequenceFlow id="SequenceFlow_NoDebtPath" sourceRef="Gateway_UnpaidBillsExist" targetRef="End_CompletedNoDebt">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 9a: Calculate Amount (Implicit in logic, explicit task for clarity) -->
+     <bpmn:task id="Task_CalculateTotalAmount" name="Calculate Total Unpaid Amount">
+       <bpmn:incoming>SequenceFlow_CheckAmountPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Amount_Gate</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Sequence Flow for Debt Exists -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckAmountPath" sourceRef="Gateway_UnpaidBillsExist" targetRef="Task_CalculateTotalAmount">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Gateway 9: Amount > 5000? -->
+     <bpmn:exclusiveGateway id="Gateway_AmountExceeds5k" name="Amount Exceeds €5,000?">
+       <bpmn:incoming>SequenceFlow_Amount_Gate</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CommunicateDebtPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ManualReviewHighAmountPath</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+      <!-- Sequence Flow from Task -->
+     <bpmn:sequenceFlow id="SequenceFlow_Amount_Gate" sourceRef="Task_CalculateTotalAmount" targetRef="Gateway_AmountExceeds5k">
+       <bpmn:name>Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 9b: Assign and Communicate Debt -->
+     <bpmn:task id="Task_AssignAndCommunicateDebt" name="Assign Bills & Communicate to Person">
+       <bpmn:incoming>SequenceFlow_CommunicateDebtPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndCompletedWithDebt</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Sequence Flow for <= 5000 -->
+     <bpmn:sequenceFlow id="SequenceFlow_CommunicateDebtPath" sourceRef="Gateway_AmountExceeds5k" targetRef="Task_AssignAndCommunicateDebt">
+       <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- End Event for Completed with Debt -->
+     <bpmn:endEvent id="End_CompletedWithDebt" name="Mandate Completed (With Debt)">
+        <bpmn:incoming>SequenceFlow_EndCompletedWithDebt</bpmn:incoming> 
+    </bpmn:endEvent>
+
+      <!-- Sequence Flow for End -->
+     <bpmn:sequenceFlow id="SequenceFlow_EndCompletedWithDebt" sourceRef="Task_AssignAndCommunicateDebt" targetRef="End_CompletedWithDebt">
+       <bpmn:name>Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- Task 9c: Manual Review High Amount -->
+     <bpmn:task id="Task_ManualReviewHighAmount" name="Manual Review for High Debt (>€5k)">
+       <bpmn:incoming>SequenceFlow_ManualReviewHighAmountPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndCompletedAfterReview</bpmn:outgoing>
+     </bpmn:task>
+
+      <!-- Sequence Flow for > 5000 -->
+     <bpmn:sequenceFlow id="SequenceFlow_ManualReviewHighAmountPath" sourceRef="Gateway_AmountExceeds5k" targetRef="Task_ManualReviewHighAmount">
+       <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+      <!-- End Event for Completed After Review -->
+     <bpmn:endEvent id="End_CompletedAfterReview" name="Mandate Finalized (Reviewed)">
+        <bpmn:incoming>SequenceFlow_EndCompletedAfterReview</bpmn:incoming> 
+    </bpmn:endEvent>
+
+      <!-- Sequence Flow for End -->
+     <bpmn:sequenceFlow id="SequenceFlow_EndCompletedAfterReview" sourceRef="Task_ManualReviewHighAmount" targetRef="End_CompletedAfterReview">
+       <bpmn:name>Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

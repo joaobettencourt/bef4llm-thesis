@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Computer Hardware Shop Dispatch" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Sekretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>Gateway_Groesse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AngeboteEinholen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SpediteurBeauftragen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PaketscheinAusfuellen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Versicherung</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Lagerarbeiter" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>Task_WareVerpacken</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AbhholungBereitstellen</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Logistikleiter" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_VersicherungAbschliessen</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_Split</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split (Admin vs Packing) -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit" name="Vorbereitungen parallel">
+      <bpmn:incoming>SequenceFlow_Split</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackingStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Admin Branch -->
+    <bpmn:exclusiveGateway id="Gateway_Groesse" name="Große Menge?">
+      <bpmn:incoming>SequenceFlow_AdminStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Large Quantity Path -->
+    <bpmn:task id="Task_AngeboteEinholen" name="Angebote von Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_LargePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCarrier</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SpediteurBeauftragen" name="Spediteur auswählen und beauftragen">
+      <bpmn:incoming>SequenceFlow_SelectCarrier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small Quantity Path -->
+    <bpmn:task id="Task_PaketscheinAusfuellen" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_SmallPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckInsurance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Insurance Decision -->
+    <bpmn:exclusiveGateway id="Gateway_Versicherung" name="Versicherung nötig?">
+      <bpmn:incoming>SequenceFlow_CheckInsurance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsureYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AdminReadyFromSmall</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Insurance Task (Logistics Manager) -->
+    <bpmn:task id="Task_VersicherungAbschliessen" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_InsureYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminReadyFromInsurance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Physical Branch -->
+    <bpmn:task id="Task_WareVerpacken" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_PackingStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackingReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="Gateway_Join" name="Alle Vorbereitungen abgeschlossen">
+      <bpmn:incoming>SequenceFlow_AdminReady</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AdminReadyFromInsurance</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PackingReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_AbhholungBereitstellen" name="Ware zur Abholung bereitstellen">
+      <bpmn:incoming>SequenceFlow_FinalTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Versand vorbereitet">
+      <bpmn:incoming>SequenceFlow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Split" sourceRef="StartEvent_1" targetRef="Gateway_ParallelSplit" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminStart" sourceRef="Gateway_ParallelSplit" targetRef="Gateway_Groesse" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_LargePath" name="Große Menge - Ja" sourceRef="Gateway_Groesse" targetRef="Task_AngeboteEinholen">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SmallPath" name="Große Menge - Nein" sourceRef="Gateway_Groesse" targetRef="Task_PaketscheinAusfuellen">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[no]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCarrier" sourceRef="Task_AngeboteEinholen" targetRef="Task_SpediteurBeauftragen" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminReady" name="Große Menge fertig" sourceRef="Task_SpediteurBeauftragen" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsurance" sourceRef="Task_PaketscheinAusfuellen" targetRef="Gateway_Versicherung" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_InsureYes" name="Versicherung nötig - Ja" sourceRef="Gateway_Versicherung" targetRef="Task_VersicherungAbschliessen">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AdminReadyFromSmall" name="Versicherung nötig - Nein" sourceRef="Gateway_Versicherung" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[no]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AdminReadyFromInsurance" name="Versicherung abgeschlossen" sourceRef="Task_VersicherungAbschliessen" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PackingStart" sourceRef="Gateway_ParallelSplit" targetRef="Task_WareVerpacken" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PackingReady" name="Ware verpackt" sourceRef="Task_WareVerpacken" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalTask" sourceRef="Gateway_Join" targetRef="Task_AbhholungBereitstellen" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToEnd" name="Versand vorbereitet" sourceRef="Task_AbhholungBereitstellen" targetRef="EndEvent_1">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[yes]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

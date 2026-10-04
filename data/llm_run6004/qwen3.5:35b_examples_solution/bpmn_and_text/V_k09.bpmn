@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_StorageManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_StorageMgmt">
+    <bpmn:participant id="Participant_MainProcess" name="Storage Management Process" processRef="Proc_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartReadOrder" name="Read order from system">
+      <bpmn:outgoing>Seq_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Stock (Service/Manual) -->
+    <bpmn:serviceTask id="Task_CheckStock" name="Is product in stock?">
+      <bpmn:incoming>Seq_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_IfInStock</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Stock Decision -->
+    <bpmn:exclusiveGateway id="Gw_InStock" name="Is in stock?">
+      <bpmn:incoming>Seq_IfInStock</bpmn:incoming>
+      <bpmn:outgoing>Seq_WarehouseWithdrawal</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>Seq_ReorderWholesaler</bpmn:outgoing>  <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: In Stock -->
+    <bpmn:manualTask id="Task_Withdraw" name="Withdraw from warehouse">
+      <bpmn:incoming>Seq_WarehouseWithdrawal</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToRegisterA</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- Path B: Not In Stock -->
+    <bpmn:serviceTask id="Task_Reorder" name="Reorder from wholesaler">
+      <bpmn:incoming>Seq_ReorderWholesaler</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitArrival</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Arrival -->
+    <bpmn:manualTask id="Task_Wait" name="Wait until product arrives">
+      <bpmn:incoming>Seq_WaitArrival</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckDelay</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- Gateway 2: Delay Check -->
+    <bpmn:exclusiveGateway id="Gw_Delay" name="Arrived after &gt;10 days?">
+      <bpmn:incoming>Seq_CheckDelay</bpmn:incoming>
+      <bpmn:outgoing>Seq_DemandPenalty</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>Seq_ToRegisterB</bpmn:outgoing>  <!-- No (or proceed regardless) -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Penalty Task -->
+    <bpmn:serviceTask id="Task_Penalty" name="Demand delivery delay penalty">
+      <bpmn:incoming>Seq_DemandPenalty</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToRegisterB</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Convergence before Registration -->
+    <bpmn:exclusiveGateway id="Gw_ConvergeReg" name="">
+      <bpmn:incoming>Seq_ToRegisterA</bpmn:incoming>
+      <bpmn:incoming>Seq_ToRegisterB</bpmn:incoming>
+      <bpmn:outgoing>Seq_RegisterStock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Registration Task -->
+    <bpmn:serviceTask id="Task_Registration" name="Register in stock management system">
+      <bpmn:incoming>Seq_RegisterStock</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckReady</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 3: Order Ready Check -->
+    <bpmn:exclusiveGateway id="Gw_Ready" name="Order ready for shipment?">
+      <bpmn:incoming>Seq_CheckReady</bpmn:incoming>
+      <bpmn:outgoing>Seq_ParallelShipFlow</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>Seq_NextProductLoop</bpmn:outgoing>  <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back Path (No) -->
+    <bpmn:manualTask id="Task_SelectNext" name="Select next product">
+      <bpmn:incoming>Seq_NextProductLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_LoopToCheckStock</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- Parallel Flow (Yes) -->
+    <bpmn:parallelGateway id="Gw_ParallelStart" name="">
+      <bpmn:incoming>Seq_ParallelShipFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_RequestCourier</bpmn:outgoing> <!-- Courier -->
+      <bpmn:outgoing>Seq_PackProducts</bpmn:outgoing>  <!-- Packing -->
+    </bpmn:parallelGateway>
+
+    <!-- Task: Request Courier -->
+    <bpmn:serviceTask id="Task_Courier" name="Request courier">
+      <bpmn:incoming>Seq_RequestCourier</bpmn:incoming>
+      <bpmn:outgoing>Seq_ConvergeShip</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Pack Products -->
+    <bpmn:manualTask id="Task_Pack" name="Pack products">
+      <bpmn:incoming>Seq_PackProducts</bpmn:incoming>
+      <bpmn:outgoing>Seq_ConvergeShip</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- Convergence before Shipping -->
+    <bpmn:parallelGateway id="Gw_ShipMerge" name="">
+      <bpmn:incoming>Seq_ConvergeShip</bpmn:incoming>
+      <bpmn:outgoing>Seq_Shipment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Ship -->
+    <bpmn:manualTask id="Task_Ship" name="Shipped">
+      <bpmn:incoming>Seq_Shipment</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndEvent</bpmn:outgoing>
+    </bpmn:manualTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndShipped" name="Order shipped">
+      <bpmn:incoming>Seq_EndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Check Stock -->
+    <bpmn:sequenceFlow id="Seq_StartToCheck" sourceRef="StartReadOrder" targetRef="Task_CheckStock"/>
+    
+    <!-- Decision 1 (In Stock) -->
+    <bpmn:sequenceFlow id="Seq_IfInStock" name="" sourceRef="Task_CheckStock" targetRef="Gw_InStock"/>
+    <bpmn:sequenceFlow id="Seq_WarehouseWithdrawal" name="Yes" sourceRef="Gw_InStock" targetRef="Task_Withdraw"/>
+    <bpmn:sequenceFlow id="Seq_ReorderWholesaler" name="No" sourceRef="Gw_InStock" targetRef="Task_Reorder"/>
+
+    <!-- Reorder Path -->
+    <bpmn:sequenceFlow id="Seq_WaitArrival" sourceRef="Task_Reorder" targetRef="Task_Wait"/>
+    
+    <!-- Delay Check Decision -->
+    <bpmn:sequenceFlow id="Seq_CheckDelay" name="" sourceRef="Task_Wait" targetRef="Gw_Delay"/>
+    <bpmn:sequenceFlow id="Seq_DemandPenalty" name="Yes (&gt;10 days)" sourceRef="Gw_Delay" targetRef="Task_Penalty"/>
+    <bpmn:sequenceFlow id="Seq_ToRegisterB" name="" sourceRef="Gw_Delay" targetRef="Gw_ConvergeReg"/>
+
+    <!-- Convergence for Registration -->
+    <bpmn:sequenceFlow id="Seq_ToRegisterA" name="" sourceRef="Task_Withdraw" targetRef="Gw_ConvergeReg"/>
+    
+    <!-- Register Stock -->
+    <bpmn:sequenceFlow id="Seq_RegisterStock" sourceRef="Gw_ConvergeReg" targetRef="Task_Registration"/>
+
+    <!-- Check Ready Decision -->
+    <bpmn:sequenceFlow id="Seq_CheckReady" name="" sourceRef="Task_Registration" targetRef="Gw_Ready"/>
+    
+    <!-- Loop Back (Not Ready) -->
+    <bpmn:sequenceFlow id="Seq_NextProductLoop" name="No" sourceRef="Gw_Ready" targetRef="Task_SelectNext"/>
+    <bpmn:sequenceFlow id="Seq_LoopToCheckStock" name="" sourceRef="Task_SelectNext" targetRef="Task_CheckStock"/>
+
+    <!-- Parallel Shipping Flow (Ready) -->
+    <bpmn:sequenceFlow id="Seq_ParallelShipFlow" name="Yes" sourceRef="Gw_Ready" targetRef="Gw_ParallelStart"/>
+    
+    <!-- Split for Courier and Packing -->
+    <bpmn:sequenceFlow id="Seq_RequestCourier" sourceRef="Gw_ParallelStart" targetRef="Task_Courier"/>
+    <bpmn:sequenceFlow id="Seq_PackProducts" sourceRef="Gw_ParallelStart" targetRef="Task_Pack"/>
+
+    <!-- Merge before Shipping -->
+    <bpmn:sequenceFlow id="Seq_ConvergeShip" name="" sourceRef="Task_Courier" targetRef="Gw_ShipMerge"/>
+    <bpmn:sequenceFlow id="Seq_ConvergePack" name="" sourceRef="Task_Pack" targetRef="Gw_ShipMerge"/>
+
+    <!-- Final Shipping -->
+    <bpmn:sequenceFlow id="Seq_Shipment" sourceRef="Gw_ShipMerge" targetRef="Task_Ship"/>
+    
+    <!-- End -->
+    <bpmn:sequenceFlow id="Seq_EndEvent" name="" sourceRef="Task_Ship" targetRef="EndShipped"/>
+
+  </bpmn:process>
+</bpmn:definitions>

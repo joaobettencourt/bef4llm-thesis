@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CustomerRegistration">
+    <bpmn:participant id="Participant_CustomerRegistration" name="Customer Registration Process" processRef="Process_CustomerRegistration"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CustomerRegistration" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_VisitorFillsForm" name="Visitor fills out Registration-Form">
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Product Availability -->
+    <bpmn:task id="Task_CheckProductAvailability" name="Check availability of products">
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCreditRating</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check Credit Rating -->
+    <bpmn:task id="Task_CheckCreditRating" name="Check credit rating at Schufa">
+      <bpmn:incoming>SequenceFlow_CheckCreditRating</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Credit Rating Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CreditCheck" name="Credit rating &gt; 9000?">
+      <bpmn:incoming>SequenceFlow_CreditDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnsuccessfulRegistration</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateCustomerRecord</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Unsuccessful Registration End Event -->
+    <bpmn:endEvent id="EndEvent_UnsuccessfulRegistration" name="Unsuccessful customer registration">
+      <bpmn:incoming>SequenceFlow_UnsuccessfulRegistration</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Create Interim Customer Dataset Record -->
+    <bpmn:task id="Task_CreateCustomerRecord" name="Create interim customer dataset record">
+      <bpmn:incoming>SequenceFlow_CreateCustomerRecord</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway - Split -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Parallel Processing">
+      <bpmn:incoming>SequenceFlow_ParallelStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RegisterAccount</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sub-Process - Device Provision -->
+    <bpmn:subProcess id="SubProcess_DeviceProvision" name="Device provision">
+      <bpmn:incoming>SequenceFlow_DeviceProvision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeviceProvisionComplete</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Sub-Process - Register Customer Account at ISP Nodes -->
+    <bpmn:subProcess id="SubProcess_RegisterAccount" name="Register customer account at ISP nodes">
+      <bpmn:incoming>SequenceFlow_RegisterAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountRegistered</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Parallel Gateway - Join -->
+    <bpmn:parallelGateway id="ParallelGateway_Join" name="Wait for completion">
+      <bpmn:incoming>SequenceFlow_DeviceProvisionComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountRegistered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WelcomePackage</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Create and Send Welcome Package -->
+    <bpmn:task id="Task_CreateWelcomePackage" name="Create and send welcome package">
+      <bpmn:incoming>SequenceFlow_WelcomePackage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessfulRegistration</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Successful Registration End Event -->
+    <bpmn:endEvent id="EndEvent_SuccessfulRegistration" name="Successful customer registration">
+      <bpmn:incoming>SequenceFlow_SuccessfulRegistration</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailability" sourceRef="StartEvent_VisitorFillsForm" targetRef="Task_CheckProductAvailability"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCreditRating" sourceRef="Task_CheckProductAvailability" targetRef="Task_CheckCreditRating"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreditDecision" sourceRef="Task_CheckCreditRating" targetRef="ExclusiveGateway_CreditCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_UnsuccessfulRegistration" name="Yes (rating &gt; 9000)" sourceRef="ExclusiveGateway_CreditCheck" targetRef="EndEvent_UnsuccessfulRegistration"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateCustomerRecord" name="No (rating ≤ 9000)" sourceRef="ExclusiveGateway_CreditCheck" targetRef="Task_CreateCustomerRecord"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ParallelStart" sourceRef="Task_CreateCustomerRecord" targetRef="ParallelGateway_Split"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DeviceProvision" name="Device provision path" sourceRef="ParallelGateway_Split" targetRef="SubProcess_DeviceProvision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterAccount" name="ISP registration path" sourceRef="ParallelGateway_Split" targetRef="SubProcess_RegisterAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DeviceProvisionComplete" sourceRef="SubProcess_DeviceProvision" targetRef="ParallelGateway_Join"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountRegistered" sourceRef="SubProcess_RegisterAccount" targetRef="ParallelGateway_Join"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WelcomePackage" sourceRef="ParallelGateway_Join" targetRef="Task_CreateWelcomePackage"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessfulRegistration" sourceRef="Task_CreateWelcomePackage" targetRef="EndEvent_SuccessfulRegistration"/>
+
+  </bpmn:process>
+</bpmn:definitions>

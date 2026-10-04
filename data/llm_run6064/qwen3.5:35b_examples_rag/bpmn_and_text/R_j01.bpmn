@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OEE_Monitoring">
+    <bpmn:participant id="Participant_MachineMonitoringSystem" name="Machine Monitoring System" processRef="Process_OEE_Calculation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEE_Calculation" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_MachineConnected" name="Machine Connected">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Main Monitoring Task with Boundary Events for Disconnection -->
+    <bpmn:task id="Task_CollectAndCalculateOEE" name="Collect Info &amp; Calculate OEE">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Disconnection -->
+    <bpmn:boundaryEvent id="BoundaryEvent_Disconnected" attachedToRef="Task_CollectAndCalculateOEE">
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:boundaryEvent>
+
+    <!-- Gateway for OEE Threshold Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckThreshold" name="OEE &lt; Value?">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Disconnection -->
+    <bpmn:endEvent id="EndEvent_MachineDisconnected" name="Machine Disconnected">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task to Stop Machine (Low OEE) -->
+    <bpmn:task id="Task_StopMachine" name="Stop Machine">
+      <bpmn:incoming>SequenceFlow_05</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task to Send Email (Low OEE) -->
+    <bpmn:userTask id="Task_SendEmailToEngineer" name="Send Email to Engineer">
+      <bpmn:incoming>SequenceFlow_06</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event for Restart Signal -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_RestartSignal" name="Wait for Restart">
+      <bpmn:incoming>SequenceFlow_07</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_08</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_MachineConnected" targetRef="Task_CollectAndCalculateOEE"/>
+    
+    <!-- Flow to Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_CollectAndCalculateOEE" targetRef="Gateway_CheckThreshold"/>
+
+    <!-- Flow from Boundary Event to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="BoundaryEvent_Disconnected" targetRef="EndEvent_MachineDisconnected"/>
+
+    <!-- Flow for OK OEE (Loop Back) -->
+    <bpmn:sequenceFlow id="SequenceFlow_04" name="OEE Above Threshold" sourceRef="Gateway_CheckThreshold" targetRef="Task_CollectAndCalculateOEE"/>
+
+    <!-- Flow for Low OEE (Stop Machine) -->
+    <bpmn:sequenceFlow id="SequenceFlow_05" name="OEE Below Threshold" sourceRef="Gateway_CheckThreshold" targetRef="Task_StopMachine"/>
+
+    <!-- Flow from Stop Machine to Send Email -->
+    <bpmn:sequenceFlow id="SequenceFlow_06" name="Mechanism Stopped" sourceRef="Task_StopMachine" targetRef="Task_SendEmailToEngineer"/>
+
+    <!-- Flow from Email to Restart Wait -->
+    <bpmn:sequenceFlow id="SequenceFlow_07" name="Email Sent" sourceRef="Task_SendEmailToEngineer" targetRef="IntermediateCatch_RestartSignal"/>
+
+    <!-- Flow from Restart Wait back to Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_08" name="Machine Restarted" sourceRef="IntermediateCatch_RestartSignal" targetRef="Task_CollectAndCalculateOEE"/>
+
+  </bpmn:process>
+
+  <!-- Reusable Elements -->
+  <bpmn:message id="Message_RestartSignal" name="Machine Restart Signal"/>
+  
+</bpmn:definitions>

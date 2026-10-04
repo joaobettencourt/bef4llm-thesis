@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_WareVersand">
+    <bpmn:participant id="Participant_HardwareHändler" name="Warenversand Hardware-Händler" processRef="Process_Versand"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Versand" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Logistikleiter" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_Versicherung</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Sekretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_WareVersand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VersandartKlären</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Sonderversand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Inclusive_GatewayVersicherung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Inclusive_GatewaySonderNormal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VorbereitungenAbgeschlossen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SonderversandAngeboteEinholen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SpediteurBeauftragen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PaketscheinAusfüllen</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Lagerarbeiter" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>Task_WareVerpacken</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VersandBereitgestellt</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_WareVersand" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent paths -->
+    <bpmn:parallelGateway id="Gateway_VorbereitungenStart" name="">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_SekretariatPath</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_LagerarbeiterPath</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Secretary Lane Tasks -->
+    <bpmn:task id="Task_VersandartKlären" name="Versandart klären">
+      <bpmn:incoming>SequenceFlow_SekretariatPath</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_KlärenToSonderversandGateway</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Special vs Normal Shipment -->
+    <bpmn:exclusiveGateway id="Gateway_Sonderversand" name="Große Menge?">
+      <bpmn:incoming>SequenceFlow_KlärenToSonderversandGateway</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_GatewayJaZuSpediteur</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_GatewayNeinZuPaketFormular</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Special Shipment Path -->
+    <bpmn:task id="Task_SonderversandAngeboteEinholen" name="Angebote von 3 Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_GatewayJaZuSpediteur</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_AngeboteBeauftragen</bpmn:outgoing/>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SpediteurBeauftragen" name="Spediteur beauftragen">
+      <bpmn:incoming>SequenceFlow_AngeboteBeauftragen</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_BeauftragtZuMergeGateway</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Normal Shipment Path -->
+    <bpmn:inclusiveGateway id="Inclusive_GatewaySonderNormal" name="">
+      <bpmn:incoming>SequenceFlow_GatewayNeinZuPaketFormular</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_PaketscheinAusfüllen</bpmn:outgoing/>
+    </bpmn:inclusiveGateway>
+
+    <!-- Package Form Task -->
+    <bpmn:task id="Task_PaketscheinAusfüllen" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_PaketscheinAusfüllen</bpmn:incoming/>
+      <bpmn:outgoing>SequenceForm_ZuVersicherungGateway</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway for Insurance Decision -->
+    <bpmn:inclusiveGateway id="Inclusive_GatewayVersicherung" name="Versicherung erforderlich?">
+      <bpmn:incoming>SequenceForm_ZuVersicherungGateway</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_VersicherungJaZuLogistikleiter</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_VersicherungNeinZuMerge</bpmn:outgoing/>
+    </bpmn:inclusiveGateway>
+
+    <!-- Logistics Manager Task -->
+    <bpmn:task id="Task_Versicherung" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_VersicherungJaZuLogistikleiter</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_VersicherungAbschlossenZuMerge</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Warehouse Worker Lane -->
+    <bpmn:parallelGateway id="Gateway_LagerarbeiterStart" name="">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_WareVerpackenZuTask</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Warehouse Task -->
+    <bpmn:task id="Task_WareVerpacken" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_WareVerpackenZuTask</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_VerpacktZuMergeGateway</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Merge Gateway for all paths -->
+    <bpmn:exclusiveGateway id="Gateway_VorbereitungenAbgeschlossen" name="">
+      <bpmn:incoming>SequenceFlow_BeauftragtZuMergeGateway</bpmn:incoming/>
+      <bpmn:incoming>SequenceFlow_VersicherungAbschlossenZuMerge</bpmn:incoming/>
+      <bpmn:incoming>SequenceFlow_VerpacktZuMergeGateway</bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_ZurAbholungBereitstellen</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Final Task -->
+    <bpmn:endEvent id="EndEvent_VersandBereitgestellt" name="Ware zur Abholung bereit">
+      <bpmn:incoming>SequenceFlow_ZurAbholungBereitstellen</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_WareVersand" targetRef="Gateway_VorbereitungenStart"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SekretariatPath" sourceRef="Gateway_VorbereitungenStart" targetRef="Task_VersandartKlären"/>
+    <bpmn:sequenceFlow id="SequenceFlow_LagerarbeiterPath" sourceRef="Gateway_VorbereitungenStart" targetRef="Gateway_LagerarbeiterStart"/>
+    <bpmn:sequenceFlow id="SequenceFlow_KlärenToSonderversandGateway" sourceRef="Task_VersandartKlären" targetRef="Gateway_Sonderversand"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayJaZuSpediteur" name="Große Menge - ja" sourceRef="Gateway_Sonderversand" targetRef="Task_SonderversandAngeboteEinholen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AngeboteBeauftragen" sourceRef="Task_SonderversandAngeboteEinholen" targetRef="Task_SpediteurBeauftragen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_BeauftragtZuMergeGateway" sourceRef="Task_SpediteurBeauftragen" targetRef="Gateway_VorbereitungenAbgeschlossen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayNeinZuPaketFormular" name="Kleine Menge - nein" sourceRef="Gateway_Sonderversand" targetRef="Inclusive_GatewaySonderNormal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PaketscheinAusfüllen" name="immer" sourceRef="Inclusive_GatewaySonderNormal" targetRef="Task_PaketscheinAusfüllen"/>
+    <bpmn:sequenceFlow id="SequenceForm_ZuVersicherungGateway" sourceRef="Task_PaketscheinAusfüllen" targetRef="Inclusive_GatewayVersicherung"/>
+    <bpmn:sequenceFlow id="SequenceFlow_VersicherungJaZuLogistikleiter" name="erforderlich - ja" sourceRef="Inclusive_GatewayVersicherung" targetRef="Task_Versicherung"/>
+    <bpmn:sequenceFlow id="SequenceFlow_VersicherungNeinZuMerge" name="nicht erforderlich - nein" sourceRef="Inclusive_GatewayVersicherung" targetRef="Gateway_VorbereitungenAbgeschlossen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WareVerpackenZuTask" sourceRef="Gateway_LagerarbeiterStart" targetRef="Task_WareVerpacken"/>
+    <bpmn:sequenceFlow id="SequenceFlow_VerpacktZuMergeGateway" sourceRef="Task_WareVerpacken" targetRef="Gateway_VorbereitungenAbgeschlossen"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ZurAbholungBereitstellen" name="" sourceRef="Gateway_VorbereitungenAbgeschlossen" targetRef="EndEvent_VersandBereitgestellt"/>
+
+  </bpmn:process>
+</bpmn:definitions>

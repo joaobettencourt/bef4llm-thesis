@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ExaminationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ExamProcess">
+    <bpmn:participant id="Participant_MainSystem" name="Examination Process System" processRef="Process_ExamProc"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExamProc" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_OutpatientDept" name="Outpatient Department">
+        <bpmn:flowNodeRef>StartEvent_PatientExamined</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PhysicianDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_HealthyOrAdditional</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillExaminationForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PatientLeaves</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_WardStaff" name="Ward Staff">
+        <bpmn:flowNodeRef>Task_ArrangeAppointment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareExaminationSampling</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TakeSample</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_LabStaff" name="Lab Staff">
+        <bpmn:flowNodeRef>StartEvent_SampleReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ValidSample?</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_NewSampleRequired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalysisPerformed</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_PatientExamined" name="Female Patient Examined">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Physician Decision -->
+    <bpmn:task id="Task_PhysicianDecision" name="Decide Health Status">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Healthy or Additional Examination -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HealthyOrAdditional" name="Patient Healthy?">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AdditionalExamPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_PatientExamined" targetRef="Task_PhysicianDecision"/>
+
+    <!-- Path if Healthy -->
+    <bpmn:task id="Task_FillExaminationForm" name="Fill Examination Form">
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PatientLeavesPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event if Healthy -->
+    <bpmn:endEvent id="EndEvent_PatientLeaves" name="Patient Leaves">
+      <bpmn:incoming>SequenceFlow_PatientLeavesPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path if Additional Examination Needed -->
+    <bpmn:task id="Task_OrderExamination" name="Place Order &amp; Fill Request Form">
+      <bpmn:incoming>SequenceFlow_AdditionalExamPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformPatientRisk</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Healthy?" sourceRef="Task_PhysicianDecision" targetRef="ExclusiveGateway_HealthyOrAdditional"/>
+
+    <!-- Inform Patient About Risks -->
+    <bpmn:task id="Task_InformPatientRisks" name="Inform Patient of Potential Risks">
+      <bpmn:incoming>SequenceFlow_InformPatientRisk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConsentDecisionPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Consent Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Consent" name="Patient Signs Informed Consent?">
+      <bpmn:incoming>SequenceFlow_ConsentDecisionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AgreeToContinue</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoConsentPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 3 -->
+    <bpmn:sequenceFlow id="SequenceFlow_3" name="Healthy - Yes" sourceRef="ExclusiveGateway_HealthyOrAdditional" targetRef="Task_FillExaminationForm"/>
+
+    <!-- Additional Examination Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AdditionalExamPath" name="Needs Exam - No" sourceRef="ExclusiveGateway_HealthyOrAdditional" targetRef="Task_OrderExamination"/>
+
+    <!-- Sequence Flow for Order Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformPatientRisk" sourceRef="Task_OrderExamination" targetRef="Task_InformPatientRisks"/>
+
+    <!-- Consent Decision Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConsentDecisionPath" sourceRef="Task_InformPatientRisks" targetRef="ExclusiveGateway_Consent"/>
+
+    <!-- Agree to Continue - Arrange Appointment -->
+    <bpmn:task id="Task_ArrangeAppointment" name="Arrange Appointment with Ward">
+      <bpmn:incoming>SequenceFlow_AgreeToContinue</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WardTakesSamplePath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- No Consent Path -->
+    <bpmn:endEvent id="EndEvent_NoConsent" name="Process Terminated">
+      <bpmn:incoming>SequenceFlow_NoConsentPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Consent -->
+    <bpmn:sequenceFlow id="SequenceFlow_AgreeToContinue" name="Signs &amp; Agrees - Yes" sourceRef="ExclusiveGateway_Consent" targetRef="Task_ArrangeAppointment"/>
+
+    <!-- No Consent Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoConsentPath" name="No Sign/Agree - No" sourceRef="ExclusiveGateway_Consent" targetRef="EndEvent_NoConsent"/>
+
+    <!-- Ward Preparation Task -->
+    <bpmn:task id="Task_PrepareExaminationSampling" name="Prepare Examination &amp; Sampling">
+      <bpmn:incoming>SequenceFlow_WardTakesSamplePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TakeSampleFromWardPhysician</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ward Physician Takes Sample -->
+    <bpmn:task id="Task_TakeSample" name="Take Sample Requested">
+      <bpmn:incoming>SequenceFlow_WardTakesSamplePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToLab</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Appointment -->
+    <bpmn:sequenceFlow id="SequenceFlow_WardTakesSamplePath" sourceRef="Task_ArrangeAppointment" targetRef="Task_PrepareExaminationSampling"/>
+
+    <!-- Send Sample to Lab & Follow-up Treatment -->
+    <bpmn:endEvent id="EndEvent_SampleSentToLab" name="Sample Sent to Lab">
+      <bpmn:incoming>SequenceFlow_SendToLab</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Sample Taking -->
+    <bpmn:sequenceFlow id="SequenceFlow_TakeSampleFromWardPhysician" sourceRef="Task_PrepareExaminationSampling" targetRef="Task_TakeSample"/>
+
+    <!-- Lab Start Event (Parallel to Ward Process) -->
+    <bpmn:startEvent id="StartEvent_SampleReceived" name="Receive Sample from Ward">
+      <bpmn:outgoing>SequenceFlow_LabValidatesState</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lab Validates State -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ValidSample?" name="Valid Sample?">
+      <bpmn:incoming>SequenceFlow_LabValidatesState</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalysisPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ContaminatedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for Lab Validation -->
+    <bpmn:sequenceFlow id="SequenceFlow_LabValidatesState" sourceRef="StartEvent_SampleReceived" targetRef="ExclusiveGateway_ValidSample?"/>
+
+    <!-- Analysis Path (Usable Sample) -->
+    <bpmn:endEvent id="EndEvent_NewSampleRequired" name="New Sample Required">
+      <bpmn:incoming>SequenceFlow_ContaminatedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Analysis Path -->
+    <bpmn:task id="Task_AnalysisPerformed" name="Perform Medical Technical Analysis">
+      <bpmn:incoming>SequenceFlow_AnalysisPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LabPhysicianValidatesResults</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Lab Physician Validates Results -->
+    <bpmn:endEvent id="EndEvent_ResultsValidated" name="Lab Analysis Complete">
+      <bpmn:incoming>SequenceFlow_LabPhysicianValidatesResults</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Contaminated Sample -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContaminatedPath" name="Contaminated - No" sourceRef="ExclusiveGateway_ValidSample?" targetRef="EndEvent_NewSampleRequired"/>
+
+    <!-- Sequence Flow for Valid Analysis Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AnalysisPath" name="Usable Sample - Yes" sourceRef="ExclusiveGateway_ValidSample?" targetRef="Task_AnalysisPerformed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

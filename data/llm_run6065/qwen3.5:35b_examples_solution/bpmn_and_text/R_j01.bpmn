@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OEE_Monitoring_1">
+  <bpmn:collaboration>
+    <bpmn:participant id="Participant_ProcessExecution" name="OEE Monitoring Process" processRef="Process_OEEMonitoring"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEEMonitoring">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_MonitoringStarted" name="OEE Monitoring Started">
+      <bpmn:outgoing>SequenceFlow_CheckConnection</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Check Connection -->
+    <bpmn:exclusiveGateway id="Gateway_IsConnected" gatewayDirection="Diverging" name="Is Machine Connected?">
+      <bpmn:incoming>SequenceFlow_CheckConnection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectData</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Disconnection -->
+    <bpmn:endEvent id="EndEvent_ProcessEnded" name="Process Ended">
+      <bpmn:incoming>SequenceFlow_Disconnected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 1: Collect Info & Calculate OEE -->
+    <bpmn:serviceTask id="ServiceTask_CollectAndCalc" name="Collect Machine Data and Calc OEE">
+      <bpmn:incoming>SequenceFlow_CollectData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckThreshold</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 2: Check Threshold -->
+    <bpmn:exclusiveGateway id="Gateway_OEECheck" gatewayDirection="Diverging" name="Is OEE below threshold?">
+      <bpmn:incoming>SequenceFlow_CheckThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LowOEE</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Exception Path (Low OEE) -->
+    <bpmn:userTask id="UserTask_StopMachine" name="Stop Machine">
+      <bpmn:incoming>SequenceFlow_LowOEE</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AfterStop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="ServiceTask_SendEmail" name="Send Email to Engineer">
+      <bpmn:incoming>SequenceFlow_AfterStop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AfterEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Intermediate Event for Restart Signal -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_WaitRestart" name="Wait for Machine Restart">
+      <bpmn:incoming>SequenceFlow_AfterEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RestartLoop</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckConnection" sourceRef="StartEvent_MonitoringStarted" targetRef="Gateway_IsConnected"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Disconnected" name="No" sourceRef="Gateway_IsConnected" targetRef="EndEvent_ProcessEnded">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CollectData" sourceRef="Gateway_IsConnected" targetRef="ServiceTask_CollectAndCalc"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckThreshold" sourceRef="ServiceTask_CollectAndCalc" targetRef="Gateway_OEECheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LowOEE" name="Yes - OEE Low" sourceRef="Gateway_OEECheck" targetRef="UserTask_StopMachine">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AfterStop" sourceRef="UserTask_StopMachine" targetRef="ServiceTask_SendEmail"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AfterEmail" sourceRef="ServiceTask_SendEmail" targetRef="IntermediateEvent_WaitRestart"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RestartLoop" name="Continue Measuring" sourceRef="IntermediateEvent_WaitRestart" targetRef="Gateway_IsConnected">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

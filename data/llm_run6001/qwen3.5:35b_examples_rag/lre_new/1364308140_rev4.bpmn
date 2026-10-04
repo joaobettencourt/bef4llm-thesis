@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SO_OrderProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1SOOrder">
+    <bpmn:participant id="Participant_SO_Auftrag" name="SO Angebot/Auftrag Process" processRef="Process_SO_Order"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SO_Order" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SOAuftrag" name="SO Angebot/Auftrag">
+        <bpmn:flowNodeRef>StartEvent_SubOrderReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_LogisticsBillingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoodsForShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CheckCustomerType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_MergeBeforeSend</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AddressMgmt" name="Address-management">
+        <bpmn:flowNodeRef>Task_AddParentCompanyAsInvoicingAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubOrderReceived" name="Subsidiary Order Received">
+      <bpmn:description>The process starts when the SO receives a subsidiary order.</bpmn:description>
+      <bpmn:outgoing>SequenceFlow_StartToParallelSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_LogisticsBillingSplit" name="Logistics &amp; Billing">
+      <bpmn:description>Splits flow into Logistics and Invoicing preparation concurrently.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_StartToParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogisticsBranch</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BillingLogicBranch</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Logistics Branch Tasks -->
+    <bpmn:userTask id="Task_PrepareGoodsForShipment" name="Prepare goods for shipment">
+      <bpmn:description>SO prepares the physical items.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_LogisticsBranch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareToShip</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ShipGoods" name="Ships the goods">
+      <bpmn:description>The SO ships the prepared items.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_PrepareToShip</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogisticsToEndMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Billing Logic Branch -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckCustomerType" name="Is customer subsidiary?">
+      <bpmn:description>Determines invoicing address requirements.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_BillingLogicBranch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CustomerYesNotModeled</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CustomerNoOrModeled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Address Management Task (Lane 2) -->
+    <bpmn:userTask id="Task_AddParentCompanyAsInvoicingAddress" name="Adds parent company as invoicing address">
+      <bpmn:description>SO Address-management adds the relationship.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_CustomerYesNotModeled</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressMgmtToInvoiceMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Decision Outcomes (Exclusive Gateway) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MergeBillingLogic" name="Converge Billing Logic">
+      <bpmn:description>Merges paths after customer check.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_AddressMgmtToInvoiceMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_CustomerNoOrModeledDirect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToCreateTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Invoice Creation Task -->
+    <bpmn:userTask id="Task_CreateInvoice" name="Creates the invoice">
+      <bpmn:description>The SO creates the final invoice document.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_MergeToCreateTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvoiceToSendMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway Merge for Send Invoice -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeBeforeSend" name="Wait for All Paths">
+      <bpmn:description>Synchronizes logistics and billing completion before sending invoice.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_LogisticsToEndMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InvoiceToSendMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToSendTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Send Invoice Task -->
+    <bpmn:userTask id="Task_SendInvoice" name="Sends the invoice">
+       <bpmn:description>The SO sends the final invoice to customer.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_MergeToSendTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendInvoiceToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessCompleted" name="Process Completed">
+      <bpmn:description>All process steps completed.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_SendInvoiceToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallelSplit" sourceRef="StartEvent_SubOrderReceived" targetRef="ParallelGateway_LogisticsBillingSplit">
+      <bpmn:description>Initial trigger for process.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LogisticsBranch" name="Logistics Path" sourceRef="ParallelGateway_LogisticsBillingSplit" targetRef="Task_PrepareGoodsForShipment">
+      <bpmn:description>Splits to logistics preparation.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BillingLogicBranch" name="Invoicing Path" sourceRef="ParallelGateway_LogisticsBillingSplit" targetRef="ExclusiveGateway_CheckCustomerType">
+      <bpmn:description>Splits to invoicing logic check.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareToShip" sourceRef="Task_PrepareGoodsForShipment" targetRef="Task_ShipGoods">
+      <bpmn:description>Preparation followed by shipping.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision Gateway Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerYesNotModeled" name="Subsidiary &amp; Not Modeled" sourceRef="ExclusiveGateway_CheckCustomerType" targetRef="Task_AddParentCompanyAsInvoicingAddress">
+      <bpmn:description>Requires address management intervention.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Direct Path for Independent/Modeled Customers -->
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerNoOrModeledDirect" name="Independent or Modeled" sourceRef="ExclusiveGateway_CheckCustomerType" targetRef="ExclusiveGateway_MergeBillingLogic">
+      <bpmn:description>No address update needed, proceed to invoice.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Address Mgmt to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddressMgmtToInvoiceMerge" sourceRef="Task_AddParentCompanyAsInvoicingAddress" targetRef="ExclusiveGateway_MergeBillingLogic">
+      <bpmn:description>Return from address management.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge to Create Invoice -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToCreateTask" sourceRef="ExclusiveGateway_MergeBillingLogic" targetRef="Task_CreateInvoice">
+      <bpmn:description>All billing logic paths converge here.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Logistics to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_LogisticsToEndMerge" sourceRef="Task_ShipGoods" targetRef="ParallelGateway_MergeBeforeSend">
+      <bpmn:description>Logistics path completes.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+     <!-- Invoice Task to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_InvoiceToSendMerge" sourceRef="Task_CreateInvoice" targetRef="ParallelGateway_MergeBeforeSend">
+      <bpmn:description>Billing logic completes.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+     <!-- Merge to Send Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToSendTask" sourceRef="ParallelGateway_MergeBeforeSend" targetRef="Task_SendInvoice">
+      <bpmn:description>Synchronize for Sending.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+     <!-- Send to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendInvoiceToEndEvent" sourceRef="Task_SendInvoice" targetRef="EndEvent_ProcessCompleted">
+      <bpmn:description>The SO sends the final invoice.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

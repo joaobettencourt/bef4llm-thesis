@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_AddCC_01">
+    <bpmn:participant name="Credit Card Addition Process" processRef="_Process_AddCC_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="_Process_AddCC_01" isExecutable="false">
+    <bpmn:laneSet id="_LaneSets_AddCC_01">
+      <bpmn:lane name="User Interface" id="_Lane_User_Interface">
+        <bpmn:flowNodeRef>StartEvent_AddCC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_User_ClickContinue</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="System Backend" id="_Lane_System_Backend">
+        <bpmn:flowNodeRef>_Service_CheckAddress</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_AddressValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Service_VerifyCC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_CCResult</bpmn:flowNodeRef>
+      </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Add Credit Card" id="StartEvent_AddCC">
+      <bpmn:outgoing>_Flow_StartToEnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Enter Details (User) -->
+    <bpmn:userTask name="Put Credit Card Details" id="_Task_EnterDetails">
+      <bpmn:incoming>_Flow_StartToEnterDetails</bpmn:incoming>
+      <bpmn:incoming>_Flow_InvalidAddressLoop</bpmn:incoming>
+      <bpmn:outgoing>_Flow_DetailsToCheckAddr</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 2: Check Address (System) -->
+    <bpmn:serviceTask name="Check Billing Address" id="_Service_CheckAddress">
+      <bpmn:incoming>_Flow_DetailsToCheckAddr</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AddressValidGatewayIn</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Address Valid? -->
+    <bpmn:exclusiveGateway name="Address Correct?" id="_Gateway_AddressValid">
+      <bpmn:incoming>_Flow_AddressValidGatewayIn</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ValidAddrToContinue</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_InvalidAddressLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Click Continue (User) -->
+    <bpmn:userTask name="Click Continue Button" id="_User_ClickContinue">
+      <bpmn:incoming>_Flow_ValidAddrToContinue</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ContinueToVerifyCC</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 4: Verify CC (System/External) -->
+    <bpmn:serviceTask name="Verify Credit Card Authority" id="_Service_VerifyCC">
+      <bpmn:incoming>_Flow_ContinueToVerifyCC</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CCResultGatewayIn</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 2: Result Validated? -->
+    <bpmn:exclusiveGateway name="Validation Result?" id="_Gateway_CCResult">
+      <bpmn:incoming>_Flow_CCResultGatewayIn</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ValidCCToAdd</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_InvalidCCCancel</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Add CC (System) -->
+    <bpmn:task name="Add Credit Card" id="_Task_AddCC">
+      <bpmn:incoming>_Flow_ValidCCToAdd</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SuccessEndLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Cancel Addition (System) -->
+    <bpmn:task name="Cancel Addition" id="_Task_CancelAddition">
+      <bpmn:incoming>_Flow_InvalidCCCancel</bpmn:incoming>
+      <bpmn:outgoing>_Flow_FailureEndLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent name="Card Added" id="_End_Success">
+      <bpmn:incoming>_Flow_SuccessEndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent name="Addition Cancelled" id="_End_Failure">
+      <bpmn:incoming>_Flow_FailureEndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_AddCC" targetRef="_Task_EnterDetails" id="_Flow_StartToEnterDetails"/>
+    
+    <bpmn:sequenceFlow name="No (Incorrect)" sourceRef="_Gateway_AddressValid" targetRef="_Task_EnterDetails" id="_Flow_InvalidAddressLoop"/>
+
+    <bpmn:sequenceFlow name="Yes (Correct)" sourceRef="_Gateway_AddressValid" targetRef="_User_ClickContinue" id="_Flow_ValidAddrToContinue"/>
+    
+    <bpmn:sequenceFlow sourceRef="_Task_EnterDetails" targetRef="_Service_CheckAddress" id="_Flow_DetailsToCheckAddr"/>
+
+    <bpmn:sequenceFlow name="Proceed to Verify" sourceRef="_User_ClickContinue" targetRef="_Service_VerifyCC" id="_Flow_ContinueToVerifyCC"/>
+
+    <bpmn:sequenceFlow name="Validated (Add)" sourceRef="_Gateway_CCResult" targetRef="_Task_AddCC" id="_Flow_ValidCCToAdd"/>
+    
+    <bpmn:sequenceFlow name="Not Validated (Cancel)" sourceRef="_Gateway_CCResult" targetRef="_Task_CancelAddition" id="_Flow_InvalidCCCancel"/>
+
+    <!-- Gateway Inflows -->
+    <bpmn:sequenceFlow sourceRef="_Service_CheckAddress" targetRef="_Gateway_AddressValid" id="_Flow_AddressValidGatewayIn"/>
+    
+    <bpmn:sequenceFlow sourceRef="_Service_VerifyCC" targetRef="_Gateway_CCResult" id="_Flow_CCResultGatewayIn"/>
+
+    <!-- End Event Links -->
+    <bpmn:sequenceFlow name="" sourceRef="_Task_AddCC" targetRef="_End_Success" id="_Flow_SuccessEndLink"/>
+    
+    <bpmn:sequenceFlow name="" sourceRef="_Task_CancelAddition" targetRef="_End_Failure" id="_Flow_FailureEndLink"/>
+
+  </bpmn:process>
+</bpmn:definitions>

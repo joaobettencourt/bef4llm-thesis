@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_CarService_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_CarService" name="Car Service Process" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ReminderTriggered" name="Service Reminder Triggered">
+      <bpmn:outgoing>Flow_CheckRegistration</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Service Task -->
+    <bpmn:serviceTask id="Task_CheckRegistration" name="Check if car is registered">
+      <bpmn:incoming>Flow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>Gateway_IsRegistered</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_IsRegistered" name="Car Registered?">
+      <bpmn:incoming>Flow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifyOwner</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Wait30Days</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Service Task -->
+    <bpmn:serviceTask id="Task_NotifyOwner" name="Notify car owner">
+      <bpmn:incoming>Flow_NotifyOwner</bpmn:incoming>
+      <bpmn:outgoing>Gateway_VisitFacility</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_VisitFacility" name="Visit Facility?">
+      <bpmn:incoming>Flow_NotifyOwner</bpmn:incoming>
+      <bpmn:outgoing>Flow_EnterProblems</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Wait30DaysFine</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Catch Event -->
+    <bpmn:intermediateCatchEvent id="Timer_ThirtyDays" name="Wait 30 days">
+      <bpmn:incoming>Flow_Wait30Days</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendFine</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Service Task -->
+    <bpmn:serviceTask id="Task_SendFine" name="Send fine to car owner">
+      <bpmn:incoming>Flow_Wait30Days</bpmn:incoming>
+      <bpmn:outgoing>End_FineSent</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_EnterProblems" name="Enter car problems">
+      <bpmn:incoming>Flow_EnterProblems</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ParallelStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gateway_ParallelStart" name="Process in parallel">
+      <bpmn:incoming>Flow_EnterProblems</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepairCar</bpmn:outgoing>
+      <bpmn:outgoing>Flow_StatusUpdates</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_RepairCar" name="Repair car">
+      <bpmn:incoming>Flow_RepairCar</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ParallelEnd1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task -->
+    <bpmn:serviceTask id="Task_StatusUpdates" name="Send status updates via email">
+      <bpmn:incoming>Flow_StatusUpdates</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ParallelEnd2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gateway_ParallelEnd1" name="Wait for repair">
+      <bpmn:incoming>Flow_RepairCar</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConvergeRepairStatus</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gateway_ParallelEnd2" name="Wait for status">
+      <bpmn:incoming>Flow_StatusUpdates</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConvergeRepairStatus</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gateway_ParallelConvergence" name="Wait for completion">
+      <bpmn:incoming>Flow_ConvergeRepairStatus</bpmn:incoming>
+      <bpmn:outgoing>Task_SelectPayment_Flow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_SelectPayment" name="Select payment method">
+      <bpmn:incoming>Flow_ConvergeRepairStatus</bpmn:incoming>
+      <bpmn:outgoing>Gateway_PaymentMethod</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_PaymentMethod" name="Pay via App?">
+      <bpmn:incoming>Flow_ConvergeRepairStatus</bpmn:incoming>
+      <bpmn:outgoing>Flow_AppPayment</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OtherPayment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Service Task -->
+    <bpmn:serviceTask id="Task_AppPayment" name="Pay through app">
+      <bpmn:incoming>Flow_AppPayment</bpmn:incoming>
+      <bpmn:outgoing>Gateway_PaymentConvergence</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_OtherPayment" name="Use other payment method">
+      <bpmn:incoming>Flow_OtherPayment</bpmn:incoming>
+      <bpmn:outgoing>Gateway_PaymentConvergence</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gateway_PaymentConvergence" name="Wait for payment">
+      <bpmn:incoming>Flow_AppPayment</bpmn:incoming>
+      <bpmn:incoming>Flow_OtherPayment</bpmn:incoming>
+      <bpmn:outgoing>Task_ConfirmRepair_Flow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_ConfirmRepair" name="Confirm successful repair">
+      <bpmn:incoming>Flow_PaymentConvergence</bpmn:incoming>
+      <bpmn:outgoing>User_GrantPickerl_Flow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_GrantPickerl" name="Grant 'Pickerl'">
+      <bpmn:incoming>Flow_ConfirmRepairSuccess</bpmn:incoming>
+      <bpmn:outgoing>User_NextService_Flow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Manual Task -->
+    <bpmn:userTask id="User_NextService" name="Enter time for next service">
+      <bpmn:incoming>Flow_EnterNextServiceTime</bpmn:incoming>
+      <bpmn:outgoing>End_Complete_Flow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Car Service Complete">
+      <bpmn:incoming>Flow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_CheckRegistration" sourceRef="Start_ReminderTriggered" targetRef="Task_CheckRegistration"/>
+    
+    <bpmn:sequenceFlow id="Flow_NotifyOwner" name="Yes, Registered">
+      <bpmn:name>Car is registered</bpmn:name>
+      <bpmn:sourceRef>Gateway_IsRegistered</bpmn:sourceRef>
+      <bpmn:targetRef>Task_NotifyOwner</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_Wait30Days" name="No, Not Registered">
+      <bpmn:name>Car not registered</bpmn:name>
+      <bpmn:sourceRef>Gateway_IsRegistered</bpmn:sourceRef>
+      <bpmn:targetRef>Timer_ThirtyDays</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_Wait30DaysFine" name="No Visit">
+      <bpmn:name>No visit within 30 days</bpmn:name>
+      <bpmn:sourceRef>Gateway_VisitFacility</bpmn:sourceRef>
+      <bpmn:targetRef>Timer_ThirtyDays</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_SendFine" sourceRef="Timer_ThirtyDays" targetRef="Task_SendFine"/>
+    
+    <!-- End Event for Fine Path -->
+    <bpmn:endEvent id="End_FineSent">
+      <bpmn:incoming>Flow_SendFine</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_EnterProblems" sourceRef="Gateway_VisitFacility" targetRef="User_EnterProblems"/>
+    
+    <!-- Parallel Start -->
+    <bpmn:sequenceFlow id="Flow_RepairCar" sourceRef="Gateway_ParallelStart" targetRef="User_RepairCar"/>
+    <bpmn:sequenceFlow id="Flow_StatusUpdates" sourceRef="Gateway_ParallelStart" targetRef="Task_StatusUpdates"/>
+
+    <!-- Parallel End -->
+    <bpmn:sequenceFlow id="Flow_ConvergeRepairStatus" name="Convergence">
+      <bpmn:sourceRef>Gateway_ParallelEnd1</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_ParallelConvergence</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Selection -->
+    <bpmn:sequenceFlow id="Task_SelectPayment_Flow" sourceRef="Gateway_ParallelConvergence" targetRef="User_SelectPayment"/>
+    
+    <bpmn:sequenceFlow id="Flow_AppPayment" name="Yes">
+      <bpmn:name>Pay via App</bpmn:name>
+      <bpmn:sourceRef>Gateway_PaymentMethod</bpmn:sourceRef>
+      <bpmn:targetRef>Task_AppPayment</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_OtherPayment" name="No">
+      <bpmn:name>Other Method</bpmn:name>
+      <bpmn:sourceRef>Gateway_PaymentMethod</bpmn:sourceRef>
+      <bpmn:targetRef>User_OtherPayment</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Convergence -->
+    <bpmn:sequenceFlow id="Task_ConfirmRepair_Flow" sourceRef="Gateway_PaymentConvergence" targetRef="User_ConfirmRepair"/>
+    
+    <!-- Final Steps -->
+    <bpmn:sequenceFlow id="User_GrantPickerl_Flow" name="Grant Pickerl">
+      <bpmn:name>Confirm Repair</bpmn:name>
+      <bpmn:sourceRef>User_ConfirmRepair</bpmn:sourceRef>
+      <bpmn:targetRef>User_GrantPickerl</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="User_NextService_Flow" name="Next Service">
+      <bpmn:name>Grant Pickerl</bpmn:name>
+      <bpmn:sourceRef>User_GrantPickerl</bpmn:sourceRef>
+      <bpmn:targetRef>User_NextService</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- End Process -->
+    <bpmn:sequenceFlow id="End_Complete_Flow" sourceRef="User_NextService" targetRef="End_ProcessComplete"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_2k9m3r7z5q1x4p6w8l" targetNamespace="http://bpmn.io/schema/bpmn" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <bpmn:collaboration id="Collab_8v7x6w9z5q1p0r4m">
+    <bpmn:participant name="SO Angebot/Auftrag Process" processRef="Process_SO_Invoice">
+      <bpmn:laneSet>
+        <bpmn:lane id="Lane_SO_Department">
+          <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Gateway_CheckCustomerType</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_SendInvoice</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>StartEvent_ReceiveOrder</bpmn:flowNodeRef>
+        </bpmn:lane>
+      </bpmn:laneSet>
+    </bpmn:participant>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SO_Invoice" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent name="Receive Subsidiary Order" id="StartEvent_ReceiveOrder">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent activities -->
+    <bpmn:parallelGateway id="Gateway_ConcurrentActivities" name="Concurrent Activities">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareGoods</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ShipGoods</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare Goods -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare goods for shipment">
+      <bpmn:incoming>SequenceFlow_PrepareGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsPreparedToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Ship Goods -->
+    <bpmn:task id="Task_ShipGoods" name="Ship goods">
+      <bpmn:incoming>SequenceFlow_ShipGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsShippedToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway to converge concurrent paths -->
+    <bpmn:parallelGateway id="Gateway_GoodsComplete">
+      <bpmn:incoming>SequenceFlow_GoodsPreparedToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCustomerCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway for Customer Type Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckCustomerType" name="Subsidiary &amp; Relationship Not Modeled?">
+      <bpmn:incoming>SequenceFlow_ToCustomerCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesAddressManagement</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoDirectInvoice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Add Parent Company Address (if subsidiary &amp; not modeled) -->
+    <bpmn:task id="Task_AddParentCompanyAddress" name="Add parent company as invoicing address">
+      <bpmn:incoming>SequenceFlow_YesAddressManagement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressAddedToInvoiceCreation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Create Invoice -->
+    <bpmn:task id="Task_CreateInvoice" name="Create invoice">
+      <bpmn:incoming>SequenceFlow_NoDirectInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvoiceCreatedToSend</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Invoice -->
+    <bpmn:task id="Task_SendInvoice" name="Send invoice">
+      <bpmn:incoming>SequenceFlow_InvoiceSentToComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendInvoiceToComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Process Completed" id="EndEvent_ProcessCompleted">
+      <bpmn:incoming>SequenceFlow_SendInvoiceToComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_ReceiveOrder" targetRef="Gateway_ConcurrentActivities" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareGoods" name="Prepare goods for shipment" sourceRef="Gateway_ConcurrentActivities" targetRef="Task_PrepareGoods" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ShipGoods" name="Ship goods" sourceRef="Gateway_ConcurrentActivities" targetRef="Task_ShipGoods" />
+    
+    <!-- Convergence of parallel paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsPreparedToGateway" sourceRef="Task_PrepareGoods" targetRef="Gateway_GoodsComplete" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsShippedToGateway" sourceRef="Task_ShipGoods" targetRef="Gateway_GoodsComplete" />
+
+    <!-- Gateway to Customer Type Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToCustomerCheck" name="" sourceRef="Gateway_GoodsComplete" targetRef="Gateway_CheckCustomerType" />
+
+    <!-- Address Management Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesAddressManagement" name="yes - subsidiary &amp; not modeled" sourceRef="Gateway_CheckCustomerType" targetRef="Task_AddParentCompanyAddress" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AddressAddedToInvoiceCreation" sourceRef="Task_AddParentCompanyAddress" targetRef="Task_CreateInvoice" />
+
+    <!-- Direct Invoice Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoDirectInvoice" name="no - independent or already modeled" sourceRef="Gateway_CheckCustomerType" targetRef="Task_CreateInvoice" />
+
+    <!-- Send Invoice and Complete -->
+    <bpmn:sequenceFlow id="SequenceFlow_InvoiceCreatedToSend" sourceRef="Task_CreateInvoice" targetRef="Task_SendInvoice" />
+    
+  </bpmn:process>
+</bpmn:definitions>

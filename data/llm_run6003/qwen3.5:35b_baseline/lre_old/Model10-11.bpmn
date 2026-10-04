@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO" />
+    <bpmn:participant id="Participant_MSP" name="MSP" processRef="Process_MSP" />
+    <bpmn:participant id="Participant_SP" name="SP" processRef="Process_SP" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Message_GO_to_MSP_Request" sourceRef="Task_GO_RequestMeasurements" targetRef="Event_MSP_ReceiveRequest" />
+    <bpmn:messageFlow id="Message_MSP_to_GO_Failure" sourceRef="Task_MSP_InformFailure" targetRef="Event_GO_CatchFailure" />
+    <bpmn:messageFlow id="Message_MSP_to_GO_Success" sourceRef="Task_MSP_TransmitValues" targetRef="Event_GO_CatchSuccess" />
+    <bpmn:messageFlow id="Message_GO_to_MSP_Changed" sourceRef="Task_GO_SendChangedValues" targetRef="Event_MSP_ReceiveChanges" />
+    <bpmn:messageFlow id="Message_GO_to_SP_Readings" sourceRef="Task_GO_TransmitReadingsToSP" targetRef="Event_SP_CatchReadings" />
+  </bpmn:collaboration>
+
+  <!-- Process for GO -->
+  <bpmn:process id="Process_GO">
+    <bpmn:startEvent id="StartEvent_GO_RequestMeasurements" name="Request Measurements">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GO_RequestMeasurements" name="GO requests measurements of MSP">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToMessage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Catch Failure Response -->
+    <bpmn:intermediateCatchEvent id="Event_GO_CatchFailure" name="Receive MSP Failure">
+      <bpmn:incoming>SequenceFlow_FailurePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndDenied</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Catch Success Response -->
+    <bpmn:intermediateCatchEvent id="Event_GO_CatchSuccess" name="Receive Measured Values">
+      <bpmn:incoming>SequenceFlow_SuccessPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Process Task -->
+    <bpmn:task id="Task_GO_ProcessValues" name="Process measured values">
+      <bpmn:incoming>SequenceFlow_ProcessTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendChanged</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Changed Task -->
+    <bpmn:task id="Task_GO_SendChangedValues" name="Send changed values to MSP">
+      <bpmn:incoming>SequenceFlow_SendChanged</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TransmitReadings</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Transmit Readings Task -->
+    <bpmn:task id="Task_GO_TransmitReadingsToSP" name="Transmit readings to SP">
+      <bpmn:incoming>SequenceFlow_TransmitReadings</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_GO_Denied" name="Request Denied">
+      <bpmn:incoming>SequenceFlow_EndDenied</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_GO_Complete" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_EndDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows GO -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="StartEvent_GO_RequestMeasurements" targetRef="Task_GO_RequestMeasurements" />
+    
+    <!-- Logic for receiving messages from MSP (Merged logic via Gateway) -->
+    <!-- Note: In strict BPMN, separate message events are better. Simplified here to one catch event triggering gateway or split paths. 
+         To ensure valid flow based on text "Inform about failure OR transmit values": 
+         We will model two distinct intermediate catching events for clarity in the process logic below. -->
+    <!-- Re-structuring GO Process Logic for Validity: Two separate Catch Events triggered by different Message Flows from MSP -->
+
+  </bpmn:process>
+
+  <bpmn:process id="Process_MSP">
+    <bpmn:startEvent id="StartEvent_MSP" name="Request Received (Implicit)">
+      <!-- Start event is technically not needed if we rely on message flow to trigger, but for valid process structure -->
+       <bpmn:outgoing>SequenceFlow_StartToReceive</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="Event_MSP_ReceiveRequest" name="Receive Request">
+      <!-- Connected via Collaboration -->
+       <bpmn:incoming>Message_GO_to_MSP_Request</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_CheckTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MSP_CheckRequest" name="Check received request">
+      <bpmn:incoming>SequenceFlow_CheckTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DenialDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MSP_Decision" name="Deny or Measure?">
+      <bpmn:incoming>SequenceFlow_DenialDecision</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TaskInformFailurePath1</bpmn:outgoing> <!-- Deny -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_MSP_InformFailure" name="Inform GO about failure">
+      <bpmn:incoming>SequenceFlow_TaskInformFailurePath1</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndMSP_Denied</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 2 (Measure Path) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MSP_Result" name="Reading Success?">
+      <bpmn:incoming>SequenceFlow_PerformMeasurement</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TaskInformFailurePath2</bpmn:outgoing> <!-- Failure -->
+    </bpmn:exclusiveGateway>
+
+     <bpmn:task id="Task_MSP_InformFailureResult" name="Inform GO about failure">
+      <bpmn:incoming>SequenceFlow_TaskInformFailurePath2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndMSP_Failed</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Measure Task -->
+    <bpmn:task id="Task_MSP_PerformMeasurement" name="Perform measurement">
+      <bpmn:incoming>SequenceFlow_DenialDecisionNo</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_ResultGateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Transmit Values Task -->
+    <bpmn:task id="Task_MSP_TransmitValues" name="Transmit measured values to GO">
+      <bpmn:incoming>SequenceFlow_SuccessPathMSP</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndMSP_Sent</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Receive Changed Values -->
+    <bpmn:intermediateCatchEvent id="Event_MSP_ReceiveChanges" name="Receive Changed Values">
+      <bpmn:incoming>Message_GO_to_MSP_Changed</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EndMSP_Acknowledged</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_MSP_Denied" name="Request Denied">
+      <bpmn:incoming>SequenceFlow_EndMSP_Denied</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_MSP_Failed" name="Measurement Failed">
+       <bpmn:incoming>SequenceFlow_EndMSP_Failed</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:endEvent id="EndEvent_MPS_Sent" name="Values Sent">
+        <bpmn:incoming>SequenceFlow_SuccessPathMSP</bpmn:incoming> <!-- Correction below -->
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_MSP_Acknowledged" name="Changes Received">
+       <bpmn:incoming>SequenceFlow_EndMSP_Acknowledged</bpmn:outgoing> 
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows MSP -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReceive" sourceRef="StartEvent_MSP" targetRef="Event_MSP_ReceiveRequest" />
+    
+    <!-- Logic Fix for Gateway 1 Outgoing to Measure Task -->
+    <bpmn:exclusiveGateway name="Deny or Measure?" id="ExclusiveGateway_Denial">
+      <bpmn:incoming>SequenceFlow_CheckTask</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TaskInformFailurePath1</bpmn:outgoing> <!-- Deny -->
+    </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DenialDecision" sourceRef="Task_MSP_CheckRequest" targetRef="ExclusiveGateway_Denial" />
+     
+     <bpmn:sequenceFlow id="SequenceFlow_TaskInformFailurePath1" name="Deny Request" sourceRef="ExclusiveGateway_Denial" targetRef="Task_MSP_InformFailure" />
+
+    <!-- Measure Path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Result">
+      <bpmn:incoming>SequenceFlow_PerformMeasurement</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TaskInformFailurePath2</bpmn:outgoing> <!-- Failure -->
+    </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DenialDecisionNo" name="Perform Measurement" sourceRef="ExclusiveGateway_Denial" targetRef="Task_MSP_PerformMeasurement" />
+     
+     <bpmn:task id="Task_MSP_PerformMeasurement">
+       <bpmn:name>Perform measurement</bpmn:name>
+        <bpmn:incoming>SequenceFlow_DenialDecisionNo</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_ResultGateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Result Path -->
+     <bpmn:exclusiveGateway name="Reading Success?" id="ExclusiveGateway_Success">
+       <bpmn:incoming>SequenceFlow_PerformMeasurementResult</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_TaskInformFailurePath2</bpmn:outgoing> <!-- Failure -->
+    </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_SuccessPathMSP" name="Success - Transmit Values" sourceRef="ExclusiveGateway_Result" targetRef="Task_MSP_TransmitValues" />
+     
+     <bpmn:task id="Task_MSP_InformFailureResult">
+       <bpmn:name>Inform GO about failure</bpmn:name>
+        <bpmn:incoming>SequenceFlow_TaskInformFailurePath2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_EndMSP_Failed</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Corrected Flow for Result Gateway -->
+     <bpmn:sequenceFlow id="SequenceFlow_ResultGateway" sourceRef="Task_MSP_PerformMeasurement" targetRef="ExclusiveGateway_Success" /> 
+
+  </bpmn:process>
+
+   <bpmn:process id="Process_SP">
+    <bpmn:startEvent id="StartEvent_SP" name="Readings Received (Implicit)">
+      <bpmn:outgoing>SequenceFlow_StartToReceive</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <bpmn:intermediateCatchEvent id="Event_SP_CatchReadings" name="Receive Readings">
+       <bpmn:incoming>Message_GO_to_SP_Readings</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_EndSP_Done</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <bpmn:endEvent id="EndEvent_SP_Complete" name="Readings Processed">
+       <bpmn:incoming>SequenceFlow_EndSP_Done</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows SP -->
+     <bpmn:sequenceFlow id="SequenceFlow_StartToReceive" sourceRef="StartEvent_SP" targetRef="Event_SP_CatchReadings" />
+  </bpmn:process>
+
+</bpmn:definitions>

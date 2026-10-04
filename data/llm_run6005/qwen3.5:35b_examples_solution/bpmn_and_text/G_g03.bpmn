@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CharacterCreation_1">
+  <bpmn:collaboration>
+    <bpmn:participant id="Participant_BlizzardSystem" name="Blizzard Online Character Generator Service" processRef="Process_ProcessExecution"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ProcessExecution" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NewCharacterWanted" name="New WoW character wanted">
+      <bpmn:outgoing>SequenceFlow_CheckAccountExistence</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task: Check Battle.net Account -->
+    <bpmn:serviceTask id="ServiceTask_CheckBattleNet" name="Check existence of battle.net account">
+      <bpmn:incoming>SequenceFlow_CheckAccountExistence</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_AccountExists</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Account Exists? -->
+    <bpmn:exclusiveGateway id="Gateway_AccountExists" name="battle.net account exists?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_Gateway_AccountExists</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateAccount_No</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckSubscription_Yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Create Account (No) -->
+    <bpmn:userTask id="UserTask_CreateAccount" name="Create new battle.net account">
+      <bpmn:incoming>SequenceFlow_CreateAccount_No</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveEmailLink</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Receive Email -->
+    <bpmn:serviceTask id="ServiceTask_ReceiveEmail" name="Receive email with confirmation link">
+      <bpmn:incoming>SequenceFlow_ReceiveEmailLink</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmAccount</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- User Task: Confirm Account -->
+    <bpmn:userTask id="UserTask_ConfirmAccount" name="Confirm account information via email link">
+      <bpmn:incoming>SequenceFlow_ConfirmAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSubscription_MergeNo</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Check Subscription -->
+    <bpmn:serviceTask id="ServiceTask_CheckSub" name="Check WoW subscription">
+      <bpmn:incoming>SequenceFlow_CheckSubscription_Yes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_SubscriptionActive</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Subscription Active? -->
+    <bpmn:exclusiveGateway id="Gateway_SubscriptionActive" name="Subscription present?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_Gateway_SubscriptionActive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectPayment_NoSub</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LogIn_YesSub</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Payment Selection (No Sub) -->
+    <bpmn:userTask id="UserTask_SelectPayment" name="Select payment method">
+      <bpmn:incoming>SequenceFlow_SelectPayment_NoSub</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_PaymentMethod</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway: Payment Method -->
+    <bpmn:exclusiveGateway id="Gateway_PaymentMethod" name="Payment Method?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_Gateway_PaymentMethod</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterCreditCard_Credit</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EnterBankAccount_Bank</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Credit Card -->
+    <bpmn:userTask id="UserTask_CreditCard" name="Enter credit card information">
+      <bpmn:incoming>SequenceFlow_EnterCreditCard_Credit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentMerge_CC</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path: Bank Account -->
+    <bpmn:userTask id="UserTask_BankAccount" name="Enter bank account information">
+      <bpmn:incoming>SequenceFlow_EnterBankAccount_Bank</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentMerge_Bank</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Payment Paths -->
+    <bpmn:exclusiveGateway id="Gateway_MergePayment" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_PaymentMerge_CC</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PaymentMerge_Bank</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogIn_MergePayment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Merge Account Setup Paths -->
+    <bpmn:exclusiveGateway id="Gateway_MergeAccount" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_CheckSubscription_Yes</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ConfirmAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogIn_MergeAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Merge Payment and Account Paths before Login -->
+    <bpmn:exclusiveGateway id="Gateway_MergeAll" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_LogIn_YesSub</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_LogIn_MergePayment</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_LogIn_MergeAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoginGame</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Service Task: Log In -->
+    <bpmn:userTask id="UserTask_LogIn" name="Log into game">
+      <bpmn:incoming>SequenceFlow_LoginGame</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelSplitSelections</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_ParallelSplitSelections</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectRealm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelectRace</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelectClass</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Parallel Tasks -->
+    <bpmn:userTask id="UserTask_Realm" name="Select realm of your character">
+      <bpmn:incoming>SequenceFlow_SelectRealm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelMergeSelections</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_Race" name="Select race of your character">
+      <bpmn:incoming>SequenceFlow_SelectRace</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelMergeSelections</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_Class" name="Select class of your character">
+      <bpmn:incoming>SequenceFlow_SelectClass</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelMergeSelections</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="ParallelGateway_Merge" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_ParallelMergeSelections</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterNameLoopStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Loop for Character Name -->
+    <bpmn:userTask id="UserTask_EnterName" name="Enter character name">
+      <bpmn:incoming>SequenceFlow_EnterNameLoopStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckNameAvailability</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Check Name -->
+    <bpmn:serviceTask id="ServiceTask_CheckName" name="Check availability of character name">
+      <bpmn:incoming>SequenceFlow_CheckNameAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_NameAvailable</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Name Available? -->
+    <bpmn:exclusiveGateway id="Gateway_NameAvailable" name="Character name available?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_Gateway_NameAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterNameLoop_No</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Confirmation_Yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back -->
+    <bpmn:userTask id="UserTask_Confirmation" name="Receive confirmation and character selfies">
+      <bpmn:incoming>SequenceFlow_Confirmation_Yes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCharacterCreated</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_CharacterCreated" name="Character created">
+      <bpmn:incoming>SequenceFlow_EndCharacterCreated</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAccountExistence" sourceRef="StartEvent_NewCharacterWanted" targetRef="ServiceTask_CheckBattleNet"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Gateway_AccountExists" name="" sourceRef="Gateway_AccountExists" targetRef="UserTask_CreateAccount">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckSubscription_Yes" name="" sourceRef="Gateway_AccountExists" targetRef="ServiceTask_CheckSub"/>
+    
+    <!-- Merge Account Paths -->
+    <bpmn:exclusiveGateway id="Gateway_MergeAccountLogic" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_ConfirmAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogIn_MergeAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Correcting Logic for Account Merge and Subscription Check Flow -->
+    
+  </bpmn:process>
+</bpmn:definitions>

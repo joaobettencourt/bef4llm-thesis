@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+                 id="Definitions" targetNamespace="http://www.example.com">
+
+   <bpmn:collaboration id="Collaboration">
+     <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+     <bpmn:participant id="Participant_MSP" name="MSP" processRef="Process_MSP"/>
+     <bpmn:messageFlow id="MessageFlow_RequestMeasurements" sourceRef="Task_GO_RequestMeasurements" targetRef="IntermediateCatchEvent_MSP_CheckRequest"/>
+     <bpmn:messageFlow id="MessageFlow_DenyRequest" sourceRef="Task_MSP_DenyRequest" targetRef="StartEvent_GO"/>
+     <bpmn:messageFlow id="MessageFlow_TransmitMeasuredValues" sourceRef="Task_MSP_TransmitMeasuredValues" targetRef="IntermediateCatchEvent_GO_ReceiveMeasuredValues"/>
+   </bpmn:collaboration>
+
+   <bpmn:process id="Process_GO" isExecutable="true">
+     <bpmn:startEvent id="StartEvent_GO" name="Begin Order Process">
+       <bpmn:outgoing>SequenceFlow_RequestMeasurements</bpmn:outgoing>
+     </bpmn:startEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_RequestMeasurements" sourceRef="StartEvent_GO" targetRef="Task_GO_RequestMeasurements"/>
+
+     <bpmn:task id="Task_GO_RequestMeasurements" name="GO requests the measurements of the MSP">
+       <bpmn:incoming>SequenceFlow_RequestMeasurements</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CheckRequestResponse</bpmn:outgoing>
+     </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_CheckRequestResponse" sourceRef="Task_GO_RequestMeasurements" targetRef="IntermediateCatchEvent_GO_ReceiveMSPResponse"/>
+
+     <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_GO_ReceiveMSPResponse" name="MSP response received">
+       <bpmn:incoming>SequenceFlow_CheckRequestResponse</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Decision</bpmn:outgoing>
+     </bpmn:intermediateCatchEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_Decision" sourceRef="IntermediateCatchEvent_GO_ReceiveMSPResponse" targetRef="ExclusiveGateway_GO_Decision"/>
+
+     <bpmn:exclusiveGateway id="ExclusiveGateway_GO_Decision" name="GO decision">
+       <bpmn:incoming>SequenceFlow_Decision</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SendChangedValues</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ProcessMeasuredValues</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_SendChangedValues" sourceRef="ExclusiveGateway_GO_Decision" targetRef="Task_GO_SendChangedValues">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${send changed values}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <bpmn:task id="Task_GO_SendChangedValues" name="GO sends the changed values to MSP">
+       <bpmn:incoming>SequenceFlow_SendChangedValues</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TransmitReadings</bpmn:outgoing>
+     </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_TransmitReadings" sourceRef="Task_GO_SendChangedValues" targetRef="Task_GO_TransmitReadings"/>
+
+     <bpmn:task id="Task_GO_TransmitReadings" name="GO transmits readings to SP">
+       <bpmn:incoming>SequenceFlow_TransmitReadings</bpmn:incoming>
+     </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_ProcessMeasuredValues" sourceRef="ExclusiveGateway_GO_Decision" targetRef="Task_GO_ProcessMeasuredValues">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${process measured values}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <bpmn:task id="Task_GO_ProcessMeasuredValues" name="GO processes the measured values">
+       <bpmn:incoming>SequenceFlow_ProcessMeasuredValues</bpmn:incoming>
+     </bpmn:task>
+
+     <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_GO_ReceiveMeasuredValues" name="MSP transmits measured values to GO">
+       <bpmn:incoming>MessageFlow_TransmitMeasuredValues</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ProcessMeasuredValues</bpmn:outgoing>
+     </bpmn:intermediateCatchEvent>
+
+   </bpmn:process>
+
+   <bpmn:process id="Process_MSP" isExecutable="true">
+
+     <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_MSP_CheckRequest" name="MSP checks received request">
+       <bpmn:incoming>MessageFlow_RequestMeasurements</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Decision</bpmn:outgoing>
+     </bpmn:intermediateCatchEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_Decision" sourceRef="IntermediateCatchEvent_MSP_CheckRequest" targetRef="ExclusiveGateway_MSP_Decision"/>
+
+     <bpmn:exclusiveGateway id="ExclusiveGateway_MSP_Decision" name="MSP decision">
+       <bpmn:incoming>SequenceFlow_Decision</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_DenyRequest</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_PerformMeasurement</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DenyRequest" sourceRef="ExclusiveGateway_MSP_Decision" targetRef="Task_MSP_DenyRequest">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${deny request}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <bpmn:task id="Task_MSP_DenyRequest" name="MSP denies the request of GO">
+       <bpmn:incoming>SequenceFlow_DenyRequest</bpmn:incoming>
+       <bpmn:outgoing>MessageFlow_DenyRequest</bpmn:outgoing>
+     </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PerformMeasurement" sourceRef="ExclusiveGateway_MSP_Decision" targetRef="Task_MSP_PerformMeasurement">
+       <bpmn:conditionExpression xsi:type="tFormalExpression">${perform measurement}</bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+     <bpmn:task id="Task_MSP_PerformMeasurement" name="MSP performs the measurement">
+       <bpmn:incoming>SequenceFlow_PerformMeasurement</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TransmitMeasuredValues</bpmn:outgoing>
+     </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_TransmitMeasuredValues" sourceRef="Task_MSP_PerformMeasurement" targetRef="Task_MSP_TransmitMeasuredValues"/>
+
+     <bpmn:task id="Task_MSP_TransmitMeasuredValues" name="MSP transmits measured values to GO">
+       <bpmn:incoming>SequenceFlow_TransmitMeasuredValues</bpmn:incoming>
+       <bpmn:outgoing>MessageFlow_TransmitMeasuredValues</bpmn:outgoing>
+     </bpmn:task>
+
+   </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_3DPrintProcess">
+  <bpmn:collaboration id="Collab_OrderFulfillment">
+    <bpmn:participant id="Participant_User" name="User / Requester" processRef="Process_PrintingRequest" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_PrintingRequest" isExecutable="false">
+    
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_ShoppingList" name="Shopping List" />
+    <bpmn:dataObjectReference id="Data_STLFile" name="STL File (Artist)" />
+    <bpmn:dataObjectReference id="Data_GCodeFile" name="G-Code File" />
+
+    <!-- LaneSet -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_UserProcess">
+        <bpmn:name>User</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InstructArtist</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Satisfied</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Revisions</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectColor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StockCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderPlastic</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_QtyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddShoppingList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MaterialReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SplitPrint</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HeatPrinter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenerateGCode</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_JoinPrint</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintModel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Complete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Custom Model Needed">
+      <bpmn:outgoing>SequenceFlow_Instruct</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Instruct Artist -->
+    <bpmn:userTask id="Task_InstructArtist" name="Instruct Artist &amp; Send Sketches">
+      <bpmn:incoming>SequenceFlow_Revisions</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SatisfiedCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Satisfied? -->
+    <bpmn:exclusiveGateway id="Gateway_Satisfied" name="Satisfied&#10;with Model?">
+      <bpmn:incoming>SequenceFlow_SatisfiedCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectColorPath</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Revisions (Loop Back) -->
+    <bpmn:userTask id="Task_Revisions" name="Revise Request">
+      <bpmn:incoming>SequenceFlow_NoSatisfied</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InstructArtistBack</bpmn:outgoing> <!-- Loop back -->
+    </bpmn:userTask>
+
+    <!-- Task: Select Color -->
+    <bpmn:userTask id="Task_SelectColor" name="Choose Plastic&#10;Color">
+      <bpmn:incoming>SequenceFlow_SelectColorPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StockCheckPath</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Stock Check -->
+    <bpmn:exclusiveGateway id="Gateway_StockCheck" name="Plastic&#10;In Stock?">
+      <bpmn:incoming>SequenceFlow_StockCheckPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderPath</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Order Plastic (No Stock) -->
+    <bpmn:userTask id="Task_OrderPlastic" name="Order&#10;Plastic">
+      <bpmn:incoming>SequenceFlow_OrderPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MaterialReadyJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Quantity Check (In Stock) -->
+    <bpmn:exclusiveGateway id="Gateway_QtyCheck" name="Quantity&#10;&lt; 100g?">
+      <bpmn:incoming>SequenceFlow_StockYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddListPath</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Add to Shopping List (< 100g) -->
+    <bpmn:userTask id="Task_AddShoppingList" name="Add Color&#10;to Shopping List">
+      <bpmn:incoming>SequenceFlow_AddListPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MaterialReadyJoin2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Material Ready (Parallel Join) -->
+    <bpmn:parallelGateway id="Gateway_MaterialReady" name="Material&#10;Ready">
+      <bpmn:incoming>SequenceFlow_OrderPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AddListPath2</bpmn:incoming> <!-- From Add List -->
+    </bpmn:parallelGateway>
+
+    <!-- Gateway: Split Print (Parallel) -->
+    <bpmn:parallelGateway id="Gateway_SplitPrint" name="Start&#10;Printing">
+      <bpmn:outgoing>SequenceFlow_HeatPrinter</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_MaterialReadyJoin3</bpmn:incoming> <!-- From Material Ready -->
+    </bpmn:parallelGateway>
+
+    <!-- Task: Heat Printer (Status Feedback) -->
+    <bpmn:userTask id="Task_HeatPrinter" name="Turn on &amp;&#10;Heating Bed/Extruder">
+      <bpmn:incoming>SequenceFlow_HeatPrinter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrintJoinPath</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Generate GCode -->
+    <bpmn:userTask id="Task_GenerateGCode" name="Generate&#10;G-Code File">
+      <bpmn:incoming>SequenceFlow_GenPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PrintJoinPath2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Join Print (Parallel) -->
+    <bpmn:parallelGateway id="Gateway_JoinPrint" name="Ready&#10;to Print">
+      <bpmn:incoming>SequenceFlow_PrintJoinPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartPrintingTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Print Model -->
+    <bpmn:userTask id="Task_PrintModel" name="Print&#10;3D Model">
+      <bpmn:incoming>SequenceFlow_StartPrintingTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Complete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Complete" name="Print&#10;Complete">
+      <bpmn:incoming>SequenceFlow_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Instruction Loop -->
+    <bpmn:sequenceFlow id="Seq_Instruct" sourceRef="StartEvent_01" targetRef="Task_InstructArtist" />
+    
+    <bpmn:exclusiveGateway id="Gateway_SatisfiedLoop" name="" hidden="true">
+      <bpmn:incoming>SequenceFlow_Revisions</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoSatisfied</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Corrected flow from Task_InstructArtist to Gateway_Satisfied -->
+    <bpmn:sequenceFlow id="Seq_SatisfiedCheck" name="Yes" sourceRef="Task_InstructArtist" targetRef="Gateway_Satisfied"> 
+      <!-- Wait, need gateway for No path too -->
+    </bpmn:sequenceFlow>
+
+    <!-- Re-writing Sequence Flows block with proper IDs and references -->
+    
+  </bpmn:process>
+</bpmn:definitions>

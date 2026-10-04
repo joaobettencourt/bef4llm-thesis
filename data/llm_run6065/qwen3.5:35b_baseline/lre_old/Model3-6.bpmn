@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ClaimsProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ClaimsProcessing">
+    <bpmn:participant name="Insurance Claims Department" processRef="Proc_ClaimHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimHandling" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ReceiveClaim" name="Receive Claim">
+      <bpmn:outgoing>Seq_CheckInsurance</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Insurance Status -->
+    <bpmn:task id="Task_CheckInsuranceStatus" name="Check Insured Status">
+      <bpmn:incoming>Seq_CheckInsurance</bpmn:incoming>
+      <bpmn:outgoing>Gw_IsInsured</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is the claimant insured? -->
+    <bpmn:exclusiveGateway id="Gw_IsInsured" name="Is Insured?" default="Seq_Reject">
+      <bpmn:incoming>Gw_CheckInsuranceStatus</bpmn:incoming>
+      <bpmn:outgoing>Seq_EvaluateSeverity</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Path No: Rejection -->
+    <bpmn:task id="Task_InformRejection" name="Inform Claimant of Rejection">
+      <bpmn:incoming>Gw_IsInsured</bpmn:incoming>
+      <bpmn:outgoing>Seq_RejectFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_ClaimRejected" name="Claim Rejected">
+      <bpmn:incoming>Gw_IsInsured</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path Yes: Evaluate Severity -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+      <bpmn:incoming>Seq_CheckInsuranceStatus</bpmn:incoming>
+      <bpmn:outgoing>Gw_SeverityType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Simple or Complex? -->
+    <bpmn:exclusiveGateway id="Gw_SeverityType" name="Claim Type">
+      <bpmn:incoming>Gw_EvaluateSeverity</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendFormsSimple</bpmn:outgoing> <!-- Simple -->
+      <bpmn:outgoing>Seq_SendFormsComplex</bpmn:outgoing> <!-- Complex -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Tasks for sending forms (Merged logic) -->
+    <bpmn:task id="Task_SendForms" name="Send Relevant Forms">
+      <bpmn:incoming>Gw_SeverityType</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitInitialForms</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event 1: Wait for Forms Returned (Initial) -->
+    <bpmn:intermediateCatchEvent id="Int_Event_FormsReturned" name="Receive Claimant's Forms">
+      <bpmn:incoming>Gw_SendForms</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckCompletenessIn</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 3: Check Completeness -->
+    <bpmn:task id="Task_CheckCompleteness" name="Check Forms for Completeness">
+      <bpmn:incoming>Gw_SendForms</bpmn:incoming>
+      <bpmn:outgoing>Gw_IsComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Is it complete? -->
+    <bpmn:exclusiveGateway id="Gw_IsComplete" name="Forms Complete?" default="Seq_InformUpdate">
+      <bpmn:incoming>Gw_CheckCompleteness</bpmn:incoming>
+      <bpmn:outgoing>Seq_RegisterClaim</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Path No: Inform Update & Loop Back -->
+    <bpmn:task id="Task_InformUpdate" name="Inform to Update Forms">
+      <bpmn:incoming>Gw_IsComplete</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitUpdatedForms</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event 2: Wait for Updated Forms -->
+    <bpmn:intermediateCatchEvent id="Int_Event_UpdateReceived" name="Receive Updated Forms">
+      <bpmn:incoming>Gw_InformUpdate</bpmn:incoming>
+      <bpmn:outgoing>Seq_LoopBackCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="End_ClaimRegistered" name="Claim Registered">
+      <bpmn:incoming>Gw_RegisterFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task Register Claim (Completes Process) -->
+    <bpmn:task id="Task_RegisterClaim" name="Register in Claims Management System">
+       <bpmn:incoming>Gw_IsComplete</bpmn:incoming>
+      <bpmn:outgoing>Gw_EndRegisteredFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Initial Flow -->
+    <bpmn:sequenceFlow id="Seq_CheckInsurance" sourceRef="Start_ReceiveClaim" targetRef="Task_CheckInsuranceStatus"/>
+    
+    <!-- Rejection Path (Default from Gateway) -->
+    <bpmn:sequenceFlow id="Seq_Reject" name="No" sourceRef="Gw_IsInsured" targetRef="End_ClaimRejected"/>
+    
+    <!-- Severity Evaluation Flow -->
+    <bpmn:sequenceFlow id="Seq_EvaluateSeverity" name="Yes" sourceRef="Gw_IsInsured" targetRef="Task_EvaluateSeverity"/>
+
+    <!-- Send Forms Flows (Split by type) -->
+    <bpmn:sequenceFlow id="Seq_SendFormsSimple" name="Simple Claim" sourceRef="Gw_SeverityType" targetRef="Task_SendForms"/>
+    
+    <bpmn:sequenceFlow id="Seq_SendFormsComplex" name="Complex Claim" sourceRef="Gw_SeverityType" targetRef="Task_SendForms"/>
+
+    <!-- Wait for Initial Forms -->
+    <bpmn:sequenceFlow id="Seq_WaitInitialForms" sourceRef="Task_SendForms" targetRef="Int_Event_FormsReturned"/>
+
+    <!-- Check Completeness Flow -->
+    <bpmn:sequenceFlow id="Seq_CheckCompletenessIn" name="" sourceRef="Int_Event_FormsReturned" targetRef="Task_CheckCompleteness"/>
+
+    <!-- Complete Path (Yes) -->
+    <bpmn:sequenceFlow id="Seq_RegisterClaim" name="Complete" sourceRef="Gw_IsComplete" targetRef="Task_RegisterClaim"/>
+
+    <!-- Incomplete Path (No) -->
+    <bpmn:sequenceFlow id="Seq_InformUpdate" name="Incomplete" sourceRef="Gw_IsComplete" targetRef="Task_InformUpdate"/>
+
+    <!-- Loop Back Flow from Updated Forms Check -->
+    <bpmn:sequenceFlow id="Seq_LoopBackCheck" sourceRef="Int_Event_UpdateReceived" targetRef="Task_CheckCompleteness"/>
+
+  </bpmn:process>
+</bpmn:definitions>

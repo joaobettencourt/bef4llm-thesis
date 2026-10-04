@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_0a9j6w5v4h3k2l7x" targetNamespace="http://bpmn.io/schema/bpmn" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <bpmn:collaboration id="Collab_0v7x8w9z6q1p0r4m">
+    <bpmn:participant name="Credit Company Process" processRef="Process_0c5t3y2l8k6j4h9f"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_0c5t3y2l8k6j4h9f" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent name="Receive Credit Information" id="Start_CreditInfo">
+      <bpmn:outgoing>SequenceFlow_StartToAmountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway - Amount Check (>1M?) -->
+    <bpmn:exclusiveGateway name="Amount &gt; $1M?" id="Gateway_AmountCheck">
+      <bpmn:incoming>SequenceFlow_StartToAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighValueApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowRiskAssessment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Request Approval for High Value -->
+    <bpmn:task name="Request Credit Approval (High Value)" id="Task_Approval_HighValue">
+      <bpmn:incoming>SequenceFlow_HighValueApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeRequests</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Risk Assessment -->
+    <bpmn:task name="Assess Credit Risk" id="Task_AssessRisk">
+      <bpmn:incoming>SequenceFlow_LowRiskAssessment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RiskCheckResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Risk Level Check -->
+    <bpmn:exclusiveGateway name="Risk High?" id="Gateway_CheckRisk">
+      <bpmn:incoming>SequenceFlow_RiskCheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighRiskApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowRiskAcceptance</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Request Approval for High Risk -->
+    <bpmn:task name="Request Credit Approval (High Risk)" id="Task_Approval_HighRisk">
+      <bpmn:incoming>SequenceFlow_HighRiskApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeRequests</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway - Merge Approval Paths -->
+    <bpmn:inclusiveGateway name="Merge Request Paths" id="Join_MergeRequests">
+      <bpmn:incoming>SequenceFlow_MergeRequests</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecisionWait</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task - Accept Credit (Low Risk) -->
+    <bpmn:task name="Accept Credit" id="Task_LowRiskAccept">
+      <bpmn:incoming>SequenceFlow_LowRiskAcceptance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEmailAccepted</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Approval Decision Result -->
+    <bpmn:exclusiveGateway name="Approval Accepted?" id="Gateway_DecidedResult">
+      <bpmn:incoming>SequenceFlow_ToDecisionWait</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEmailRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Send Email Notification -->
+    <bpmn:task name="Send Email to Customer" id="Task_SendEmail">
+      <bpmn:incoming>SequenceFlow_SendEmailAccepted</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEmailRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Process Complete" id="EndEvent_Complete">
+      <bpmn:incoming>SequenceFlow_SendEmailRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAmountCheck" sourceRef="Start_CreditInfo" targetRef="Gateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow name="Yes (High Value)" id="SequenceFlow_HighValueApproval" sourceRef="Gateway_AmountCheck" targetRef="Task_Approval_HighValue">
+      <bpmn:conditionExpression>amount &gt; 1000000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow name="No (Low Value)" id="SequenceFlow_LowRiskAssessment" sourceRef="Gateway_AmountCheck" targetRef="Task_AssessRisk">
+      <bpmn:conditionExpression>amount &lt;= 1000000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RiskCheckResult" sourceRef="Task_AssessRisk" targetRef="Gateway_CheckRisk"/>
+
+    <bpmn:sequenceFlow name="High Risk - Request Approval" id="SequenceFlow_HighRiskApproval" sourceRef="Gateway_CheckRisk" targetRef="Task_Approval_HighRisk">
+      <bpmn:conditionExpression>risk = high</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow name="Low Risk - Accept Credit" id="SequenceFlow_LowRiskAcceptance" sourceRef="Gateway_CheckRisk" targetRef="Task_LowRiskAccept">
+      <bpmn:conditionExpression>risk = low</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge flows from both approval request tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeRequests" sourceRef="Task_Approval_HighValue" targetRef="Join_MergeRequests"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergeRequests2" sourceRef="Task_Approval_HighRisk" targetRef="Join_MergeRequests"/>
+
+    <!-- Flow from merge to decision gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToDecisionWait" sourceRef="Join_MergeRequests" targetRef="Gateway_DecidedResult"/>
+
+    <!-- Low Risk Accept flow to Email -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmailAccepted" sourceRef="Task_LowRiskAccept" targetRef="Task_SendEmail"/>
+
+    <!-- Decision Result flows (Simulated) -->
+    <bpmn:sequenceFlow name="Rejected - Send Email" id="SequenceFlow_SendEmailRejected" sourceRef="Gateway_DecidedResult" targetRef="EndEvent_Complete">
+      <bpmn:conditionExpression>result = rejected</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

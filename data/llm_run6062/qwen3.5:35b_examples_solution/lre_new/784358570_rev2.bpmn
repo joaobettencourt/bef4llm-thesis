@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderDeliveryProcess">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_EshopStaff" name="E-shop Staff" processRef="Proc_EshopOrders"/>
+    <bpmn:participant id="Pool_CourierCompany" name="Courier Company" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_EshopOrders" isExecutable="false">
+    <bpmn:startEvent id="Start_1" name="Review order">
+      <bpmn:outgoing>Flow_Start_CheckProducts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_EshopStaff" name="E-shop Staff">
+        <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AvailabilityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderMissingItems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntEvent_WaitDelivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckAgainProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecollectItems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreparePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Main flow elements -->
+    
+    <bpmn:userTask id="Task_CheckProducts" name="Check if all items available">
+      <bpmn:incoming>Flow_Start_CheckProducts</bpmn:incoming>
+      <bpmn:outgoing>Flow_AvailabilityDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gw_AvailabilityCheck" name="Items available?">
+      <bpmn:incoming>Flow_AvailabilityDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_ProductsOK</bpmn:outgoing>
+      <bpmn:outgoing>Seq_MissingProducts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Missing products path -->
+    
+    <bpmn:userTask id="Task_InformDelay" name="Inform customer about potential delay">
+      <bpmn:incoming>Flow_AvailabilityDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_OrderMissingItems</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_OrderMissingItems" name="Order missing products from supplier">
+      <bpmn:incoming>Flow_AvailabilityDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitDelivery</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary event for discontinued items -->
+    
+    <bpmn:boundaryEvent id="Boundary_Discontinued" attachedToRef="Task_OrderMissingItems">
+      <bpmn:errorEventDefinition />
+      <bpmn:outgoing>Seq_InformUnavailable</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Wait for delivery -->
+    
+    <bpmn:intermediateThrowEvent id="IntEvent_WaitDelivery" name="Wait x days - supplier delivery">
+      <bpmn:incoming>Seq_WaitDelivery</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckAgainProducts</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Second check -->
+    
+    <bpmn:userTask id="Task_RecollectItems" name="Recollect all products">
+      <bpmn:incoming>Seq_ProductsOK</bpmn:incoming>
+      <bpmn:outgoing>Flow_PreparePackage</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Package preparation -->
+    
+    <bpmn:userTask id="Task_PreparePackage" name="Prepare package">
+      <bpmn:incoming>Seq_ProductsOK</bpmn:incoming>
+      <bpmn:outgoing>Flow_InformCourier</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End event -->
+    
+    <bpmn:endEvent id="End_EshopProcess" name="E-shop process complete">
+      <bpmn:incoming>Seq_CourierNotificationSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Courier company process -->
+  
+  <bpmn:process id="Proc_CourierDelivery" isExecutable="false">
+    
+    <bpmn:startEvent id="StartCourier_1" name="Receive package notification">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Flow_CheckResources</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Resource check -->
+    
+    <bpmn:userTask id="Courier_TaskCheckResources" name="Ensure enough human resources">
+      <bpmn:incoming>Courier_FlowStart</bpmn:incoming>
+      <bpmn:outgoing>Courier_Gw_EnoughDrivers</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Driver availability gateway -->
+    
+    <bpmn:exclusiveGateway id="Courier_Gw_EnoughDrivers" name="Enough drivers?">
+      <bpmn:incoming>Courier_FlowCheckResources</bpmn:incoming>
+      <bpmn:outgoing>Courier_SeqYes</bpmn:outgoing>
+      <bpmn:outgoing>Courier_SeqNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Delay notification -->
+    
+    <bpmn:userTask id="Courier_TaskInformDelay" name="Inform client about potential delay">
+      <bpmn:incoming>Courie_FlowNotEnoughDrivers</bpmn:incoming>
+      <bpmn:outgoing>Courier_IntWaitDriver</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for driver -->
+    
+    <bpmn:intermediateThrowEvent id="Courier_IntWaitDriver" name="Wait for free driver">
+      <bpmn:incoming>Courie_FlowInformDelay</bpmn:incoming>
+      <bpmn:outgoing>Courier_SeqPickupPackage</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Package pickup -->
+    
+    <bpmn:userTask id="Courier_TaskPickup" name="Pick up package by driver">
+      <bpmn:incoming>Courier_FlowWaitDriver</bpmn:incoming>
+      <bpmn:outgoing>Courie_SeqRouteDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Route decision -->
+    
+    <bpmn:serviceTask id="Courier_TaskRoute" name="Decide best delivery route">
+      <bpmn:incoming>Courier_FlowPickupComplete</bpmn:incoming>
+      <bpmn:outgoing>Courie_SeqDeliverPackage</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Delivery -->
+    
+    <bpmn:userTask id="Courier_TaskDelivery" name="Deliver package to customer">
+      <bpmn:incoming>Courier_FlowRouteDecision</bpmn:incoming>
+      <bpmn:outgoing>Courie_SeqUpdateSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- System update -->
+    
+    <bpmn:endEvent id="End_CourierProcess" name="Delivery complete">
+      <bpmn:incoming>Courier_FlowUpdateComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Message flows between pools -->
+  
+  <bpmn:messageFlow id="Message_1" sourceRef="Task_PreparePackage" targetRef="StartCourier_1">
+    <bpmn:name>Courier notified about package</bpmn:name>
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

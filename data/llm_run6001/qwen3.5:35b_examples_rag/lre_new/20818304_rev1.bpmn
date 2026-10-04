@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CreditApproval">
+    <bpmn:participant id="Participant_CreditCompany" name="Credit Company" processRef="Process_CreditApplication" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CreditApplication" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service">
+        <bpmn:flowNodeRef>StartEvent_ReceiveInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssessRisk</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_RiskAssessment" name="Risk Assessment">
+        <bpmn:flowNodeRef>Gateway_CheckAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AssessResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Approval" name="Approval Team">
+        <bpmn:flowNodeRef>Task_RequestApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_CustomerCommunication" name="Customer Communication">
+        <bpmn:flowNodeRef>Task_SendEmailAccepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendEmailRejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveInfo" name="Receive credit information">
+      <bpmn:outgoing>SequenceFlow_StartToAmountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Check Amount -->
+    <bpmn:exclusiveGateway id="Gateway_CheckAmount" name="Is amount &gt; $1M?">
+      <bpmn:incoming>SequenceFlow_StartToAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountHighApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AmountLowRiskAssess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Assess Risk -->
+    <bpmn:userTask id="Task_AssessRisk" name="Assess credit risk">
+      <bpmn:incoming>SequenceFlow_AmountLowRiskAssess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RiskToGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Risk Assessment Result -->
+    <bpmn:exclusiveGateway id="Gateway_AssessResult" name="Risk level?">
+      <bpmn:incoming>SequenceFlow_RiskToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighRiskApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowRiskAcceptEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Request Approval -->
+    <bpmn:userTask id="Task_RequestApproval" name="Request approval">
+      <bpmn:incoming>SequenceFlow_AmountHighApproval</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_HighRiskApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalToDecisionGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 3: Approval Decision -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionResult" name="Approval decision?">
+      <bpmn:incoming>SequenceFlow_ApprovalToDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AcceptedEmail</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectedEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Email Accepted -->
+    <bpmn:userTask id="Task_SendEmailAccepted" name="Send email - Credit accepted">
+      <bpmn:incoming>SequenceFlow_AcceptedEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EmailToEndEvent1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Send Email Rejected -->
+    <bpmn:userTask id="Task_SendEmailRejected" name="Send email - Credit rejected">
+      <bpmn:incoming>SequenceFlow_RejectedEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EmailToEndEvent2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Accepted" name="Credit accepted">
+      <bpmn:incoming>SequenceFlow_LowRiskAcceptEmail</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_EmailToEndEvent1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Credit rejected">
+      <bpmn:incoming>SequenceFlow_EmailToEndEvent2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAmountCheck" sourceRef="StartEvent_ReceiveInfo" targetRef="Gateway_CheckAmount">
+      <bpmn:description>Credit information received from customer</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount > $1M path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AmountHighApproval" name="Yes - &gt; $1M" sourceRef="Gateway_CheckAmount" targetRef="Task_RequestApproval">
+      <bpmn:description>Request approval needed for large amounts</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount ≤ $1M path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AmountLowRiskAssess" name="No - &lt;= $1M" sourceRef="Gateway_CheckAmount" targetRef="Task_AssessRisk">
+      <bpmn:description>Proceed to risk assessment</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Risk Assessment result -->
+    <bpmn:sequenceFlow id="SequenceFlow_RiskToGateway" sourceRef="Task_AssessRisk" targetRef="Gateway_AssessResult">
+      <bpmn:description>Risk assessment completed</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- High Risk path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighRiskApproval" name="High risk" sourceRef="Gateway_AssessResult" targetRef="Task_RequestApproval">
+      <bpmn:description>Risk too high, requires approval</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Risk path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LowRiskAcceptEmail" name="Low risk - Accept directly" sourceRef="Gateway_AssessResult" targetRef="EndEvent_Accepted">
+      <bpmn:description>Credit accepted without approval</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Approval to Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalToDecisionGateway" sourceRef="Task_RequestApproval" targetRef="Gateway_DecisionResult">
+      <bpmn:description>Waiting for approval decision</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Accepted path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AcceptedEmail" name="Approved" sourceRef="Gateway_DecisionResult" targetRef="Task_SendEmailAccepted">
+      <bpmn:description>Credit approved after review</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejected path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedEmail" name="Rejected" sourceRef="Gateway_DecisionResult" targetRef="Task_SendEmailRejected">
+      <bpmn:description>Credit application rejected</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Email to End Events -->
+    <bpmn:sequenceFlow id="SequenceFlow_EmailToEndEvent1" sourceRef="Task_SendEmailAccepted" targetRef="EndEvent_Accepted">
+      <bpmn:description>Email notification sent</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EmailToEndEvent2" sourceRef="Task_SendEmailRejected" targetRef="EndEvent_Rejected">
+      <bpmn:description>Email notification sent</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

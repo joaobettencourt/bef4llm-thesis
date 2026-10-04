@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_StorageManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="Process_StorageManagement" isExecutable="false">
+    <laneSet>
+      <lane id="Lane_OrderProcessing" name="Order Processing System">
+        <flowNodeRef>StartEvent_ReadOrder</flowNodeRef>
+        <flowNodeRef>Task_CheckStockAvailability</flowNodeRef>
+        <flowNodeRef>Gateway_ProductInStock</flowNodeRef>
+        <flowNodeRef>Task_RegisterProduct</flowNodeRef>
+        <flowNodeRef>Gateway_OrderReadyForShipment</flowNodeRef>
+      </lane>
+      <lane id="Lane_Warehouse" name="Warehouse Management">
+        <flowNodeRef>Task_WithdrawFromStock</flowNodeRef>
+        <flowNodeRef>EndEvent_ProductPackedAndShipped</flowNodeRef>
+      </lane>
+      <lane id="Lane_Logistics" name="Logistics &amp; Procurement">
+        <flowNodeRef>Task_ReorderProduct</flowNodeRef>
+        <flowNodeRef>Gateway_DelayPenaltyCheck</flowNodeRef>
+        <flowNodeRef>EndEvent_PenaltyDemanded</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event: Order read from system -->
+    <startEvent id="StartEvent_ReadOrder" name="Read order">
+      <outgoing>SequenceFlow_CheckStockAvailability</outgoing>
+    </startEvent>
+
+    <!-- Task 1: Check if first product is in stock -->
+    <task id="Task_CheckStockAvailability" name="Check if first product from order is in stock">
+      <incoming>SequenceFlow_CheckStockAvailability</incoming>
+      <outgoing>SequenceFlow_ProductInStockDecision</outgoing>
+    </task>
+
+    <!-- Gateway: Product In Stock Decision -->
+    <exclusiveGateway id="Gateway_ProductInStock" name="Product&#10;in stock?">
+      <bpmn:name>Product in stock?</bpmn:name>
+      <incoming>SequenceFlow_ProductInStockDecision</incoming>
+      <outgoing>SequenceFlow_WithdrawFromWarehouse</outgoing>
+      <outgoing>SequenceFlow_ReorderProduct</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task 2: Withdraw from warehouse (if in stock) -->
+    <task id="Task_WithdrawFromStock" name="Withdraw product&#10;from warehouse">
+      <incoming>SequenceFlow_WithdrawFromWarehouse</incoming>
+      <outgoing>SequenceFlow_RegisterProduct</outgoing>
+    </task>
+
+    <!-- Task 3: Reorder from wholesaler (if not in stock) -->
+    <task id="Task_ReorderProduct" name="Reorder product&#10;from wholesaler">
+      <incoming>SequenceFlow_ReorderProduct</incoming>
+      <outgoing>SequenceFlow_DelayPenaltyCheckDecision</outgoing>
+    </task>
+
+    <!-- Gateway: Delay Penalty Check (after reorder) -->
+    <exclusiveGateway id="Gateway_DelayPenaltyCheck" name="Wait time&#10;&gt; 10 days?">
+      <bpmn:name>Wait time &gt; 10 days?</bpmn:name>
+      <incoming>SequenceFlow_DelayPenaltyCheckDecision</incoming>
+      <outgoing>SequenceFlow_PenaltyDemanded</outgoing>
+      <outgoing>SequenceFlow_RegisterProductFromReorder</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task 4: Register product in stock management system -->
+    <task id="Task_RegisterProduct" name="Register product&#10;in stock management">
+      <incoming>SequenceFlow_RegisterProduct</incoming>
+      <incoming>SequenceFlow_RegisterProductFromReorder</incoming>
+      <outgoing>SequenceFlow_OrderReadyCheck</outgoing>
+    </task>
+
+    <!-- Gateway: Order Ready for Shipment -->
+    <exclusiveGateway id="Gateway_OrderReadyForShipment" name="Order ready&#10;for shipment?">
+      <bpmn:name>Order ready for shipment?</bpmn:name>
+      <incoming>SequenceFlow_OrderReadyCheck</incoming>
+      <outgoing>SequenceFlow_RequestCourierAndPack</outgoing>
+      <outgoing>SequenceFlow_SelectNextProduct</outgoing>
+    </exclusiveGateway>
+
+    <!-- Parallel Gateway: Request courier AND Pack products -->
+    <parallelGateway id="ParallelRequestCourier" name="">
+      <incoming>SequenceFlow_RequestCourierAndPack</incoming>
+      <outgoing>SequenceFlow_CourierRequested</outgoing>
+      <outgoing>SequenceFlow_PackProducts</outgoing>
+    </parallelGateway>
+
+    <!-- Task 5: Request courier -->
+    <task id="Task_RequestCourier" name="Request&#10;courier">
+      <incoming>SequenceFlow_CourierRequested</incoming>
+      <outgoing>SequenceFlow_ShipProducts</outgoing>
+    </task>
+
+    <!-- Task 6: Pack products (parallel to courier request) -->
+    <task id="Task_PackProducts" name="Pack&#10;products">
+      <incoming>SequenceFlow_PackProducts</incoming>
+      <outgoing>SequenceFlow_ShipProductsParallel</outgoing>
+    </task>
+
+    <!-- Parallel Gateway: Converge courier and packing -->
+    <parallelGateway id="ParallelConverge" name="">
+      <bpmn:name/>
+      <incoming>SequenceFlow_ShipProducts</incoming>
+      <incoming>SequenceFlow_ShipProductsParallel</incoming>
+      <outgoing>SequenceFlow_ProductShipped</outgoing>
+    </parallelGateway>
+
+    <!-- End Event: Product packed and shipped -->
+    <endEvent id="EndEvent_ProductPackedAndShipped" name="Product&#10;shipped">
+      <bpmn:name>Product shipped</bpmn:name>
+      <incoming>SequenceFlow_ProductShipped</incoming>
+    </endEvent>
+
+    <!-- End Event: Penalty demanded -->
+    <endEvent id="EndEvent_PenaltyDemanded" name="Penalty&#10;demanded">
+      <bpmn:name>Penalty demanded</bpmn:name>
+      <incoming>SequenceFlow_PenaltyDemanded</incoming>
+    </endEvent>
+
+    <!-- Task: Select next product (loop back) -->
+    <task id="Task_SelectNextProduct" name="Select&#10;next product">
+      <incoming>SequenceFlow_SelectNextProduct</incoming>
+      <outgoing>SequenceLoop_CheckStockAvailability</outgoing>
+    </task>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_CheckStockAvailability" sourceRef="StartEvent_ReadOrder" targetRef="Task_CheckStockAvailability"/>
+    
+    <sequenceFlow id="SequenceFlow_ProductInStockDecision" name="" sourceRef="Task_CheckStockAvailability" targetRef="Gateway_ProductInStock"/>
+    
+    <sequenceFlow id="SequenceFlow_WithdrawFromWarehouse" name="Yes - In stock" sourceRef="Gateway_ProductInStock" targetRef="Task_WithdrawFromStock">
+      <bpmn:name>Yes</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_ReorderProduct" name="" sourceRef="Gateway_ProductInStock" targetRef="Task_ReorderProduct"/>
+    
+    <sequenceFlow id="SequenceFlow_DelayPenaltyCheckDecision" name="" sourceRef="Task_ReorderProduct" targetRef="Gateway_DelayPenaltyCheck"/>
+
+    <sequenceFlow id="SequenceFlow_PenaltyDemanded" name="Yes - &gt; 10 days" sourceRef="Gateway_DelayPenaltyCheck" targetRef="EndEvent_PenaltyDemanded">
+      <bpmn:name>Yes</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_RegisterProductFromReorder" name="" sourceRef="Gateway_DelayPenaltyCheck" targetRef="Task_RegisterProduct"/>
+    
+    <sequenceFlow id="SequenceFlow_RegisterProduct" name="" sourceRef="Task_WithdrawFromStock" targetRef="Task_RegisterProduct"/>
+    
+    <sequenceFlow id="SequenceFlow_OrderReadyCheck" name="" sourceRef="Task_RegisterProduct" targetRef="Gateway_OrderReadyForShipment"/>
+
+    <sequenceFlow id="SequenceFlow_RequestCourierAndPack" name="" sourceRef="Gateway_OrderReadyForShipment" targetRef="ParallelRequestCourier">
+      <bpmn:name>Yes</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_SelectNextProduct" name="" sourceRef="Gateway_OrderReadyForShipment" targetRef="Task_SelectNextProduct"/>
+    
+    <!-- Loop back to check stock for next product -->
+    <sequenceFlow id="SequenceLoop_CheckStockAvailability" name="" sourceRef="Task_SelectNextProduct" targetRef="Task_CheckStockAvailability">
+      <bpmn:name>Yes - Next product</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Parallel flow: Courier and Packing -->
+    <sequenceFlow id="SequenceFlow_CourierRequested" name="" sourceRef="ParallelRequestCourier" targetRef="Task_RequestCourier"/>
+    
+    <sequenceFlow id="SequenceFlow_PackProducts" name="" sourceRef="ParallelRequestCourier" targetRef="Task_PackProducts"/>
+
+    <!-- Converge parallel flows -->
+    <sequenceFlow id="SequenceFlow_ShipProducts" name="" sourceRef="Task_RequestCourier" targetRef="ParallelConverge"/>
+    
+    <sequenceFlow id="SequenceFlow_ShipProductsParallel" name="" sourceRef="Task_PackProducts" targetRef="ParallelConverge"/>
+
+    <!-- Final shipping -->
+    <sequenceFlow id="SequenceFlow_ProductShipped" name="" sourceRef="ParallelConverge" targetRef="EndEvent_ProductPackedAndShipped">
+      <bpmn:name>Ship</bpmn:name>
+    </sequenceFlow>
+
+  </process>
+</bpmn:definitions>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PaymentProcess">
+    <bpmn:participant id="Participant_SSP" name="SSP Payment System" processRef="Process_Payment"/>
+    <bpmn:messageFlow id="MessageFlow_ClientInvoice" sourceRef="Task_SendToClients" targetRef="Client_External"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Payment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice" name="Payment Office">
+        <bpmn:flowNodeRef>StartEvent_Weekly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenerateReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendToClients</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendToAR</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendToRegistry</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AR" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>Task_GenerateMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChargeClientFee</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry Office">
+        <bpmn:flowNodeRef>Task_SelectPaperInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_PaperCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchivePerVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchivePerPaymentData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrackDownPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Weekly" name="End of every week">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:task id="Task_GenerateReport" name="Generate payment report">
+      <bpmn:incoming>SequenceFlow_StartToReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReportToPayVendor</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PayVendor" name="Pay the vendor">
+      <bpmn:incoming>SequenceFlow_ReportToPayVendor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorPaid_Split</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for distribution -->
+    <bpmn:parallelGateway id="ParallelGateway_Split">
+      <bpmn:incoming>SequenceFlow_VendorPaid_Split</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToClients</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendToAR</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendToRegistry</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Client Communication -->
+    <bpmn:task id="Task_SendToClients" name="Send payment report to clients">
+      <bpmn:incoming>SequenceFlow_SendToClients</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClientsDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- AR Department Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_VendorPaid_Split" sourceRef="Task_PayVendor" targetRef="ParallelGateway_Split"/>
+    
+    <bpmn:task id="Task_SendToAR" name="Send payment report to Accounts Receivable">
+      <bpmn:incoming>SequenceFlow_SendToAR</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ARReceiveReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ARReceiveReport" sourceRef="Task_SendToAR" targetRef="Task_GenerateMonthlyInvoice"/>
+
+    <bpmn:task id="Task_GenerateMonthlyInvoice" name="Generate monthly invoice for clients">
+      <bpmn:incoming>SequenceFlow_ARReceiveReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvoiceToChargeFee</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ChargeClientFee" name="Charge $35 per invoice and notify client">
+      <bpmn:incoming>SequenceFlow_InvoiceToChargeFee</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ARComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToRegistry" sourceRef="ParallelGateway_Split" targetRef="Task_SendToRegistry"/>
+
+    <bpmn:task id="Task_SendToRegistry" name="Send payment report to Registry">
+      <bpmn:incoming>SequenceFlow_SendToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReceiveReport" sourceRef="Task_SendToRegistry" targetRef="Task_SelectPaperInvoices"/>
+
+    <bpmn:task id="Task_SelectPaperInvoices" name="Select paper-based invoices that have been paid">
+      <bpmn:incoming>SequenceFlow_ReceiveReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaperCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway for paper-based invoices -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PaperCheck" name="Paper-based invoice?">
+      <bpmn:incoming>SequenceFlow_PaperCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArchiveVendorPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TrackPaymentPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Archive Tasks -->
+    <bpmn:task id="Task_ArchivePerVendor" name="Archive invoices per vendor">
+      <bpmn:incoming>SequenceFlow_ArchiveVendorPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorToPaymentData</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Payment Tracking Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrackPaymentPath" sourceRef="ExclusiveGateway_PaperCheck" targetRef="Task_TrackDownPayment"/>
+
+    <bpmn:task id="Task_ArchivePerPaymentData" name="Archive invoices per payment data">
+      <bpmn:incoming>SequenceFlow_VendorToPaymentData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentDataComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ArchiveVendorPath" name="Yes - Archive per vendor" sourceRef="ExclusiveGateway_PaperCheck" targetRef="Task_ArchivePerVendor"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_VendorToPaymentData" sourceRef="Task_ArchivePerVendor" targetRef="Task_ArchivePerPaymentData"/>
+    
+    <bpmn:task id="Task_TrackDownPayment" name="Track down the payment">
+      <bpmn:incoming>SequenceFlow_TrackPaymentPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentTrackedComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Clients" name="Clients notified">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ClientsDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_ARComplete" name="AR Process Complete"/>
+    
+    <bpmn:endEvent id="EndEvent_RegistryComplete" name="Payment Tracked">
+      <bpmn:incoming>SequenceFlow_PaymentTrackedComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReport" sourceRef="StartEvent_Weekly" targetRef="Task_GenerateReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReportToPayVendor" sourceRef="Task_GenerateReport" targetRef="Task_PayVendor"/>
+
+    <!-- Parallel Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToClients" name="Send to clients (with invoice)" sourceRef="ParallelGateway_Split" targetRef="Task_SendToClients"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ClientsDone" sourceRef="Task_SendToClients" targetRef="EndEvent_Clients"/>
+
+    <!-- AR Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_InvoiceToChargeFee" name="Generate invoice then charge fee" sourceRef="Task_GenerateMonthlyInvoice" targetRef="Task_ChargeClientFee"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ARComplete" sourceRef="Task_ChargeClientFee" targetRef="EndEvent_ARComplete"/>
+
+    <!-- Registry Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaperCheckDecision" name="Select invoices for processing" sourceRef="Task_SelectPaperInvoices" targetRef="ExclusiveGateway_PaperCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentTrackedComplete" sourceRef="Task_TrackDownPayment" targetRef="EndEvent_RegistryComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

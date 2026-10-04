@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SchufaScoring">
+    <bpmn:participant id="Participant_BankProcess" name="Schufascoring-Prozess (Bank)" processRef="Process_Bank_1" />
+    <bpmn:message id="Message_Level2Result" name="Level-2 Scoringergebnis (verzögert)" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Bank_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ScoringRequest" name="Scoringanfrage erhalten">
+      <bpmn:messageEventDefinition messageRef="Message_Level2Result" />
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- User Task -->
+    <bpmn:userTask id="User_SendRequest" name="Scoringanfrage an Schufa senden">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToWaitL1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event for Level-1 Result -->
+    <bpmn:messageEventDefinition id="MessageDef_Level1" name="Level-1 Ergebnis erhalten">
+      <bpmn:messageRef>Message_Level1Result</bpmn:messageRef>
+    </bpmn:messageEventDefinition>
+
+    <bpmn:intermediateCatchEvent id="Intermediate_WaitForL1" name="Warte auf Level-1 Ergebnis (sofort)">
+      <bpmn:messageEventDefinition messageRef="Message_Level1Result" />
+      <bpmn:outgoing>SequenceFlow_L1Received</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Boundary Event for Delay Notification -->
+    <bpmn:boundaryEvent id="Boundary_DelayNotification" name="Verzögerungsmeldung erhalten">
+      <bpmn:messageEventDefinition messageRef="Message_DelayNotification" />
+      <bpmn:outgoing>SequenceFlow_BoundaryToNotify</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckDelay" name="Verzögerung?">
+      <bpmn:incoming>SequenceFlow_L1Received</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoDelayPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- User Task for Notification -->
+    <bpmn:userTask id="User_NotifySales" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_BoundaryToNotify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotificationSent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- User Task for Other Work -->
+    <bpmn:userTask id="User_DoOtherWork" name="Andere Arbeiten ausführen">
+      <bpmn:incoming>SequenceFlow_NoDelayPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OtherWorkDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event for Level-2 Result -->
+    <bpmn:messageEventDefinition id="MessageDef_Level2" name="Level-2 Ergebnis erhalten">
+      <bpmn:messageRef>Message_Level2Result</bpmn:messageRef>
+    </bpmn:messageEventDefinition>
+
+    <bpmn:intermediateCatchEvent id="Intermediate_WaitForL2" name="Warte auf Level-2 Ergebnis (verzögert)">
+      <bpmn:messageEventDefinition messageRef="Message_Level2Result" />
+      <bpmn:outgoing>SequenceFlow_L2Received</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- User Task for Display Score -->
+    <bpmn:userTask id="User_DisplayScore" name="Scoringergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_ScoreReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShowToSalesman</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessCompleted" name="Scoring abgeschlossen">
+      <bpmn:incoming>SequenceFlow_ScoreReadyL1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_L2Received</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="Start_ScoringRequest" targetRef="User_SendRequest">
+      <bpmn:name>Scoringanfrage senden</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToWaitL1" sourceRef="User_SendRequest" targetRef="Intermediate_WaitForL1">
+      <bpmn:name>Anfrage an Schufa gesendet</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_L1Received" name="Level-1 Ergebnis erhalten (sofort)" sourceRef="Intermediate_WaitForL1" targetRef="ExclusiveGateway_CheckDelay">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${level1ResultAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Boundary Event Flow -->
+    <bpmn:boundaryEvent id="Boundary_DelayNotification" name="Verzögerungsmeldung erhalten">
+      <bpmn:messageEventDefinition messageRef="Message_DelayNotification" />
+      <bpmn:outgoing>SequenceFlow_BoundaryToNotify</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Gateway Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoDelayPath" name="Keine Verzögerung (Level-1)" sourceRef="ExclusiveGateway_CheckDelay" targetRef="User_DisplayScore">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!delayRequired}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Other Work Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_BoundaryToNotify" sourceRef="Boundary_DelayNotification" targetRef="User_NotifySales">
+      <bpmn:name>Verzögerungsmeldung erhalten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Display Score Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ScoreReadyL1" name="Scoring abgeschlossen (Level-1)" sourceRef="User_DisplayScore" targetRef="End_ProcessCompleted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${scoreDisplayed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+</bpmn:definitions>

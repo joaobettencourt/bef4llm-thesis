@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_InvoiceProcess_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Invoice_Process">
+    <bpmn:participant id="Pool_InvoiceProcess" name="Invoice Processing Process" processRef="Proc_InvoiceMain"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_InvoiceMain" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_AccountsPayable">
+      <bpmn:lane id="Lane_FinanceTeam_1" name="Finance Team">
+        <bpmn:flowNodeRef>StartEvent_InvoiceReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LocateVendorSAP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VendorFound</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Subprocess_NewVendorRecord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClassifyInvoiceUrgency</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UrgeCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TimerEvent_24hrWindow</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddSAPNumberToInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SortMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessFinished</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_VendorMaster_2" name="Vendor Master Data">
+        <bpmn:flowNodeRef>Task_FillNewVendorForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AttachRequestToInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PutInInternalOutbox</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_InvoiceReceived" name="Invoice Received">
+        <bpmn:outgoing>SF_Start_LocateVendor</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_LocateVendorSAP" name="Locate Vendor in SAP System">
+      <bpmn:incoming>SF_Start_LocateVendor</bpmn:incoming>
+        <bpmn:outgoing>SF_VendorFoundCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to check if Vendor Found -->
+    <bpmn:exclusiveGateway id="Gateway_VendorFound" name="Vendor in SAP System?">
+      <bpmn:incoming>SF_VendorFoundCheck</bpmn:incoming>
+        <bpmn:outgoing>SF_NewVendorProcessStart</bpmn:outgoing>
+       <bpmn:outgoing>SF_ClassifyInvoiceFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Subprocess for New Vendor Record -->
+      <bpmn:subProcess id="Subprocess_NewVendorRecord" name="New Vendor Record Request">
+        <bpmn:startEvent id="StartEvent_SubProc"/>
+          <bpmn:endEvent id="EndEvent_SubProc"/>
+        
+         <!-- Subprocess Tasks -->
+           <bpmn:task id="Task_FillNewVendorForm" name="Fill out new Vendor Master Record form">
+            <bpmn:incoming>SF_NewVendorProcessStartLink</bpmn:incoming>
+              <bpmn:outgoing>SF_AttachRequestFlow</bpmn:outgoing>
+          </bpmn:task>
+
+           <bpmn:task id="Task_AttachRequestToInvoice" name="Attach request to invoice">
+            <bpmn:incoming>SF_AttachRequestFlow</bpmn:incoming>
+              <bpmn:outgoing>SF_PutInOutboxFlow</bpmn:outgoing>
+          </bpmn:task>
+
+           <bpmn:task id="Task_PutInInternalOutbox" name="Put in internal outbox for new vendors">
+            <bpmn:incoming>SF_PutInOutboxFlow</bpmn:incoming>
+              <bpmn:outgoing>SF_SubProcessEndLink</bpmn:outgoing>
+          </bpmn:task>
+
+           <!-- Timer Events based on urgency --> 
+             <bpmn:startEvent id="StartEvent_24hrTimer" name="Urgent - 24 hr">
+                <bpmn:timerType>bpmn:TimeDuration</bpmn:timerType>
+              </bpmn:startEvent>
+
+            <bpmn:endEvent id="EndEvent_SubProc"/>
+      </bpmn:subProcess>
+
+
+    <!-- Classify Invoice Urgency -->
+     <bpmn:task id="Task_ClassifyInvoiceUrgency" name="Classify as urgent or non-urgent">
+        <bpmn:incoming>SF_VendorFoundCheck</bpmn:outgoing> 
+          <bpmn:incoming>SF_SubProcessEndLink</bpmn:incoming>
+           <bpmn:outgoing>SF_UrgencyDecisionFlow</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Urgency Check -->
+      <bpmn:exclusiveGateway id="Gateway_UrgeCheck" name="Is Invoice Urgent?">
+        <bpmn:incoming>SF_UrgencyDecisionFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_24hrWindowProcess</bpmn:outgoing>
+           <bpmn:outgoing>SF_WorkingDaysProcess</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <!-- Timer Events -->
+       <bpmn:startEvent id="TimerEvent_24hrWindow" name="Urgent - 24 hr window">
+        <bpmn:timerType>bpmn:TimeDuration</bpmn:timerType>
+          <bpmn:outgoing>SF_AddSAPNumberFlow</bpmn:outgoing> 
+      </bpmn:startEvent>
+
+       <bpmn:startEvent id="TimerEvent_WorkingDays" name="Non-urgent - 1-5 working days">
+        <bpmn:timerType>bpmn:TimeDuration</bpmn:timerType>
+          <bpmn:outgoing>SF_AddSAPNumberFlow2</bpmn:outgoing> 
+      </bpmn:startEvent>
+
+    <!-- Add SAP Number to Invoice -->
+     <bpmn:task id="Task_AddSAPNumberToInvoice" name="Add SAP number to invoice">
+        <bpmn:incoming>SF_24hrWindowProcess</bpmn:outgoing> 
+          <bpmn:incoming>SF_WorkingDaysProcess</bpmn:incoming>
+           <bpmn:incoming>SF_AddSAPNumberFlow</bpmn:incoming>
+            <bpmn:incoming>SF_AddSAPNumberFlow2</bpmn:outgoing> 
+          <bpmn:outgoing>SF_SortMethodCheck</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Sort Method -->
+      <bpmn:exclusiveGateway id="Gateway_SortMethod" name="Sort by Amount or Vendor?">
+        <bpmn:incoming>SF_SortMethodCheck</bpmn:incoming>
+          <bpmn:outgoing>SF_EnterSAPAmountFlow</bpmn:outgoing> 
+           <bpmn:outgoing>SF_EnterSAPVendorFlow</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <!-- Final Task -->
+       <bpmn:endEvent id="EndEvent_ProcessFinished" name="Process Finished">
+             <bpmn:incoming>SF_SortAmountToEnterSAP</bpmn:incoming> 
+            <bpmn:incoming>SF_SortVendorToEnterSAP</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+       <bpmn:startEvent id="StartEvent_ProcessFinished" name="Process Finished">
+             <bpmn:outgoing>SF_EnterInSAPSystemAmountFlow</bpmn:incoming> 
+            <bpmn:outgoing>SF_EnterInSAPSystemVendorFlow</bpmn:incoming> <!-- Corrected to incoming -->
+        </bpmn:startEvent>
+
+    <!-- Flows --> 
+
+      <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_LocateVendor" sourceRef="StartEvent_InvoiceReceived" targetRef="Task_LocateVendorSAP"/>
+
+       <!-- To Gateway (Vendor Found Check) -->
+       <bpmn:sequenceFlow id="SF_VendorFoundCheck" name="Locate Vendor Result" sourceRef="Task_LocateVendorSAP" targetRef="Gateway_VendorFound">
+        </bpmn:sequenceFlow>
+
+
+    <!-- New Vendor Process Flow --> 
+      <bpmn:sequenceFlow id="SF_NewVendorProcessStart" name="No - Start Subprocess" sourceRef="Gateway_VendorFound" targetRef="Subprocess_NewVendorRecord"/>
+
+       <!-- After Classification (both paths merge) -->
+        <bpmn:sequenceFlow id="SF_ClassifyInvoiceFlow" name="Yes - Continue Processing" sourceRef="Gateway_VendorFound" targetRef="Task_ClassifyInvoiceUrgency">
+      </bpmn:sequenceFlow>
+
+
+    <!-- Urgency Decision Flows --> 
+       <bpmn:sequenceFlow id="SF_UrgeCheckDecisionNo" name="Non-Urgent" sourceRef="Gateway_UrgeCheck" targetRef="TimerEvent_WorkingDays"/>
+
+        <bpmn:sequenceFlow id="SF_24hrWindowProcess" name="Urgent - 24 hr window" sourceRef="Gateway_UrgeCheck" targetRef="Task_AddSAPNumberToInvoice">
+      </bpmn:sequenceFlow>
+
+
+    <!-- Sort Method Flows --> 
+       <bpmn:sequenceFlow id="SF_SortMethodCheck" name="Sort Invoice" sourceRef="Task_AddSAPNumberToInvoice" targetRef="Gateway_SortMethod"/>
+
+        <bpmn:sequenceFlow id="SF_EnterInSAPSystemAmountFlow" name="By Amount" sourceRef="Gateway_SortMethod" targetRef="EndEvent_ProcessFinished">
+      </bpmn:sequenceFlow>
+
+
+       <!-- Subprocess Internal Flows --> 
+         <bpmn:sequenceFlow id="SF_NewVendorProcessStartLink" sourceRef="Subprocess_StartEvent_Link" targetRef="Task_FillNewVendorForm"/>
+
+           <bpmn:sequenceFlow id="SF_AttachRequestFlow" name="Attach Request" sourceRef="Task_FillNewVendorForm" targetRef="Task_AttachRequestToInvoice">
+      </bpmn:sequenceFlow>
+
+
+         <!-- End Event Link --> 
+          <bpmn:endEvent id="EndEvent_ProcessFinished" name="Process Finished"/>
+
+    <!-- Corrected Sequence Flows for Valid BPMN 2.0 Model --> 
+
+     <bpmn:sequenceFlow id="SF_Start_LocateVendor" sourceRef="StartEvent_InvoiceReceived" targetRef="Task_LocateVendorSAP">
+      </bpmn:sequenceFlow>
+
+
+       <bpmn:sequenceFlow id="SF_VendorFoundCheck" name="Locate Vendor Result" sourceRef="Task_LocateVendorSAP" targetRef="Gateway_VendorFound"/>
+
+        <!-- New Vendor Process Flow --> 
+         <bpmn:sequenceFlow id="SF_NewVendorProcessStart" name="No - Start Subprocess" sourceRef="Gateway_VendorFound" targetRef="Subprocess_NewVendorRecord">
+      </bpmn:sequenceFlow>
+
+
+       <!-- After Classification (both paths merge) --> 
+        <bpmn:sequenceFlow id="SF_ClassifyInvoiceFlow" name="Yes - Continue Processing" sourceRef="Gateway_VendorFound" targetRef="Task_ClassifyInvoiceUrgency"/>
+
+    <!-- Urgency Decision Flows --> 
+      <bpmn:sequenceFlow id="SF_UrgeCheckDecisionNo" name="Non-Urgent" sourceRef="Gateway_UrgeCheck" targetRef="TimerEvent_WorkingDays">
+        </bpmn:sequenceFlow>
+
+
+       <bpmn:sequenceFlow id="SF_24hrWindowProcess" name="Urgent - 24 hr window" sourceRef="Gateway_UrgeCheck" targetRef="Task_AddSAPNumberToInvoice"/>
+
+    <!-- Sort Method Flows --> 
+      <bpmn:sequenceFlow id="SF_SortMethodCheck" name="Sort Invoice" sourceRef="Task_AddSAPNumberToInvoice" targetRef="Gateway_SortMethod">
+        </bpmn:sequenceFlow>
+
+
+       <bpmn:sequenceFlow id="SF_EnterInSAPSystemAmountFlow" name="By Amount" sourceRef="Gateway_SortMethod" targetRef="EndEvent_ProcessFinished"/>
+
+    <!-- Subprocess Internal Flows --> 
+      <bpmn:sequenceFlow id="SF_NewVendorProcessStartLink" sourceRef="Subprocess_StartEvent_Link" targetRef="Task_FillNewVendorForm">
+        </bpmn:sequenceFlow>
+
+
+       <bpmn:sequenceFlow id="SF_AttachRequestFlow" name="Attach Request" sourceRef="Task_FillNewVendorForm" targetRef="Task_AttachRequestToInvoice"/>
+
+    <!-- End Event Link --> 
+      <bpmn:endEvent id="EndEvent_ProcessFinished" name="Process Finished">
+        </bpmn:endEvent>
+
+
+  </bpmn:process>
+</bpmn:definitions>

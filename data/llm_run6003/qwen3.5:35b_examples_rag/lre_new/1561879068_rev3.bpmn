@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Registration">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Service Process" processRef="Process_Registration" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Registration" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_EventFormFilled" name="Visitor fills registration form">
+      <bpmn:outgoing>Flow_StartToCheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check product availability and credit rating -->
+    <bpmn:userTask id="Task_CheckProductAndCredit" name="Check product availability &amp; credit rating">
+      <bpmn:incoming>Flow_StartToCheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreditDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway for Credit Rating Decision -->
+    <bpmn:exclusiveGateway id="Gateway_CreditRatingCheck" name="Credit rating &gt; 9000?">
+      <bpmn:incoming>Flow_CreditDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_RegistrationUnsuccessful</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CreateInterimRecord</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Unsuccessful Registration -->
+    <bpmn:endEvent id="End_RegistrationUnsuccessful" name="Registration unsuccessful">
+      <bpmn:incoming>Flow_RegistrationUnsuccessful</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Create interim customer dataset record -->
+    <bpmn:userTask id="Task_CreateInterimRecord" name="Create interim customer dataset record">
+      <bpmn:incoming>Flow_CreateInterimRecord</bpmn:incoming>
+      <bpmn:outgoing>Flow_SplitParallelTasks</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway to split into two sub-processes -->
+    <bpmn:parallelGateway id="Gateway_ParallelStart" name="Device provision &amp; Register at ISP">
+      <bpmn:incoming>Flow_SplitParallelTasks</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RegisterAtISP</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sub-process 1: Device provision -->
+    <bpmn:userTask id="Task_DeviceProvision" name="Device provision">
+      <bpmn:incoming>Flow_DeviceProvision</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeParallelTasks</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sub-process 2: Register customer account at ISP nodes -->
+    <bpmn:userTask id="Task_RegisterAtISP" name="Register customer account at ISP nodes">
+      <bpmn:incoming>Flow_RegisterAtISP</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeParallelTasks</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway to merge parallel flows -->
+    <bpmn:parallelGateway id="Gateway_ParallelMerge" name="Wait for both tasks">
+      <bpmn:incoming>Flow_MergeParallelTasks</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateWelcomePackage</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Create welcome package -->
+    <bpmn:userTask id="Task_CreateWelcomePackage" name="Create welcome package">
+      <bpmn:incoming>Flow_CreateWelcomePackage</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendWelcomePackage</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Send welcome package to customer -->
+    <bpmn:userTask id="Task_SendWelcomePackage" name="Send welcome package">
+      <bpmn:incoming>Flow_SendWelcomePackage</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProcessComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Successful Registration -->
+    <bpmn:endEvent id="End_RegistrationSuccessful" name="Registration completed successfully">
+      <bpmn:incoming>Flow_ProcessComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToCheckAvailability" sourceRef="Start_EventFormFilled" targetRef="Task_CheckProductAndCredit" />
+    
+    <bpmn:sequenceFlow id="Flow_CreditDecision" name="" sourceRef="Task_CheckProductAndCredit" targetRef="Gateway_CreditRatingCheck" />
+    
+    <bpmn:sequenceFlow id="Flow_RegistrationUnsuccessful" name="Yes (rating &gt; 9000)" sourceRef="Gateway_CreditRatingCheck" targetRef="End_RegistrationUnsuccessful">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[creditRating > 9000]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_CreateInterimRecord" name="No (rating ≤ 9000)" sourceRef="Gateway_CreditRatingCheck" targetRef="Task_CreateInterimRecord">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[creditRating <= 9000]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_SplitParallelTasks" sourceRef="Task_CreateInterimRecord" targetRef="Gateway_ParallelStart" />
+    
+    <bpmn:sequenceFlow id="Flow_DeviceProvision" name="" sourceRef="Gateway_ParallelStart" targetRef="Task_DeviceProvision" />
+    
+    <bpmn:sequenceFlow id="Flow_RegisterAtISP" name="" sourceRef="Gateway_ParallelStart" targetRef="Task_RegisterAtISP" />
+    
+    <bpmn:sequenceFlow id="Flow_MergeParallelTasks" name="" sourceRef="Task_DeviceProvision" targetRef="Gateway_ParallelMerge" />
+    
+    <bpmn:sequenceFlow id="Flow_MergeParallelTasks2" name="" sourceRef="Task_RegisterAtISP" targetRef="Gateway_ParallelMerge" />
+    
+    <bpmn:sequenceFlow id="Flow_CreateWelcomePackage" sourceRef="Gateway_ParallelMerge" targetRef="Task_CreateWelcomePackage" />
+    
+    <bpmn:sequenceFlow id="Flow_SendWelcomePackage" name="" sourceRef="Task_CreateWelcomePackage" targetRef="Task_SendWelcomePackage" />
+    
+    <bpmn:sequenceFlow id="Flow_ProcessComplete" name="" sourceRef="Task_SendWelcomePackage" targetRef="End_RegistrationSuccessful" />
+
+  </bpmn:process>
+</bpmn:definitions>

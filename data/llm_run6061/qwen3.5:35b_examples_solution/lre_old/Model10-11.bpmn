@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MeasurementProcess">
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+    <bpmn:participant id="Participant_MSP" name="MSP" processRef="Process_MSP"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageRequestMeasurement" sourceRef="Task_GO_SendRequest" targetRef="Event_Catch_RequestReceived"/>
+    <bpmn:messageFlow id="MessageDenialResponse" sourceRef="Task_MSP_InformFailure" targetRef="IntermediateCatch_DenialReceived"/>
+    <bpmn:messageFlow id="MessageMeasuredValues" sourceRef="Task_MSP_TransmitValues" targetRef="IntermediateCatch_ValuesReceived"/>
+    <bpmn:messageFlow id="MessageChangedValues" sourceRef="Task_GO_SendChangedValues" targetRef="Event_Catch_ChangedReceived"/>
+  </bpmn:collaboration>
+
+  <!-- MSP Process -->
+  <bpmn:process id="Process_MSP" isExecutable="false">
+    <bpmn:startEvent id="StartRequestReceived" name="Measurement Request Received">
+      <bpmn:outgoing>SFlow_CheckRequest"/>
+    </bpmn:startEvent>
+
+    <!-- Task to check request -->
+    <bpmn:task id="Task_MSP_CheckRequest" name="Check Received Request">
+      <bpmn:incoming>SFlow_CatchRequestIncoming</bpmn:incoming>
+      <bpmn:outgoing>SFlow_DecisionPoint"/>
+    </bpmn:task>
+
+    <!-- Decision gateway -->
+    <bpmn:exclusiveGateway id="Gateway_DenyOrMeasure" name="Deny or Measure?">
+      <bpmn:incoming>SFlow_CheckRequest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InformFailure"/>
+      <bpmn:outgoing>SFlow_PerformMeasurement"/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to inform about failure -->
+    <bpmn:task id="Task_MSP_InformFailure" name="Inform GO About Failure">
+      <bpmn:incoming>SFlow_DenyPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndDeny"/>
+    </bpmn:endEvent>
+
+    <!-- End event for deny path -->
+    <bpmn:endEvent id="End_MeasurementDenied" name="Measurement Denied">
+      <bpmn:incoming>SFlow_DenyPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task to perform measurement (added as missing task) -->
+    <bpmn:task id="Task_MSP_PerformMeasurement" name="Perform Measurement">
+      <bpmn:incoming>SFlow_MeasureDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TransmitValues"/>
+    </bpmn:endEvent>
+
+    <!-- Task to transmit measured values -->
+    <bpmn:task id="Task_MSP_TransmitMeasured" name="Transmit Measured Values">
+      <bpmn:incoming>SFlow_MeasureDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndMeasure"/>
+    </bpmn:endEvent>
+
+    <!-- End event for successful measurement -->
+    <bpmn:endEvent id="End_MeasurementTransmitted" name="Values Transmitted">
+      <bpmn:incoming>SFlow_TransmitPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows within MSP process -->
+    <bpmn:sequenceFlow id="SFlow_CheckRequest" sourceRef="StartRequestReceived" targetRef="Task_MSP_CheckRequest"/>
+    <bpmn:sequenceFlow id="SFlow_DecisionPoint" sourceRef="Task_MSP_CheckRequest" targetRef="Gateway_DenyOrMeasure"/>
+    <bpmn:sequenceFlow id="SFlow_InformFailure" name="Deny Request" sourceRef="Gateway_DenyOrMeasure" targetRef="End_MeasurementDenied"/>
+    <bpmn:sequenceFlow id="SFlow_PerformMeasurement" name="Perform Measurement" sourceRef="Gateway_DenyOrMeasure" targetRef="Task_MSP_TransmitMeasured"/>
+
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="Start_RequestInitiated" name="Request Initiation">
+      <bpmn:outgoing>SFlow_SendMeasurementRequest"/>
+    </bpmn:endEvent>
+
+    <!-- Task to request measurements -->
+    <bpmn:task id="Task_GO_SendRequest" name="Request Measurements from MSP">
+      <bpmn:incoming>SFlow_Initiate</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendMeasurementRequest"/>
+    </bpmn:endEvent>
+
+    <!-- Intermediate catch event for deny response -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_DenialReceived" name="Receive Denial Response">
+      <bpmn:incoming>SFlow_CatchDenyIncoming</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndProcess"/>
+    </bpmn:endEvent>
+
+    <!-- Intermediate catch event for measured values -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_ValuesReceived" name="Receive Measured Values">
+      <bpmn:incoming>SFlow_CatchMeasuredIncoming</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ProcessValues"/>
+    </bpmn:endEvent>
+
+    <!-- Task to process measured values -->
+    <bpmn:task id="Task_GO_ProcessMeasured" name="Process Measured Values">
+      <bpmn:incoming>SFlow_CatchMeasuredIncoming</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendChanged"/>
+    </bpmn:endEvent>
+
+    <!-- Task to send changed values back -->
+    <bpmn:task id="Task_GO_SendChangedValues" name="Send Changed Values">
+      <bpmn:incoming>SFlow_Processed</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TransmitToSP"/>
+    </bpmn:endEvent>
+
+    <!-- Task to transmit readings to SP -->
+    <bpmn:task id="Task_GO_TransmitReadings" name="Transmit Readings to SP">
+      <bpmn:incoming>SFlow_SendChanged</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndProcess"/>
+    </bpmn:endEvent>
+
+    <!-- End event for successful completion -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Process Complete">
+      <bpmn:incoming>SFlow_Final</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows within GO process -->
+    <bpmn:sequenceFlow id="SFlow_Initiate" sourceRef="Start_RequestInitiated" targetRef="Task_GO_SendRequest"/>
+    <bpmn:sequenceFlow id="SFlow_SendMeasurementRequest" name="Send Request to MSP" sourceRef="Task_GO_SendRequest" targetRef="Gateway_DenyOrReceive">
+      <!-- Note: This is a simplified representation -->
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_DecisionPoint" name="Deny or Receive?">
+      <bpmn:incoming>SFlow_SendMeasurementRequest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CatchDenyIncoming"/>
+      <bpmn:outgoing>SFlow_CatchMeasuredIncoming"/>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows for decision paths -->
+    <bpmn:sequenceFlow id="SFlow_DenyPath" name="Receive Denial" sourceRef="Gateway_DecisionPoint" targetRef="IntermediateCatch_DenialReceived"/>
+    <bpmn:sequenceFlow id="SFlow_MeasurePath" name="Receive Measured Values" sourceRef="Gateway_DecisionPoint" targetRef="IntermediateCatch_ValuesReceived"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Database &amp; Account Management Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_MorningTimer" name="Weekday Morning Timer">
+      <bpmn:outgoing>SequenceFlow_BackupDB</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Backup Database -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>SequenceFlow_BackupDB</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDefaulterTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Check Defaulters Table -->
+    <bpmn:task id="Task_CheckDefaulters" name="Check Account Defaulters for New Records">
+      <bpmn:incoming>SequenceFlow_CheckDefaulterTable</bpmn:incoming>
+      <bpmn:outgoing>Gateway_HasNewRecords</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision on New Records -->
+    <bpmn:exclusiveGateway id="Gateway_HasNewRecords" name="Has New Defaulters?">
+      <bpmn:incoming>SequenceFlow_CheckDefaulterTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoNewRecs_CRMCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: No New Records -->
+    <bpmn:task id="Task_CheckCRMReturns1" name="Check CRM for Returns Filed">
+      <bpmn:incoming>SequenceFlow_NoNewRecs_CRMCheck</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ReturnsExist_1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Decision on Returns Existence -->
+    <bpmn:exclusiveGateway id="Gateway_ReturnsExist_1" name="Returns Exist?">
+      <bpmn:incoming>SequenceFlow_CheckCRMReturns</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterAccounts_PathA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Register Accounts -->
+    <bpmn:task id="Task_RegisterAccounts" name="Register Defaulting Accounts &amp; Customers">
+      <bpmn:incoming>SequenceFlow_NewRecs_Proceed</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ClientCodesAdvised</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Decision on Client Codes Advised -->
+    <bpmn:exclusiveGateway id="Gateway_ClientCodesAdvised" name="Client Codes Previously Advised?">
+      <bpmn:incoming>SequenceFlow_RegisterAccounts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceTable_NoAdvise</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Produce Table & Send -->
+    <bpmn:task id="Task_ProduceReport" name="Produce Defaulting Accounts Report">
+      <bpmn:incoming>SequenceFlow_ProduceTable_NoAdvise</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToMgmt</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event 1 (2:30 PM Deadline) -->
+    <bpmn:boundaryEvent id="Boundary_230PM" name="Alert Supervisor">
+      <bpmn:attachedToRef>Task_ProduceReport</bpmn:attachedToRef>
+      <bpmn:cancelActivity>false</bpmn:cancelActivity>
+    </bpmn:boundaryEvent>
+
+    <!-- Task 5: Send to Management -->
+    <bpmn:task id="Task_SendToMgmt" name="Send Report to Account Management">
+      <bpmn:incoming>SequenceFlow_SendToMgmt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCRMAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Check CRM Again -->
+    <bpmn:task id="Task_CheckCRMReturns2" name="Check CRM for Returns Filed (Post-Report)">
+      <bpmn:incoming>SequenceFlow_CheckCRMAgain</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ReturnsExist_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Decision on Returns Existence (Second Check) -->
+    <bpmn:exclusiveGateway id="Gateway_ReturnsExist_2" name="Returns Exist?">
+      <bpmn:incoming>SequenceFlow_CheckCRMAgain</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Reconcile_PathA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7: Reconciliation -->
+    <bpmn:task id="Task_Reconcile" name="Reconcile with Existing Defaulters Table">
+      <bpmn:incoming>SequenceFlow_CheckCRMAgain</bpmn:outgoing> 
+      <bpmn:incoming>SequenceFlow_Reconcile_PathA</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- Boundary Event 2 (4:00 PM Deadline) -->
+    <bpmn:boundaryEvent id="Boundary_1600PM" name="Alert Supervisor">
+      <bpmn:attachedToRef>Task_Reconcile</bpmn:attachedToRef>
+      <bpmn:cancelActivity>false</bpmn:cancelActivity>
+    </bpmn:boundaryEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_FinalReconcile</bpmn:outgoing> 
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Corrected for valid references) -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BackupDB" sourceRef="StartEvent_MorningTimer" targetRef="Task_BackupDatabase"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDefaulterTable" sourceRef="Task_BackupDatabase" targetRef="Task_CheckDefaulters">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoNewRecs_CRMCheck" sourceRef="Gateway_HasNewRecords" targetRef="Task_CheckCRMReturns1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!hasNewDefaulters]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCRMReturns" sourceRef="Task_CheckCRMReturns1" targetRef="Gateway_ReturnsExist_1"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterAccounts_PathA" sourceRef="Gateway_ReturnsExist_1" targetRef="Task_RegisterAccounts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[returnsFound]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge for Registration -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterAccounts" sourceRef="Task_CheckCRMReturns1" targetRef="Gateway_ClientCodesAdvised"/> 
+    <!-- Note: Logic merged via Gateway_HasNewRecords 'Yes' path to Task_RegisterAccounts directly in logic, but XML needs valid refs -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NewRecs_Proceed" sourceRef="Gateway_HasNewRecords" targetRef="Task_RegisterAccounts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[hasNewDefaulters]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 3 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProduceTable_NoAdvise" sourceRef="Gateway_ClientCodesAdvised" targetRef="Task_ProduceReport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!codesPreviouslyAdvised]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 4 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToMgmt" sourceRef="Task_ProduceReport" targetRef="Task_SendToMgmt"/>
+
+    <!-- Sequence to Next Phase (Post Report) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCRMAgain" sourceRef="Task_SendToMgmt" targetRef="Task_CheckCRMReturns2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[reportCompleted]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 4 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_Reconcile_PathA" sourceRef="Gateway_ReturnsExist_2" targetRef="Task_Reconcile">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[returnsFound]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+     <!-- Task 7 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_Reconcile" sourceRef="Task_CheckCRMReturns2" targetRef="Gateway_ReturnsExist_2"/> 
+    <bpmn:sequenceFlow id="SequenceFlow_FinalReconcile" sourceRef="Task_Reconcile" targetRef="EndEvent_ProcessComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

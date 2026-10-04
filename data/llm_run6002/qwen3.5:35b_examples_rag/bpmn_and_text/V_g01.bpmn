@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="RoboticBurgerSellerProcess" isExecutable="false">
+    <!-- Start Event -->
+    <startEvent id="StartEvent_OrderReceived" name="Robot receives order">
+      <outgoing>SequenceFlow_MenuDecision</outgoing>
+    </startEvent>
+
+    <!-- Exclusive Gateway: Menu or Burger Only? -->
+    <exclusiveGateway id="Gateway_MenuOrBurgerOnly" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_MenuDecision</incoming>
+      <outgoing>SequenceFlow_PrepareDrinkMenu</outgoing>
+      <outgoing>SequenceFlow_SkipDrinkSkipSide</outgoing>
+    </exclusiveGateway>
+
+    <!-- Parallel Gateway for concurrent drink and side dish preparation -->
+    <parallelGateway id="Parallel_GoingToPrepare" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_PrepareDrinkMenu</incoming>
+      <outgoing>SequenceFlow_DecideSideChoice</outgoing>
+      <outgoing>SequenceFlow_SkipSidePreparation</outgoing>
+    </parallelGateway>
+
+    <!-- Exclusive Gateway: Fries or Wedges? -->
+    <exclusiveGateway id="Gateway_FriesOrWedges" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_DecideSideChoice</incoming>
+      <outgoing>SequenceFlow_PrepareFries</outgoing>
+      <outgoing>SequenceFlow_PrepareWedges</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Prepare Drink (variable time based on size) -->
+    <task id="Task_PrepareDrink" name="Prepare drink">
+      <incoming>SequenceFlow_PrepareDrinkMenu</incoming>
+      <outgoing>SequenceFlow_DrinkReady</outgoing>
+    </task>
+
+    <!-- Task: Prepare Fries (variable time based on size) -->
+    <task id="Task_PrepareFries" name="Prepare fries">
+      <incoming>SequenceFlow_PrepareFries</incoming>
+      <outgoing>SequenceFlow_FriesReady</outgoing>
+    </task>
+
+    <!-- Task: Prepare Wedges (variable time based on size) -->
+    <task id="Task_PrepareWedges" name="Prepare wedges">
+      <incoming>SequenceFlow_PrepareWedges</incoming>
+      <outgoing>SequenceFlow_WedgesReady</outgoing>
+    </task>
+
+    <!-- Parallel Gateway: Join drink and side dish paths -->
+    <parallelGateway id="Parallel_JoinSideDish" gatewayDirection="Converging">
+      <incoming>SequenceFlow_DrinkReady</incoming>
+      <incoming>SequenceFlow_FriesReady</incoming>
+      <incoming>SequenceFlow_WedgesReady</incoming>
+      <outgoing>SequenceFlow_StartBurgerPrep</outgoing>
+    </parallelGateway>
+
+    <!-- Task: Prepare Burger (variable time based on ingredients) -->
+    <task id="Task_PrepareBurger" name="Prepare burger">
+      <incoming>SequenceFlow_StartBurgerPrep</incoming>
+      <outgoing>SequenceFlow_BurgerReady</outgoing>
+    </task>
+
+    <!-- Intermediate Timer Event: Status update every 30 seconds -->
+    <intermediateCatchEvent id="Timer_StatusUpdate" name="Status Update (every 30s)">
+      <timerDefinition timerType="TimeDuration">
+        <timeCycle>RPT-1/24H/P30S</timeCycle>
+      </timerDefinition>
+      <incoming>SequenceFlow_BurgerPrepLoop</incoming>
+      <outgoing>SequenceFlow_ContinueBurgerPrep</outgoing>
+    </intermediateCatchEvent>
+
+    <!-- Exclusive Gateway: Continue burger prep or finish? -->
+    <exclusiveGateway id="Gateway_BurgerComplete" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_BurgerReady</incoming>
+      <outgoing>SequenceFlow_ContinueBurgerPrep</outgoing>
+      <outgoing>SequenceFlow_DeliverOrder</outgoing>
+    </exclusiveGateway>
+
+    <!-- End Event: Order delivered via conveyor belt -->
+    <endEvent id="EndEvent_OrderDelivered" name="Order delivered">
+      <incoming>SequenceFlow_DeliverOrder</incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_MenuDecision" sourceRef="StartEvent_OrderReceived" targetRef="Gateway_MenuOrBurgerOnly"/>
+    
+    <sequenceFlow id="SequenceFlow_PrepareDrinkMenu" name="Yes - Menu selected" sourceRef="Gateway_MenuOrBurgerOnly" targetRef="Parallel_GoingToPrepare">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${menuSelected}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_SkipDrinkSkipSide" name="No - Burger only" sourceRef="Gateway_MenuOrBurgerOnly" targetRef="Parallel_JoinSideDish">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${burgerOnly}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_DecideSideChoice" sourceRef="Parallel_GoingToPrepare" targetRef="Gateway_FriesOrWedges"/>
+    
+    <sequenceFlow id="SequenceFlow_SkipSidePreparation" name="No side dish" sourceRef="Gateway_MenuOrBurgerOnly" targetRef="Parallel_JoinSideDish">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${noSide}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_PrepareFries" name="Yes - Fries selected" sourceRef="Gateway_FriesOrWedges" targetRef="Task_PrepareFries">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${friesSelected}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_PrepareWedges" name="Yes - Wedges selected" sourceRef="Gateway_FriesOrWedges" targetRef="Task_PrepareWedges">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${wedgesSelected}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_DrinkReady" sourceRef="Task_PrepareDrink" targetRef="Parallel_JoinSideDish"/>
+    
+    <sequenceFlow id="SequenceFlow_FriesReady" sourceRef="Task_PrepareFries" targetRef="Parallel_JoinSideDish"/>
+    
+    <sequenceFlow id="SequenceFlow_WedgesReady" sourceRef="Task_PrepareWedges" targetRef="Parallel_JoinSideDish"/>
+
+    <sequenceFlow id="SequenceFlow_StartBurgerPrep" name="All sides ready, start burger prep" sourceRef="Parallel_JoinSideDish" targetRef="Task_PrepareBurger"/>
+    
+    <!-- Loop for status updates during burger preparation -->
+    <sequenceFlow id="SequenceFlow_BurgerReady" sourceRef="Task_PrepareBurger" targetRef="Gateway_BurgerComplete"/>
+
+    <sequenceFlow id="SequenceFlow_ContinueBurgerPrep" name="Not complete yet - continue prep with update" sourceRef="Gateway_BurgerComplete" targetRef="Timer_StatusUpdate">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${burgerIncomplete}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_DeliverOrder" name="Burger complete - deliver order" sourceRef="Gateway_BurgerComplete" targetRef="EndEvent_OrderDelivered">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${burgerComplete}</bpmn:conditionExpression>
+    </sequenceFlow>
+
+  </process>
+</bpmn:definitions>

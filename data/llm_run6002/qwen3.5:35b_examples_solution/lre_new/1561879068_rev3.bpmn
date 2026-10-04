@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_CustomerRegistration">
+
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_ProcessOrder" name="Customer Registration Process" processRef="Proc_CustReg"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_CustReg" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="Visitor fills out Registration-Form">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>Flow_Start_Check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Product Availability -->
+    <bpmn:task id="Task_1" name="Check availability of products">
+      <bpmn:incoming>Flow_Start_Check</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_1">
+        <bpmn:targetRef>DataStore_Availability</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+      <bpmn:outgoing>Flow_Check_CreditRating</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check Credit Rating -->
+    <bpmn:task id="Task_2" name="Check credit rating at Schufa">
+      <bpmn:incoming>Flow_Check_CreditRating</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_2">
+        <bpmn:targetRef>DataStore_SchufaAPI</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+      <bpmn:outgoing>Flow_CreditDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Credit Rating Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_1" name="Credit rating &gt; 9000?">
+      <bpmn:incoming>Flow_CreditDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_SuccessPath</bpmn:outgoing>
+      <bpmn:outgoing>Seq_UnsuccessfulPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Unsuccessful Path -->
+    <bpmn:endEvent id="End_1" name="Unsuccessful customer registration">
+      <bpmn:incoming>Seq_UnsuccessfulPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Create Interim Customer Record -->
+    <bpmn:task id="Task_3" name="Create interim customer dataset record">
+      <bpmn:incoming>Seq_SuccessPath</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_3">
+        <bpmn:targetRef>DataStore_CustomerRecords</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+      <bpmn:outgoing>Flow_ParallelSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split Gateway -->
+    <bpmn:parallelGateway id="Gateway_2" name="">
+      <bpmn:incoming>Flow_ParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>Seq_DeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>Seq_RegisterISP</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sub-Process 1: Device Provision -->
+    <bpmn:subProcess id="Task_4" name="Device provision">
+      <bpmn:incoming>Seq_DeviceProvision</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_4"/>
+      <bpmn:outgoing>Flow_Sub1Complete</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Sub-Process 2: Register Customer Account at ISP Nodes -->
+    <bpmn:subProcess id="Task_5" name="Register customer account at ISP nodes">
+      <bpmn:incoming>Seq_RegisterISP</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_5"/>
+      <bpmn:outgoing>Flow_Sub2Complete</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Parallel Merge Gateway -->
+    <bpmn:parallelGateway id="Gateway_3" name="">
+      <bpmn:incoming>Flow_Sub1Complete</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub2Complete</bpmn:incoming>
+      <bpmn:outgoing>Seq_WelcomePackage</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Create and Send Welcome Package -->
+    <bpmn:task id="Task_6" name="Create and send welcome package">
+      <bpmn:incoming>Seq_WelcomePackage</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_Assoc_6"/>
+      <bpmn:outgoing>Flow_SuccessEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Successful End Event -->
+    <bpmn:endEvent id="End_2" name="Successful customer registration">
+      <bpmn:incoming>Flow_SuccessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_Check" sourceRef="Start_1" targetRef="Task_1"/>
+    <bpmn:sequenceFlow id="Flow_Check_CreditRating" sourceRef="Task_1" targetRef="Task_2"/>
+    <bpmn:sequenceFlow id="Flow_CreditDecision" sourceRef="Task_2" targetRef="Gateway_1"/>
+    
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="Seq_UnsuccessfulPath" name="Yes (rating &gt; 9000)" sourceRef="Gateway_1" targetRef="End_1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${creditRating > 9000}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Seq_SuccessPath" name="No (rating &lt;= 9000)" sourceRef="Gateway_1" targetRef="Task_3">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${creditRating <= 9000}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split -->
+    <bpmn:sequenceFlow id="Flow_ParallelSplit" sourceRef="Task_3" targetRef="Gateway_2"/>
+    
+    <!-- Sub-Process Paths -->
+    <bpmn:sequenceFlow id="Seq_DeviceProvision" sourceRef="Gateway_2" targetRef="Task_4"/>
+    <bpmn:sequenceFlow id="Seq_RegisterISP" sourceRef="Gateway_2" targetRef="Task_5"/>
+
+    <!-- Sub-Process Completion -->
+    <bpmn:sequenceFlow id="Flow_Sub1Complete" sourceRef="Task_4" targetRef="Gateway_3"/>
+    <bpmn:sequenceFlow id="Flow_Sub2Complete" sourceRef="Task_5" targetRef="Gateway_3"/>
+
+    <!-- Final Path -->
+    <bpmn:sequenceFlow id="Seq_WelcomePackage" sourceRef="Gateway_3" targetRef="Task_6"/>
+    <bpmn:sequenceFlow id="Flow_SuccessEnd" sourceRef="Task_6" targetRef="End_2"/>
+
+  </bpmn:process>
+
+  <!-- Data Stores -->
+  <bpmn:dataStoreReference id="DataStore_Availability" name="Regional availability">
+    <bpmn:name>Regional availability</bpmn:name>
+  </bpmn:dataStoreReference>
+  
+  <bpmn:dataStoreReference id="DataStore_SchufaAPI" name="Schufa API">
+    <bpmn:name>Schufa API</bpmn:name>
+  </bpmn:dataStoreReference>
+
+  <bpmn:dataStoreReference id="DataStore_CustomerRecords" name="Customer records">
+    <bpmn:name>Customer records</bpmn:name>
+  </bpmn:dataStoreReference>
+
+</bpmn:definitions>

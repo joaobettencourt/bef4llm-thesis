@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Insurance Company Claim Handling" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestInfo" name="Request Information Needed">
+      <bpmn:outgoing>SequenceFlow_SendQuestionnaire</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send Initial Questionnaire -->
+    <bpmn:task id="Task_SendQuestionnaire" name="Send Questionnaire to Claimant">
+      <bpmn:incoming>SequenceFlow_SendQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer 1: Wait for Response (5 Days) -->
+    <bpmn:intermediateCatchEvent id="Timer_InitialWait" name="Wait for Response">
+      <bpmn:incoming>SequenceFlow_WaitResponse1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResponse1</bpmn:outgoing>
+      <bpmn:timerDefinition id="TimerDef_Initial">
+        <bpmn:timeDuration>PT5D</bpmn:timeDuration>
+      </bpmn:timerDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 1: Check if Response Received -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResponseReceived" name="Response Received?">
+      <bpmn:incoming>SequenceFlow_CheckResponse1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPathReminder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_QuestionnaireReceived" name="Questionnaire Received">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_YesPathReminderLoop</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Send Reminder -->
+    <bpmn:task id="Task_SendReminder" name="Send Reminder to Claimant">
+      <bpmn:incoming>SequenceFlow_NoPathReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponseRemind</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer 2: Wait for Response (5 Days) -->
+    <bpmn:intermediateCatchEvent id="Timer_ReminderWait" name="Wait for Reminder Response">
+      <bpmn:incoming>SequenceFlow_WaitResponseRemind</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResponseReminder</bpmn:outgoing>
+      <bpmn:timerDefinition id="TimerDef_Reminder">
+        <bpmn:timeDuration>PT5D</bpmn:timeDuration>
+      </bpmn:timerDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 2: Check if Response Received (Loop Logic) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReminderResponse" name="Reminder Response?">
+      <bpmn:incoming>SequenceFlow_CheckResponseReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPathReminderLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPathRepeatRemind</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Task 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendQuestionnaire" sourceRef="StartEvent_RequestInfo" targetRef="Task_SendQuestionnaire"/>
+
+    <!-- Task 1 to Timer 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse1" sourceRef="Task_SendQuestionnaire" targetRef="Timer_InitialWait"/>
+
+    <!-- Timer 1 to Gateway 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResponse1" name="Time Elapsed (5 Days)" sourceRef="Timer_InitialWait" targetRef="ExclusiveGateway_ResponseReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 Yes to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesPath" name="Response Received" sourceRef="ExclusiveGateway_ResponseReceived" targetRef="EndEvent_QuestionnaireReceived"/>
+
+    <!-- Gateway 1 No to Task 2 (Reminder) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoPathReminder" name="No Response" sourceRef="ExclusiveGateway_ResponseReceived" targetRef="Task_SendReminder"/>
+
+    <!-- Task 2 to Timer 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponseRemind" sourceRef="Task_SendReminder" targetRef="Timer_ReminderWait"/>
+
+    <!-- Timer 2 to Gateway 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResponseReminder" name="Time Elapsed (5 Days)" sourceRef="Timer_ReminderWait" targetRef="ExclusiveGateway_ReminderResponse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2 Yes to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesPathReminderLoop" name="Response Received" sourceRef="ExclusiveGateway_ReminderResponse" targetRef="EndEvent_QuestionnaireReceived"/>
+
+    <!-- Gateway 2 No Loop back to Task 2 (Repeat Reminder) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoPathRepeatRemind" name="No Response - Repeat" sourceRef="ExclusiveGateway_ReminderResponse" targetRef="Task_SendReminder"/>
+
+  </bpmn:process>
+</bpmn:definitions>

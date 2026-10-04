@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CourtProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CourtAdmin">
+    <bpmn:participant name="Court Administration Process" processRef="Proc_5832k7l"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_5832k7l" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_MorningCheck" name="Morning Check">
+      <bpmn:outgoing>SequenceFlow_CheckFiles</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Files -->
+    <bpmn:task id="Task_CheckStatus" name="Check File Order for Hearing">
+      <bpmn:incoming>SequenceFlow_SearchLoopBack</bpmn:incoming>
+      <bpmn:outgoing>Gateway_FilesReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision on Missing Files -->
+    <bpmn:exclusiveGateway id="Gateway_MissingFiles" name="Missing Files?">
+      <bpmn:incoming>SequenceFlow_CheckFiles</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InitiateSearch</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>SequenceFlow_TrackPhysically</bpmn:outgoing>  <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Search for Missing Files (Loop) -->
+    <bpmn:task id="Task_InitiateSearch" name="Initiate File Search">
+      <bpmn:incoming>SequenceFlow_InitiateSearch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SearchLoopBack</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Physically Track Files -->
+    <bpmn:task id="Task_TrackPhysically" name="Track Files to Location">
+      <bpmn:incoming>SequenceFlow_TrackPhysically</bpmn:incoming>
+      <bpmn:outgoing>Gateway_PrepSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Parallel Split (Files Ready) -->
+    <bpmn:parallelGateway id="Gateway_PrepSplit" name="Preparation">
+      <bpmn:incoming>SequenceFlow_TrackPhysically</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HandAssociate</bpmn:outgoing> <!-- Hand Files -->
+      <bpmn:outgoing>SequenceFlow_DistributeLawlist</bpmn:outgoing>  <!-- Distribute List -->
+    </bpmn:parallelGateway>
+
+    <!-- Task 4: Hand to Associate -->
+    <bpmn:task id="Task_HandAssociate" name="Hand Files to Associate">
+      <bpmn:incoming>SequenceFlow_HandAssociate</bpmn:incoming>
+      <bpmn:outgoing>Gateway_HeardingsStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Distribute Lawlist -->
+    <bpmn:task id="Task_DistributeLawlist" name="Distribute Judges Lawlist">
+      <bpmn:incoming>SequenceFlow_DistributeLawlist</bpmn:incoming>
+      <bpmn:outgoing>Gateway_HeardingsStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Parallel Join (Before Hearings) -->
+    <bpmn:parallelGateway id="Gateway_HeardingsStart" name="Hearings Ready">
+      <bpmn:incoming>SequenceFlow_HandAssociate</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_DistributeLawlist</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConductHearing</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 6: Conduct Hearings -->
+    <bpmn:task id="Task_ConductHearings" name="Conduct Directions Hearings">
+      <bpmn:incoming>SequenceFlow_ConductHearing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Heardings Concluded">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckFiles" sourceRef="Start_MorningCheck" targetRef="Task_CheckStatus"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_InitiateSearch" name="Yes, Missing Files" sourceRef="Gateway_MissingFiles" targetRef="Task_InitiateSearch">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${filesMissing}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TrackPhysically" name="No, Files Ready" sourceRef="Gateway_MissingFiles" targetRef="Task_TrackPhysically">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!filesMissing}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back from Search to Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_SearchLoopBack" sourceRef="Task_InitiateSearch" targetRef="Task_CheckStatus"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HandAssociate" name="Hand Files" sourceRef="Gateway_PrepSplit" targetRef="Task_HandAssociate"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeLawlist" name="Distribute List" sourceRef="Gateway_PrepSplit" targetRef="Task_DistributeLawlist"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConductHearing" sourceRef="Gateway_HeardingsStart" targetRef="Task_ConductHearings"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_ConductHearings" targetRef="End_ProcessComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

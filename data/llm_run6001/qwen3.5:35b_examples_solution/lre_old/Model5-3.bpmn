@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Organization" name="Organization" processRef="Process_OfficeSupplyRequest"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OfficeSupplyRequest" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_Submit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>Task_ApproveRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Decision</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Purchase" name="Purchase Department">
+        <bpmn:flowNodeRef>Subprocess_Quotations</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GeneratePO</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Submit" name="Submit Office Supply Request">
+      <bpmn:outgoing>SFlow_RegisterRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Register Requirement (Employee) -->
+    <bpmn:task id="Task_RegisterRequest" name="Register Office Supply Requirement">
+      <bpmn:incoming>SFlow_RegisterRequest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToSupervisor</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Approve Request (Supervisor) -->
+    <bpmn:task id="Task_ApproveRequest" name="Approve Office Supply Request">
+      <bpmn:incoming>SFlow_ToSupervisor</bpmn:incoming>
+      <bpmn:outgoing>SFlow_DecisionGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Decision -->
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Request Approved?">
+      <bpmn:incoming>SFlow_DecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ChangePath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Rejected -->
+    <bpmn:endEvent id="EndEvent_Reject" name="Request Rejected">
+      <bpmn:incoming>SFlow_NotifyReject</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:task id="Task_NotifyReject" name="Notify User of Rejection">
+      <bpmn:incoming>SFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_NotifyReject</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Change Required -->
+    <bpmn:endEvent id="EndEvent_Change" name="Change Requested">
+      <bpmn:incoming>SFlow_ReturnToRegister</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:task id="Task_NotifyChange" name="Notify User of Change Required">
+       <bpmn:incoming>SFlow_ChangePath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ReturnToRegister</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Path 3: Approved -->
+     <bpmn:endEvent id="EndEvent_Approved" name="Request Approved">
+       <bpmn:incoming>SFlow_NotifyApproval</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Subprocess for Quotations (Purchase Dept) -->
+    <bpmn:subProcess id="Subprocess_Quotations" name="Make Quotations &amp; Select Vendor">
+       <bpmn:startEvent id="Start_Subprocess"/>
+        <bpmn:endEvent id="End_Subprocess"/>
+         <!-- Internal logic simplified for valid XML structure -->
+    </bpmn:subProcess>
+
+     <!-- External Flows -->
+      <bpmn:task id="Task_NotifyApproval" name="Notify User of Approval">
+       <bpmn:incoming>SFlow_ApprovePath</bpmn:incoming>
+        <bpmn:outgoing>SFlow_SubprocessStart</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Purchase Dept Task -->
+     <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send PO">
+       <bpmn:incoming>SFlow_ExitSubprocess</bpmn:incoming>
+        <bpmn:outgoing>SFlow_WaitDelivery</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Wait for Delivery -->
+     <bpmn:endEvent id="EndEvent_Delivery" name="Product Delivered">
+       <bpmn:incoming>SFlow_FinalNotification</bpmn:incoming>
+      </bpmn:endEvent>
+
+        <bpmn:task id="Task_NotifyDelivery" name="Notify User of Delivery">
+         <bpmn:outgoing>SFlow_FinalNotification</bpmn:outgoing>
+          <bpmn:incoming>SFlow_WaitDelivery</bpmn:incoming>
+      </bpmn:task>
+
+    <!-- Sequence Flows -->
+     <bpmn:sequenceFlow id="SFlow_RegisterRequest" sourceRef="StartEvent_Submit" targetRef="Task_RegisterRequest"/>
+       <bpmn:sequenceFlow id="SFlow_ToSupervisor" name="" sourceRef="Task_RegisterRequest" targetRef="Task_ApproveRequest"/>
+        <bpmn:sequenceFlow id="SFlow_DecisionGateway" sourceRef="Task_ApproveRequest" targetRef="Gateway_Decision"/>
+
+         <!-- Decision Paths -->
+          <bpmn:sequenceFlow id="SFlow_RejectPath" name="Rejected" sourceRef="Gateway_Decision" targetRef="Task_NotifyReject"/>
+           <bpmn:sequenceFlow id="SFlow_ChangePath" name="Change Required" sourceRef="Gateway_Decision" targetRef="Task_NotifyChange"/>
+            <bpmn:sequenceFlow id="SFlow_ApprovePath" name="Approved" sourceRef="Gateway_Decision" targetRef="Task_NotifyApproval"/>
+
+             <!-- Notification Flows -->
+              <bpmn:sequenceFlow id="SFlow_ReturnToRegister" sourceRef="Task_NotifyChange" targetRef="StartEvent_Submit"/>
+               <bpmn:sequenceFlow id="SFlow_SubprocessStart" name="" sourceRef="Task_NotifyApproval" targetRef="Subprocess_Quotations"/>
+
+                <!-- Subprocess Exit -->
+                 <bpmn:sequenceFlow id="SFlow_ExitSubprocess" sourceRef="Subprocess_Quotations" targetRef="Task_GeneratePO"/> 
+                  <bpmn:sequenceFlow id="SFlow_WaitDelivery" name="" sourceRef="Task_GeneratePO" targetRef="Task_NotifyDelivery"/>
+                   <bpmn:sequenceFlow id="SFlow_FinalNotification" name="" sourceRef="Task_NotifyDelivery" targetRef="EndEvent_Delivery"/>
+
+  </bpmn:process>
+</bpmn:definitions>

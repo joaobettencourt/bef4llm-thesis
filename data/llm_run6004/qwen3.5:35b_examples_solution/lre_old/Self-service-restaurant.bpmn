@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_abc123xyz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_restaurantOrdering">
+    <bpmn:participant id="Participant_guestProcess" name="Guest Process" processRef="Process_guest"/>
+    <bpmn:participant id="Participant_employeeProcess" name="Employee Process" processRef="Process_employee"/>
+    <bpmn:participant id="Participant_chefProcess" name="Chef Process" processRef="Process_chef"/>
+
+    <!-- Message Flows between pools -->
+    <bpmn:messageFlow id="MessageFlow_orderPlaced" sourceRef="Task_guestPlaceOrder" targetRef="StartEvent_employeeOrderReceived"/>
+    <bpmn:messageFlow id="MessageFlow_mealReadyNotification" sourceRef="Task_chefInformEmployee" targetRef="IntermediateCatchEvent_employeeMealReady"/>
+  </bpmn:collaboration>
+
+  <!-- Guest Process -->
+  <bpmn:process id="Process_guest">
+    <bpmn:startEvent id="StartEvent_guestHungry" name="Guest feels hungry">
+      <bpmn:name>Hungry</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_enterRestaurant</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_guestEnter" name="Enters restaurant">
+      <bpmn:incoming>SequenceFlow_enterRestaurant</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_chooseDish</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_enterRestaurant" sourceRef="StartEvent_guestHungry" targetRef="Task_guestEnter"/>
+
+    <bpmn:task id="Task_guestChooseDish" name="Chooses dish from changing meal range">
+      <bpmn:incoming>SequenceFlow_chooseDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_waitForTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_chooseDish" sourceRef="Task_guestEnter" targetRef="Task_guestChooseDish"/>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_waitTurn" name="Waits until turn">
+      <bpmn:name>Wait for Turn</bpmn:name>
+      <bpmn:incoming>SequenceFlow_waitForTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_placeOrder</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_waitForTurn" sourceRef="Task_guestChooseDish" targetRef="IntermediateCatchEvent_waitTurn"/>
+
+    <bpmn:task id="Task_guestPlaceOrder" name="Places order with employee">
+      <bpmn:name>Place Order</bpmn:name>
+      <bpmn:incoming>SequenceFlow_placeOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_waitForBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_placeOrder" sourceRef="IntermediateCatchEvent_waitTurn" targetRef="Task_guestPlaceOrder"/>
+
+    <!-- Buzzer rings event (Message received from Employee) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_guestMealReady" name="Buzzer rings - Meal ready">
+      <bpmn:name>Wait for Buzzer</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_waitForBuzzer</bpmn:incoming> <!-- Wait, this is wrong logic. Guest waits AFTER placing order until buzzer rings -->
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Correcting flow for guest waiting for buzzer -->
+    <bpmn:sequenceFlow id="SequenceFlow_waitForBuzzer" sourceRef="Task_guestPlaceOrder" targetRef="IntermediateCatchEvent_guestMealReady"/>
+
+    <bpmn:task id="Task_guestPickUp" name="Picks up meal at service hatch">
+      <bpmn:name>Pick Up Meal</bpmn:name>
+      <bpmn:incoming>SequenceFlow_pickUpMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_eatMeal</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_pickUpMeal" sourceRef="IntermediateCatchEvent_guestMealReady" targetRef="Task_guestPickUp"/>
+
+    <bpmn:task id="Task_guestEat" name="Eats meal">
+      <bpmn:name>Eat Meal</bpmn:name>
+      <bpmn:incoming>SequenceFlow_eatMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_leaveRestaurant</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_eatMeal" sourceRef="Task_guestPickUp" targetRef="Task_guestEat"/>
+
+    <bpmn:endEvent id="EndEvent_guestFinished" name="Guest finished eating">
+      <bpmn:name>Hungry No More</bpmn:name>
+      <bpmn:incoming>SequenceFlow_leaveRestaurant</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_leaveRestaurant" sourceRef="Task_guestEat" targetRef="EndEvent_guestFinished"/>
+  </bpmn:process>
+
+  <!-- Employee Process -->
+  <bpmn:process id="Process_employee">
+    <bpmn:startEvent id="StartEvent_employeeOrderReceived" name="Customer order received">
+      <bpmn:name>Order Received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_enterPOS</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_employeeEnterPOS" name="Enters order into POS system">
+      <bpmn:name>Enter Order in POS</bpmn:name>
+      <bpmn:incoming>SequenceFlow_enterPOS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowCollectMoney</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_enterPOS" sourceRef="StartEvent_employeeOrderReceived" targetRef="Task_employeeEnterPOS"/>
+
+    <bpmn:task id="Task_employeeCollectPayment" name="Collects money from guest">
+      <bpmn:name>Collect Payment</bpmn:name>
+      <bpmn:incoming>SequenceFlowCollectMoney</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowSetBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowCollectMoney" sourceRef="Task_employeeEnterPOS" targetRef="Task_employeeCollectPayment"/>
+
+    <bpmn:task id="Task_employeeSetupBuzzer" name="Sets up buzzer">
+      <bpmn:name>Set Up Buzzer</bpmn:name>
+      <bpmn:incoming>SequenceFlowSetBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowHandOverBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowSetBuzzer" sourceRef="Task_employeeCollectPayment" targetRef="Task_employeeSetupBuzzer"/>
+
+    <bpmn:task id="Task_employeeHandOverBuzzer" name="Passes buzzer to guest">
+      <bpmn:name>Hand Over Buzzer</bpmn:name>
+      <bpmn:incoming>SequenceFlowHandOverBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowInformChef</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowHandOverBuzzer" sourceRef="Task_employeeSetupBuzzer" targetRef="Task_employeeHandOverBuzzer"/>
+
+    <bpmn:task id="Task_employeeInformChef" name="Informs chef of new meal order">
+      <bpmn:name>Inform Chef</bpmn:name>
+      <bpmn:incoming>SequenceFlowInformChef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowWaitForMealReadyOrTimeout</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowInformChef" sourceRef="Task_employeeHandOverBuzzer" targetRef="Task_employeeInformChef"/>
+
+    <!-- Event-based gateway for waiting scenarios -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_waitForMealOrTimeout">
+      <bpmn:name>Wait: Meal Ready or Timeout</bpmn:name>
+      <bpmn:incoming>SequenceFlowWaitForMealReadyOrTimeout</bpmn:incoming>
+      <!-- Outgoing to Catch Events -->
+      <bpmn:outgoing>SequenceFlowToCatchEventMealReady</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlowToCatchEventTimeout</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Path 1: Meal ready notification -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_employeeMealReady" name="Employee informed meal is ready">
+      <bpmn:name>Meal Ready Notification</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlowToCatchEventMealReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowSetOffBuzzerTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Path 2: Timeout after 5 minutes -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_employeeTimeout" name="5 minute timeout">
+      <bpmn:name>Wait 5 Minutes</bpmn:name>
+      <bpmn:timerEventDefinition/>
+      <bpmn:incoming>SequenceFlowToCatchEventTimeout</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowCallGuestTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to call guest -->
+    <bpmn:task id="Task_employeeCallGuest" name="Calls for guest">
+      <bpmn:name>Call Guest</bpmn:name>
+      <bpmn:incoming>SequenceFlowCallGuestTask</bpmn:incoming>
+      <!-- Loop back to wait again if necessary -->
+      <bpmn:outgoing>SequenceFlowLoopBackToWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence flows for timeout path -->
+    <bpmn:sequenceFlow id="SequenceFlowCallGuestTask" sourceRef="IntermediateCatchEvent_employeeTimeout" targetRef="Task_employeeCallGuest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlowLoopBackToWait" name="Repeat if necessary" sourceRef="Task_employeeCallGuest" targetRef="EventBasedGateway_waitForMealOrTimeout"/>
+
+    <!-- Task to set off buzzer when meal ready -->
+    <bpmn:task id="Task_employeeSetOffBuzzer" name="Sets off guest's buzzer">
+      <bpmn:name>Ring Buzzer</bpmn:name>
+      <bpmn:incoming>SequenceFlowToCatchEventMealReady</bpmn:incoming> <!-- Wait, this should come from Catch Event -->
+    </bpmn:task>
+
+    <!-- Correcting Task incoming flow for Set Off Buzzer -->
+    <bpmn:sequenceFlow id="SequenceFlowSetOffBuzzerTask" sourceRef="IntermediateCatchEvent_employeeMealReady" targetRef="Task_employeeSetOffBuzzer"/>
+
+    <!-- Path to hand over meal (Wait for guest) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_guestAppears" name="Guest appears at service hatch">
+      <bpmn:name>Wait for Guest</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <!-- This catch event is triggered by guest appearing -->
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to hand over meal -->
+    <bpmn:task id="Task_employeeHandOverMeal" name="Hands over meal">
+      <bpmn:name>Hand Over Meal</bpmn:name>
+      <bpmn:incoming>SequenceFlowWaitForGuestAppears</bpmn:incoming> <!-- Wait, this needs to come from a gateway or flow -->
+    </bpmn:task>
+
+    <!-- Logic correction for Handover path: After ringing buzzer, wait for guest. This is another EBG logic or just sequential with catch event? 
+         The description says "As soon as the employee appears at service hatch...". Actually it's Guest appears. So after Buzzer rings (Task), Employee waits for Guest to appear.
+    -->
+
+    <!-- Revised Flow: Task_employeeSetOffBuzzer -> Wait for Guest CatchEvent -> Hand Over Meal -->
+    
+    <bpmn:endEvent id="EndEvent_employeeFinished" name="Order processed">
+      <bpmn:name>Process Complete</bpmn:name>
+      <bpmn:incoming>SequenceFlowCompleteOrder</bpmn:incoming> <!-- Fixed closing tag -->
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Chef Process -->
+  <bpmn:process id="Process_chef">
+    <bpmn:startEvent id="StartEvent_chefOrderReceived" name="New meal order received">
+      <bpmn:name>New Order</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlowPrepareMeal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_chefPrepare" name="Prepares the meal">
+      <bpmn:name>Prepare Meal</bpmn:name>
+      <bpmn:incoming>SequenceFlowPrepareMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowPlaceInHatch</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowPrepareMeal" sourceRef="StartEvent_chefOrderReceived" targetRef="Task_chefPrepare"/>
+
+    <bpmn:task id="Task_chefPlaceInHatch" name="Places meal in service hatch">
+      <bpmn:name>Place Meal</bpmn:name>
+      <bpmn:incoming>SequenceFlowPlaceInHatch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlowInformEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlowPlaceInHatch" sourceRef="Task_chefPrepare" targetRef="Task_chefPlaceInHatch"/>
+
+    <!-- Task to inform employee -->
+    <bpmn:task id="Task_chefInformEmployee" name="Informs employee meal is ready">
+      <bpmn:name>Notify Employee</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlowInformEmployee</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- End event -->
+    <bpmn:endEvent id="EndEvent_chefFinished" name="Meal prepared">
+      <bpmn:name>Chef Finished</bpmn:name>
+      <bpmn:incoming>SequenceFlowInformEmployee</bpmn:incoming> <!-- Fixed closing tag -->
+    </bpmn:endEvent>
+
+  </bpmn:process>
+  
+  <!-- Additional Flows for Employee Process to complete logic -->
+  <bpmn:sequenceFlow id="SequenceFlowWaitForMealReadyOrTimeout" sourceRef="Task_employeeInformChef" targetRef="EventBasedGateway_waitForMealOrTimeout"/>
+  <bpmn:sequenceFlow id="SequenceFlowToCatchEventMealReady" name="Notification Received" sourceRef="EventBasedGateway_waitForMealOrTimeout" targetRef="IntermediateCatchEvent_employeeMealReady"/>
+  <bpmn:sequenceFlow id="SequenceFlowToCatchEventTimeout" name="5 Minutes Elapsed" sourceRef="EventBasedGateway_waitForMealOrTimeout" targetRef="IntermediateCatchEvent_employeeTimeout"/>
+
+</bpmn:definitions>

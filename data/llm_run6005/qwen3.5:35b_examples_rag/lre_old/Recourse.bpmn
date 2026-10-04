@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Subrogation">
+    <bpmn:participant id="Participant_Subrogation" name="Subrogation Process" processRef="Process_Subrogation_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Subrogation_1" isExecutable="false">
+    <bpmn:startEvent id="Start_Event_SubrogationCheck" name="Subrogation Check Initiated">
+      <bpmn:outgoing>Flow_CheckPossibility</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Get information about case -->
+    <bpmn:task id="Task_GetCaseInfo" name="Get Information About Case">
+      <bpmn:incoming>Flow_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>Flow_VerifyPossibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if possibility is really there -->
+    <bpmn:exclusiveGateway id="Gateway_CheckPossibility" name="Subrogation Possible?">
+      <bpmn:incoming>Flow_VerifyPossibility</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendRequest</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CloseCaseNoRecourse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for concurrent activities -->
+    <bpmn:parallelGateway id="Parallel_SendRequestAndReminder">
+      <bpmn:incoming>Flow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeAfterSend</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 2: Send payment request -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send Payment Request to Insurant">
+      <bpmn:incoming>Flow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>Parallel_SendRequestAndReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Make reminder -->
+    <bpmn:task id="Task_MakeReminder" name="Make Reminder">
+      <bpmn:incoming>Flow_ReminderSent</bpmn:incoming>
+      <bpmn:outgoing>Parallel_SendRequestAndReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Check if money received -->
+    <bpmn:exclusiveGateway id="Gateway_CheckMoneyReceived" name="Payment Received?">
+      <bpmn:incoming>Flow_MergeAfterSend</bpmn:incoming>
+      <bpmn:outgoing>Flow_BookingAndClose</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CheckDisagreement</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Close case if insurant right -->
+    <bpmn:endEvent id="End_CloseCaseBooking" name="Closed After Payment">
+      <bpmn:incoming>Flow_BookingAndClose</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Close case if no subrogation possible -->
+    <bpmn:endEvent id="End_NoRecourse" name="Closed - No Recourse">
+      <bpmn:incoming>Flow_CloseCaseNoRecourse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 4: Check disagreement reasoning -->
+    <bpmn:task id="Task_CheckDisagreement" name="Check Disagreement Reasoning">
+      <bpmn:incoming>Flow_CheckDisagreement</bpmn:incoming>
+      <bpmn:outgoing>Gateway_InsurantRightOrWrong</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Insurant right or wrong -->
+    <bpmn:exclusiveGateway id="Gateway_InsurantRightOrWrong" name="Disagreement Valid?">
+      <bpmn:incoming>Flow_CheckReasoning</bpmn:incoming>
+      <bpmn:outgoing>Flow_CloseCaseValid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ForwardToCollection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 3: Close case if insurant right -->
+    <bpmn:endEvent id="End_CloseCaseValid" name="Closed - Insurant Right">
+      <bpmn:incoming>Flow_CloseCaseValid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 4: Forward to collection agency -->
+    <bpmn:endEvent id="End_ForwardToCollection" name="Forwarded To Collection Agency">
+      <bpmn:incoming>Flow_ForwardToCollection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Timer Event for deadline -->
+    <bpm:startEvent id="Start_TimerDeadline" name="Disagreement Deadline Reached">
+      <bpmn:timerDuration>P1M</bpmn:outgoing>Flow_DeadlineReached</bpmn:outgoing>
+    </bpm:startEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_CheckPossibility" sourceRef="Start_Event_SubrogationCheck" targetRef="Task_GetCaseInfo" />
+    <bpmn:sequenceFlow id="Flow_VerifyPossibility" sourceRef="Task_GetCaseInfo" targetRef="Gateway_CheckPossibility" />
+
+    <!-- From Gateway Check Possibility -->
+    <bpmn:sequenceFlow id="Flow_SendRequest" name="Yes - Possible" sourceRef="Gateway_CheckPossibility" targetRef="Parallel_SendRequestAndReminder" />
+    <bpmn:sequenceFlow id="Flow_CloseCaseNoRecourse" name="No - Not Possible" sourceRef="Gateway_CheckPossibility" targetRef="End_NoRecourse" />
+
+    <!-- Parallel Gateway flows -->
+    <bpmn:sequenceFlow id="Flow_MergeAfterSend" sourceRef="Parallel_SendRequestAndReminder" targetRef="Gateway_CheckMoneyReceived" />
+
+    <!-- Task Send Request flow -->
+    <bpmn:sequenceFlow id="Flow_RequestSent" name="" sourceRef="Task_SendPaymentRequest" targetRef="Parallel_SendRequestAndReminder" />
+
+    <!-- Task Make Reminder flow -->
+    <bpmn:sequenceFlow id="Flow_ReminderSent" name="" sourceRef="Task_MakeReminder" targetRef="Parallel_SendRequestAndReminder" />
+
+    <!-- From Gateway Check Money Received -->
+    <bpmn:sequenceFlow id="Flow_BookingAndClose" name="Yes - Payment Received" sourceRef="Gateway_CheckMoneyReceived" targetRef="End_CloseCaseBooking" />
+
+    <!-- Task Check Disagreement flow (from money not received) -->
+    <bpmn:sequenceFlow id="Flow_CheckDisagreement" name="No - Wait for Response" sourceRef="Gateway_CheckMoneyReceived" targetRef="Task_CheckDisagreement" />
+
+    <!-- From Gateway Insurant Right Or Wrong -->
+    <bpmn:sequenceFlow id="Flow_CloseCaseValid" name="Yes - Valid Reasoning" sourceRef="Gateway_InsurantRightOrWrong" targetRef="End_CloseCaseValid" />
+
+    <!-- Task Check Disagreement to Gateway flow -->
+    <bpmn:sequenceFlow id="Flow_CheckReasoning" sourceRef="Task_CheckDisagreement" targetRef="Gateway_InsurantRightOrWrong" />
+
+    <!-- From Deadline Timer Event -->
+    <bpmn:sequenceFlow id="Flow_DeadlineReached" name="Deadline Reached - No Payment" sourceRef="Start_TimerDeadline" targetRef="End_ForwardToCollection" />
+
+  </bpmn:process>
+</bpmn:definitions>

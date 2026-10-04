@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_ClaimHandling" name="Claim Handling Process" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ClaimHandler" name="Claim Handler">
+        <bpmn:flowNodeRef>StartEvent_Process</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendQuestionnaire</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EventBasedGateway_Waiting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageEvent_CatchResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateTimerEvent_5Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendReminder</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Process" name="Claim Handling Process">
+      <bpmn:outgoing>SequenceFlow_StartToQuestionnaire</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send initial questionnaire -->
+    <bpmn:task id="Task_SendQuestionnaire" name="Send Questionnaire">
+      <bpmn:incoming>SequenceFlow_StartToQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QuestionnaireSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_01" name="Send Questionnaire?">
+      <bpmn:name>Send Questionnaire?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_QuestionnaireSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEventBasedGateway</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Event-Based Gateway for waiting -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_Waiting" name="Wait For Response">
+      <bpmn:name>Waiting Period</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ToEventBasedGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MessagePath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Message Catching Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessageEvent_CatchResponse" name="Questionnaire Received">
+      <bpmn:name>Filled questionnaire received</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MessagePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResponseReceived</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Intermediate Timer Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimerEvent_5Days" name="After 5 Days">
+      <bpmn:name>No response after 5 days</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TimerPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerTriggered</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 2: Send reminder -->
+    <bpmn:task id="Task_SendReminder" name="Send Reminder">
+      <bpmn:name>Send Reminder to Claimant</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TimerTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_ResponseReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToQuestionnaire" sourceRef="StartEvent_Process" targetRef="Task_SendQuestionnaire" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_QuestionnaireSent" name="" sourceRef="Task_SendQuestionnaire" targetRef="ExclusiveGateway_01" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToEventBasedGateway" name="" sourceRef="ExclusiveGateway_01" targetRef="EventBasedGateway_Waiting" />
+    
+    <!-- Timer path from event-based gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerPath" name="Timer Path (5 Days)" sourceRef="EventBasedGateway_Waiting" targetRef="IntermediateTimerEvent_5Days" />
+
+    <!-- Message path from event-based gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_MessagePath" name="Message Path (Response)" sourceRef="EventBasedGateway_Waiting" targetRef="IntermediateMessageEvent_CatchResponse" />
+
+    <!-- Timer triggered flow to reminder task -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerTriggered" name="" sourceRef="IntermediateTimerEvent_5Days" targetRef="Task_SendReminder" />
+
+    <!-- Response received flow to end event (or continue process) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResponseReceived" name="" sourceRef="IntermediateMessageEvent_CatchResponse" targetRef="EndEvent_ProcessComplete" />
+
+    <!-- Loop back flow from reminder to exclusive gateway for next waiting period -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryLoop" name="" sourceRef="Task_SendReminder" targetRef="ExclusiveGateway_01" />
+
+  </bpmn:process>
+</bpmn:definitions>

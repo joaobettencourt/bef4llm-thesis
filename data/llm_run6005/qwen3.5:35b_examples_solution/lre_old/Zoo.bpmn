@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ZooMembership">
+    <bpmn:participant id="Participant_Visitor" name="Visitor" processRef="Process_Visitor"/>
+    <bpmn:participant id="Participant_ZooClub" name="ZooClub department" processRef="Process_ZooClub"/>
+    <bpmn:participant id="Participant_Billing" name="Billing department" processRef="Process_Billing"/>
+    <bpmn:participant id="Participant_Bank" name="Bank" processRef="Process_Bank"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_VisitorToZooClub" sourceRef="Task_VisitSendInfo" targetRef="StartEvent_ZooReceive"/>
+    <bpmn:messageFlow id="Msg_ZooClubToBilling" sourceRef="Task_SendPaymentRequest" targetRef="StartEvent_BillingReceive"/>
+    <bpmn:messageFlow id="Msg_BankingToZooClub" sourceRef="End_PaymentConfirmed" targetRef="IntermediateCatch_ZooWaitConfirm"/>
+  </bpmn:collaboration>
+
+  <!-- Visitor Process -->
+  <bpmn:process id="Process_Visitor">
+    <bpmn:startEvent id="StartEvent_MemberDecision">
+      <bpmn:name>Decide membership type</bpmn:name>
+      <bpmn:outgoing>Seq_DecisionToGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="Gate_MemberType">
+      <bpmn:name>Individual or Family?</bpmn:name>
+      <bpmn:incoming>Seq_DecisionToGateway</bpmn:incoming>
+      <bpmn:outgoing>Seq_IndivPath</bpmn:outgoing>
+      <bpmn:outgoing>Seq_FamilyPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_PreparePersonal">
+      <bpmn:name>Prepare personal information</bpmn:name>
+      <bpmn:incoming>Seq_IndivPath</bpmn:incoming>
+      <bpmn:outgoing>Seq_GatherInfoToMerge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PrepareFamily">
+      <bpmn:name>Prepare family information (spouse &amp; spawn)</bpmn:name>
+      <bpmn:incoming>Seq_FamilyPath</bpmn:incoming>
+      <bpmn:outgoing>Seq_GatherInfoToMerge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gate_InfoMerged">
+      <bpmn:name>All info gathered?</bpmn:name>
+      <bpmn:incoming>Seq_GatherInfoToMerge1</bpmn:incoming>
+      <bpmn:incoming>Seq_GatherInfoToMerge2</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendToZooClub</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_VisitSendInfo">
+      <bpmn:name>Give information to ZooClub department</bpmn:name>
+      <bpmn:incoming>Seq_SendToZooClub</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitCardDelivery</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="IntermediateWait_CardReceived">
+      <bpmn:name>Receive ZooClub card</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>Seq_WaitCardDelivery</bpmn:incoming>
+      <bpmn:outgoing>Seq_GoHome</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_VisitorDone">
+      <bpmn:name>Go home</bpmn:name>
+      <bpmn:incoming>Seq_GoHome</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_DecisionToGateway" sourceRef="StartEvent_MemberDecision" targetRef="Gate_MemberType"/>
+    <bpmn:sequenceFlow id="Seq_IndivPath" name="Individual membership" sourceRef="Gate_MemberType" targetRef="Task_PreparePersonal"/>
+    <bpmn:sequenceFlow id="Seq_FamilyPath" name="Family membership" sourceRef="Gate_MemberType" targetRef="Task_PrepareFamily"/>
+    <bpmn:sequenceFlow id="Seq_GatherInfoToMerge1" sourceRef="Task_PreparePersonal" targetRef="Gate_InfoMerged"/>
+    <bpmn:sequenceFlow id="Seq_GatherInfoToMerge2" name="" sourceRef="Task_PrepareFamily" targetRef="Gate_InfoMerged"/>
+    <bpmn:sequenceFlow id="Seq_SendToZooClub" sourceRef="Gate_InfoMerged" targetRef="Task_VisitSendInfo"/>
+    <bpmn:sequenceFlow id="Seq_WaitCardDelivery" name="" sourceRef="Task_VisitSendInfo" targetRef="IntermediateWait_CardReceived"/>
+    <bpmn:sequenceFlow id="Seq_GoHome" sourceRef="IntermediateWait_CardReceived" targetRef="End_VisitorDone"/>
+  </bpmn:process>
+
+  <!-- ZooClub Process -->
+  <bpmn:process id="Process_ZooClub">
+    <bpmn:startEvent id="StartEvent_ZooReceive">
+      <bpmn:name>Receive visitor information</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>Seq_EnterSystem</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EnterData">
+      <bpmn:name>Enter visitor data into system</bpmn:name>
+      <bpmn:incoming>Seq_EnterSystem</bpmn:incoming>
+      <bpmn:outgoing>Seq_ParallelSplit1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="Gate_SplitTasks">
+      <bpmn:name>Synchronize tasks</bpmn:name>
+      <bpmn:incoming>Seq_ParallelSplit1</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendToBilling</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ForwardMarketing</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_SendPaymentRequest">
+      <bpmn:name>Send payment request to Billing department</bpmn:name>
+      <bpmn:incoming>Seq_ParallelSplit1</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitConfirmation</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="IntermediateWait_ZooConfirm">
+      <bpmn:name>Payment confirmed by Bank</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>Seq_WaitConfirmation</bpmn:incoming>
+      <bpmn:outgoing>Seq_PrintCard</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_ZooClubDone">
+      <bpmn:name>ZooClub process complete</bpmn:name>
+      <bpmn:incoming>Seq_PrintCard</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_EnterSystem" sourceRef="StartEvent_ZooReceive" targetRef="Task_EnterData"/>
+    <bpmn:sequenceFlow id="Seq_ParallelSplit1" name="" sourceRef="Task_EnterData" targetRef="Gate_SplitTasks"/>
+    <bpmn:sequenceFlow id="Seq_SendToBilling" sourceRef="Gate_SplitTasks" targetRef="Task_SendPaymentRequest"/>
+    <bpmn:sequenceFlow id="Seq_ForwardMarketing" name="" sourceRef="Gate_SplitTasks" targetRef="IntermediateWait_ZooConfirm"/>
+    <bpmn:sequenceFlow id="Seq_WaitConfirmation" sourceRef="Task_SendPaymentRequest" targetRef="IntermediateWait_ZooConfirm"/>
+  </bpmn:process>
+
+  <!-- Billing Process -->
+  <bpmn:process id="Process_Billing">
+    <bpmn:startEvent id="StartEvent_BillingReceive">
+      <bpmn:name>Receive payment request</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>Seq_SendToBank</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_BillingDone">
+      <bpmn:name>Billing process complete</bpmn:name>
+      <bpmn:incoming>Seq_PaymentSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_SendToBank" sourceRef="StartEvent_BillingReceive" targetRef="End_BillingDone"/>
+  </bpmn:process>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_Bank">
+    <bpmn:startEvent id="StartEvent_PaymentRequest">
+      <bpmn:name>Payment request received</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>Seq_ProcessPayment</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_PaymentConfirmed">
+      <bpmn:name>Billing process complete</bpmn:name>
+      <bpmn:incoming>Seq_ConfirmationBack</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_ProcessPayment" sourceRef="StartEvent_PaymentRequest" targetRef="End_PaymentConfirmed"/>
+  </bpmn:process>
+</bpmn:definitions>

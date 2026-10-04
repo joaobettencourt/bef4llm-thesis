@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PaymentProcess">
+    <bpmn:participant id="Participant_SSP" name="SSP Organization" processRef="Process_PaymentProcessing" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_PaymentProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice" name="Payment Office">
+        <bpmn:flowNodeRef>Task_GenerateReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SendReports</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AccountsReceivable" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>Task_GenerateMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ChargeFee</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_RegistryOffice" name="Registry Office">
+        <bpmn:flowNodeRef>Task_SelectPaidInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveInvoices</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Client" name="Client">
+        <bpmn:flowNodeRef>EndEvent_ReceiveInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event - Weekly Trigger -->
+    <bpmn:startEvent id="StartEvent_Weekly" name="Week End">
+      <bpmn:outgoing>Flow_StartToReport</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:userTask id="Task_GenerateReport" name="Generate Payment Report">
+      <bpmn:incoming>Flow_StartToReport</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReportToGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for routing reports -->
+    <bpmn:exclusiveGateway id="Gateway_SendReports" name="Send Reports?">
+      <bpmn:incoming>Flow_ReportToGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToClient</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToRegistry</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Accounts Receivable Department Tasks -->
+    <bpmn:userTask id="Task_GenerateMonthlyInvoice" name="Generate Monthly Invoice">
+      <bpmn:incoming>Flow_ReportToAR</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToChargeFee</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for charging fee -->
+    <bpmn:exclusiveGateway id="Gateway_ChargeFee" name="Charge $35?">
+      <bpmn:incoming>Flow_ToChargeFee</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifyClient</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:userTask id="Task_SelectPaidInvoices" name="Select Paid Paper Invoices">
+      <bpmn:incoming>Flow_ReportToRegistry</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToArchive</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Archive Task -->
+    <bpmn:userTask id="Task_ArchiveInvoices" name="Archive Invoices by Vendor &amp; Payment Data">
+      <bpmn:incoming>Flow_ToArchive</bpmn:incoming>
+      <bpmn:outgoing>Flow_TrackPayment</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_ReceiveInvoice" name="Client Receives Invoice">
+      <bpmn:incoming>Flow_NotifyClient</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_PaymentTracked" name="Payment Tracked &amp; Archived">
+      <bpmn:incoming>Flow_TrackPayment</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToReport" sourceRef="StartEvent_Weekly" targetRef="Task_GenerateReport" />
+    
+    <bpmn:sequenceFlow id="Flow_ReportToGateway" name="" sourceRef="Task_GenerateReport" targetRef="Gateway_SendReports" />
+
+    <!-- Payment Office sends to Client -->
+    <bpmn:sequenceFlow id="Flow_ToClient" name="Send Report &amp; Invoice" sourceRef="Gateway_SendReports" targetRef="EndEvent_ReceiveInvoice">
+      <bpmn:name>Payment report with invoice</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Office sends to Accounts Receivable -->
+    <bpmn:sequenceFlow id="Flow_ReportToAR" name="" sourceRef="Gateway_SendReports" targetRef="Task_GenerateMonthlyInvoice">
+      <bpmn:name>To AR Department</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Office sends to Registry -->
+    <bpmn:sequenceFlow id="Flow_ReportToRegistry" name="" sourceRef="Gateway_SendReports" targetRef="Task_SelectPaidInvoices">
+      <bpmn:name>To Registry</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- AR Department flow -->
+    <bpmn:sequenceFlow id="Flow_ToChargeFee" name="" sourceRef="Task_GenerateMonthlyInvoice" targetRef="Gateway_ChargeFee">
+      <bpmn:name>To Charge Fee Gateway</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Notify Client of charge -->
+    <bpmn:sequenceFlow id="Flow_NotifyClient" name="$35 Charge" sourceRef="Gateway_ChargeFee" targetRef="EndEvent_ReceiveInvoice">
+      <bpmn:name>Notify client &amp; charge $35</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Registry flow -->
+    <bpmn:sequenceFlow id="Flow_ToArchive" name="" sourceRef="Task_SelectPaidInvoices" targetRef="Task_ArchiveInvoices">
+      <bpmn:name>To Archive</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Track payment and complete process -->
+    <bpmn:sequenceFlow id="Flow_TrackPayment" name="" sourceRef="Task_ArchiveInvoices" targetRef="EndEvent_PaymentTracked">
+      <bpmn:name>Track down payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

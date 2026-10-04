@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseProcess">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Process" processRef="Process_ExpenseProcess"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseProcess" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartFileReport" name="Employee Files Expense Report">
+      <bpmn:outgoing>SequenceFlow_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Employee Account -->
+    <bpmn:task id="Task_CheckAccount" name="Verify Employee Has Account">
+      <bpmn:incoming>SequenceFlow_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCheckReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Timer Event on Task_CheckAccount (28 days) -->
+    <bpmn:boundaryEvent id="BoundaryTimer28Days" name="No Account Check in 28 Days">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">PT672H</bpmn:timerDefinition>
+      <bpmn:attachedToRef>Task_CheckAccount</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_BoundaryTimerEmail</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task: Send Resubmit Email -->
+    <bpmn:task id="Task_SendResubmitEmail" name="Send 'Resubmit' Email to Employee">
+      <bpmn:incoming>SequenceFlow_BoundaryTimerEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResubmitToEndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Timeout -->
+    <bpmn:endEvent id="End_Expired" name="Process Stopped - Resubmit Required">
+      <bpmn:incoming>SequenceFlow_ResubmitToEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Exclusive Gateway: Has Employee Account? -->
+    <bpmn:exclusiveGateway id="Gateway_HasAccount" name="Employee Has Account?">
+      <bpmn:incoming>SequenceFlow_AccountCheckReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoAccountPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesAccountPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Account (if no account) -->
+    <bpmn:task id="Task_CreateAccount" name="Create Employee Account">
+      <bpmn:incoming>SequenceFlow_NoAccountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreatedToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Review Expense Report -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>SequenceFlow_YesAccountPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewToAmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway: Amount > 200? -->
+    <bpmn:exclusiveGateway id="Gateway_AmountExceeds" name="Expense Exceeds $200?">
+      <bpmn:incoming>SequenceFlow_ReviewToAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotOver200Path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Above200Path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Reimburse via Deposit (≤ 200) -->
+    <bpmn:task id="Task_ReimburseDirect" name="Deposit to Bank Account">
+      <bpmn:incoming>SequenceFlow_NotOver200Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DirectToEndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Direct Reimbursement -->
+    <bpmn:endEvent id="End_Reimbursed" name="Reimburse Processed">
+      <bpmn:incoming>SequenceFlow_DirectToEndApproved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Request Supervisor Approval (> 200) -->
+    <bpmn:userTask id="Task_RequestApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_Above200Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalToGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary Timer Event on Task_RequestApproval (7 days) -->
+    <bpmn:boundaryEvent id="BoundaryTimer7Days" name="Supervisor Response > 7 Days">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">PT168H</bpmn:timerDefinition>
+      <bpmn:attachedToRef>Task_RequestApproval</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_SupervisorTimeoutEmailPath</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task: Send Approval In Progress Email -->
+    <bpmn:task id="Task_SendInProgressEmail" name="Send 'Approval in Progress' Email">
+      <bpmn:incoming>SequenceFlow_SupervisorTimeoutEmailPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InProgressToRequestAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_InProgressToRequestAgain" sourceRef="Task_SendInProgressEmail" targetRef="Task_RequestApproval">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Exclusive Gateway for Supervisor Decision (after approval task) -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor Response?">
+      <bpmn:incoming>SequenceFlow_ApprovalToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Rejection Email -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send 'Request Rejected' Notification">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectionToEndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Rejected -->
+    <bpmn:endEvent id="End_Expired2" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_RejectionToEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Deposit to Bank Account (Approved) -->
+    <bpmn:task id="Task_DepositAfterApproval" name="Deposit Reimbursement">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AfterDepositToEndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Approved -->
+    <bpmn:endEvent id="End_Approved" name="Reimbursement Processed">
+      <bpmn:incoming>SequenceFlow_AfterDepositToEndApproved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAccountCheck" sourceRef="StartFileReport" targetRef="Task_CheckAccount">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BoundaryTimerEmail" sourceRef="BoundaryTimer28Days" targetRef="Task_SendResubmitEmail">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCheckReview" sourceRef="Task_CheckAccount" targetRef="Gateway_HasAccount">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- No Account Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccountPath" name="No - Create Account" sourceRef="Gateway_HasAccount" targetRef="Task_CreateAccount">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Yes Account Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesAccountPath" name="Yes - Review Report" sourceRef="Gateway_HasAccount" targetRef="Task_ReviewReport">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Created to Review -->
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreatedToReview" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Review Report to Amount Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewToAmountCheck" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountExceeds">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Not Over 200 Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotOver200Path" name="≤ $200 - Direct Reimburse" sourceRef="Gateway_AmountExceeds" targetRef="Task_ReimburseDirect">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Above 200 Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Above200Path" name=">$ $200 - Request Approval" sourceRef="Gateway_AmountExceeds" targetRef="Task_RequestApproval">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Direct to End Approved -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectToEndApproved" sourceRef="Task_ReimburseDirect" targetRef="End_Reimbursed">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Request Approval to Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalToGateway" sourceRef="Task_RequestApproval" targetRef="Gateway_SupervisorDecision">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Approve Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovePath" name="Approved Within 7 Days" sourceRef="Gateway_SupervisorDecision" targetRef="Task_DepositAfterApproval">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Reject Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Rejected Within 7 Days" sourceRef="Gateway_SupervisorDecision" targetRef="Task_SendRejectionEmail">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejection to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectionToEndRejected" sourceRef="Task_SendRejectionEmail" targetRef="End_Expired2">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- After Deposit to End Approved -->
+    <bpmn:sequenceFlow id="SequenceFlow_AfterDepositToEndApproved" sourceRef="Task_DepositAfterApproval" targetRef="End_Approved">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

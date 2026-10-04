@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_LeadProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LeadSales">
+    <bpmn:participant id="Participant_SalesProcess" name="Lead Sales Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_001">
+      <bpmn:lane id="Lane_Manager" name="Manager">
+        <bpmn:flowNodeRef>Task_CheckLeads</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectTopFive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HasNextLead</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Processed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Assistant" name="Sales Assistant">
+        <bpmn:flowNodeRef>Task_CallContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Interested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendNote</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CheckLeads" name="Check Open Leads">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Manager checks leads -->
+    <bpmn:task id="Task_CheckLeads" name="Checks open leads">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Manager selects top five -->
+    <bpmn:task id="Task_SelectTopFive" name="Selects the top five ones">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Loop Control (Has Next Lead?) -->
+    <bpmn:exclusiveGateway id="Gateway_HasNextLead" name="More leads to call?">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CallLoopStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Assistant calls customer -->
+    <bpmn:task id="Task_CallContact" name="Calls contact person of leads">
+      <bpmn:incoming>SequenceFlow_CallLoopStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Interest Decision -->
+    <bpmn:exclusiveGateway id="Gateway_Interested" name="Customer interested?">
+      <bpmn:incoming>SequenceFlow_05</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoInterest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InterestedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Assistant sends note -->
+    <bpmn:task id="Task_SendNote" name="Sends a note to the Manager">
+      <bpmn:incoming>SequenceFlow_InterestedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Manager processes lead -->
+    <bpmn:task id="Task_ProcessLead" name="Processes the lead">
+      <bpmn:incoming>SequenceFlow_07</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Processed" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_EndLoop</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Check Leads -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_CheckLeads" targetRef="Task_CheckLeads"/>
+
+    <!-- Check Leads to Select Top Five -->
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_CheckLeads" targetRef="Task_SelectTopFive"/>
+
+    <!-- Select Top Five to Loop Control Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_03" name="Selects top five" sourceRef="Task_SelectTopFive" targetRef="Gateway_HasNextLead">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Control to Call Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_CallLoopStart" name="Yes, call next lead" sourceRef="Gateway_HasNextLead" targetRef="Task_CallContact">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[hasMoreLeads]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Call Task to Interest Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_05" sourceRef="Task_CallContact" targetRef="Gateway_Interested"/>
+
+    <!-- Not Interested Path (Loop Back) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoInterest" name="No interest, next customer" sourceRef="Gateway_Interested" targetRef="Gateway_HasNextLead">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!isInterested]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Interested Path (Send Note) -->
+    <bpmn:sequenceFlow id="SequenceFlow_InterestedPath" name="Yes, interested" sourceRef="Gateway_Interested" targetRef="Task_SendNote">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isInterested]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Note to Process Lead -->
+    <bpmn:sequenceFlow id="SequenceFlow_07" sourceRef="Task_SendNote" targetRef="Task_ProcessLead"/>
+
+    <!-- Process Lead Loop Back (Check Next) -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBack" name="Process done, check next lead" sourceRef="Task_ProcessLead" targetRef="Gateway_HasNextLead">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Control End Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndLoop" name="No more leads" sourceRef="Gateway_HasNextLead" targetRef="EndEvent_Processed">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!hasMoreLeads]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

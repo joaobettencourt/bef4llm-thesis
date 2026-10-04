@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Regressabwicklung" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_1" name="Sachbearbeiter Regressabwicklung">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FallPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MoeglichkeitBesteht</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WartenErgebnis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ZahlungsauflorderungSenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EingangVerbuchen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WiderspruchGerechtfertigt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InkassoAbgeben</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ZahlungseingangEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>WiderspruchEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>FristAbgelaufenTimer</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Benachrichtigung Regress möglich">
+      <bpmn:outgoing>SequenceFlow_StartPruefen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Case -->
+    <bpmn:task id="Task_FallPruefen" name="Fall prüfen">
+      <bpmn:incoming>SequenceFlow_StartPruefen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PruefenGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Regress Possible? -->
+    <bpmn:exclusiveGateway id="Gateway_MoeglichkeitBesteht" name="Möglichkeit besteht?">
+      <bpmn:incoming>SequenceFlow_PruefenGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SchliessenNein</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AuflorderungJa</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 2: Close Process (No Demand) -->
+    <bpmn:endEvent id="EndEvent_SchliessenNein" name="Vorgang schließen">
+      <bpmn:incoming>SequenceFlow_SchliessenNein</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Send Demand & Set Follow-Up -->
+    <bpmn:task id="ZahlungsauflorderungSenden" name="Zahlungsau\forderung senden, Wiedervorlage">
+      <bpmn:incoming>SequenceFlow_AuflorderungJa</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WartenGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Waiting Outcomes -->
+    <bpmn:parallelGateway id="Gateway_WartenErgebnis" name="Warten auf Ergebnis">
+      <bpmn:incoming>SequenceFlow_WartenGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ObjectionPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TimerPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Payment Received -->
+    <bpmn:startEvent id="ZahlungseingangEvent" name="Zahlungseingang">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_PaymentTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 3: Book Receipt -->
+    <bpmn:task id="EingangVerbuchen" name="Eingang verbuchen">
+      <bpmn:incoming>SequenceFlow_PaymentTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndPaid</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Closed (Paid) -->
+    <bpmn:endEvent id="EndEvent_Paid" name="Vorgang schließen (Bezahlt)">
+      <bpmn:incoming>SequenceFlow_EndPaid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Wait for Objection -->
+    <bpmn:startEvent id="WiderspruchEvent" name="Widerspruch">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_ObjectionGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway Check Justified -->
+    <bpmn:exclusiveGateway id="Gateway_WiderspruchGerechtfertigt" name="Widerspruch gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_ObjectionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JustYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_JustNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Yes Path -->
+    <bpmn:endEvent id="EndEvent_ObjectionClosed" name="Vorgang schließen (Gerechtfertigt)">
+      <bpmn:incoming>SequenceFlow_JustYes</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- No Path -->
+    <bpmn:task id="InkassoAbgeben" name="An Inkasto abgeben">
+      <bpmn:incoming>SequenceFlow_JustNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InkassoEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event Collection -->
+    <bpmn:endEvent id="EndEvent_Collection" name="An Inkasto abgeben">
+      <bpmn:incoming>SequenceFlow_JustNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_TimerInkasso</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 3: Timer Deadline -->
+    <bpmn:startEvent id="FristAbgelaufenTimer" name="Frist abgelaufen">
+      <bpmn:timerEventDefinition />
+      <bpmn:outgoing>SequenceFlow_TimerInkasso</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartPruefen" sourceRef="StartEvent_1" targetRef="Task_FallPruefen" />
+    <bpmn:sequenceFlow id="SequenceFlow_PruefenGateway" sourceRef="Task_FallPruefen" targetRef="Gateway_MoeglichkeitBesteht" />
+    <bpmn:sequenceFlow id="SequenceFlow_SchliessenNein" name="Nein" sourceRef="Gateway_MoeglichkeitBesteht" targetRef="EndEvent_SchliessenNein">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!regressPossible}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_AuflorderungJa" name="Ja" sourceRef="Gateway_MoeglichkeitBesteht" targetRef="ZahlungsauflorderungSenden">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${regressPossible}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_WartenGateway" sourceRef="ZahlungsauflorderungSenden" targetRef="Gateway_WartenErgebnis" />
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentPath" name="Geld eingegangen" sourceRef="Gateway_WartenErgebnis">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentReceived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentTask" sourceRef="ZahlungseingangEvent" targetRef="EingangVerbuchen" />
+    <bpmn:sequenceFlow id="SequenceFlow_EndPaid" sourceRef="EingangVerbuchen" targetRef="EndEvent_Paid" />
+    <bpmn:sequenceFlow id="SequenceFlow_ObjectionPath" name="Widerspruch erhalten" sourceRef="Gateway_WartenErgebnis">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${objectionReceived}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_ObjectionGateway" sourceRef="WiderspruchEvent" targetRef="Gateway_WiderspruchGerechtfertigt" />
+    <bpmn:sequenceFlow id="SequenceFlow_JustYes" name="Ja, gerechtfertigt" sourceRef="Gateway_WiderspruchGerechtfertigt" targetRef="EndEvent_ObjectionClosed">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${justified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_JustNo" name="Nein, nicht gerechtfertigt" sourceRef="Gateway_WiderspruchGerechtfertigt" targetRef="InkassoAbgeben">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!justified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_InkassoEnd" sourceRef="InkassoAbgeben" targetRef="EndEvent_Collection" />
+    <bpmn:sequenceFlow id="SequenceFlow_TimerPath" name="Frist abgelaufen" sourceRef="Gateway_WartenErgebnis">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${deadlineReached}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_TimerInkasso" sourceRef="FristAbgelaufenTimer" targetRef="EndEvent_Collection" />
+
+  </bpmn:process>
+</bpmn:definitions>

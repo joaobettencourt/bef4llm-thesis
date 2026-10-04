@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TreeHouseProject" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant name="Homeowner (Process Owner)" processRef="Proc_Homeowner"/>
+    <bpmn:participant name="Tree House Architect" processRef="Proc_Architect"/>
+  </bpmn:collaboration>
+
+  <!-- Homeowner Process -->
+  <bpmn:process id="Proc_Homeowner">
+    <bpmn:laneSet>
+      <bpmn:lane name="Planning & Design">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectRequirements</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrow_SendReq</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatch_ReceiveDraft</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RefineRequirements</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Approved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="Procurement & Construction">
+        <bpmn:flowNodeRef>Task_CreateMaterialList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_OrderSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderStore1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderStore2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MaterialsMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InviteBuilders</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_BuildReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BuildHouse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPartyInvites</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateAttendeeList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BuySnacks</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Initiate Project">
+      <bpmn:outgoing>SF_StartToCollect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Planning Tasks & Loop -->
+    <bpmn:task id="Task_CollectRequirements" name="Collect Requirements">
+      <bpmn:incoming>SF_StartToCollect</bpmn:incoming>
+      <bpmn:outgoing>SF_SendReqFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Interaction with Architect -->
+    <bpmn:message id="Msg_Requirements" name="Project Requirements"/>
+    <bpmn:intermediateThrowEvent id="IntermediateThrow_SendReq">
+      <bpmn:incoming>SF_SendReqFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitDraft</bpmn:outgoing>
+      <bpmn:messageRef>Msg_Requirements</bpmn:messageRef>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Note: In a real execution, this would wait for the message flow. 
+         For XML validity in single file model without external process trigger logic defined here -->
+    
+    <bpmn:message id="Msg_Draft" name="Draft Plan"/>
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_ReceiveDraft">
+      <bpmn:incoming>SF_WaitDraft</bpmn:incoming>
+      <bpmn:outgoing>SF_RefinePlan</bpmn:outgoing>
+      <bpmn:messageRef>Msg_Draft</bpmn:messageRef>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_RefineRequirements" name="Refine Requirements">
+      <bpmn:incoming>SF_RefinePlan</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gw_Approved">
+      <bpmn:incoming>SF_CheckApproved</bpmn:incoming>
+      <bpmn:outgoing>SF_ProceedToMaterials</bpmn:outgoing>
+      <bpmn:outgoing>SF_ResendReq</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back Logic -->
+    <bpmn:task id="Task_UpdateResend" name="Update & Resend Requirements">
+      <bpmn:incoming>SF_ResendReq</bpmn:incoming>
+      <bpmn:outgoing>SF_SendReqFlowLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Material List & Ordering -->
+    <bpmn:task id="Task_CreateMaterialList" name="Create Materials List">
+      <bpmn:incoming>SF_ProceedToMaterials</bpmn:incoming>
+      <bpmn:outgoing>SF_SplitOrdering</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Ordering & Builder Invitation -->
+    <bpmn:parallelGateway id="Gw_OrderSplit">
+      <bpmn:incoming>SF_SplitOrdering</bpmn:incoming>
+      <bpmn:outgoing>SF_OrderStore1Flow</bpmn:outgoing>
+      <bpmn:outgoing>SF_InviteBuildersFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Store 2 Order (Parallel to Store 1) -->
+    <bpmn:task id="Task_OrderStore2" name="Order Materials Store 2">
+      <bpmn:incoming>SF_SplitOrdering_2nd</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeMaterialsIn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Stores -->
+    <bpmn:parallelGateway id="Gw_MaterialsMerge">
+      <bpmn:incoming>SF_OrderStore1Flow</bpmn:incoming>
+      <bpmn:incoming>SF_MergeMaterialsIn</bpmn:incoming>
+      <bpmn:outgoing>SF_StartBuildTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Build Ready Gateway (Merge Stores + Invite Builders) -->
+    <bpmn:parallelGateway id="Gw_BuildReady">
+      <bpmn:incoming>SF_MaterialsToBuild</bpmn:incoming>
+      <bpmn:incoming>SF_InviteBuildersFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_StartBuildTask2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Build House Task -->
+    <bpmn:task id="Task_BuildHouse" name="Build Tree House">
+      <bpmn:incoming>SF_StartBuildTask2</bpmn:incoming>
+      <bpmn:outgoing>SF_SendPartyInvitesFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Party Preparation -->
+    <bpmn:task id="Task_SendPartyInvites" name="Send Party Invitations">
+      <bpmn:incoming>SF_SendPartyInvitesFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_CreateAttendeeListFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CreateAttendeeList" name="Create Attendee List">
+      <bpmn:incoming>SF_CreateAttendeeListFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_BuySnacksFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_BuySnacks" name="Buy Snacks for Party">
+      <bpmn:incoming>SF_BuySnacksFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Project Complete">
+      <bpmn:incoming>SF_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToCollect" sourceRef="StartEvent_1" targetRef="Task_CollectRequirements"/>
+    <bpmn:sequenceFlow id="SF_SendReqFlow" sourceRef="Task_CollectRequirements" targetRef="IntermediateThrow_SendReq"/>
+    <bpmn:sequenceFlow id="SF_WaitDraft" sourceRef="IntermediateThrow_SendReq" targetRef="IntermediateCatch_ReceiveDraft"/>
+    <bpmn:sequenceFlow id="SF_RefinePlan" sourceRef="IntermediateCatch_ReceiveDraft" targetRef="Task_RefineRequirements"/>
+    <bpmn:sequenceFlow id="SF_CheckApproved" sourceRef="Task_RefineRequirements" targetRef="Gw_Approved"/>
+    <bpmn:sequenceFlow id="SF_ProceedToMaterials" name="Yes - Approved" sourceRef="Gw_Approved" targetRef="Task_CreateMaterialList"/>
+    <bpmn:sequenceFlow id="SF_ResendReq" name="No - Revise" sourceRef="Gw_Approved" targetRef="Task_UpdateResend"/>
+    <bpmn:sequenceFlow id="SF_SendReqFlowLoop" sourceRef="Task_UpdateResend" targetRef="IntermediateThrow_SendReq"/>
+    <bpmn:sequenceFlow id="SF_SplitOrdering" sourceRef="Task_CreateMaterialList" targetRef="Gw_OrderSplit"/>
+    <bpmn:sequenceFlow id="SF_OrderStore1Flow" name="Order Store 1" sourceRef="Gw_OrderSplit" targetRef="Task_OrderStore2"/>
+    <bpmn:sequenceFlow id="SF_SplitOrdering_2nd" name="Order Store 2 (Parallel)" sourceRef="Gw_OrderSplit" targetRef="Task_OrderStore2"/>
+    <bpmn:sequenceFlow id="SF_MergeMaterialsIn" sourceRef="Task_OrderStore1" targetRef="Gw_MaterialsMerge"/>
+    <bpmn:sequenceFlow id="SF_SplitOrdering_3rd" name="Invite Builders (Parallel)" sourceRef="Gw_OrderSplit" targetRef="Task_InviteBuilders"/>
+    <bpmn:sequenceFlow id="SF_StartBuildTask2" sourceRef="Gw_BuildReady" targetRef="Task_BuildHouse"/>
+    <bpmn:sequenceFlow id="SF_SendPartyInvitesFlow" sourceRef="Task_BuildHouse" targetRef="Task_SendPartyInvites"/>
+    <bpmn:sequenceFlow id="SF_CreateAttendeeListFlow" sourceRef="Task_SendPartyInvites" targetRef="Task_CreateAttendeeList"/>
+    <bpmn:sequenceFlow id="SF_BuySnacksFlow" sourceRef="Task_CreateAttendeeList" targetRef="Task_BuySnacks"/>
+    <bpmn:sequenceFlow id="SF_EndProcess" sourceRef="Task_BuySnacks" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+
+  <!-- Architect Process -->
+  <bpmn:process id="Proc_Architect">
+    <bpmn:startEvent id="ArchStartEvent_1">
+      <bpmn:outgoing>SF_ArchReceiveReq</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="ArchReceiveEvent" name="Receive Requirements">
+      <bpmn:incoming>SF_ArchReceiveReq</bpmn:incoming>
+      <bpmn:outgoing>SF_CreateDraftFlow</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_DraftPlan" name="Create Draft Plan">
+      <bpmn:incoming>SF_CreateDraftFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_SendDraftToHomeowner</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:message id="Msg_Draft" name="Draft Plan"/>
+    
+    <bpmn:endEvent id="ArchEndEvent_1">
+      <bpmn:incoming>SF_SendDraftToHomeowner</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_ArchReceiveReq" sourceRef="ArchStartEvent_1" targetRef="ArchReceiveEvent"/>
+    <bpmn:sequenceFlow id="SF_CreateDraftFlow" sourceRef="ArchReceiveEvent" targetRef="Task_DraftPlan"/>
+    <bpmn:sequenceFlow id="SF_SendDraftToHomeowner" name="Send Draft Plan" sourceRef="Task_DraftPlan" targetRef="ArchEndEvent_1">
+      <bpmn:messageRef>Msg_Draft</bpmn:messageRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Flows between Pools -->
+  <bpmn:messageFlow id="MsgFlow_Req" sourceRef="IntermediateThrow_SendReq" targetRef="ArchReceiveEvent"/>
+  <bpmn:messageFlow id="MsgFlow_Draft" sourceRef="Task_DraftPlan" targetRef="IntermediateCatch_ReceiveDraft"/>
+
+</bpmn:definitions>

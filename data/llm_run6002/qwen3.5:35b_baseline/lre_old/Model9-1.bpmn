@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_DailyMaintenance_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MaintenanceProcess_1">
+    <bpmn:participant id="Participant_ProcessExecution" name="Database Maintenance Process" processRef="Proc_DailyMaintenance_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_DailyMaintenance_01" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SystemTasks" name="System Tasks">
+        <bpmn:flowNodeRef>StartEvent_Morning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BackupDatabase</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AdminTasks" name="Administrator">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckDefaulters</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewCRM_Morning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterAccountsCustomers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CodesAdvised</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProduceTableSendReport</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Morning" name="Every Weekday Morning">
+      <bpmn:outgoing>SequenceFlow_InitBackup</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeCycle>R1/DAY/MO-FRI/T08:00</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>SequenceFlow_InitBackup</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDefaultersTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Morning Deadline (2:30 PM) -->
+    <bpmn:boundaryEvent id="BoundaryEvent_MorningDeadline" name="Alert Supervisor - 2:30 PM">
+      <bpmn:interrupting>false</bpmn:interrupting>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT6H30M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Sequence Flow for Alert Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AlertAM" sourceRef="BoundaryEvent_MorningDeadline" targetRef="Task_SendAlertSupervisorAM">
+      <bpmn:name>If Time Exceeded</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Alert -->
+    <bpmn:task id="Task_SendAlertSupervisorAM" name="Send Alert to Supervisor (Morning)">
+      <bpmn:incoming>SequenceFlow_AlertAM</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndAlertAM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Alert -->
+    <bpmn:endEvent id="EndEvent_MorningAlert" name="Morning Deadline Missed">
+       <bpmn:incoming>SequenceFlow_EndAlertAM</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Main Flow Continue -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDefaultersTable" sourceRef="Task_BackupDatabase" targetRef="InclusiveGateway_CheckDefaulters">
+      <bpmn:name>If Time Exceeded</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_CheckDefaulters" name="New Records Found?">
+       <bpmn:incoming>SequenceFlow_CheckDefaultersTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesRegister</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoCheckCRM_Morning</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Path Yes -->
+    <bpmn:task id="Task_RegisterAccountsCustomers" name="Register Defaulting Accounts &amp; Customers">
+      <bpmn:incoming>SequenceFlow_YesRegister</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_NoCheckCRM_Morning_ReturnsFound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoToAdvisoryCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path No -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoCheckCRM_Morning" sourceRef="InclusiveGateway_CheckDefaulters" targetRef="Task_ReviewCRM_Morning">
+      <bpmn:name>No Records</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Check CRM Morning -->
+    <bpmn:task id="Task_ReviewCRM_Morning" name="Check CRM for New Returns (Morning)">
+       <bpmn:incoming>SequenceFlow_NoCheckCRM_Morning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayReturnsFoundAM</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway Morning Returns -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_CheckCRM_Morning" name="New Returns Filed?">
+      <bpmn:incoming>SequenceFlow_GatewayReturnsFoundAM</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NoCheckCRMAfternoon</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_YesRegister_MorningReturn</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow Yes Register Morning -->
+      <bpmn:sequenceFlow id="SequenceFlow_YesRegister_MorningReturn" sourceRef="InclusiveGateway_CheckCRM_Morning" targetRef="Task_RegisterAccountsCustomers">
+        <bpmn:name>New Returns Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow No Check Afternoon -->
+      <bpmn:sequenceFlow id="SequenceFlow_NoCheckCRMAfternoon" sourceRef="InclusiveGateway_CheckCRM_Morning" targetRef="Task_ProduceTableSendReport">
+        <bpmn:name>No Returns</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Yes Register -->
+      <bpmn:sequenceFlow id="SequenceFlow_YesRegister" sourceRef="InclusiveGateway_CheckDefaulters" targetRef="Task_RegisterAccountsCustomers">
+        <bpmn:name>New Records Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Advisory Check Gateway -->
+      <bpmn:exclusiveGateway id="InclusiveGateway_CodesAdvised" name="Codes Previously Advised?">
+       <bpmn:incoming>SequenceFlow_GoToAdvisoryCheck</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ProduceTableSendReport</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_SkipProduceTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task Produce Table -->
+      <bpmn:task id="Task_ProduceTableSendReport" name="Produce Defaulting Accounts Report &amp; Send to Account Management">
+       <bpmn:incoming>SequenceFlow_SkipProduceTask</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_ProduceTableSendReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoToAfternoonCheck</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow Skip Produce -->
+       <bpmn:sequenceFlow id="SequenceFlow_SkipProduceTask" sourceRef="InclusiveGateway_CodesAdvised" targetRef="Task_ProduceTableSendReport">
+        <bpmn:name>Already Advised</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Produce -->
+       <bpmn:sequenceFlow id="SequenceFlow_ProduceTableSendReport" sourceRef="InclusiveGateway_CodesAdvised" targetRef="Task_ProduceTableSendReport">
+        <bpmn:name>Not Advised</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Go To Advisory -->
+       <bpmn:sequenceFlow id="SequenceFlow_GoToAdvisoryCheck" sourceRef="Task_RegisterAccountsCustomers" targetRef="InclusiveGateway_CodesAdvised">
+        <bpmn:name>After Registration</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Afternoon Check -->
+      <bpmn:task id="Task_CheckCRMAfternoon" name="Check CRM for New Returns (Afternoon)">
+       <bpmn:incoming>SequenceFlow_GoToAfternoonCheck</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_AfternoonGatewayReturnsFound</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow Go To Afternoon -->
+       <bpmn:sequenceFlow id="SequenceFlow_GoToAfternoonCheck" sourceRef="Task_ProduceTableSendReport" targetRef="Task_CheckCRMAfternoon">
+        <bpmn:name>Once Report Completed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Afternoon Deadline Boundary Event -->
+      <bpmn:boundaryEvent id="BoundaryEvent_AfternoonDeadline" name="Alert Supervisor - 4:00 PM">
+       <bpmn:interrupting>false</bpmn:interrupting>
+        <bpmn:timerEventDefinition>
+          <!-- Duration approx 1.5 hours from start of afternoon task -->
+           <bpmn:timeDuration>PT90M</bpmn:timeDuration>
+         </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+     <!-- Sequence Flow Alert Afternoon -->
+      <bpmn:sequenceFlow id="SequenceFlow_AlertPM" sourceRef="BoundaryEvent_AfternoonDeadline" targetRef="Task_SendAlertSupervisorPM">
+        <bpmn:name>If Time Exceeded</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Task Alert PM -->
+      <bpmn:task id="Task_SendAlertSupervisorPM" name="Send Message to Supervisor (Afternoon)">
+       <bpmn:incoming>SequenceFlow_AlertPM</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_EndAlertPM</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event PM Alert -->
+      <bpmn:endEvent id="EndEvent_AfternoonAlert" name="Afternoon Deadline Missed">
+       <bpmn:incoming>SequenceFlow_EndAlertPM</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Afternoon Gateway Returns Found -->
+      <bpmn:exclusiveGateway id="InclusiveGateway_AfternoonReturns" name="New Returns Filed?">
+       <bpmn:incoming>SequenceFlow_AfternoonGatewayReturnsFound</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ReconcileDefaults</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_EndProcessNoReconcile</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow Afternoon Returns Found -->
+      <bpmn:sequenceFlow id="SequenceFlow_AfternoonGatewayReturnsFound" sourceRef="Task_CheckCRMAfternoon" targetRef="InclusiveGateway_AfternoonReturns">
+        <bpmn:name>New Returns</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Task Reconcile -->
+      <bpmn:task id="Task_ReconcileDefaults" name="Reconcile with Existing Account Defaulters Table">
+       <bpmn:incoming>SequenceFlow_ReconcileDefaults</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_EndProcessSuccess</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow Reconcile -->
+      <bpmn:sequenceFlow id="SequenceFlow_ReconcileDefaults" sourceRef="InclusiveGateway_AfternoonReturns" targetRef="Task_ReconcileDefaults">
+        <bpmn:name>New Returns Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow End No Reconcile -->
+      <bpmn:sequenceFlow id="SequenceFlow_EndProcessNoReconcile" sourceRef="InclusiveGateway_AfternoonReturns" targetRef="EndEvent_ProcessComplete">
+        <bpmn:name>No New Returns</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- End Event Success -->
+      <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete">
+       <bpmn:incoming>SequenceFlow_EndAlertPM</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_EndProcessSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow End Process Success -->
+      <bpmn:sequenceFlow id="SequenceFlow_EndProcessSuccess" sourceRef="Task_ReconcileDefaults" targetRef="EndEvent_ProcessComplete">
+        <bpmn:name>Reconciliation Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow End Alert PM -->
+      <bpmn:sequenceFlow id="SequenceFlow_EndAlertPM" sourceRef="Task_SendAlertSupervisorPM" targetRef="EndEvent_ProcessComplete">
+        <bpmn:name>After Alert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

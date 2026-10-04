@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RegressProcess">
+    <bpmn:participant id="Participant_Sachbearbeiter" name="Sachbearbeitung Regressfälle" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Lane for the Employee -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeitung Regressfälle">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FallPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_GueltigerRegressanspruch</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VorgangGeschlossenKeineForderung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ZahlungsauflageSenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WiedervorlageWarten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VorgangHandAnInkasso</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WiderspruchGerechtfertigt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BuchEingang</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VorgangGeschlossenBuchung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WiderspruchPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VorgangGerechtfertigt</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Meldung Regressfall">
+      <bpmn:outgoing>SequenceFlow_FallPruefung</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_FallPruefung" name="Fall prüfen (Möglichkeit Regress)">
+      <bpmn:incoming>SequenceFlow_FallPruefung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayZuGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gateway_GueltigerRegressanspruch" name="Möglichkeit besteht?">
+      <bpmn:incoming>SequenceFlow_GatewayZuGateway1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VorgangGeschlossenKeineForderung</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ZahlungsauflageSenden</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_VorgangGeschlossenKeineForderung" name="Vorgang geschlossen (kein Regress)">
+      <bpmn:incoming>SequenceFlow_VorgangGeschlossenKeineForderung</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_ZahlungsauflageSenden" name="Zahlungsauflage senden &amp; Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_ZahlungsauflageSenden</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WartenBeginnen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3 (Wait State) with Boundary Events -->
+    <bpmn:task id="Task_WiedervorlageWarten" name="Auf Geldeingang/Widerspruch warten">
+      <bpmn:incoming>SequenceFlow_WartenBeginnen</bpmn:incoming>
+
+      <!-- Timer Boundary Event - Frist abgelaufen -->
+      <bpmn:boundaryEvent id="Boundary_Timer_FristAbgelaufen" name="Frist abgelaufen" attachedToRef="Task_WiedervorlageWarten">
+        <bpmn:timerEventDefinition />
+        <bpmn:outgoing>SequenceFlow_ZuInkasso</bpmn:outgoing>
+      </bpmn:boundaryEvent>
+
+      <!-- Message Boundary Event - Geldeingang -->
+      <bpmn:boundaryEvent id="Boundary_Message_Geldeingang" name="Geldeingang" attachedToRef="Task_WiedervorlageWarten">
+        <bpmn:messageEventDefinition />
+        <bpmn:outgoing>SequenceFlow_ZuBuchung</bpmn:outgoing>
+      </bpmn:boundaryEvent>
+
+      <!-- Signal Boundary Event - Widerspruch -->
+      <bpmn:signal id="Signal_Widerspruch" name="Widerspruch"/>
+      <bpmn:boundaryEvent id="Boundary_Signal_WiderspruchErkannt" attachedToRef="Task_WiedervorlageWarten">
+        <bpmn:signalEventDefinition signalRef="Signal_Widerspruch" />
+        <bpmn:outgoing>SequenceFlow_ZuPruefung</bpmn:outgoing>
+      </bpmn:boundaryEvent>
+
+    </bpmn:task>
+
+    <!-- Task 4 (Book Entry) -->
+    <bpmn:task id="Task_BuchEingang" name="Geldeingang verbuchen">
+      <bpmn:incoming>SequenceFlow_ZuBuchung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VorgangGeschlossenBuchung</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_VorgangGerechtfertigt" name="Vorgang geschlossen (Widerspruch gerechtfertigt)">
+      <bpmn:incoming>SequenceFlow_WiderspruchGerechtfertigt</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 5 (Handover) -->
+    <bpmn:task id="Task_InkassoAbgeben" name="An Inkassodienstleister abgeben">
+      <bpmn:incoming>SequenceFlow_ZuInkasso</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VorgangHandOverEnde2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3 -->
+    <bpmn:endEvent id="EndEvent_VorgangHandAnInkasso" name="Vorgand geschlossen (Inkassoverfahren)">
+      <bpmn:incoming>SequenceFlow_VorgangHandOverEnde2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gateway_WiderspruchGerechtfertigt" name="Widerspruch gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_GatewayZuGateway2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VorgangGeschlossenBuchungEnde</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FallPruefung" sourceRef="StartEvent_1" targetRef="Task_FallPruefung">
+      <bpmn:name>Meldung erhalten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayZuGateway1" sourceRef="Task_FallPruefung" targetRef="Gateway_GueltigerRegressanspruch">
+      <bpmn:name>Fall geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_VorgangGeschlossenKeineForderung" sourceRef="Gateway_GueltigerRegressanspruch" targetRef="EndEvent_VorgangGeschlossenKeineForderung">
+      <bpmn:name>Möglichkeit nicht besteht</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZahlungsauflageSenden" sourceRef="Gateway_GueltigerRegressanspruch" targetRef="Task_ZahlungsauflageSenden">
+      <bpmn:name>Möglichkeit besteht</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WartenBeginnen" sourceRef="Task_ZahlungsauflageSenden" targetRef="Task_WiedervorlageWarten">
+      <bpmn:name>Frist beginnt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Boundary Event Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ZuInkasso" sourceRef="Boundary_Timer_FristAbgelaufen" targetRef="Task_InkassoAbgeben">
+      <bpmn:name>Frist abgelaufen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZuBuchung" sourceRef="Boundary_Message_Geldeingang" targetRef="Task_BuchEingang">
+      <bpmn:name>Geld eingegangen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZuPruefung" sourceRef="Boundary_Signal_WiderspruchErkannt" targetRef="Task_WiderspruchPruefen">
+      <bpmn:name>Widerspruch erhoben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_VorgangGeschlossenBuchung" sourceRef="Task_BuchEingang" targetRef="EndEvent_VorgangGerechtfertigt">
+      <bpmn:name>Buchung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2 Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayZuGateway2" sourceRef="Task_WiderspruchPruefen" targetRef="Gateway_WiderspruchGerechtfertigt">
+      <bpmn:name>Widerspruch geprüft</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_VorgangGeschlossenBuchungEnde" sourceRef="Gateway_WiderspruchGerechtfertigt" targetRef="Task_InkassoAbgeben">
+      <bpmn:name>Nicht gerechtfertigt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event 3 Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_VorgangHandOverEnde2" sourceRef="Task_InkassoAbgeben" targetRef="EndEvent_VorgangHandAnInkasso">
+      <bpmn:name>Inkassoverfahren eingeleitet</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

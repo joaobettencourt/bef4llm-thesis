@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Example_OrderShipping" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ShippingProcess">
+    <bpmn:participant id="Participant_MainPool" name="Warenversand&#10;Hardware-Händler" processRef="Process_OrderShipping_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderShipping_001" isExecutable="false">
+    <!-- Lane Configuration -->
+    <bpmn:laneSet id="LaneSet_ShippingPool">
+      <bpmn:lane id="Lane_LogisticsManager" name="Leiter Logistik">
+        <bpmn:flowNodeRef>Task_Insurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Secretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DecideShippingMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InsuranceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SpecialShippingDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillPackageLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetFreightOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderFreightForwarder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_WarehouseWorker" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>Task_PackageGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AllPreparationsComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareForPickup</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ShipGoods" name="Ware versenden">
+        <bpmn:outgoing>SF_StartToParallelGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway - splits process into two paths -->
+    <bpmn:parallelGateway id="PG_SplitPaths" name="">
+      <bpmn:incoming>SF_StartToParallelGateway</bpmn:incoming>
+      <bpmn:outgoing>SF_ToSecretariatPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_ToWarehouseWorkerPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 1 - Secretariat decides shipping method -->
+    <bpmn:task id="Task_DecideShippingMethod" name="Versandart klären">
+      <bpmn:incoming>SF_ToSecretariatPath</bpmn:incoming>
+       <bpmn:outgoing>SF_SecretariatToSpecialDecisionGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Special shipping decision -->
+    <bpmn:exclusiveGateway id="Gateway_SpecialShippingDecision" name="Sonderversand?">
+      <bpmn:incoming>SF_SecretariatToSpecialDecisionGateway</bpmn:incoming>
+       <bpmn:outgoing>SF_NoSpecialShippingPath</bpmn:outgoing>
+       <bpmn:outgoing>SF_YesSpecialShippingPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Inclusive Gateway - Insurance check -->
+    <bpmn:inclusiveGateway id="Gateway_InsuranceCheck" name="">
+      <bpmn:incoming>SF_NoSpecialShippingPath</bpmn:incoming>
+       <bpmn:outgoing>SF_FillPackageLabelAlways</bpmn:outgoing>
+       <bpmn:outgoing>SF_CheckInsuranceNecessary</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 2 - Fill package label (always executed) -->
+    <bpmn:task id="Task_FillPackageLabel" name="Paketschein ausfüllen">
+      <bpmn:incoming>SF_FillPackageLabelAlways</bpmn:incoming>
+       <bpmn:outgoing>SF_LabelToMergeGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3 - Get freight offers (only for special shipping) -->
+    <bpmn:task id="Task_GetFreightOffers" name="Angebote von Spediteuren einholen">
+      <bpmn:incoming>SF_YesSpecialShippingPath</bpmn:incoming>
+       <bpmn:outgoing>SF_OffersToOrderForwarder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4 - Order freight forwarder (only for special shipping) -->
+    <bpmn:task id="Task_OrderFreightForwarder" name="Spediteur beauftragen">
+      <bpmn:incoming>SF_OffersToOrderForwarder</bpmn:incoming>
+       <bpmn:outgoing>SF_FreightOrderedToEndGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 - Insurance (only if necessary) -->
+    <bpmn:task id="Task_Insurance" name="Versicherung abschließen">
+      <bpmn:incoming>SF_CheckInsuranceNecessary</bpmn:incoming>
+       <bpmn:outgoing>SF_InsuranceToMergeGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6 - Warehouse worker packages goods (parallel path) -->
+    <bpmn:task id="Task_PackageGoods" name="Ware verpacken">
+      <bpmn:incoming>SF_ToWarehouseWorkerPath</bpmn:incoming>
+       <bpmn:outgoing>SF_GoodsPackedToFinalGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - All preparations complete -->
+    <bpmn:exclusiveGateway id="Gateway_AllPreparationsComplete" name="">
+      <bpmn:incoming>SF_FreightOrderedToEndGateway</bpmn:incoming>
+       <bpmn:incoming>SF_GoodsPackedToFinalGateway</bpmn:incoming>
+       <bpmn:outgoing>SF_PreparationsCompleteToPreparePickup</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7 - Prepare goods for pickup -->
+    <bpmn:task id="Task_PrepareForPickup" name="Ware zur Abholung bereitstellen">
+      <bpmn:incoming>SF_PreparationsCompleteToPreparePickup</bpmn:incoming>
+       <bpmn:outgoing>SF_FinalPreparationToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ShipmentReady" name="Warenversand vorbereitet">
+      <bpmn:incoming>SF_FinalPreparationToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToParallelGateway" sourceRef="StartEvent_ShipGoods" targetRef="PG_SplitPaths"/>
+    
+    <bpmn:sequenceFlow id="SF_ToSecretariatPath" name="" sourceRef="PG_SplitPaths" targetRef="Task_DecideShippingMethod"/>
+    
+    <bpmn:sequenceFlow id="SF_ToWarehouseWorkerPath" name="" sourceRef="PG_SplitPaths" targetRef="Task_PackageGoods"/>
+
+    <bpmn:sequenceFlow id="SF_SecretariatToSpecialDecisionGateway" sourceRef="Task_DecideShippingMethod" targetRef="Gateway_SpecialShippingDecision"/>
+    
+    <bpmn:sequenceFlow id="SF_NoSpecialShippingPath" name="nein (kleine Menge)" sourceRef="Gateway_SpecialShippingDecision" targetRef="Gateway_InsuranceCheck"/>
+
+    <bpmn:sequenceFlow id="SF_FillPackageLabelAlways" name="immer" sourceRef="Gateway_InsuranceCheck" targetRef="Task_FillPackageLabel"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckInsuranceNecessary" name="Versicherung erforderlich?" sourceRef="Gateway_InsuranceCheck" targetRef="Task_Insurance"/>
+
+    <bpmn:sequenceFlow id="SF_LabelToMergeGateway" sourceRef="Task_FillPackageLabel" targetRef="Gateway_AllPreparationsComplete"/>
+    
+    <bpmn:sequenceFlow id="SF_YesSpecialShippingPath" name="ja (große Menge)" sourceRef="Gateway_SpecialShippingDecision" targetRef="Task_GetFreightOffers"/>
+
+    <bpmn:sequenceFlow id="SF_OffersToOrderForwarder" sourceRef="Task_GetFreightOffers" targetRef="Task_OrderFreightForwarder"/>
+    
+    <bpmn:sequenceFlow id="SF_FreightOrderedToEndGateway" name="" sourceRef="Task_OrderFreightForwarder" targetRef="Gateway_AllPreparationsComplete"/>
+
+    <bpmn:sequenceFlow id="SF_InsuranceToMergeGateway" sourceRef="Task_Insurance" targetRef="Gateway_AllPreparationsComplete"/>
+    
+    <bpmn:sequenceFlow id="SF_GoodsPackedToFinalGateway" name="" sourceRef="Task_PackageGoods" targetRef="Gateway_AllPreparationsComplete"/>
+
+    <bpmn:sequenceFlow id="SF_PreparationsCompleteToPreparePickup" sourceRef="Gateway_AllPreparationsComplete" targetRef="Task_PrepareForPickup"/>
+    
+    <bpmn:sequenceFlow id="SF_FinalPreparationToEndEvent" name="" sourceRef="Task_PrepareForPickup" targetRef="EndEvent_ShipmentReady"/>
+
+  </bpmn:process>
+</bpmn:definitions>

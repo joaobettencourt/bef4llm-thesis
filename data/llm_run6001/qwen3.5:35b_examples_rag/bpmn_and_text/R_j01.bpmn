@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OEE_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OEE_Process">
+    <bpmn:participant id="Participant_MonitoringSystem" name="OEE Monitoring System" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_MachineConnected" name="Machine&#10;Connected">
+      <bpmn:outgoing>SF_StartToMonitor</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Collect OEE -->
+    <bpmn:task id="Task_CollectOEE" name="Collect Machine&#10;Information &amp;&#10;Calculate OEE">
+      <bpmn:incoming>SF_StartToMonitor</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckOEETreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Threshold -->
+    <bpmn:exclusiveGateway id="GW_OEEDecision" name="OEE Below&#10;Threshold?">
+      <bpmn:incoming>SF_CheckOEETreshold</bpmn:incoming>
+      <bpmn:outgoing>SF_ContinueMonitoring</bpmn:outgoing>
+      <bpmn:outgoing>SF_AlarmAction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Flows -->
+    <bpmn:sequenceFlow id="SF_StartToMonitor" sourceRef="Start_MachineConnected" targetRef="Task_CollectOEE"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckOEETreshold" name="Calculate OEE" sourceRef="Task_CollectOEE" targetRef="GW_OEEDecision"/>
+
+    <!-- Normal Operation Loop -->
+    <bpmn:sequenceFlow id="SF_ContinueMonitoring" name="No Alarm&#10;(Normal)" sourceRef="GW_OEEDecision" targetRef="Task_CollectOEE"/>
+
+    <!-- Exception Handling Gateway (Parallel Split) -->
+    <bpmn:parallelGateway id="PG_AlarmActions">
+      <bpmn:incoming>SF_AlarmAction</bpmn:incoming>
+      <bpmn:outgoing>SF_StopMachineTask</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendEmailTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Stop Machine -->
+    <bpmn:task id="Task_StopMachine" name="Stop Machine">
+      <bpmn:incoming>SF_StopMachineTask</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeAlarmActions</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Email -->
+    <bpmn:serviceTask id="ServiceTask_SendEmail" name="Send Email to&#10;Engineer">
+      <bpmn:incoming>SF_SendEmailTask</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeAlarmActions</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Merge Alarm Actions -->
+    <bpmn:parallelGateway id="PG_AlarmMerge">
+      <bpmn:incoming>SF_MergeAlarmActions</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitForRestartOrDisconnect</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Event Based Gateway for Wait State -->
+    <bpmn:eventBasedGateway id="GW_RestartVsDisconnect">
+      <bpmn:incoming>SF_WaitForRestartOrDisconnect</bpmn:incoming>
+      <bpmn:outgoing>SF_PathToRestart</bpmn:outgoing>
+      <bpmn:outgoing>SF_PathToEnd</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Path 1: Restart Signal -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_Restart">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SF_PathToRestart</bpmn:incoming>
+      <bpmn:outgoing>SF_ContinueMonitoringAfterRestart</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Path 2: Disconnect Signal -->
+    <bpmn:endEvent id="End_MachineDisconnected" name="Machine&#10;Disconnected">
+      <bpmn:incoming>SF_PathToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Wait State Logic -->
+    <bpmn:sequenceFlow id="SF_AlarmAction" sourceRef="GW_OEEDecision" targetRef="PG_AlarmActions"/>
+    
+    <bpmn:sequenceFlow id="SF_StopMachineTask" sourceRef="PG_AlarmActions" targetRef="Task_StopMachine"/>
+    
+    <bpmn:sequenceFlow id="SF_SendEmailTask" name="" sourceRef="PG_AlarmActions" targetRef="ServiceTask_SendEmail"/>
+
+    <bpmn:sequenceFlow id="SF_MergeAlarmActions" sourceRef="Task_StopMachine" targetRef="PG_AlarmMerge"/>
+    
+    <bpmn:sequenceFlow id="SF_DisconnectFromEngineer" name="" sourceRef="ServiceTask_SendEmail" targetRef="PG_AlarmMerge"/>
+
+    <bpmn:sequenceFlow id="SF_WaitForRestartOrDisconnect" sourceRef="PG_AlarmMerge" targetRef="GW_RestartVsDisconnect"/>
+    
+    <!-- Flows from Event Based Gateway -->
+    <bpmn:sequenceFlow id="SF_PathToRestart" name="" sourceRef="GW_RestartVsDisconnect" targetRef="CatchEvent_Restart"/>
+    
+    <bpmn:sequenceFlow id="SF_ContinueMonitoringAfterRestart" sourceRef="CatchEvent_Restart" targetRef="Task_CollectOEE"/>
+
+  </bpmn:process>
+</bpmn:definitions>

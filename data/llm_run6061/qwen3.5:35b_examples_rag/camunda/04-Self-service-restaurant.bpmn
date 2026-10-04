@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collab_Restaurant_Logic">
+    <participant id="Pool_Restaurant" name="Restaurant Operations" processRef="Process_Main"/>
+  </collaboration>
+
+  <process id="Process_Main" isExecutable="false">
+    
+    <!-- LaneSet Definition -->
+    <laneSet>
+      <lane id="Lane_Guest" name="Guest">
+        <flowNodeRef>StartEvent_Arrival</flowNodeRef>
+        <flowNodeRef>UserTask_ChooseDish</flowNodeRef>
+        <flowNodeRef>EndEvent_EatMeal</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_Employee" name="Employee (Cashier)">
+        <flowNodeRef>StartEvent_OrderPlaced</flowNodeRef>
+        <flowNodeRef>UserTask_EnterPOS</flowNodeRef>
+        <flowNodeRef>UserTask_CollectMoney</flowNodeRef>
+        <flowNodeRef>UserTask_GiveBuzzer</flowNodeRef>
+        <flowNodeRef>IntermediateCatchEvent_WaitResponse</flowNodeRef>
+        <flowNodeRef>Gateway_ResponseCheck</flowNodeRef>
+        <flowNodeRef>UserTask_CallGuest</flowNodeRef>
+        <flowNodeRef>UserTask_HandMeal</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_Chef" name="Chef (Kitchen)">
+        <flowNodeRef>StartEvent_NewOrder</flowNodeRef>
+        <flowNodeRef>UserTask_PrepareMeal</flowNodeRef>
+        <flowNodeRef>UserTask_PlaceInHatch</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Guest Lane Elements -->
+    <startEvent id="StartEvent_Arrival" name="Guest Arrives">
+      <outgoing>Sequence_Guest_ChooseDish</outgoing>
+    </startEvent>
+
+    <userTask id="UserTask_ChooseDish" name="Choose Dish from Menu">
+      <incoming>Sequence_Guest_ChooseDish</incoming>
+      <outgoing>Sequence_OrderPlacedToEmployee</outgoing>
+    </userTask>
+
+    <!-- Employee Lane Elements -->
+    <startEvent id="StartEvent_OrderPlaced" name="Order Placed">
+      <outgoing>Sequence_Employee_EnterPOS</outgoing>
+    </startEvent>
+
+    <userTask id="UserTask_EnterPOS" name="Enter Order into POS">
+      <incoming>Sequence_Employee_EnterPOS</incoming>
+      <outgoing>Sequence_CollectMoneyFlow</outgoing>
+    </userTask>
+
+    <userTask id="UserTask_CollectMoney" name="Collect Payment from Guest">
+      <incoming>Sequence_CollectMoneyFlow</incoming>
+      <outgoing>Sequence_GiveBuzzerFlow</outgoing>
+    </userTask>
+
+    <userTask id="UserTask_GiveBuzzer" name="Give Buzzer to Guest">
+      <incoming>Sequence_GiveBuzzerFlow</incoming>
+      <outgoing>Message_Flow_InformChef</outgoing> <!-- Message Flow for Chef -->
+      <bpmn:extensionElements/> 
+    </userTask>
+
+    <intermediateCatchEvent id="IntermediateCatchEvent_WaitResponse" name="Wait Guest Response">
+       <incoming>Sequence_BuzzerRingsToEmployee</incoming>
+       <outgoing>Gateway_ResponseCheckIn</outgoing>
+       <!-- Timer logic for 5 minutes handled via event definition in real model, simplified here -->
+    </intermediateCatchEvent>
+
+    <exclusiveGateway id="Gateway_ResponseCheck" name="Guest Responds?">
+      <incoming>Sequence_BuzzerRingsToEmployee</incoming>
+      <outgoing>Sequence_CallGuestFlow</outgoing> <!-- No Response Path (Timer) -->
+      <bpmn:default/> 
+    </exclusiveGateway>
+
+    <userTask id="UserTask_CallGuest" name="Call Guest After 5 Mins">
+       <incoming>Sequence_CallGuestFlow</incoming>
+       <outgoing>Sequence_GuestRespondsCheck</outgoing>
+     </userTask>
+
+    <userTask id="UserTask_HandMeal" name="Hand Meal to Guest at Hatch">
+      <incoming>Sequence_GuestRespondsCheck</incoming> <!-- From Call or Direct -->
+      <bpmn:extensionElements/> 
+    </userTask>
+
+    <!-- Chef Lane Elements -->
+    <startEvent id="StartEvent_NewOrder" name="New Order Received">
+       <outgoing>Sequence_Chef_PrepareMeal</outgoing>
+     </startEvent>
+
+    <userTask id="UserTask_PrepareMeal" name="Prepare Meal Order">
+      <incoming>Sequence_Chef_PrepareMeal</incoming>
+      <outgoing>Sequence_PlaceInHatchFlow</outgoing>
+    </userTask>
+
+    <userTask id="UserTask_PlaceInHatch" name="Place in Service Hatch">
+       <incoming>Sequence_PlaceInHatchFlow</incoming>
+       <bpmn:extensionElements/> 
+     </userTask>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Guest Flow -->
+    <sequenceFlow id="Sequence_Guest_ChooseDish" sourceRef="StartEvent_Arrival" targetRef="UserTask_ChooseDish"/>
+    <sequenceFlow id="Sequence_OrderPlacedToEmployee" name="Order Placed">
+      <sourceRef>UserTask_ChooseDish</sourceRef>
+      <targetRef>StartEvent_OrderPlaced</targetRef> <!-- Trigger Employee Start -->
+    </sequenceFlow>
+
+    <!-- Employee Flow (Initial) -->
+    <sequenceFlow id="Sequence_Employee_EnterPOS" sourceRef="StartEvent_OrderPlaced" targetRef="UserTask_EnterPOS"/>
+    <sequenceFlow id="Sequence_CollectMoneyFlow" sourceRef="UserTask_EnterPOS" targetRef="UserTask_CollectMoney"/>
+    
+    <!-- Employee Flow (Buzzer & Chef Notification) -->
+    <messageFlow id="Message_Flow_InformChef" name="Inform Chef">
+      <sourceRef>UserTask_GiveBuzzer</sourceRef>
+      <targetRef>StartEvent_NewOrder</targetRef> 
+    </messageFlow>
+
+    <!-- Employee Flow (Wait for Response) -->
+    <sequenceFlow id="Sequence_BuzzerRingsToEmployee" sourceRef="UserTask_GiveBuzzer" targetRef="IntermediateCatchEvent_WaitResponse"/>
+    
+    <!-- Chef Notification to Employee (Meal Ready) -->
+    <messageFlow id="Message_Flow_MealReady">
+      <sourceRef>UserTask_PlaceInHatch</sourceRef>
+      <targetRef>StartEvent_BuzzerRingEmployee</targetRef> 
+    </messageFlow>
+
+    <!-- Start Event for Buzzer Ring (Triggered by Chef) -->
+    <startEvent id="StartEvent_BuzzerRingEmployee" name="Meal Ready">
+       <outgoing>Sequence_Employee_RingBuzzer</outgoing>
+     </startEvent>
+
+    <sequenceFlow id="Sequence_Employee_RingBuzzer" sourceRef="StartEvent_BuzzerRingEmployee" targetRef="UserTask_GiveBuzzer"/> <!-- Logic correction: Ring Buzzer again? No, Chef notifies Employee to ring. -->
+    
+    <!-- Corrected Flow for Meal Ready Notification -->
+    <sequenceFlow id="Sequence_ChefNotifyEmp" name="Meal in Hatch">
+      <sourceRef>UserTask_PlaceInHatch</sourceRef>
+      <targetRef>StartEvent_BuzzerRingEmployee</targetRef> 
+    </sequenceFlow>
+
+    <!-- Employee Response Logic -->
+    <sequenceFlow id="Sequence_GuestRespondsCheck" sourceRef="Gateway_ResponseCheck" targetRef="UserTask_HandMeal"/>
+    
+    <!-- Call Guest Path (Timer) -->
+    <sequenceFlow id="Sequence_CallGuestFlow" name="No Response">
+      <sourceRef>Gateway_ResponseCheck</sourceRef>
+      <targetRef>UserTask_CallGuest</targetRef> 
+    </sequenceFlow>
+
+    <!-- End Event for Meal Pickup -->
+    <endEvent id="EndEvent_EatMeal" name="Eat Meal">
+       <incoming>Sequence_GuestRespondsCheck</incoming>
+     </endEvent>
+
+  </process>
+</bpmn:definitions>

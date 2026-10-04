@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderToCash">
+    <bpmn:participant id="Participant_OTC" name="Order to Cash Process" processRef="Process_OTC" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OTC" isExecutable="false">
+    <!-- Lane Set for organizational structure -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sales" name="Sales Department">
+        <bpmn:flowNodeRef>StartEvent_CustomerOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>Gateway_PartsCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergeParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Production" name="Production">
+        <bpmn:flowNodeRef>Task_StartProduction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QualityCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerOrder" name="Customer Order Received">
+      <bpmn:outgoing>SequenceFlow_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Process Customer Order Task -->
+    <bpmn:task id="Task_ProcessOrder" name="Process Customer Order">
+      <bpmn:incoming>SequenceFlow_ProcessOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Warehouse -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToWarehouse" sourceRef="Task_ProcessOrder" targetRef="Gateway_PartsCheck">
+      <bpmn:name>Send Order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway for Parts Availability Check -->
+    <bpmn:exclusiveGateway id="Gateway_PartsCheck" name="Parts Available?">
+      <bpmn:incoming>SequenceFlow_SendToWarehouse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesAvailable</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoOrderParts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Yes Path - Parts Available -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesAvailable" name="Yes" sourceRef="Gateway_PartsCheck" targetRef="Gateway_MergeParts">
+      <bpmn:name>All parts available</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- No Path - Order Missing Parts -->
+    <bpmn:task id="Task_OrderParts" name="Order Missing Parts">
+      <bpmn:incoming>SequenceFlow_NoOrderParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartsOrdered</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Ordering -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoOrderParts" name="No" sourceRef="Gateway_PartsCheck" targetRef="Task_OrderParts">
+      <bpmn:name>No parts available</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after ordering -->
+    <bpmn:exclusiveGateway id="Gateway_MergeParts" name="Merge Parts Check">
+      <bpmn:incoming>SequenceFlow_YesAvailable</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PartsOrdered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartProduction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Production Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartProduction" sourceRef="Gateway_MergeParts" targetRef="Task_StartProduction">
+      <bpmn:name>All parts ready</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task for Production Start -->
+    <bpmn:task id="Task_StartProduction" name="Start Production">
+      <bpmn:incoming>SequenceFlow_StartProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Quality Check Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheck" sourceRef="Task_StartProduction" targetRef="Task_QualityCheck">
+      <bpmn:name>After Production</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Quality Check Task -->
+    <bpmn:task id="Task_QualityCheck" name="Perform Quality Checks">
+      <bpmn:incoming>SequenceFlow_QualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Packaging</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Packaging and Labeling -->
+    <bpmn:sequenceFlow id="SequenceFlow_Packaging" sourceRef="Task_QualityCheck" targetRef="Task_PackageLabel">
+      <bpmn:name>Packaged</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Packaging Task -->
+    <bpmn:task id="Task_PackageLabel" name="Package and Label Product">
+      <bpmn:incoming>SequenceFlow_Packaging</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Return to Warehouse -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnWarehouse" sourceRef="Task_PackageLabel" targetRef="Gateway_SalesNotification">
+      <bpmn:name>Return to Warehouse</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sales Notification Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SalesNotification" name="Notify Sales?">
+      <bpmn:incoming>SequenceFlow_ReturnWarehouse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifySales</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Notify Sales -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifySales" sourceRef="Gateway_SalesNotification" targetRef="Task_NotifySales">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task for Sales Notification -->
+    <bpmn:task id="Task_NotifySales" name="Inform Sales Department">
+      <bpmn:incoming>SequenceFlow_NotifySales</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SellProduct</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Task - Sell Product -->
+    <bpmn:sequenceFlow id="SequenceFlow_SellProduct" sourceRef="Task_NotifySales" targetRef="EndEvent_ProductSold">
+      <bpmn:name>Sell to Customer</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProductSold" name="Product Sold to Customer">
+      <bpmn:incoming>SequenceFlow_SellProduct</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RestaurantProcess">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Restaurant" name="Restaurant Process" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Gast">
+        <bpmn:flowNodeRef>StartEvent_Arrival</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ReactionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_EatMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Staff" name="Angestellter">
+        <bpmn:flowNodeRef>Task_ProcessPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetPagerGive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformCookRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitForReaction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TimeoutCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallGuestIfNoReaction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriggerPagerReady</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Kitchen" name="Koch">
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceInPassThrough</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Guest Lane -->
+    <bpmn:startEvent id="StartEvent_Arrival" name="Gast betritt Restaurant">
+      <bpmn:outgoing>SequenceFlow_SelectDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SelectDish" name="Gericht auswählen und warten">
+      <bpmn:incoming>SequenceFlow_SelectDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrderStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Lane -->
+    <bpmn:startEvent id="StartEvent_StaffWait" name="Warte auf Bestellung">
+       <bpmn:outgoing>SequenceFlow_ProcessPaymentInit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ProcessPayment" name="Bestellung eingeben und kassieren">
+      <bpmn:incoming>SequenceFlow_PlaceOrderStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetPagerGiveInit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Lane -->
+    <bpmn:startEvent id="StartEvent_KitchenWait" name="Warte auf Bestellung">
+       <bpmn:outgoing>SequenceFlow_PrepareMealInit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_InformCookRequest" name="Koch über Mahlzeit informieren">
+      <bpmn:incoming>SequenceFlow_SetPagerGiveOut</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareMealStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Tasks -->
+    <bpmn:task id="Task_PrepareMeal" name="Mahlzeit zubereiten">
+      <bpmn:incoming>SequenceFlow_PrepareMealOut</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceInPassThroughStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PlaceInPassThrough" name="Essen in Durchreiche stellen">
+      <bpmn:incoming>SequenceFlow_PrepareMealOut2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KitchenNotifyStaffStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Logic for Food Ready -->
+    <bpmn:intermediateCatchEvent id="Event_WaitForReaction" name="Warte auf Reaktion (Max 5 Min)">
+      <bpmn:incoming>SequenceFlow_TriggerPagerReadyOut</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GuestReactsOrTimeout</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer Definition for 5 Minutes -->
+    <bpmn:startEvent id="StartEvent_TimerTrigger" name="Timer (5 Min)">
+      <bpmn:outgoing>SequenceFlow_CallGuestIfNoReaction</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Staff Task for Timeout Handling -->
+    <bpmn:task id="Task_CallGuestIfNoReaction" name="Gast nach 5 Min rufen">
+      <bpmn:incoming>SequenceFlow_TimeoutTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_BackToWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Task for Triggering Pager -->
+    <bpmn:task id="Task_TriggerPagerReady" name="Pieper auslösen">
+      <bpmn:incoming>SequenceFlow_KitchenNotifyStaffOut</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForReactionStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Reaction Check -->
+    <bpmn:exclusiveGateway id="Gateway_ReactionCheck" name="Gast reagiert?">
+      <bpmn:incoming>SequenceFlow_GuestReactsOrTimeout</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HandOverFoodStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Staff Task for Handover -->
+    <bpmn:task id="Task_HandOverFood" name="Essen übergeben">
+      <bpmn:incoming>SequenceFlow_GuestReacts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EatMealStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_EatMeal" name="Mahlzeit verzehrt">
+      <bpmn:incoming>SequenceFlow_HandOverFoodOut</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Guest Lane -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectDish" sourceRef="StartEvent_Arrival" targetRef="Task_SelectDish">
+      <bpmn:name>Gast betritt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Guest to Staff -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrderStart" sourceRef="Task_SelectDish" targetRef="Task_ProcessPayment">
+      <bpmn:name>Bestellung aufgeben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Staff Payment to Pager -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetPagerGiveInit" sourceRef="Task_ProcessPayment" targetRef="Task_SetPagerGive">
+      <bpmn:name>Zahlung erfolgt</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Staff Pager to Inform Cook -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetPagerGiveOut" sourceRef="Task_SetPagerGive" targetRef="Task_InformCookRequest">
+      <bpmn:name>Pieper übergeben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Staff Inform Cook to Kitchen Prepare -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareMealStart" sourceRef="Task_InformCookRequest" targetRef="Task_PrepareMeal">
+      <bpmn:name>Koch informiert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Kitchen Prepare to Place in Pass Through -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceInPassThroughStart" sourceRef="Task_PrepareMeal" targetRef="Task_PlaceInPassThrough">
+      <bpmn:name>Zubereitung fertig</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Kitchen Place to Notify Staff -->
+    <bpmn:sequenceFlow id="SequenceFlow_KitchenNotifyStaffStart" sourceRef="Task_PlaceInPassThrough" targetRef="Event_WaitForReaction">
+      <bpmn:name>Koch informiert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Staff Trigger Pager to Wait Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_TriggerPagerReadyOut" sourceRef="Task_TriggerPagerReady" targetRef="Event_WaitForReaction">
+      <bpmn:name>Pieper ausgelöst</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Wait Event to Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_GuestReactsOrTimeout" sourceRef="Event_WaitForReaction" targetRef="Gateway_ReactionCheck">
+      <bpmn:name>Wartezeit abgelaufen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Timeout to Call Guest Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_CallGuestIfNoReaction" sourceRef="StartEvent_TimerTrigger" targetRef="Task_CallGuestIfNoReaction">
+      <bpmn:name>Timer 5 Min</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Call Guest Task to Wait Loop -->
+    <bpmn:sequenceFlow id="SequenceLoop_BackToWait" sourceRef="Task_CallGuestIfNoReaction" targetRef="Event_WaitForReaction">
+      <bpmn:name>Gast gerufen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Gateway to Handover -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandOverFoodStart" sourceRef="Gateway_ReactionCheck" targetRef="Task_HandOverFood">
+      <bpmn:name>Gast reagiert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Handover to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_EatMealStart" sourceRef="Task_HandOverFood" targetRef="EndEvent_EatMeal">
+      <bpmn:name>Essen übergeben</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

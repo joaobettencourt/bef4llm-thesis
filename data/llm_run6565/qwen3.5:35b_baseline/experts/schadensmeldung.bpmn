@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ClaimsProcess">  
+  <bpmn:collaboration id="Collab_ClaimsProcess">  
+    <bpmn:participant id="Participant_Main" name="Claims Management Process" />  
+  </bpmn:collaboration>  
+
+  <bpmn:process id="Process_ClaimHandling" isExecutable="false">  
+    <bpmn:laneSet>  
+      <bpmn:lane id="Lane_CustomerCenter" name="Kundenzentrum">  
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_CheckValidity</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>InclusiveGateway_ValidCheck</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_CheckCompleteness</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_PrelimAcceptance</bpmn:flowNodeRef>  
+      </bpmn:lane>  
+
+      <bpmn:lane id="Lane_SpecializedDept" name="Fachabteilung">  
+        <bpmn:flowNodeRef>InclusiveGateway_ValidCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_StartValidation</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_RecordInitialStats</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_InvestigateCause</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>InclusiveGateway_LegalCheckNeeded</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_TransmitInfoToInsurer</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_ObtainLegalOpinion</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>InclusiveGateway_InfoNeeded</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_RequestAdditionalInfo</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>ParallelGateway_ConvergeValidation</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_UpdateStatsFinal</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>Task_NotifyCustomer</bpmn:flowNodeRef>  
+        <bpmn:flowNodeRef>EndEvent_Completed</bpmn:flowNodeRef>  
+      </bpmn:lane>  
+    </bpmn:laneSet>  
+
+    <!-- Start Event -->  
+    <bpmn:startEvent id="StartEvent_1" name="Schadensmeldung einreichen">  
+      <bpmn:outgoing>SequenceFlow_CheckValidity</bpmn:outgoing>  
+    </bpmn:startEvent>  
+
+    <!-- Task: Check Validity (Lane 1) -->  
+    <bpmn:task id="Task_CheckValidity" name="Schadensmeldung auf Gültigkeit überprüfen">  
+      <bpmn:incoming>SequenceFlow_CheckValidity</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_ValidCheckDecision</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Gateway: Validity Check -->  
+    <bpmn:inclusiveGateway id="InclusiveGateway_ValidCheck" name="Schaden gültig?">  
+      <bpmn:incoming>SequenceFlow_ValidCheckDecision</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_InvalidPath</bpmn:outgoing>  
+      <bpmn:outgoing>SequenceFlow_ValidPath</bpmn:outgoing>  
+    </bpmn:inclusiveGateway>  
+
+    <!-- Path: Invalid -->  
+    <bpmn:task id="Task_InformInvalid" name="Kunde über Ungültigkeit informieren">  
+      <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- End Event: Rejected -->  
+    <bpmn:endEvent id="EndEvent_Rejected" name="Prozess abgeschlossen / Abgelehnt">  
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>  
+    </bpmn:endEvent>  
+
+    <!-- Path: Valid (Lane 1) -->  
+    <bpmn:task id="Task_CheckCompleteness" name="Unterlagen auf Vollständigkeit prüfen">  
+      <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_AcceptanceCheck</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Task: Preliminary Acceptance (Lane 1) -->  
+    <bpmn:task id="Task_PrelimAcceptance" name="Vorläufige Annahme durch Kundenzentrum">  
+      <bpmn:incoming>SequenceFlow_AcceptanceCheck</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_ForwardToDept</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Flow to Lane 2 -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardToDept" sourceRef="Task_PrelimAcceptance" targetRef="ParallelGateway_StartValidation">
+      <bpmn:name>Fachabteilung</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <!-- Parallel Gateway Start (Lane 2) -->  
+    <bpmn:parallelGateway id="ParallelGateway_StartValidation" name="Start Bearbeitung & Statistik">  
+      <bpmn:incoming>SequenceFlow_ForwardToDept</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_RecordStatsInitial</bpmn:outgoing>  
+      <bpmn:outgoing>SequenceFlow_StartValidationProcess</bpmn:outgoing>  
+    </bpmn:parallelGateway>  
+
+    <!-- Path A: Initial Stats Recording -->  
+    <bpmn:task id="Task_RecordInitialStats" name="Fall in Schadensstatistik erfassen">  
+      <bpmn:incoming>SequenceFlow_RecordStatsInitial</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_ConvergeValidationIn1</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Path B: Validation Process -->  
+    <bpmn:task id="Task_InvestigateCause" name="Schadensursache untersuchen">  
+      <bpmn:incoming>SequenceFlow_StartValidationProcess</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_LegalCheckDecision</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Gateway: Legal Assessment Needed -->  
+    <bpmn:inclusiveGateway id="InclusiveGateway_LegalCheckNeeded" name="Rechtliche Einschätzung erforderlich?">  
+      <bpmn:incoming>SequenceFlow_LegalCheckDecision</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_TransmitInfoPath</bpmn:outgoing>  
+      <bpmn:outgoing>SequenceFlow_SkipLegalPath</bpmn:outgoing>  
+    </bpmn:inclusiveGateway>  
+
+    <!-- Path Legal Yes -->  
+    <bpmn:task id="Task_TransmitInfoToInsurer" name="Relevante Informationen übermitteln">  
+      <bpmn:incoming>SequenceFlow_TransmitInfoPath</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_GetOpinionStep1</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <bpmn:task id="Task_ObtainLegalOpinion" name="Rechtliche Einschätzung einholen">  
+      <bpmn:incoming>SequenceFlow_GetOpinionStep1</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_MergeValidationPath</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Path Legal No -->  
+    <bpmn:sequenceFlow id="SequenceFlow_SkipLegalPath" name="nein" sourceRef="InclusiveGateway_LegalCheckNeeded" targetRef="InclusiveGateway_InfoNeeded">
+      <bpmn:name></bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <!-- Merge Legal Paths -->  
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeValidationPath" name="">  
+       <bpmn:incoming>SequenceFlow_GetOpinionStep1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InfoCheckDecision</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Gateway: Additional Info Needed -->  
+    <bpmn:inclusiveGateway id="InclusiveGateway_InfoNeeded" name="Zusätzliche Informationen notwendig?">  
+      <bpmn:incoming>SequenceFlow_MergeValidationPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestInfoYes</bpmn:outgoing>  
+      <bpmn:outgoing>SequenceFlow_InfoNoMerge</bpmn:outgoing>  
+    </bpmn:inclusiveGateway>
+
+     <!-- Path Info Yes -->  
+    <bpmn:task id="Task_RequestAdditionalInfo" name="Informationen vom Kunden/Dritten einholen">  
+      <bpmn:incoming>SequenceFlow_RequestInfoYes</bpmn:incoming>  
+      <bpmn:outgoing>SequenceFlow_LoopBackToInvestigation</bpmn:outgoing>  
+    </bpmn:task>  
+
+     <!-- Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBackToInvestigation" sourceRef="Task_RequestAdditionalInfo" targetRef="InclusiveGateway_LegalCheckNeeded">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Path Info No -->  
+    <bpmn:task id="Task_FinalValidationStep" name="Validierungsabschluss prüfen">  
+       <bpmn:incoming>SequenceFlow_InfoNoMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeValidationIn2</bpmn:outgoing>  
+    </bpmn:task>
+
+     <!-- Convergence Gateway -->  
+    <bpmn:parallelGateway id="ParallelGateway_ConvergeValidation" name="">  
+      <bpmn:incoming>SequenceFlow_ConvergeValidationIn1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateStatsFinal</bpmn:outgoing> 
+    </bpmn:parallelGateway>
+
+     <!-- Convergence In 2 -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeValidationIn1" sourceRef="Task_RecordInitialStats" targetRef="ParallelGateway_ConvergeValidation">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Convergence In 2 -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeValidationIn2" sourceRef="Task_FinalValidationStep" targetRef="ParallelGateway_ConvergeValidation">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Final Stats Update -->  
+    <bpmn:task id="Task_UpdateStatsFinal" name="Schadensstatistik aktualisieren">  
+      <bpmn:incoming>SequenceFlow_ConvergeValidationIn1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyCustomerStart</bpmn:outgoing>  
+    </bpmn:task>
+
+     <!-- Notify Customer -->  
+    <bpmn:task id="Task_NotifyCustomer" name="Bearbeitungsstand dem Kunden mitteilen">  
+      <bpmn:incoming>SequenceFlow_UpdateStatsFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCompleted</bpmn:outgoing>  
+    </bpmn:task>
+
+     <!-- End Event -->  
+    <bpmn:endEvent id="EndEvent_Completed" name="Entscheidung informiert">  
+      <bpmn:incoming>SequenceFlow_NotifyCustomerStart</bpmn:incoming>
+    </bpmn:endEvent>  
+
+    <!-- Sequence Flows for Valid Path Start (Lane 1) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckValidity" sourceRef="StartEvent_1" targetRef="Task_CheckValidity">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Validity Decision Flows -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ValidCheckDecision" sourceRef="Task_CheckValidity" targetRef="InclusiveGateway_ValidCheck">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Invalid Path Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_InvalidPath" name="nein" sourceRef="InclusiveGateway_ValidCheck" targetRef="Task_InformInvalid">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Valid Path Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ValidPath" name="ja" sourceRef="InclusiveGateway_ValidCheck" targetRef="Task_CheckCompleteness">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Acceptance Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_AcceptanceCheck" sourceRef="Task_CheckCompleteness" targetRef="Task_PrelimAcceptance">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- End Rejected Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" sourceRef="Task_InformInvalid" targetRef="EndEvent_Rejected">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flows (Lane 2) -->  
+    <bpmn:sequenceFlow id="SequenceFlow_RecordStatsInitial" sourceRef="ParallelGateway_StartValidation" targetRef="Task_RecordInitialStats">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Validation Start Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_StartValidationProcess" sourceRef="ParallelGateway_StartValidation" targetRef="Task_InvestigateCause">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Legal Check Decision Flows -->  
+    <bpmn:sequenceFlow id="SequenceFlow_LegalCheckDecision" sourceRef="Task_InvestigateCause" targetRef="InclusiveGateway_LegalCheckNeeded">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Legal Yes Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_TransmitInfoPath" name="ja" sourceRef="InclusiveGateway_LegalCheckNeeded" targetRef="Task_TransmitInfoToInsurer">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Get Opinion Step 2 -->  
+    <bpmn:sequenceFlow id="SequenceFlow_GetOpinionStep1" sourceRef="Task_TransmitInfoToInsurer" targetRef="Task_ObtainLegalOpinion">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Get Opinion to Merge -->  
+    <bpmn:sequenceFlow id="SequenceFlow_MergeValidationPath" sourceRef="Task_ObtainLegalOpinion" targetRef="InclusiveGateway_InfoNeeded">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Info Check Decision -->  
+    <bpmn:sequenceFlow id="SequenceFlow_InfoCheckDecision" sourceRef="InclusiveGateway_MergeValidationPath" targetRef="InclusiveGateway_InfoNeeded">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Info Yes Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_RequestInfoYes" name="ja" sourceRef="InclusiveGateway_InfoNeeded" targetRef="Task_RequestAdditionalInfo">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Info No Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_InfoNoMerge" name="nein" sourceRef="InclusiveGateway_InfoNeeded" targetRef="Task_FinalValidationStep">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Final Validation to Converge -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeValidationIn2" sourceRef="Task_FinalValidationStep" targetRef="ParallelGateway_ConvergeValidation">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Converge to Final Stats -->  
+    <bpmn:parallelGateway id="ParallelGateway_ConvergeValidation" name="">
+       <bpmn:incoming>SequenceFlow_ConvergeValidationIn1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateStatsFinal</bpmn:outgoing> 
+    </bpmn:parallelGateway>
+
+     <!-- Converge In 2 -->  
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeValidationIn1" sourceRef="Task_RecordInitialStats" targetRef="ParallelGateway_ConvergeValidation">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Final Stats Flow -->  
+    <bpmn:task id="Task_UpdateStatsFinal" name="Schadensstatistik aktualisieren">  
+       <bpmn:incoming>SequenceFlow_ConvergeValidationIn1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyCustomerStart</bpmn:outgoing>  
+    </bpmn:task>
+
+     <!-- Notify Customer Flow -->  
+    <bpmn:sequenceFlow id="SequenceFlow_UpdateStatsFinal" sourceRef="Task_UpdateStatsFinal" targetRef="Task_NotifyCustomer">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Final Notification Task -->  
+    <bpmn:task id="Task_NotifyCustomer" name="Bearbeitungsstand dem Kunden mitteilen">  
+       <bpmn:incoming>SequenceFlow_UpdateStatsFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCompleted</bpmn:outgoing>  
+    </bpmn:task>
+
+     <!-- End Flow -->  
+    <bpmn:endEvent id="EndEvent_Completed" name="Entscheidung informiert">  
+       <bpmn:incoming>SequenceFlow_NotifyCustomerStart</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_EndCompleted" sourceRef="Task_NotifyCustomer" targetRef="EndEvent_Completed">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>  
+</bpmn:definitions>

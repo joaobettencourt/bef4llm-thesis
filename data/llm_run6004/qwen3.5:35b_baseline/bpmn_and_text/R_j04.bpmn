@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CarService_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CarService">
+    <bpmn:participant id="Participant_ServiceSystem" name="Car Service Reminder System" processRef="Process_CarService"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CarService" isExecutable="false">
+    
+    <!-- Start Event - After successful service -->
+    <bpmn:startEvent id="Start_Event_ServiceReminder" name="Successful Service Completed">
+      <bpmn:outgoing>SequenceFlow_StartToCheckRegistration</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Check if car is registered -->
+    <bpmn:task id="Task_CheckCarRegistered" name="Check Car Registration Status">
+      <bpmn:incoming>SequenceFlow_StartToCheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegistrationResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Is car registered? -->
+    <bpmn:exclusiveGateway id="Gateway_IsRegistered">
+      <bpmn:incoming>SequenceFlow_RegistrationResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifiedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UnregisteredEnd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Notify user -->
+    <bpmn:task id="Task_NotifyUser" name="Notify User of Service Needed">
+      <bpmn:incoming>SequenceFlow_NotifiedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UserDecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway - User goes to service or not -->
+    <bpmn:inclusiveGateway id="Gateway_ServiceAttendance">
+      <bpmn:incoming>SequenceFlow_UserDecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoesToService</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DoesNotGoPath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Timer Event - 30 days for fine -->
+    <bpmn:startEvent id="Start_Event_30DaysTimer" name="Service Not Attended">
+      <bpmn:timerEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_TimerToFineTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Issue fine -->
+    <bpmn:task id="Task_IssueFine" name="Issue Fine After 30 Days">
+      <bpmn:incoming>SequenceFlow_TimerToFineTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FineEndPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event - Unregistered car -->
+    <bpmn:endEvent id="End_Event_Unregistered" name="Service Not Applicable">
+      <bpmn:incoming>SequenceFlow_UnregisteredEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event - Fine Issued -->
+    <bpmn:endEvent id="End_Event_FineIssued" name="Fine Issued">
+      <bpmn:incoming>SequenceFlow_FineEndPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task - Mechanic enters problems -->
+    <bpmn:userTask id="UserTask_MechanicEntersProblems" name="Mechanic Enters Car Problems">
+      <bpmn:incoming>SequenceFlow_GoesToService</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProblemEntryComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catching Event - Status Updates via Email -->
+    <bpmn:intermediateCatchEvent id="Intermediate_Event_StatusUpdate" name="Status Update Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ProblemEntryComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitingForRepair</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task - Payment through app -->
+    <bpmn:userTask id="UserTask_Payment" name="Pay Through App">
+      <bpmn:incoming>SequenceFlow_WaitingForRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairDoneNotification</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Mechanic confirms repair -->
+    <bpmn:userTask id="UserTask_MechanicConfirm" name="Mechanic Confirms Repair Successful">
+      <bpmn:incoming>SequenceFlow_RepairDoneNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PickerlIssued</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Issue Pickerl -->
+    <bpmn:task id="Task_IssuePickerl" name="Issue Pickerl">
+      <bpmn:incoming>SequenceFlow_PickerlIssued</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NextServiceTimeSet</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Set next service time -->
+    <bpmn:userTask id="UserTask_SetNextService" name="Enter Next Service Time">
+      <bpmn:incoming>SequenceFlow_NextServiceTimeSet</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Process Complete -->
+    <bpmn:endEvent id="End_Event_Complete" name="Service Completed">
+      <bpmn:incoming>SequenceFlow_ProcessComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_CarRegistration"/>
+    <bpmn:dataObjectReference id="Data_ServiceProblems"/>
+    <bpmn:dataObjectReference id="Data_PaymentInfo"/>
+    
+    <bpmn:association sourceRef="Task_CheckCarRegistered" targetRef="Data_CarRegistration"/>
+    <bpmn:association sourceRef="UserTask_MechanicEntersProblems" targetRef="Data_ServiceProblems"/>
+    <bpmn:association sourceRef="UserTask_Payment" targetRef="Data_PaymentInfo"/>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_StartToCheckRegistration" name="" sourceRef="Start_Event_ServiceReminder" targetRef="Task_CheckCarRegistered"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_RegistrationResult" name="" sourceRef="Task_CheckCarRegistered" targetRef="Gateway_IsRegistered"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_NotifiedPath" name="Is Registered" sourceRef="Gateway_IsRegistered" targetRef="Task_NotifyUser">
+    <bpmn:name>Yes, Car is registered</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_UnregisteredEnd" name="" sourceRef="Gateway_IsRegistered" targetRef="End_Event_Unregistered"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_UserDecisionPoint" name="" sourceRef="Task_NotifyUser" targetRef="Gateway_ServiceAttendance"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_GoesToService" name="Attends Service" sourceRef="Gateway_ServiceAttendance" targetRef="UserTask_MechanicEntersProblems">
+    <bpmn:name>User goes to service facility</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_DoesNotGoPath" name="" sourceRef="Gateway_ServiceAttendance" targetRef="Start_Event_30DaysTimer">
+    <bpmn:name>User does not attend service</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_TimerToFineTask" name="" sourceRef="Start_Event_30DaysTimer" targetRef="Task_IssueFine"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_FineEndPath" name="" sourceRef="Task_IssueFine" targetRef="End_Event_FineIssued"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ProblemEntryComplete" name="" sourceRef="UserTask_MechanicEntersProblems" targetRef="Intermediate_Event_StatusUpdate">
+    <bpmn:name>Problem entry complete</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_WaitingForRepair" name="" sourceRef="Intermediate_Event_StatusUpdate" targetRef="UserTask_Payment"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_RepairDoneNotification" name="" sourceRef="UserTask_Payment" targetRef="UserTask_MechanicConfirm">
+    <bpmn:name>Repair completed</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_PickerlIssued" name="" sourceRef="UserTask_MechanicConfirm" targetRef="Task_IssuePickerl"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_NextServiceTimeSet" name="" sourceRef="Task_IssuePickerl" targetRef="UserTask_SetNextService">
+    <bpmn:name>Pickerl issued</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ProcessComplete" name="" sourceRef="UserTask_SetNextService" targetRef="End_Event_Complete"/>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_StatusUpdate">
+    <bpmn:name>Status Update Email</bpmn:name>
+  </bpmn:message>
+
+  <bpmn:association sourceRef="Intermediate_Event_StatusUpdate" targetRef="Message_StatusUpdate"/>
+
+</bpmn:definitions>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SwitchOver">
+    <bpmn:participant id="Participant_CS" name="Customer Service (Sales/Distribution)" processRef="Process_CS"/>
+    <bpmn:participant id="Participant_Op" name="Grid Operator" processRef="Process_Op"/>
+  </bpmn:collaboration>
+
+  <!-- Process for Customer Service -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="StartRequestReceived" name="Switch-over Request Received">
+      <bpmn:outgoing>Flow_ReceiveData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EnterCRM" name="Enter Customer Data into CRM System">
+      <bpmn:incoming>Flow_ReceiveData</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckPlausibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_Plausibility" name="Check Plausibility &amp; Completeness">
+      <bpmn:incoming>Flow_CheckPlausibility</bpmn:incoming>
+      <bpmn:outgoing>Flow_CorrectErrors</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DBCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_ErrorCorrection" name="Correct Errors based on Error List">
+      <bpmn:incoming>Flow_CorrectErrors</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckPlausibilityLoopback</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="Data_CustomerObj" name="Customer Object">
+        <bpmn:name>Data Elements (Name, Address, Power Gauge)</bpmn:name>
+    </bpmn:dataObject>
+
+    <bpmn:exclusiveGateway id="Gateway_DBExistence" name="Customer Exists in DB?">
+      <bpmn:incoming>Flow_DBCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateNewObject</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ExistingObject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CreateNewCust" name="Create New Customer Object">
+      <bpmn:incoming>Flow_CreateNewObject</bpmn:incoming>
+      <bpmn:outgoing>Flow_PrepareContract</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ExistingCust" name="Use Existing Customer Object">
+      <bpmn:incoming>Flow_ExistingObject</bpmn:incoming>
+      <bpmn:outgoing>Flow_PrepareContract</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Join_ContractPrep" name="Prepare Contract">
+        <bpmn:name>Merge Paths for Contract Prep</bpmn:name>
+      <bpmn:incoming>Flow_PrepareContract_CreateNewCust</bpmn:outgoing> <!-- From Create New -->
+      <bpmn:incoming>Flow_PrepareContract_ExistingCust</bpmn:outgoing> <!-- From Existing -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_PrepContracts" name="Prepare Contract Documents">
+        <bpmn:name>Create Switch-over Contracts (Bank, Rate, Date)</bpmn:name>
+      <bpmn:incoming>Flow_PrepareContract</bpmn:outgoing> <!-- From Join -->
+      <bpmn:outgoing>Flow_CISCheckRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_CheckResult" name="CIS Check Valid?">
+        <bpmn:name>CIS Automated Contract Generation Check</bpmn:name>
+      <bpmn:incoming>Flow_CISCheckRequest</bpmn:outgoing> <!-- From Task -->
+      <bpmn:outgoing>Flow_AnalyzeIssues</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ConfirmationSentPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_AnalyzeResolve" name="Analyze &amp; Resolve Issues">
+        <bpmn:name>Analyze Generation Failures and Fix</bpmn:name>
+      <bpmn:incoming>Flow_AnalyzeIssues</bpmn:outgoing> <!-- From Gateway -->
+      <bpmn:outgoing>Flow_CISCheckRequestLoopback</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_ConfirmationSentPath" sourceRef="Gateway_CheckResult" targetRef="Task_SendConfirmation">
+        <bpmn:name>Yes (Valid)</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_SendConfirmation" name="Send Confirmation Document to Customer">
+      <bpmn:incoming>Flow_ConfirmationSentPath</bpmn:outgoing> <!-- From Gateway -->
+        <bpmn:name>Confirm Switch-over Execution Possible</bpmn:name>
+      <bpmn:outgoing>Flow_WaitCustomerDecision</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:exclusiveGateway id="Gateway_ConfirmationDecision" name="Withdrawal within 7 Days?">
+        <bpmn:name>Customer Decision / Timeout</bpmn:name>
+      <bpmn:incoming>Flow_WaitCustomerDecision</bpmn:outgoing> <!-- From Task -->
+      <bpmn:outgoing>Flow_WithdrawEnd</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ConfirmProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <bpmn:endEvent id="End_Withdrawal" name="Process Ended (Withdrawal)">
+        <bpmn:name>Switch Contract Withdrawn by Customer</bpmn:name>
+      <bpmn:incoming>Flow_WithdrawEnd</bpmn:outgoing> <!-- From Gateway -->
+    </bpmn:endEvent>
+
+     <bpmn:task id="Task_CreateCISContract" name="Create CIS Contract">
+        <bpmn:name>Create Internal CIS Contract for Switch</bpmn:name>
+      <bpmn:incoming>Flow_ConfirmProceed</bpmn:outgoing> <!-- From Gateway -->
+      <bpmn:outgoing>Flow_RequestConcurrence</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:endEvent id="End_CS_Process" name="Process Ended (Meter Data)">
+        <bpmn:name>Meter Data Imported - Process End</bpmn:name>
+      <bpmn:incoming>Flow_ImportData_Flow</bpmn:outgoing> <!-- From Task -->
+    </bpmn:endEvent>
+
+     <bpmn:startEvent id="StartTimer" name="Switch Date">
+        <bpmn:name>Meter Data Transmission Time (Max 10 Days After Supply)</bpmn:name>
+      <bpmn:outgoing>Flow_MeterDataReceived</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <bpmn:task id="Task_ImportMeter" name="Import Meter Data to Systems">
+        <bpmn:name>Import Meter Consumption Report</bpmn:name>
+      <bpmn:incoming>Flow_MeterDataReceived</bpmn:outgoing> <!-- From Start -->
+      <bpmn:outgoing>End_CS_Process_Flow</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Corrected Flows for Logic Consistency -->
+  </bpmn:process>
+
+  <!-- Process for Grid Operator -->
+  <bpmn:process id="Process_Op" isExecutable="false">
+      <bpmn:startEvent id="Start_RequestReceived" name="Concurrence Request Received">
+        <bpmn:name>CIS Concurrence Check</bpmn:name>
+        <bpmn:outgoing>Flow_CheckSupplier</bpmn:outgoing>
+    </bpmn:startEvent>
+
+      <bpmn:task id="Task_CheckConcurrence" name="Check Supplier Concurrence">
+          <bpmn:name>Request Check for Future Supply</bpmn:name>
+        <bpmn:incoming>Flow_RequestReceived_Op</bpmn:outgoing> <!-- From CS -->
+        <bpmn:outgoing>Gateway_ConcurrenceResult</bpmn:outgoing>
+    </bpmn:task>
+
+      <bpmn:exclusiveGateway id="Gateway_Concurrence" name="Supplier Concurrence?">
+          <bpmn:name>No Objections?</bpmn:name>
+        <bpmn:incoming>Flow_CheckConcurrence</bpmn:outgoing> <!-- From Task -->
+        <bpmn:outgoing>Flow_ResolveConflict</bpmn:outgoing>
+        <bpmn:outgoing>Flow_NoObjectionProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+      <bpmn:endEvent id="End_Op_Concurrence" name="Concurrence Check Complete">
+          <bpmn:name>No Objection / Conflict Resolved - End</bpmn:name>
+        <bpmn:incoming>Flow_SendMeterDataTask_Flow2</bpmn:outgoing> <!-- From Task -->
+    </bpmn:endEvent>
+
+      <bpmn:startEvent id="Start_SwitchDate" name="Switch Date">
+          <bpmn:name>Meter Data Transmission Time (Max 10 Days After Supply)</bpmn:name>
+        <bpmn:outgoing>Flow_TransmitMeterData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+      <bpmn:endEvent id="End_SwitchComplete" name="Switch Complete">
+          <bpmn:name>Meter Data Sent - Process End</bpmn:name>
+        <bpmn:incoming>Flow_SendMeterDataTask_Flow3</bpmn:outgoing> <!-- From Task -->
+    </bpmn:endEvent>
+
+      <!-- Corrected Logic for Meter Data Flow -->
+  </bpmn:process>
+
+  <!-- Message Flows (Simplified representation of interactions) -->
+  <bpmn:messageFlow id="Msg_ConcurrenceRequest" sourceRef="Task_CreateCISContract_CS" targetRef="Start_RequestReceived_Op"/> 
+</bpmn:definitions>

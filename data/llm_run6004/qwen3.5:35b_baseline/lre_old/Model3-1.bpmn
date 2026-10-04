@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_BackOffice" name="Small Claims Registry Operations" processRef="Process_BackOffice"/>
+    <bpmn:participant id="Participant_Police" name="Queensland Police" processRef="Process_Police"/>
+
+    <!-- Message Flow 1: Forward Warrant Possession Request -->
+    <bpmn:messageFlow id="MessageFlow_01">
+      <bpmn:name>Forward Warrant Possession</bpmn:name>
+      <bpmn:sourceRef>ThrowEvent_ForwardRequest</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_RequestReceivedPolice</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow 2: Send Police Report Back -->
+    <bpmn:messageFlow id="MessageFlow_02">
+      <bpmn:name>Send Police Report</bpmn:name>
+      <bpmn:sourceRef>CatchEvent_ReportReceivedBackOffice</bpmn:sourceRef>
+      <bpmn:targetRef>ThrowEvent_SendReportPolice</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Back Office Process -->
+  <bpmn:process id="Process_BackOffice" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Warrant Possession Request Received">
+      <bpmn:outgoing>SequenceFlow_RetrieveSCTT</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_RetrieveSCTTFile" name="Retrieve SCTT File">
+      <bpmn:incoming>SequenceFlow_RetrieveSCTT</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event (Message) -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_ForwardRequest" name="Forward Warrant Possession">
+      <bpmn:incoming>SequenceFlow_ForwardRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StoreFile</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_StorePhysicalFile" name="Store SCTT Physical File">
+      <bpmn:incoming>SequenceFlow_StoreFile</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event (Message) -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_ReportReceivedBackOffice" name="Await Police Report">
+      <bpmn:incoming>SequenceFlow_WaitReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetrieveSCTAfterReport</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_RetrieveSCTFileAfterReport" name="Retrieve SCT File">
+      <bpmn:incoming>SequenceFlow_RetrieveSCTAfterReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AttachDoc</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4 -->
+    <bpmn:task id="Task_AttachNewDocument" name="Attach New SCT Document">
+      <bpmn:incoming>SequenceFlow_AttachDoc</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StoreExpandedFile</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 -->
+    <bpmn:task id="Task_StoreExpandedPhysicalFile" name="Store Expanded SCT Physical File">
+      <bpmn:incoming>SequenceFlow_StoreExpandedFile</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HandoverMCStaff</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_HandoverComplete" name="File Handed Over to MC Staff">
+      <bpmn:incoming>SequenceFlow_HandoverMCStaff</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetrieveSCTT" sourceRef="StartEvent_1" targetRef="Task_RetrieveSCTTFile"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardRequest" name="Forward to Police" sourceRef="Task_RetrieveSCTTFile" targetRef="ThrowEvent_ForwardRequest"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StoreFile" sourceRef="ThrowEvent_ForwardRequest" targetRef="Task_StorePhysicalFile"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitReport" name="Await Report" sourceRef="Task_StorePhysicalFile" targetRef="CatchEvent_ReportReceivedBackOffice"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RetrieveSCTAfterReport" name="Retrieve File After Report" sourceRef="CatchEvent_ReportReceivedBackOffice" targetRef="Task_RetrieveSCTFileAfterReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AttachDoc" name="Attach Document" sourceRef="Task_RetrieveSCTFileAfterReport" targetRef="Task_AttachNewDocument"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StoreExpandedFile" name="Store Expanded File" sourceRef="Task_AttachNewDocument" targetRef="Task_StoreExpandedPhysicalFile"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverMCStaff" name="Handover MC Staff" sourceRef="Task_StoreExpandedPhysicalFile" targetRef="EndEvent_HandoverComplete"/>
+
+  </bpmn:process>
+
+  <!-- Police Process -->
+  <bpmn:process id="Process_Police" isExecutable="true">
+    
+    <!-- Start Event triggered by Message -->
+    <bpmn:startEvent id="CatchEvent_RequestReceivedPolice" name="Request Received from Back Office">
+      <bpmn:outgoing>SequenceFlow_ProcessWarrant</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for Police Processing -->
+    <bpmn:task id="Task_PoliceProcessReport" name="Generate Report & Process Warrant">
+      <bpmn:incoming>SequenceFlow_ProcessWarrant</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendReportBack</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event (Message) -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_SendReportPolice" name="Send Report to Back Office">
+      <bpmn:incoming>SequenceFlow_SendReportBack</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Police_01" sourceRef="CatchEvent_RequestReceivedPolice" targetRef="Task_PoliceProcessReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendReportBack" name="Send Report Back" sourceRef="Task_PoliceProcessReport" targetRef="ThrowEvent_SendReportPolice"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

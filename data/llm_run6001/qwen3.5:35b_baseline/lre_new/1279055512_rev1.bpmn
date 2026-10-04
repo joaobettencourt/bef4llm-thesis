@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SSP_Invoice_Processing">
+    <bpmn:participant id="Participant_SSP_Office" name="SSP Invoice Processing Office" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailCentre">
+        <bpmn:name>Mail Centre Office</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_InvoiceReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CategorizeInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ForwardToAdmin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewAndForwardValidation</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AdminDept">
+        <bpmn:name>Administration Department</bpmn:name>
+        <bpmn:flowNodeRef>Task_ProcessInvoiceComplex</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PutInCollectionBox</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DataEntry">
+        <bpmn:name>Data Entry Office</bpmn:name>
+        <bpmn:flowNodeRef>Task_EnterSAPData_10am</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Validation">
+        <bpmn:name>Validation Office</bpmn:name>
+        <bpmn:flowNodeRef>Task_ExecuteValidationProcess</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Payment">
+        <bpmn:name>Payment Office</bpmn:name>
+        <bpmn:flowNodeRef>Task_ExecutePayment_Weekly</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry">
+        <bpmn:name>Registry Office</bpmn:name>
+        <bpmn:flowNodeRef>Task_ArchiveInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_InvoiceArchived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_InvoiceReceived" name="Receive Invoice from Client">
+      <bpmn:outgoing>SequenceFlow_Categorize</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Mail Centre Tasks -->
+    <bpmn:task id="Task_CategorizeInvoice" name="Categorize invoice by staff member">
+      <bpmn:incoming>SequenceFlow_Categorize</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToAdmin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Lane Switch to Admin Dept -->
+    <bpmn:sequenceFlow id="SequenceFlow_Categorize" sourceRef="StartEvent_InvoiceReceived" targetRef="Task_CategorizeInvoice">
+      <bpmn:name>Categorized by Staff</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ForwardToAdmin" name="Forward invoice to Administration Department">
+      <bpmn:incoming>SequenceFlow_Categorize</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminProcessStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Admin Dept Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_AdminProcessStart" sourceRef="Task_ForwardToAdmin" targetRef="Task_ProcessInvoiceComplex">
+      <bpmn:name>To Administration</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ProcessInvoiceComplex" name="Process Invoice (Complex Process)">
+      <bpmn:incoming>SequenceFlow_AdminProcessStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PutInBox</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PutInBox" sourceRef="Task_ProcessInvoiceComplex" targetRef="Task_PutInCollectionBox">
+      <bpmn:name>Process Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_PutInCollectionBox" name="Put all invoices into collection box">
+      <bpmn:incoming>SequenceFlow_PutInBox</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataEntryTrigger_10am</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Entry Office Task (Time Triggered) -->
+    <bpmn:sequenceFlow id="SequenceFlow_DataEntryTrigger_10am" sourceRef="Task_PutInCollectionBox" targetRef="Task_EnterSAPData_10am">
+      <bpmn:name>At 10 am Workday</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_EnterSAPData_10am" name="Enter all data in SAP System (Complex Process)">
+      <bpmn:incoming>SequenceFlow_DataEntryTrigger_10am</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MailReviewHourly</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Mail Centre Review Task (Time Triggered) -->
+    <bpmn:sequenceFlow id="SequenceFlow_MailReviewHourly" sourceRef="Task_EnterSAPData_10am" targetRef="Task_ReviewAndForwardValidation">
+      <bpmn:name>Every Hour</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ReviewAndForwardValidation" name="Review system and forward new invoices for validation">
+      <bpmn:incoming>SequenceFlow_MailReviewHourly</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToValidationOffice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Validation Office Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToValidationOffice" sourceRef="Task_ReviewAndForwardValidation" targetRef="Task_ExecuteValidationProcess">
+      <bpmn:name>To Validation</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ExecuteValidationProcess" name="Validate Invoices (Big Process)">
+      <bpmn:incoming>SequenceFlow_ToValidationOffice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentTrigger_Weekly</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Payment Office Task (Time Triggered) -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentTrigger_Weekly" sourceRef="Task_ExecuteValidationProcess" targetRef="Task_ExecutePayment_Weekly">
+      <bpmn:name>Beginning of Week</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ExecutePayment_Weekly" name="Execute Payment (Big Process)">
+      <bpmn:incoming>SequenceFlow_PaymentTrigger_Weekly</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Registry Office Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRegistry" sourceRef="Task_ExecutePayment_Weekly" targetRef="Task_ArchiveInvoices">
+      <bpmn:name>To Archive</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_ArchiveInvoices" name="Archive all invoices">
+      <bpmn:incoming>SequenceFlow_ToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndArchived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_InvoiceArchived" name="Invoices Archived">
+      <bpmn:incoming>SequenceFlow_EndArchived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndArchived" sourceRef="Task_ArchiveInvoices" targetRef="EndEvent_InvoiceArchived">
+      <bpmn:name>Archive Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_NotCollectedBag_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_NotCollectedBag">
+    <bpmn:participant id="Participant_CVS" name="CVS" processRef="Process_NotCollectedBag_01" />
+    <bpmn:participant id="Participant_Customer" name="Customer" />
+    <bpmn:messageFlow id="MessageFlow_PhoneContact" sourceRef="Task_CallCustomer" targetRef="Participant_Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_NotCollectedBag_01" isExecutable="false">
+    <!-- Lane for CVS operations -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CVS_Operations" name="CVS Operations">
+        <bpmn:flowNodeRef>StartEvent_NotCollected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckRetries</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_RetryLimitCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ContactOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IncreaseRetryCount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReturnToProduction</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NotCollected" name="Not collected bag identified">
+      <bpmn:outgoing>SF_StartToCheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check number of resolution retries conducted -->
+    <bpmn:task id="Task_CheckRetries" name="Check number of resolution retries conducted">
+      <bpmn:incoming>SF_StartToCheckRetries</bpmn:incoming>
+      <bpmn:outgoing>SF_RetriesToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if retries exceed limit -->
+    <bpmn:exclusiveGateway id="GW_RetryLimitCheck" name="Retries &gt; Limit?">
+      <bpmn:incoming>SF_RetriesToGateway1</bpmn:incoming>
+      <bpmn:outgoing>SF_ContactCustomerPath</bpmn:outgoing> <!-- Default path -->
+      <bpmn:outgoing>SF_ReturnDisassembleHighRetries</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Try to contact customer by phone -->
+    <bpmn:task id="Task_CallCustomer" name="Try to contact customer">
+      <bpmn:incoming>SF_ContactCustomerPath</bpmn:incoming>
+      <bpmn:outgoing>SF_OutcomeToGateway2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Contact outcome -->
+    <bpmn:exclusiveGateway id="GW_ContactOutcome" name="Contact Outcome">
+      <bpmn:incoming>SF_OutcomeToGateway2</bpmn:incoming>
+      <bpmn:outgoing>SF_UnsuccessfulPath</bpmn:outgoing> <!-- Contact unsuccessful -->
+      <bpmn:outgoing>SF_WithdrawOrderPath</bpmn:outgoing> <!-- Successful, customer withdrew order -->
+      <bpmn:outgoing>SF_PromisedPickupPath</bpmn:outgoing> <!-- Successful, promised to pick-up -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Increase retry count on bag label (for unsuccessful or promised pickup) -->
+    <bpmn:task id="Task_IncreaseRetryCount" name="Increase retry count on bag label">
+      <bpmn:incoming>SF_UnsuccessfulPath</bpmn:incoming>
+      <bpmn:incoming>SF_PromisedPickupPath</bpmn:incoming>
+      <bpmn:outgoing>SF_IncreaseToConverge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Return to production for disassemble (for high retries or withdrawn order) -->
+    <bpmn:task id="Task_ReturnToProduction" name="Return to production area for disassemble">
+      <bpmn:incoming>SF_ReturnDisassembleHighRetries</bpmn:incoming>
+      <bpmn:incoming>SF_WithdrawOrderPath</bpmn:incoming>
+      <bpmn:outgoing>SF_DisassembleToConverge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Converge paths before end event -->
+    <bpmn:exclusiveGateway id="GW_ConvergeBeforeEnd">
+      <bpmn:incoming>SF_IncreaseToConverge</bpmn:incoming>
+      <bpmn:incoming>SF_DisassembleToConverge</bpmn:incoming>
+      <bpmn:outgoing>SF_ToEndEvent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Managed" name="Not collected bag managed">
+      <bpmn:incoming>SF_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToCheckRetries" sourceRef="StartEvent_NotCollected" targetRef="Task_CheckRetries" />
+    
+    <bpmn:sequenceFlow id="SF_RetriesToGateway1" name="retries &gt; X?" sourceRef="Task_CheckRetries" targetRef="GW_RetryLimitCheck">
+      <!-- Condition logic implied by gateway outgoing names -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_ContactCustomerPath" name="retries ≤ X (default)" sourceRef="GW_RetryLimitCheck" targetRef="Task_CallCustomer">
+       <!-- Default flow from Gateway 1 -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_ReturnDisassembleHighRetries" name="retries &gt; X (yes)" sourceRef="GW_RetryLimitCheck" targetRef="Task_ReturnToProduction">
+       <!-- Condition flow from Gateway 1 -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_OutcomeToGateway2" name="" sourceRef="Task_CallCustomer" targetRef="GW_ContactOutcome" />
+
+    <bpmn:sequenceFlow id="SF_UnsuccessfulPath" name="contact unsuccessful" sourceRef="GW_ContactOutcome" targetRef="Task_IncreaseRetryCount">
+       <!-- Condition flow from Gateway 2 -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_WithdrawOrderPath" name="contact successful, customer withdrew order" sourceRef="GW_ContactOutcome" targetRef="Task_ReturnToProduction">
+       <!-- Condition flow from Gateway 2 -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_PromisedPickupPath" name="contact successful, customer promised to pick-up" sourceRef="GW_ContactOutcome" targetRef="Task_IncreaseRetryCount">
+       <!-- Condition flow from Gateway 2 -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_IncreaseToConverge" name="" sourceRef="Task_IncreaseRetryCount" targetRef="GW_ConvergeBeforeEnd" />
+
+    <bpmn:sequenceFlow id="SF_DisassembleToConverge" name="" sourceRef="Task_ReturnToProduction" targetRef="GW_ConvergeBeforeEnd" />
+
+    <bpmn:sequenceFlow id="SF_ToEndEvent" name="" sourceRef="GW_ConvergeBeforeEnd" targetRef="EndEvent_Managed" />
+  </bpmn:process>
+</bpmn:definitions>

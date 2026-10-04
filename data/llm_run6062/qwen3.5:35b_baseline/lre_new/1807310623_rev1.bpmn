@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ACME_OrderProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_ACME_Inc" name="ACME Inc." processRef="Process_PurchaseOrderToDelivery"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_PurchaseOrderToDelivery" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FinancialDept" name="Financial Department">
+        <bpmn:flowNodeRef>Event_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ReceivingDept" name="Receiving Department">
+        <bpmn:flowNodeRef>Task_CheckFactualCorrectness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterSAPERION</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_End</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DeptHead" name="Department Head">
+        <bpmn:flowNodeRef>Task_ApproveInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Event_Start" name="Receive Purchase Invoice">
+      <bpmn:outgoing>Flow_CheckInvoice</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Financial Dept Check -->
+    <bpmn:task id="Task_CheckInvoice" name="Check Purchase Invoice">
+      <bpmn:incoming>Flow_CheckInvoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_HandoverToReceiving</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Receiving Dept Factual Check -->
+    <bpmn:task id="Task_CheckFactualCorrectness" name="Check Invoice for Factual Correctness">
+      <bpmn:incoming>Flow_HandoverToReceiving</bpmn:incoming>
+      <bpmn:outgoing>Flow_RegisterSAPERION</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Register in SAPERION -->
+    <bpmn:task id="Task_RegisterSAPERION" name="Register in SAPERION Workflow System">
+      <bpmn:incoming>Flow_RegisterSAPERION</bpmn:incoming>
+      <bpmn:outgoing>Flow_AmountCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway Decision -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &gt; $500?">
+      <bpmn:incoming>Flow_AmountCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Yes_ApprovalPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_No_PaymentPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Amount > $500 -->
+    <bpmn:sequenceFlow id="Flow_Yes_ApprovalPath" name="Over $500" sourceRef="Gateway_AmountCheck" targetRef="Task_ApproveInvoice">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${amount &gt;= 500}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 4: Dept Head Approval -->
+    <bpmn:task id="Task_ApproveInvoice" name="Approve Invoice via SAPERION">
+      <bpmn:incoming>Flow_Yes_ApprovalPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterApproval_TriggerERP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Amount <= $500 -->
+    <bpmn:sequenceFlow id="Flow_No_PaymentPath" name="Under or Equal to $500" sourceRef="Gateway_AmountCheck" targetRef="Task_TriggerERP">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${amount &lt;= 500}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 5: Trigger ERP -->
+    <bpmn:task id="Task_TriggerERP" name="Trigger ERP System for Payment">
+      <bpmn:incoming>Flow_AfterApproval_TriggerERP</bpmn:incoming>
+      <bpmn:incoming>Flow_No_PaymentPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="Event_End" name="Payment Triggered">
+      <bpmn:incoming>Flow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_INQ_IP">
+    <bpmn:participant id="Participant_INQ" name="INQ" processRef="Process_INQ"/>
+    <bpmn:participant id="Participant_IP" name="IP" processRef="Process_IP"/>
+    
+    <!-- Message Flow from INQ to IP -->
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="IntermediateThrowEvent_SendRequest" targetRef="StartMessageEvent_ReceiveRequest">
+      <bpmn:name>Transaction Data Request</bpmn:name>
+    </bpmn:messageFlow>
+    
+    <!-- Message Flow from IP to INQ (Data Transmission) -->
+    <bpmn:messageFlow id="MessageFlow_ResponseData" sourceRef="Task_TransmitData" targetRef="EndResponseReceived_INQ">
+      <bpmn:name>Data Response</bpmn:name>
+    </bpmn:messageFlow>
+    
+    <!-- Message Flow from IP to INQ (Rejection) -->
+    <bpmn:messageFlow id="MessageFlow_Rejection" sourceRef="Task_RejectRequest" targetRef="EndReceptionRejected_INQ">
+      <bpmn:name>Rejection Notification</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- INQ Participant Process -->
+  <bpmn:process id="Process_INQ" isExecutable="false">
+    <bpmn:startEvent id="StartINQ_RequestInitiated">
+      <bpmn:name>Request Initiated</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_TO_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_INQ_RequestInitiation">
+      <bpmn:name>Create Transaction Data Request</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TO_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToThrowEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendRequest">
+      <bpmn:name>Send Request to IP</bpmn:name>
+      <bpmn:messageRef="Message_Request"/>
+      <bpmn:incoming>SequenceFlow_ToThrowEvent</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:endEvent id="EndResponseReceived_INQ">
+      <bpmn:name>Data Received Successfully</bpmn:name>
+      <bpmn:messageRef="Message_ResponseData"/>
+      <bpmn:incoming>SequenceFlow_FromReceiveData</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndReceptionRejected_INQ">
+      <bpmn:name>Request Rejected</bpmn:name>
+      <bpmn:messageRef="Message_Rejection"/>
+      <bpmn:incoming>SequenceFlow_FromReceiveReject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_TO_SendRequest" sourceRef="StartINQ_RequestInitiated" targetRef="Task_INQ_RequestInitiation"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToThrowEvent" sourceRef="Task_INQ_RequestInitiation" targetRef="IntermediateThrowEvent_SendRequest"/>
+
+  </bpmn:process>
+
+  <!-- IP Participant Process -->
+  <bpmn:process id="Process_IP" isExecutable="false">
+    <bpmn:startEvent id="StartMessageEvent_ReceiveRequest">
+      <bpmn:name>Request Received</bpmn:name>
+      <bpmn:messageRef="Message_Request"/>
+      <bpmn:outgoing>SequenceFlow_TO_CheckTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_IP_ReviewRequest">
+      <bpmn:name>Check Request of INQ</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TO_CheckTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision">
+      <bpmn:name>Data Valid?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesTransmission</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoRejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_TransmitData">
+      <bpmn:name>Transmit Data to INQ</bpmn:name>
+      <bpmn:messageRef="Message_ResponseData"/>
+      <bpmn:incoming>SequenceFlow_YesTransmission</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_IP_TransmitComplete">
+      <bpmn:name>Data Sent Successfully</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FromTransmitData</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_RejectRequest">
+      <bpmn:name>Reject Request from INQ</bpmn:name>
+      <bpmn:messageRef="Message_Rejection"/>
+      <bpmn:incoming>SequenceFlow_NoRejection</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_IP_RejectComplete">
+      <bpmn:name>Request Rejected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FromRejectTask</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_TO_CheckTask" sourceRef="StartMessageEvent_ReceiveRequest" targetRef="Task_IP_ReviewRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToGateway" sourceRef="Task_IP_ReviewRequest" targetRef="ExclusiveGateway_Decision"/>
+
+    <!-- Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesTransmission" name="Valid - Transmit Data">
+      <bpmn:name>Transmit</bpmn:name>
+      <bpmn:sourceRef>ExclusiveGateway_Decision</bpmn:sourceRef>
+      <bpmn:targetRef>Task_TransmitData</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FromTransmitData" sourceRef="Task_TransmitData" targetRef="End_IP_TransmitComplete">
+      <bpmn:name>Data Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoRejection" name="Invalid - Reject">
+      <bpmn:name>Reject</bpmn:name>
+      <bpmn:sourceRef>ExclusiveGateway_Decision</bpmn:sourceRef>
+      <bpmn:targetRef>Task_RejectRequest</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FromRejectTask" sourceRef="Task_RejectRequest" targetRef="End_IP_RejectComplete">
+      <bpmn:name>Rejected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_Request" name="Transaction Data Request"/>
+  <bpmn:message id="Message_ResponseData" name="Transmitted Data Response"/>
+  <bpmn:message id="Message_Rejection" name="Request Rejected Notification"/>
+
+</bpmn:definitions>

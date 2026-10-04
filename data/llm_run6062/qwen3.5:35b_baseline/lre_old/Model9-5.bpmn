@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ExpenseReportProcess_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ExpenseReport_01">
+    <bpmn:participant id="Participant_EmployeeFinance" name="Employee Finance Process" processRef="Proc_ExpenseReport_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ExpenseReport_01" isExecutable="true">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Expense Report Received">
+      <bpmn:outgoing>SequenceFlow_CheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AccountCheck" name="Employee has account?">
+      <bpmn:incoming>SequenceFlow_CheckAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HasAccountYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoExistingAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Task -->
+    <bpmn:task id="Task_CreateNewAccount" name="Create new employee account">
+      <bpmn:incoming>SequenceFlow_NoExistingAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreatedMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Review Report Task -->
+    <bpmn:task id="Task_ReviewReport" name="Review expense report for automatic approval">
+      <bpmn:incoming>SequenceFlow_HasAccountYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Amount Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountDecision" name="Amount &lt; $200?">
+      <bpmn:incoming>SequenceFlow_HasAccountYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QuickReimbursementPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorApprovalRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Auto Approval Task -->
+    <bpmn:task id="Task_AutoApprove" name="Auto-approve reimbursement">
+      <bpmn:incoming>SequenceFlow_QuickReimbursementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessPayment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SupervisorDecision" name="Supervisor approves?">
+      <bpmn:incoming>SequenceFlow_AutoApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReimbursementApproved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Payment Processing Task -->
+    <bpmn:task id="Task_ProcessPayment" name="Process reimbursement to bank account">
+      <bpmn:incoming>SequenceFlow_AutoApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event - Payment Processed -->
+    <bpmn:endEvent id="EndEvent_PaymentProcessed" name="Reimbursement Processed">
+      <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- End Event - Rejection -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_SendRejectionEmailPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Timer Events for Time-Based Notifications -->
+    <bpmn:startEvent id="StartTimer_7DaysElapsed" name="7 Days Elapsed">
+      <bpmn:timerDuration>P7D</bpmn:timerDuration>
+      <bpmn:outgoing>SequenceFlow_SendApprovalInProgressEmailPath</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndTimer_30DaysElapsed" name="Process Cancelled">
+      <bpmn:incoming>SequenceFlow_ProcessCancelledPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Tasks for Email Notifications -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send rejection notice email">
+      <bpmn:incoming>SequenceFlow_RejectedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SendApprovalInProgressEmail" name="Send approval in progress email">
+      <bpmn:incoming>SequenceFlow_SendApprovalInProgressEmailPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessCancelledPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SendCancellationNotice" name="Send cancellation notice email">
+      <bpmn:incoming>SequenceFlow_ProcessCancelledPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReSubmitRequired</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAccount" sourceRef="StartEvent_ReportReceived" targetRef="ExclusiveGateway_AccountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HasAccountYes" name="yes" sourceRef="ExclusiveGateway_AccountCheck" targetRef="Task_ReviewReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoExistingAccount" name="no" sourceRef="ExclusiveGateway_AccountCheck" targetRef="Task_CreateNewAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreatedMerge" sourceRef="Task_CreateNewAccount" targetRef="Task_ReviewReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AmountDecision" name="" sourceRef="Task_ReviewReport" targetRef="ExclusiveGateway_AmountDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_QuickReimbursementPath" name="Amount &lt; $200" sourceRef="ExclusiveGateway_AmountDecision" targetRef="Task_AutoApprove"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApprovalRequired" name="Amount >= $200" sourceRef="ExclusiveGateway_AmountDecision" targetRef="ExclusiveGateway_SupervisorDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReimbursementApproved" name="yes" sourceRef="ExclusiveGateway_SupervisorDecision" targetRef="Task_ProcessPayment"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AutoApprovePath" sourceRef="Task_AutoApprove" targetRef="Task_ProcessPayment"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" name="" sourceRef="Task_ProcessPayment" targetRef="EndEvent_PaymentProcessed"/>
+    
+    <!-- Timer Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendApprovalInProgressEmailPath" sourceRef="StartTimer_7DaysElapsed" targetRef="Task_SendApprovalInProgressEmail"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessCancelledPath" name="" sourceRef="Task_SendCancellationNotice" targetRef="EndTimer_30DaysElapsed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

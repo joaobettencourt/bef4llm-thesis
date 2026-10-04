@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_MPO" name="MPO Process" processRef="Process_ChangeManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ChangeManagement" isExecutable="true">
+    
+    <!-- Lane for MPO -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MPO_Operations" name="MPO Operations">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PerformChange</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OutcomeCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReportSuccess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyFailureExec</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FailureExec</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Change Request Initiated">
+      <bpmn:outgoing>SequenceFlow_StartToReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Review -->
+    <bpmn:task id="Task_ReviewRequest" name="MPO reviews change request">
+      <bpmn:incoming>SequenceFlow_StartToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Approval Decision -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionApproval" name="Approve Request?">
+      <bpmn:incoming>SequenceFlow_ReviewToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Reject -->
+    <bpmn:task id="Task_NotifyReject" name="Notify SP/PU/GO of rejection">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_RejectToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Confirm & Perform -->
+    <bpmn:task id="Task_PerformChange" name="MPO performs measuring point change">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ChangeToOutcome</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Outcome Check -->
+    <bpmn:exclusiveGateway id="Gateway_OutcomeCheck" name="Change Successful?">
+      <bpmn:incoming>SequenceFlow_ChangeToOutcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailureExecPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Success -->
+    <bpmn:task id="Task_ReportSuccess" name="Report implementation to SP/PU/GO">
+      <bpmn:incoming>SequenceFlow_SuccessPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_Success" name="Change Implemented">
+      <bpmn:incoming>SequenceFlow_SuccToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2b: Failure (Execution) -->
+    <bpmn:task id="Task_NotifyFailureExec" name="Notify SP/PU/GO of failure">
+      <bpmn:incoming>SequenceFlow_FailureExecPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FailToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3 -->
+    <bpmn:endEvent id="EndEvent_FailureExec" name="Change Failed">
+      <bpmn:incoming>SequenceFlow_FailToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReview" sourceRef="StartEvent_1" targetRef="Task_ReviewRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewToDecision" sourceRef="Task_ReviewRequest" targetRef="Gateway_DecisionApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Conditions for Gateway 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Request" sourceRef="Gateway_DecisionApproval" targetRef="Task_NotifyReject">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isRejected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectToEnd" sourceRef="Task_NotifyReject" targetRef="EndEvent_Rejected"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm Request" sourceRef="Gateway_DecisionApproval" targetRef="Task_PerformChange">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isApproved]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Conditions for Gateway 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_ChangeToOutcome" sourceRef="Task_PerformChange" targetRef="Gateway_OutcomeCheck">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessPath" name="Change Successful" sourceRef="Gateway_OutcomeCheck" targetRef="Task_ReportSuccess">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isSuccessful]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuccToEnd" sourceRef="Task_ReportSuccess" targetRef="EndEvent_Success"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FailureExecPath" name="Change Failed" sourceRef="Gateway_OutcomeCheck" targetRef="Task_NotifyFailureExec">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isFailed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FailToEnd" sourceRef="Task_NotifyFailureExec" targetRef="EndEvent_FailureExec"/>
+
+  </bpmn:process>
+</bpmn:definitions>

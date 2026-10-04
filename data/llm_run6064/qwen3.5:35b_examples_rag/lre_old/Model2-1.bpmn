@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:messageFlow id="MessageFlow_CS_SM_Report" sourceRef="Task_CS_CreateDetailedReport" targetRef="StartEvent_SM_Receipt"/>
+    <bpmn:messageFlow id="MessageFlow_SM_RP_AnalysisRequest" sourceRef="Task_SM_SendToRP" targetRef="IntermediateCatchEvent_RP_ReceiveReport"/>
+    <bpmn:participant id="Participant_CS" name="Customer Service">
+      <bpmn:endProcess>End_CS_Process</bpmn:endProcess>
+    </bpmn:participant>
+    <bpmn:participant id="Participant_SM" name="Service Management">
+      <bpmn:endProcess>End_SM_Process</bpmn:endProcess>
+    </bpmn:participant>
+    <bpmn:participant id="Participant_RP" name="Resource Provisioning">
+      <bpmn:endProcess>End_RP_Process</bpmn:endProcess>
+    </bpmn:participant>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_CS_1">
+      <bpmn:name>Service Degradation Perceived</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CS_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_EnterReport" name="Enter Problem Report">
+      <bpmn:incoming>SequenceFlow_CS_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_CS_Significance" name="Customer Significance?">
+      <bpmn:incoming>SequenceFlow_CS_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_PremiumLink</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CS_RePrioritize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CS_DetermineMeasures" name="Determine Counter Measures">
+      <bpmn:incoming>SequenceFlow_CS_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_SignCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CS_Process" name="Process Ended">
+      <bpmn:name>CS Process End</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CS_FinalConvergence</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartEvent_Concurrent" name="Receive Final Info">
+       <bpmn:outgoing>SequenceFlow_CS_Parallel1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_SM_Final" name="Receive Final Status">
+      <bpmn:messageRef/> 
+      <bpmn:incoming>SequenceFlow_CS_Parallel1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_Parallel2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:parallelGateway id="Parallel_Gateway_Concurrent" name="Concurrent Activities">
+      <bpmn:incoming>SequenceFlow_CS_Parallel1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_ReportCreate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CS_BillingRebate</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_CS_CreateReport" name="Create Customer Report">
+       <bpmn:incoming>SequenceFlow_CS_ReportCreate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_SendCustomer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CS_BillingRebate" name="Report SLA Rebate">
+       <bpmn:incoming>SequenceFlow_CS_BillingRebate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_ConvergeBilling</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CS_SendReport" name="Send Report to Customer">
+       <bpmn:incoming>SequenceFlow_CS_SendCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_ConvergeFinal</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="Parallel_Gateway_Final" name="Wait for Completion">
+       <bpmn:incoming>SequenceFlow_CS_ConvergeBilling</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_CS_ConvergeFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_FinalConvergence</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CS_01" sourceRef="StartEvent_CS_1" targetRef="Task_CS_EnterReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_02" sourceRef="Task_CS_EnterReport" targetRef="Task_CS_DetermineMeasures"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CS_SignCheck" name="Significance Check" sourceRef="Task_CS_DetermineMeasures" targetRef="Gateway_CS_Significance"/>
+
+    <!-- Premium Path -->
+    <bpmn:endEvent id="EndEvent_LinkOut">
+      <bpmn:name/>
+    </bpmn:endEvent>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CS_PremiumLink" name="Premium Customer" sourceRef="Gateway_CS_Significance" targetRef="EndEvent_LinkOut"/>
+
+    <!-- Re-prioritize Loop -->
+    <bpmn:exclusiveGateway id="Gateway_CS_RePrioritize" name="Affects Measures?">
+      <bpmn:incoming>SequenceFlow_CS_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CS_MeasuresLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Detailed Report -->
+    <bpmn:task id="Task_CS_CreateDetailedReport" name="Create Detailed Problem Report">
+      <bpmn:incoming>SequenceFlow_CS_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_SendToSM</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CS_03" sourceRef="Gateway_CS_Significance" targetRef="Task_CS_DetermineMeasures"/> 
+    <bpmn:sequenceFlow id="SequenceFlow_CS_MeasuresLoop" name="Re-prioritize" sourceRef="Gateway_CS_RePrioritize" targetRef="Task_CS_DetermineMeasures"/>
+    
+    <!-- Message Flow for Report -->
+    <bpmn:messageFlow id="MessageFlow_SM_SendToSM">
+       <bpmn:sourceRef>SequenceFlow_SM_SendToSM</bpmn:sourceRef> 
+       <bpmn:targetRef>StartEvent_SM_Receipt</bpmn:targetRef> 
+    </bpmn:messageFlow>
+
+  </bpmn:process>
+
+  <!-- Service Management Process -->
+  <bpmn:process id="Process_SM" isExecutable="false">
+     <bpmn:startEvent id="StartEvent_SM_Receipt" name="Receive Detailed Report">
+       <bpmn:messageRef/> 
+      <bpmn:outgoing>SequenceFlow_SM_Analyze</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Analyze Capability -->
+     <bpmn:exclusiveGateway id="Gateway_SM_Capability" name="Analyzable?">
+       <bpmn:incoming>SequenceFlow_SM_Analyze</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_SendToRP_NoCap</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_SM_PerformAnalysis</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <bpmn:task id="Task_SM_SendToRP" name="Send to Resource Provisioning">
+       <bpmn:incoming>SequenceFlow_SM_SendToRP_NoCap</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_WaitStatus</bpmn:outgoing> 
+    </bpmn:task>
+
+     <bpmn:task id="Task_SM_PerformAnalysis" name="Perform Analysis">
+       <bpmn:incoming>SequenceFlow_SM_Analyze</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_CreateTroubleReport</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:task id="Task_SM_CreateTrouble" name="Create Trouble Report">
+       <bpmn:incoming>SequenceFlow_SM_CreateTroubleReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_WaitStatus</bpmn:outgoing> 
+    </bpmn:task>
+
+     <!-- Convergence before Final Report Prep -->
+     <bpmn:parallelGateway id="Parallel_Gateway_SM_Status" name="Converge Analysis Info">
+       <bpmn:incoming>SequenceFlow_SM_WaitStatus</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_SM_PrepareFinalReport</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <bpmn:task id="Task_SM_FinalStatus" name="Prepare Final Status Report">
+       <bpmn:incoming>SequenceFlow_SM_PrepareFinalReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_DecisionMeasures</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Decision on Counter Measures -->
+     <bpmn:exclusiveGateway id="Gateway_SM_Measures" name="Counter Measure Type?">
+       <bpmn:incoming>SequenceFlow_SM_DecisionMeasures</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoProblem_CS</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_MinorActions_CS</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_RestorationReq_SM</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <!-- Path 1: No Problem -->
+     <bpmn:endEvent id="End_SM_PathA" name="Path A Ended">
+       <bpmn:name/>
+    </bpmn:endEvent>
+
+     <!-- Path 2: Minor Actions -->
+     <bpmn:task id="Task_CS_MinorActions" name="Perform Corrective Actions">
+       <bpmn:incoming>SequenceFlow_MinorActions_CS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SM_CreateResReport</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:endEvent id="End_SM_Minor" name="Minor Path Ended">
+       <bpmn:name/>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+   <!-- Resource Provisioning Process -->
+  <bpmn:process id="Process_RP" isExecutable="false">
+     <bpmn:startEvent id="StartEvent_RP_ReceiveReport" name="Receive Detailed Report (SM)">
+       <bpmn:messageRef/> 
+      <bpmn:outgoing>SequenceFlow_RP_CheckProblems</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Check Problems -->
+     <bpmn:exclusiveGateway id="Gateway_RP_ProblemDetected" name="Problem Detected?">
+       <bpmn:incoming>SequenceFlow_RP_CheckProblems</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoProb_Notification</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_Problem_Analyze</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <bpmn:endEvent id="End_RP_Process" name="Process Ended">
+       <bpmn:name/>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

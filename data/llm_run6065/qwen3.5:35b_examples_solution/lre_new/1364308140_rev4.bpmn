@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0a8d6h7">
+    <bpmn:participant id="Participant_SO_Auftrag" name="SO: Angebot/Auftrag" processRef="Process_OrderFulfillment"/>
+    <bpmn:participant id="Participant_AddressMgmt" name="SO: Address-Management" processRef="Process_AddressUpdate"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFulfillment">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubsidiaryOrderReceived" name="Receive Subsidiary Order">
+      <bpmn:outgoing>SequenceFlow_0123456789ab</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for splitting paths -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Splits into parallel paths">
+      <bpmn:incoming>SequenceFlow_0123456789ab</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_023456789abc</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_03456789abcd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path A Tasks -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare goods for shipment">
+      <bpmn:incoming>SequenceFlow_023456789abc</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_0456789abcde</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ShipGoods" name="Ship goods">
+      <bpmn:incoming>SequenceFlow_0456789abcde</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_056789abcdef</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B Tasks -->
+    <bpmn:task id="Task_PrepareInvoicing" name="Prepare invoicing">
+      <bpmn:incoming>SequenceFlow_03456789abcd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06789abcdeff</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if customer is subsidiary -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerType" name="Customer Type?">
+      <bpmn:incoming>SequenceFlow_06789abcdeff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_0789abcdefg1</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_0789abcdefg2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 2: Check if subsidiary relationship modeled in ERP -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RelationshipModeled" name="Relationship Modeled?">
+      <bpmn:incoming>SequenceFlow_0789abcdefg1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_089abcdefghi</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_089abcdefghj</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 3: Merge paths before creating invoice -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_Merge" name="Merge invoicing paths">
+      <bpmn:incoming>SequenceFlow_089abcdefghi</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_089abcdefghj</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1bcdefghijkl</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task for Address Management -->
+    <bpmn:task id="Task_AddParentCompanyAddress" name="Add parent company as invoicing address">
+      <bpmn:incoming>SequenceFlow_089abcdefghj</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1abcdefghijk</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Creating Invoice -->
+    <bpmn:endEvent id="EndEvent_InvoiceSent" name="Invoice Sent">
+      <bpmn:incoming>SequenceFlow_1bcdefghijkl</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_0123456789ab" sourceRef="StartEvent_SubsidiaryOrderReceived" targetRef="ParallelGateway_Split"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_023456789abc" name="Prepare &amp; Ship Goods Path" sourceRef="ParallelGateway_Split" targetRef="Task_PrepareGoods"/>
+    <bpmn:sequenceFlow id="SequenceFlow_03456789abcd" name="Invoicing Preparation Path" sourceRef="ParallelGateway_Split" targetRef="Task_PrepareInvoicing"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_0456789abcde" sourceRef="Task_PrepareGoods" targetRef="Task_ShipGoods"/>
+    <bpmn:parallelGateway id="ParallelGateway_MergeShippingInvoicing">
+      <bpmn:name>Merge Shipping and Invoicing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_056789abcdef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1bcdefghijkl</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_056789abcdef" name="Ship Goods Complete" sourceRef="Task_ShipGoods" targetRef="ParallelGateway_MergeShippingInvoicing"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_06789abcdeff" sourceRef="Task_PrepareInvoicing" targetRef="ExclusiveGateway_CustomerType"/>
+    <bpmn:sequenceFlow id="SequenceFlow_0789abcdefg1" name="Customer is Subsidiary" sourceRef="ExclusiveGateway_CustomerType" targetRef="ExclusiveGateway_RelationshipModeled"/>
+    <bpmn:sequenceFlow id="SequenceFlow_0789abcdefg2" name="Customer Independent OR Relationship Modeled in ERP" sourceRef="ExclusiveGateway_CustomerType" targetRef="InclusiveGateway_Merge"/>
+    
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CreateInvoiceDirectly">
+      <bpmn:name>Route to Invoice Creation</bpmn:name>
+      <bpmn:incoming>SequenceFlow_0789abcdefg2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1bcdefghijkl</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_089abcdefghi" name="Relationship Already Modeled" sourceRef="ExclusiveGateway_RelationshipModeled" targetRef="InclusiveGateway_Merge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_089abcdefghj" name="Relationship Not Yet Modeled" sourceRef="ExclusiveGateway_RelationshipModeled" targetRef="Task_AddParentCompanyAddress"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_1abcdefghijk" sourceRef="Task_AddParentCompanyAddress" targetRef="InclusiveGateway_Merge"/>
+    
+  </bpmn:process>
+
+</bpmn:definitions>

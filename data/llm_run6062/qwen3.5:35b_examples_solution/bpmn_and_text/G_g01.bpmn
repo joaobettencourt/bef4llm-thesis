@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LANParty_001" targetNamespace="http://bpmnio.com">
+  <bpmn:collaboration id="Collab_LANParty">
+    <bpmn:participant id="Participant_Organizer" name="LAN Party Organizer" processRef="Proc_LANParty"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_LANParty" isExecutable="false">
+    
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_GamesList" name="Games List" />
+    <bpmn:dataObjectReference id="Data_AttendanceCount" name="Attendance Count" />
+
+    <!-- Start Event - Send invitations to 10 friends -->
+    <bpmn:startEvent id="Start_SendInvitations">
+      <bpmn:outgoing>Seq_InviteSent</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Throw Event - Invite sent (message) -->
+    <bpmn:messageIntermediateThrowEvent id="MsgSendInvitation" name="Send Invitation">
+      <bpmn:incoming>Seq_InviteSent</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitForResponses</bpmn:outgoing>
+    </bpmn:messageIntermediateThrowEvent>
+
+    <!-- Intermediate Catch Event - Receive list of games from friends -->
+    <bpmn:messageIntermediateCatchEvent id="MsgReceiveGamesList" name="Receive Games List">
+      <bpmn:incoming>Seq_WaitForResponses</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckGamesAvailable</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Check if all games available -->
+    <bpmn:xorGateway id="Gw_GamesAvailable" name="All Games Available?">
+      <bpmn:incoming>Seq_CheckGamesAvailable</bpmn:incoming>
+      <bpmn:outgoing>Seq_DownloadMissing</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Service Task - Download missing games -->
+    <bpmn:serviceTask id="Task_DownloadGames" name="Download Missing Games">
+      <bpmn:incoming>Seq_DownloadMissing</bpmn:incoming>
+      <bpmn:outgoing>Seq_GamesReady</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway - Split for date scheduling and beer preparation -->
+    <bpmn:parallelGateway id="Gw_ParallelStart" name="">
+      <bpmn:incoming>Seq_GamesReady</bpmn:incoming>
+      <bpmn:outgoing>Seq_AppointmentLoop</bpmn:outgoing>
+      <bpmn:outgoing>Seq_BeerPreparation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Throw Event - Suggest appointment date -->
+    <bpmn:messageIntermediateThrowEvent id="MsgSuggestAppointment" name="Suggest Appointment">
+      <bpmn:incoming>Seq_AppointmentLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitForConfirmation</bpmn:outgoing>
+    </bpmn:messageIntermediateThrowEvent>
+
+    <!-- Intermediate Catch Event - Receive confirmation responses -->
+    <bpmn:messageIntermediateCatchEvent id="MsgReceiveConfirmations" name="Receive Confirmations">
+      <bpmn:incoming>Seq_WaitForConfirmation</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckAttendanceCount</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Check if 8+ people agree -->
+    <bpmn:xorGateway id="Gw_AttendanceCheck" name=">= 8 Friends Available?">
+      <bpmn:incoming>Seq_CheckAttendanceCount</bpmn:incoming>
+      <bpmn:outgoing>Seq_AppointmentLoopAgain</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Service Task - Appointment set automatically -->
+    <bpmn:serviceTask id="Task_SetAppointment" name="Set Date">
+      <bpmn:incoming>Seq_EnoughAttendees</bpmn:incoming>
+      <bpmn:outgoing>Seq_AppointmentConfirmed</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Intermediate Throw Event - Request beer supply info -->
+    <bpmn:messageIntermediateThrowEvent id="MsgRequestBeer" name="Request Beer Supply">
+      <bpmn:incoming>Seq_BeerPreparation</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitForBeerInfo</bpmn:outgoing>
+    </bpmn:messageIntermediateThrowEvent>
+
+    <!-- Intermediate Catch Event - Receive beer requirement info -->
+    <bpmn:messageIntermediateCatchEvent id="MsgReceiveBeerInfo" name="Receive Beer Info">
+      <bpmn:incoming>Seq_WaitForBeerInfo</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckEnoughBeer</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Check if enough beer -->
+    <bpmn:xorGateway id="Gw_EnoughBeer" name="Enough Beer?">
+      <bpmn:incoming>Seq_CheckEnoughBeer</bpmn:incoming>
+      <bpmn:outgoing>Seq_BuyMissingBeer</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- User Task - Buy missing beer -->
+    <bpmn:userTask id="Task_BuyBeer" name="Buy Missing Beer">
+      <bpmn:incoming>Seq_BuyMissingBeer</bpmn:incoming>
+      <bpmn:outgoing>Seq_EnoughBeerConfirmed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway - Converge date and beer preparation -->
+    <bpmn:parallelGateway id="Gw_ParallelEnd" name="">
+      <bpmn:incoming>Seq_AppointmentConfirmed</bpmn:incoming>
+      <bpmn:outgoing>Seq_EnoughBeerConfirmed</bpmn:outgoing>
+      <bpmn:outgoing>Seq_StartParty</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task - Start party -->
+    <bpmn:userTask id="Task_StartParty" name="Start Party">
+      <bpmn:incoming>Seq_EnoughBeerConfirmed</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Enjoy the LAN party -->
+    <bpmn:endEvent id="End_StartParty" name="Enjoy Party!">
+      <bpmn:incoming>Seq_EndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_InviteSent" sourceRef="Start_SendInvitations" targetRef="MsgSendInvitation"/>
+    <bpmn:sequenceFlow id="Seq_WaitForResponses" sourceRef="MsgSendInvitation" targetRef="MsgReceiveGamesList"/>
+    <bpmn:sequenceFlow id="Seq_CheckGamesAvailable" sourceRef="MsgReceiveGamesList" targetRef="Gw_GamesAvailable">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${gamesNotComplete}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Seq_DownloadMissing" sourceRef="Gw_GamesAvailable" targetRef="Task_DownloadGames"/>
+    <bpmn:sequenceFlow id="Seq_GamesReady" sourceRef="Task_DownloadGames" targetRef="Gw_ParallelStart"/>
+    <bpmn:sequenceFlow id="Seq_AppointmentLoop" sourceRef="Gw_ParallelStart" targetRef="MsgSuggestAppointment"/>
+    <bpmn:sequenceFlow id="Seq_WaitForConfirmation" sourceRef="MsgSuggestAppointment" targetRef="MsgReceiveConfirmations"/>
+    <bpmn:sequenceFlow id="Seq_CheckAttendanceCount" sourceRef="MsgReceiveConfirmations" targetRef="Gw_AttendanceCheck">
+      <bpmn:dataInputAssociation>
+        <bpmn:sourceRef>Data_AttendanceCount</bpmn:sourceRef>
+        <bpmn:targetRef>${attendanceCount}</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Seq_AppointmentLoopAgain" sourceRef="Gw_AttendanceCheck" targetRef="MsgSuggestAppointment"/>
+    <bpmn:sequenceFlow id="Seq_EnoughAttendees" sourceRef="Gw_AttendanceCheck" targetRef="Task_SetAppointment">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${attendanceCount &gt;= 8}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Seq_AppointmentConfirmed" sourceRef="Task_SetAppointment" targetRef="Gw_ParallelEnd"/>
+    <bpmn:sequenceFlow id="Seq_BeerPreparation" sourceRef="Gw_ParallelStart" targetRef="MsgRequestBeer"/>
+    <bpmn:sequenceFlow id="Seq_WaitForBeerInfo" sourceRef="MsgRequestBeer" targetRef="MsgReceiveBeerInfo"/>
+    <bpmn:sequenceFlow id="Seq_CheckEnoughBeer" sourceRef="MsgReceiveBeerInfo" targetRef="Gw_EnoughBeer">
+      <bpmn:dataInputAssociation>
+        <bpmn:sourceRef>Data_AttendanceCount</bpmn:sourceRef>
+        <bpmn:targetRef>${beerRequired}</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Seq_BuyMissingBeer" sourceRef="Gw_EnoughBeer" targetRef="Task_BuyBeer"/>
+    <bpmn:sequenceFlow id="Seq_EnoughBeerConfirmed" sourceRef="Task_BuyBeer" targetRef="Gw_ParallelEnd"/>
+    <bpmn:sequenceFlow id="Seq_StartParty" sourceRef="Gw_ParallelEnd" targetRef="Task_StartParty"/>
+    <bpmn:sequenceFlow id="Seq_EndEvent" sourceRef="Task_StartParty" targetRef="End_StartParty"/>
+
+  </bpmn:process>
+</bpmn:definitions>

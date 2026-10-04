@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RestaurantService" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_0RestaurantProcess">
+    <bpmn:participant id="Participant_ServiceSystem" name="Restaurant Service Process" processRef="Proc_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OrderFulfillment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Guest">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChooseDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaitForTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PickUpMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>InclusiveGateway_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPOS_CollectMoney</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetBuzzerPassGuest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_02</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallGuestTimeout</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Chef" name="Chef">
+        <bpmn:flowNodeRef>InclusiveGateway_03</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareMealPlaceHatch</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Guest Enters">
+      <bpmn:outgoing>SequenceFlow_GuestEnters</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Guest Tasks -->
+    <bpmn:task id="Task_ChooseDish" name="Choose Dish from Range">
+      <bpmn:incoming>SequenceFlow_GuestEnters</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_WaitForTurn" name="Wait for Turn">
+      <bpmn:incoming>SequenceFlow_WaitForTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrderWithEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Employee Tasks -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_01" name="Verify Order">
+      <bpmn:incoming>SequenceFlow_PlaceOrderWithEmployee</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterPOS_CollectMoney</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <bpmn:task id="Task_EnterPOS_CollectMoney" name="Enter Order &amp; Collect Money">
+      <bpmn:incoming>SequenceFlow_EnterPOS_CollectMoney</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetBuzzerPassGuest</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:inclusiveGateway id="InclusiveGateway_02" name="Notify Chef &amp; Ring Buzzer">
+      <bpmn:incoming>SequenceFlow_SetBuzzerPassGuest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformChef</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Chef Tasks -->
+    <bpmn:task id="Task_PrepareMealPlaceHatch" name="Prepare Meal &amp; Place in Hatch">
+      <bpmn:incoming>SequenceFlow_InformChef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReadyForPickup</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Guest Pickup Task -->
+    <bpmn:task id="Task_PickUpMeal" name="Collect Meal">
+      <bpmn:incoming>SequenceFlow_RingBuzzerTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GuestEnters" sourceRef="StartEvent_01" targetRef="Task_ChooseDish"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForTurn" name="Wait for Turn" sourceRef="Task_ChooseDish" targetRef="Task_WaitForTurn"/>
+
+    <!-- Interaction Guest to Employee -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrderWithEmployee" name="Place Order" sourceRef="Task_WaitForTurn" targetRef="InclusiveGateway_01">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[orderPlaced]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Employee Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterPOS_CollectMoney" sourceRef="InclusiveGateway_01" targetRef="Task_EnterPOS_CollectMoney"/>
+
+    <!-- Buzzer Setup & Chef Notification Split -->
+    <bpmn:task id="Task_SetBuzzerPassGuest" name="Set Buzzer Pass Guest">
+      <bpmn:incoming>SequenceFlow_PaymentConfirmed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformChefAndRingBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Buzzer Setup Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentConfirmed" name="payment confirmed" sourceRef="Task_EnterPOS_CollectMoney" targetRef="Task_SetBuzzerPassGuest">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[paymentConfirmed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Chef Notification -->
+    <bpmn:task id="Task_CallGuestTimeout" name="Call Guest After Timeout">
+      <bpmn:incoming>SequenceFlow_TimeoutTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryOrderProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Buzzer Ring Trigger (From Employee to Guest) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_03" name="Ring Buzzer">
+      <bpmn:incoming>SequenceFlow_InformChefAndRingBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RingBuzzerTriggered</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Guest Pickup Trigger -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformChefAndRingBuzzer" name="Inform Chef &amp; Ring Buzzer" sourceRef="Task_SetBuzzerPassGuest" targetRef="InclusiveGateway_03"/>
+
+    <!-- Timeout Handling -->
+    <bpmn:boundaryEvent id="Timer_BoundaryTimeout" attachedToRef="Task_WaitForTurn">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression"><![CDATA[PT5M]]></bpmn:timerDefinition>
+      <bpmn:outgoing>SequenceFlow_TimeoutTriggered</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Timeout Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CallGuestAfterTimeout" name="Call Guest After 5 Minutes" sourceRef="Timer_BoundaryTimeout" targetRef="Task_CallGuestTimeout">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[timeoutOccurred]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Retry Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryOrderProcess" sourceRef="Task_CallGuestTimeout" targetRef="InclusiveGateway_01">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[retryNeeded]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Meal Ready Signal to Employee (Cross Lane) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReadyForPickup" name="Meal in Hatch" sourceRef="Task_PrepareMealPlaceHatch" targetRef="InclusiveGateway_02">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[mealPrepared]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Buzzer Ring Trigger -->
+    <bpmn:sequenceFlow id="SequenceFlow_RingBuzzerTriggered" name="Ring Buzzer Signal" sourceRef="InclusiveGateway_03" targetRef="Task_PickUpMeal"/>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_01" name="Meal Collected">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_PickUpMeal" targetRef="EndEvent_01"/>
+
+  </bpmn:process>
+</bpmn:definitions>

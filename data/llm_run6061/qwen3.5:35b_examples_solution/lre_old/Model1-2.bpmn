@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ComputerRepairService">
+    <bpmn:participant id="Participant_CRS" name="Computer Repair Service" processRef="Process_Repair"/>
+    <bpmn:participant id="Participant_Customer" name="Customer" processRef="Process_Customer"/>
+  </bpmn:collaboration>
+
+  <!-- Computer Repair Service Process -->
+  <bpmn:process id="Process_Repair" isExecutable="false">
+    
+    <!-- Start Event - Customer brings defective computer (via message) -->
+    <bpmn:startEvent id="Start_CRS_01" name="Receive Defective Computer">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SFlow_StartToCheckDefect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - CRS checks defect and calculates repair cost -->
+    <bpmn:task id="Task_CheckDefect" name="Check Defect &amp; Calculate Repair Cost">
+      <bpmn:incoming>SFlow_StartToCheckDefect</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CalculationToDecisionGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Customer decides on repair costs -->
+    <bpmn:exclusiveGateway id="GW_CustomerCostDecision" name="Customer Accepts Costs?">
+      <bpmn:incoming>SFlow_CalculationToDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AcceptRepairPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_RejectRepairPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Customer takes computer home (unrepaired) -->
+    <bpmn:endEvent id="End_Unrepaired" name="Computer Taken Home Unrepaired">
+      <bpmn:incoming>SFlow_RejectRepairPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway - Two repair activities in arbitrary order -->
+    <bpmn:parallelGateway id="GW_ParallelStart" name="Begin Repair Activities">
+      <bpmn:incoming>SFlow_AcceptRepairPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_HardwareCheckPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_SoftwareConfigPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task - Check and repair hardware -->
+    <bpmn:task id="Task_HardwareCheck" name="Check &amp; Repair Hardware">
+      <bpmn:incoming>SFlow_HardwareCheckPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_HWToTestFunctionality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Check and configure software -->
+    <bpmn:task id="Task_SoftwareCheck" name="Check &amp; Configure Software">
+      <bpmn:incoming>SFlow_SoftwareConfigPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SWToTestFunctionality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Test system functionality -->
+    <bpmn:exclusiveGateway id="GW_TestResult" name="System Functioning?">
+      <bpmn:incoming>SFlow_HWToTestFunctionality</bpmn:incoming>
+      <bpmn:incoming>SFlow_SWToTestFunctionality</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TestSuccessPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ErrorDetectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Repair completed successfully -->
+    <bpmn:endEvent id="End_Success" name="Repair Completed Successfully">
+      <bpmn:incoming>SFlow_TestSuccessPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary Event attached to test task for error detection -->
+    <bpmn:boundaryEvent id="Boundary_ErrorDetected" 
+                       name="Error Detected During Testing">
+      <bpmn:errorEventDefinition/>
+      <bpmn:outgoing>SFlow_BoundaryToRepairLoop</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task - Another arbitrary repair activity (loop back) -->
+    <bpmn:task id="Task_AdditionalRepair" name="Execute Additional Repair Activity">
+      <bpmn:incoming>SFlow_BoundaryToRepairLoop</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AdditionalToTestFunctionality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_StartToCheckDefect" 
+                      sourceRef="Start_CRS_01" targetRef="Task_CheckDefect"/>
+    
+    <bpmn:sequenceFlow id="SFlow_CalculationToDecisionGateway" 
+                      sourceRef="Task_CheckDefect" targetRef="GW_CustomerCostDecision"/>
+    
+    <bpmn:sequenceFlow id="SFlow_AcceptRepairPath" name="Accepts Costs">
+      <bpmn:sourceRef>GW_CustomerCostDecision</bpmn:sourceRef>
+      <bpmn:targetRef>GW_ParallelStart</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_RejectRepairPath" name="Rejects Costs">
+      <bpmn:sourceRef>GW_CustomerCostDecision</bpmn:sourceRef>
+      <bpmn:targetRef>End_Unrepaired</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_HardwareCheckPath" 
+                      sourceRef="GW_ParallelStart" targetRef="Task_HardwareCheck"/>
+    
+    <bpmn:sequenceFlow id="SFlow_SoftwareConfigPath" 
+                      sourceRef="GW_ParallelStart" targetRef="Task_SoftwareCheck"/>
+
+    <bpmn:sequenceFlow id="SFlow_HWToTestFunctionality" name="Hardware Check Complete">
+      <bpmn:sourceRef>Task_HardwareCheck</bpmn:sourceRef>
+      <bpmn:targetRef>GW_TestResult</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_SWToTestFunctionality" name="Software Check Complete">
+      <bpmn:sourceRef>Task_SoftwareCheck</bpmn:sourceRef>
+      <bpmn:targetRef>GW_TestResult</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_TestSuccessPath" name="System Functioning">
+      <bpmn:sourceRef>GW_TestResult</bpmn:sourceRef>
+      <bpmn:targetRef>End_Success</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_ErrorDetectedPath" name="Error Detected">
+      <bpmn:sourceRef>GW_TestResult</bmmn:sourceRef>
+      <bpmn:targetRef>Task_AdditionalRepair</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Customer Process (simplified) -->
+  <bpmn:process id="Process_Customer" isExecutable="false">
+    <bpmn:startEvent id="StartCustomer_01" name="Bring Defective Computer">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SFlow_CustToCRS</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndCustomer_01" name="Computer Returned (Unrepaired)">
+      <bpmn:incoming>SFlow_ReturnedHome</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SFlow_CustToCRS" 
+                      sourceRef="StartCustomer_01" targetRef="EndCustomer_01"/>
+  </bpmn:process>
+
+</bpmn:definitions>

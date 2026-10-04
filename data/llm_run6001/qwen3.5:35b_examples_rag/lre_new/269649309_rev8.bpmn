@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CVSBagProcess">
+    <bpmn:participant id="Participant_CVSService" name="CVS Bag Resolution Service" processRef="Process_BagResolution"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BagResolution" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_NotCollectedBag" name="Not collected bag identified">
+      <bpmn:outgoing>SequenceFlow_CheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway: Check if retries exceed threshold -->
+    <bpmn:exclusiveGateway id="Gateway_RetryThreshold" name="Retry count &gt; Threshold?">
+      <bpmn:incoming>SequenceFlow_CheckRetries</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExceedsLimit</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UnderThreshold</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Contact customer -->
+    <bpmn:userTask id="Task_ContactCustomer" name="Contact customer by phone">
+      <bpmn:incoming>SequenceFlow_UnderThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CustomerResponse</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Customer response outcome -->
+    <bpmn:exclusiveGateway id="Gateway_CustomerOutcome" name="Customer withdraws order?">
+      <bpmn:incoming>SequenceFlow_CustomerResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WithdrawalConfirmed</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PickupPromise</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Return bag for disassemble -->
+    <bpmn:userTask id="Task_ReturnForDisassembly" name="Return bag to production area">
+      <bpmn:incoming>SequenceFlow_ExceedsLimit</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WithdrawalConfirmed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisassemblyComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Increase retry count -->
+    <bpmn:serviceTask id="Task_IncreaseRetryCount" name="Increase retry count on bag label">
+      <bpmn:incoming>SequenceFlow_PickupPromise</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event 1: Bag disassembled -->
+    <bpmn:endEvent id="End_BagDisassembled" name="Bag returned for disassembly">
+      <bpmn:incoming>SequenceFlow_DisassemblyComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Retry count updated -->
+    <bpmn:endEvent id="End_RetryCountUpdated" name="Retry count increased">
+      <bpmn:incoming>SequenceFlow_UnsuccessfulContactPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_RetryComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRetries" sourceRef="Start_NotCollectedBag" targetRef="Gateway_RetryThreshold">
+      <bpmn:description>Check current retry count</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Path when retries exceed threshold -->
+    <bpmn:sequenceFlow id="SequenceFlow_ExceedsLimit" name="Yes - Exceeds limit" sourceRef="Gateway_RetryThreshold" targetRef="Task_ReturnForDisassembly">
+      <bpmn:description>Retry count exceeds specified number</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Path when retries under threshold -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnderThreshold" name="No - Under limit" sourceRef="Gateway_RetryThreshold" targetRef="Task_ContactCustomer">
+      <bpmn:description>Contact customer for pickup</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Customer response flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerResponse" sourceRef="Task_ContactCustomer" targetRef="Gateway_CustomerOutcome">
+      <bpmn:description>Determine customer decision</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Withdrawal path -->
+    <bpmn:sequenceFlow id="SequenceFlow_WithdrawalConfirmed" name="Yes - Customer withdraws" sourceRef="Gateway_CustomerOutcome" targetRef="Task_ReturnForDisassembly">
+      <bpmn:description>Customer confirms withdrawal</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Pickup promise path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PickupPromise" name="No - Promises pickup" sourceRef="Gateway_CustomerOutcome" targetRef="Task_IncreaseRetryCount">
+      <bpmn:description>Customer promises to pick up</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Unsuccessful contact path -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnsuccessfulContactPath" name="Unsuccessful contact - increase retry count" sourceRef="Task_ContactCustomer" targetRef="End_RetryCountUpdated">
+      <bpmn:description>Contact unsuccessful</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Disassembly completion path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisassemblyComplete" sourceRef="Task_ReturnForDisassembly" targetRef="End_BagDisassembled">
+      <bpmn:description>Bag sent for disassembly</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Retry count update completion -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryComplete" sourceRef="Task_IncreaseRetryCount" targetRef="End_RetryCountUpdated">
+      <bpmn:description>Retry count updated on bag label</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

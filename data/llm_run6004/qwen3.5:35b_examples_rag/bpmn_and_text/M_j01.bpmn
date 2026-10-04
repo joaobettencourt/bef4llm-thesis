@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ChainsawProcess">
+    <bpmn:participant id="Participant_Manufacturing" name="Chainsaw Manufacturing Process" processRef="Process_Chainsaws"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Chainsaws" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerOrder" name="Customer specifies properties">
+      <bpmn:outgoing>SequenceFlow_OrderReceived</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Determine Parts List based on specs (Guide bar, chain width, type) -->
+    <bpmn:task id="Task_DetermineParts" name="Determine parts list">
+      <bpmn:incoming>SequenceFlow_OrderReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartOrdering</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for ordering from various online sources -->
+    <bpmn:parallelGateway id="ParallelGateway_OrderSplit" name="Order Parts">
+      <bpmn:incoming>SequenceFlow_StartOrdering</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderSource1</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderSource2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 1: Order Part A -->
+    <bpmn:task id="Task_OrderPartA" name="Order Guide Bar">
+      <bpmn:incoming>SequenceFlow_OrderSource1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartArrivalCheckA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Order Part B -->
+    <bpmn:task id="Task_OrderPartB" name="Order Chain &amp; Motor">
+      <bpmn:incoming>SequenceFlow_OrderSource2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartArrivalCheckB</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join for Parts Arrival -->
+    <bpmn:parallelGateway id="ParallelGateway_PartsJoin" name="Parts Arrived">
+      <bpmn:incoming>SequenceFlow_PartArrivalCheckA</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PartArrivalCheckB</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartInspection</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Manual Inspection -->
+    <bpmn:task id="Task_InspectParts" name="Manual inspection of all parts">
+      <bpmn:incoming>SequenceFlow_StartInspection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendUpdates</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Updates (Regularly during production) -->
+    <bpmn:userTask id="UserTask_UpdateCustomer" name="Send Production Update">
+      <bpmn:incoming>SequenceFlow_SendUpdates</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssembleFirstSaw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Assemble First Saw -->
+    <bpmn:task id="Task_Assemble" name="Assemble first saw">
+      <bpmn:incoming>SequenceFlow_AssembleFirstSaw</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeliverToCustomer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Deliver to Customer -->
+    <bpmn:userTask id="UserTask_Delivery" name="Deliver first saw">
+      <bpmn:incoming>SequenceFlow_DeliverToCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckApproval</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway for Approval Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Approval" name="Customer likes it?">
+      <bpmn:incoming>SequenceFlow_CheckApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProceedProduction</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Produce Rest of Order -->
+    <bpmn:task id="Task_ProduceRest" name="Produce rest of order">
+      <bpmn:incoming>SequenceFlow_ProceedProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Order Completed -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Order completed">
+      <bpmn:incoming>SequenceFlow_FinishOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Rejected/Stopped -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Production stopped">
+      <bpmn:incoming>SequenceFlow_RejectOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderReceived" sourceRef="StartEvent_CustomerOrder" targetRef="Task_DetermineParts">
+      <bpmn:name>Properties Specified</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartOrdering" sourceRef="Task_DetermineParts" targetRef="ParallelGateway_OrderSplit"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderSource1" sourceRef="ParallelGateway_OrderSplit" targetRef="Task_OrderPartA">
+      <bpmn:name>Order Part A</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderSource2" sourceRef="ParallelGateway_OrderSplit" targetRef="Task_OrderPartB">
+      <bpmn:name>Order Parts B &amp; C</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PartArrivalCheckA" sourceRef="Task_OrderPartA" targetRef="ParallelGateway_PartsJoin"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PartArrivalCheckB" sourceRef="Task_OrderPartB" targetRef="ParallelGateway_PartsJoin"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartInspection" sourceRef="ParallelGateway_PartsJoin" targetRef="Task_InspectParts">
+      <bpmn:name>All Parts Arrived</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendUpdates" sourceRef="Task_InspectParts" targetRef="UserTask_UpdateCustomer"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AssembleFirstSaw" sourceRef="UserTask_UpdateCustomer" targetRef="Task_Assemble">
+      <bpmn:name>Start Assembly</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DeliverToCustomer" sourceRef="Task_Assemble" targetRef="UserTask_Delivery"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckApproval" sourceRef="UserTask_Delivery" targetRef="ExclusiveGateway_Approval">
+      <bpmn:name>Check Feedback</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedProduction" name="Yes - Likes it" sourceRef="ExclusiveGateway_Approval" targetRef="Task_ProduceRest"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectOrder" name="No - Rejected" sourceRef="ExclusiveGateway_Approval" targetRef="EndEvent_Rejected"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinishOrder" sourceRef="Task_ProduceRest" targetRef="EndEvent_Completed">
+      <bpmn:name>Batch Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Data Objects -->
+  <bpmn:dataObject id="Data_OrderSpecs" name="Order Specifications"/>
+  
+  <!-- Associations (Optional for data input) -->
+  <bpmn:association associationDirection="OneWay">
+    <bpmn:startEventRef>StartEvent_CustomerOrder</bpmn:startEventRef>
+    <bpmn:dataInputSet>Data_OrderSpecs</bpmn:dataInputSet>
+  </bpmn:association>
+
+</bpmn:definitions>

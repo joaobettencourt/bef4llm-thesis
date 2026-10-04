@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_InsuranceClaimProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ClaimProcessing">
+    <bpmn:participant id="Participant_CustomerCenter" name="Kundenzentrum" processRef="Process_Center"/>
+    <bpmn:participant id="Participant_Management" name="Versicherungsmanagement" processRef="Process_Management"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_ClaimSubmission" name="Schadensmeldung"/>
+  <bpmn:message id="Message_InvalidNotification" name="Ablehnungsbenachrichtigung"/>
+  <bpmn:message id="Message_SpecialistTransfer" name="Fallübergabe Fachabteilung"/>
+  <bpmn:message id="Message_LegalAssessmentRequest" name="Rechtliche Einschätzung"/>
+  <bpmn:message id="Message_AdditionalInfoRequest" name="Zusätzliche Informationen"/>
+  <bpmn:message id="Message_CustomerNotification" name="Bearbeitungsstand Mitteilung"/>
+
+  <bpmn:process id="Process_Center">
+    <bpmn:startEvent id="Start_ClaimReceived_01" name="Schadensmeldung eingereicht">
+      <bpmn:outgoing>Flow_ValidateClaim</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CheckValidity_01" name="Gültigkeit prüfen">
+      <bpmn:incoming>Flow_ValidateClaim</bpmn:incoming>
+      <bpmn:outgoing>Flow_DecisionValid</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_Valid_01" name="Schaden gültig?">
+      <bpmn:incoming>Flow_DecisionValid</bpmn:incoming>
+      <bpmn:outgoing>Flow_InvalidProcess</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ValidProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Rejected_01" name="Schaden abgelehnt">
+      <bpmn:incoming>Flow_InvalidNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="Start_ValidClaim_01" name="Gültige Schadensmeldung">
+      <bpmn:outgoing>Flow_CheckDocuments</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CheckDocuments_01" name="Unterlagen auf Vollständigkeit prüfen">
+      <bpmn:incoming>Flow_ValidProcess</bpmn:incoming>
+      <bpmn:outgoing>Flow_PreliminaryAcceptance</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_Processed_01" name="Schaden bearbeitet">
+      <bpmn:incoming>Flow_CustomerNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidateClaim" sourceRef="Start_ClaimReceived_01" targetRef="Task_CheckValidity_01"/>
+    <bpmn:sequenceFlow id="Flow_DecisionValid" sourceRef="Task_CheckValidity_01" targetRef="Gateway_Valid_01"/>
+    <bpmn:sequenceFlow id="Flow_InvalidProcess" name="Nein" sourceRef="Gateway_Valid_01" targetRef="End_Rejected_01">
+      <bpmn:name>Abgelehnt</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ValidProcess" name="Ja" sourceRef="Gateway_Valid_01" targetRef="Start_ValidClaim_01">
+      <bpmn:name>Gültig</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_CheckDocuments" sourceRef="Start_ValidClaim_01" targetRef="Task_CheckDocuments_01"/>
+  </bpmn:process>
+
+  <bpmn:process id="Process_Management">
+    <!-- Specialist department processing -->
+    <bpmn:startEvent id="Start_SpecialistDept_01" name="Fall an Fachabteilung übergeben">
+      <bpmn:outgoing>Flow_DeepValidation</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_PreliminaryAcceptance_02" name="Vorläufige Annahme durch Kundenzentrum">
+      <bpmn:incoming>Flow_ValidProcess</bpmn:incoming>
+      <bpmn:outgoing>Flow_FeedToSpecialistDept</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel processing -->
+    <bpmn:startEvent id="Start_StatisticsEntry_01" name="Fall in Statistik erfassen">
+      <bpmn:outgoing>Flow_RecordInStats</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_Processed_02" name="Schaden bearbeitet">
+      <bpmn:incoming>Flow_CustomerNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Specialist department tasks -->
+    <bpmn:startEvent id="Start_SpecialistDept_02" name="Fall in Bearbeitung">
+      <bpmn:outgoing>Flow_DeepValidation</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CauseInvestigation_01" name="Schadensursache untersuchen">
+      <bpmn:incoming>Flow_DeepValidation</bpmn:incoming>
+      <bpmn:outgoing>Flow_DecisionLegalAssessment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Legal assessment decision -->
+    <bpmn:startEvent id="Start_LegalDecision_01" name="Rechtliche Einschätzung erforderlich?">
+      <bpmn:outgoing>Flow_DecisionLegalAssessment</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Additional information gathering -->
+    <bpmn:startEvent id="Start_AdditionalInfo_01" name="Zusätzliche Informationen einholen">
+      <bpmn:outgoing>Flow_RequestAdditionalInfo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Insurance company involvement -->
+    <bpmn:startEvent id="Start_InsuranceCompany_01" name="Versicherer einschalten">
+      <bpmn:outgoing>Flow_SendToInsurer</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Final notification to customer -->
+    <bpmn:endEvent id="End_CustomerNotified_01" name="Kunde informiert">
+      <bpmn:incoming>Flow_FinalNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Specialist Department Processing -->
+    <bpmn:sequenceFlow id="Flow_DeepValidation" sourceRef="Start_SpecialistDept_02" targetRef="Task_CauseInvestigation_01"/>
+    <bpmn:exclusiveGateway id="Gateway_LegalAssessment_01" name="Rechtliche Einschätzung erforderlich?">
+      <bpmn:incoming>Flow_DecisionLegalAssessment</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendToInsurerTask</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SkipInsuranceCompany</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Additional information gathering -->
+    <bpmn:startEvent id="Start_RequestAdditionalInfo_01" name="Zusätzliche Informationen erforderlich?">
+      <bpmn:incoming>Flow_DecisionLegalAssessment</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendRequestForInfo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Insurance company involvement -->
+    <bpmn:task id="Task_LegalAssessment_01" name="Rechtliche Einschätzung durch Versicherer">
+      <bpmn:incoming>Flow_SendToInsurerTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_UpdateStatistics</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final notification to customer -->
+    <bpmn:endEvent id="End_CustomerNotified_02" name="Kunde informiert">
+      <bpmn:incoming>Flow_FinalNotification</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Insurance Company and Final Steps -->
+    <bpmn:sequenceFlow id="Flow_DecisionLegalAssessment" sourceRef="Task_CauseInvestigation_01" targetRef="Gateway_LegalAssessment_01"/>
+    <bpmn:sequenceFlow id="Flow_SendToInsurerTask" name="Ja" sourceRef="Gateway_LegalAssessment_01" targetRef="Task_LegalAssessment_01">
+      <bpmn:name>Erforderlich</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_SkipInsuranceCompany" name="Nein" sourceRef="Gateway_LegalAssessment_01" targetRef="Task_UpdateStatistics">
+      <bpmn:name>Nicht erforderlich</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Statistics update -->
+    <bpmn:startEvent id="Start_StatisticsUpdate_01" name="Statistik aktualisieren">
+      <bpmn:outgoing>Flow_UpdateStatsTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_Processed_03" name="Bearbeitung abgeschlossen">
+      <bpmn:incoming>Flow_CustomerNotificationFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Final notification to customer -->
+    <bpmn:startEvent id="Start_FinalNotification_01" name="Kunde informieren">
+      <bpmn:outgoing>Flow_SendCustomerNotification</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerNotified_03" name="Prozess beendet">
+      <bpmn:incoming>Flow_FinalProcessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Message flows between participants -->
+  <bpmn:message id="Message_ClaimSubmission_01" name="Schadensmeldung"/>
+  <bpmn:message id="Message_InvalidNotification_01" name="Ablehnungsbenachrichtigung"/>
+  <bpmn:message id="Message_SpecialistTransfer_01" name="Fallübergabe Fachabteilung"/>
+  <bpmn:message id="Message_LegalAssessmentRequest_01" name="Rechtliche Einschätzung"/>
+  <bpmn:message id="Message_AdditionalInfoRequest_01" name="Zusätzliche Informationen"/>
+  <bpmn:message id="Message_CustomerNotification_02" name="Bearbeitungsstand Mitteilung"/>
+
+</bpmn:definitions>

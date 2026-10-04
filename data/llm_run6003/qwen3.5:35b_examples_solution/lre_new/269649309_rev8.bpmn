@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_NotCollectedBag">
+    <bpmn:participant id="Participant_CVS" name="CVS" processRef="Process_NotCollectedBag" />
+    <bpmn:participant id="Participant_Customer" name="Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_NotCollectedBag" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Not collected bag identified&#10;">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to check retry count -->
+    <bpmn:task id="Task_CheckRetryCount" name="Check number of resolution retries conducted&#10;">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToGatewayRetries</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for retry threshold check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RetryThreshold" name="Retries &gt; X?">
+      <bpmn:incoming>SequenceFlow_ToGatewayRetries</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContactCustomer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReturnToProduction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for contacting customer -->
+    <bpmn:task id="Task_ContactCustomer" name="Try to contact customer by phone&#10;">
+      <bpmn:incoming>SequenceFlow_ContactCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToGatewayOutcome</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for contact outcome -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Outcome" name="Contact Outcome">
+      <bpmn:incoming>SequenceFlow_ToGatewayOutcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IncreaseRetryUnsuccessful</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReturnWithdrawOrder</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IncreaseRetryPromise</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to increase retry count (unsuccessful contact) -->
+    <bpmn:task id="Task_IncreaseRetryUnsuccessful" name="Increase retry count on bag label&#10;">
+      <bpmn:incoming>SequenceFlow_IncreaseRetryUnsuccessful</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to return to production (withdraw order) -->
+    <bpmn:task id="Task_ReturnWithdrawOrder" name="Return to production area for disassemble&#10;">
+      <bpmn:incoming>SequenceFlow_ReturnWithdrawOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndMerge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to increase retry count (promise pick-up) -->
+    <bpmn:task id="Task_IncreaseRetryPromise" name="Increase retry count on bag label&#10;">
+      <bpmn:incoming>SequenceFlow_IncreaseRetryPromise</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndMerge3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to return to production (retries > X) -->
+    <bpmn:task id="Task_ReturnToProduction" name="Return to production area for disassemble&#10;">
+      <bpmn:incoming>SequenceFlow_ReturnToProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndMerge4</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final merge gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_Final" name="">
+      <bpmn:incoming>SequenceFlow_ToEndMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToEndMerge2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToEndMerge3</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToEndMerge4</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalToEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Not collected bag managed&#10;">
+      <bpmn:incoming>SequenceFlow_FinalToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_1" targetRef="Task_CheckRetryCount" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToGatewayRetries" sourceRef="Task_CheckRetryCount" targetRef="ExclusiveGateway_RetryThreshold" />
+    
+    <!-- Retry threshold outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContactCustomer" name="No (retries ≤ X)" sourceRef="ExclusiveGateway_RetryThreshold" targetRef="Task_ContactCustomer" />
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnToProduction" name="Yes (retries &gt; X)" sourceRef="ExclusiveGateway_RetryThreshold" targetRef="Task_ReturnToProduction" />
+
+    <!-- Contact outcome flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToGatewayOutcome" sourceRef="Task_ContactCustomer" targetRef="ExclusiveGateway_Outcome" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_IncreaseRetryUnsuccessful" name="Contact unsuccessful&#10;" sourceRef="ExclusiveGateway_Outcome" targetRef="Task_IncreaseRetryUnsuccessful" />
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnWithdrawOrder" name="Successful, customer withdraws order&#10;" sourceRef="ExclusiveGateway_Outcome" targetRef="Task_ReturnWithdrawOrder" />
+    <bpmn:sequenceFlow id="SequenceFlow_IncreaseRetryPromise" name="Successful, promises pick-up&#10;" sourceRef="ExclusiveGateway_Outcome" targetRef="Task_IncreaseRetryPromise" />
+
+    <!-- Merge flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndMerge" sourceRef="Task_IncreaseRetryUnsuccessful" targetRef="ParallelGateway_Final" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndMerge2" sourceRef="Task_ReturnWithdrawOrder" targetRef="ParallelGateway_Final" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndMerge3" sourceRef="Task_IncreaseRetryPromise" targetRef="ParallelGateway_Final" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndMerge4" sourceRef="Task_ReturnToProduction" targetRef="ParallelGateway_Final" />
+
+    <!-- Final flow to end -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalToEnd" sourceRef="ParallelGateway_Final" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+</bpmn:definitions>

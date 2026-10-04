@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Invoice Processing System" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FinanceDept" name="Finance Department">
+        <bpmn:name>Finance Dept</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LocateVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_VendorFound</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_RecordNewVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergeInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddSAPNumber</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_SortMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterSAP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Main Process Start -->
+    <bpmn:startEvent id="StartEvent_1" name="Invoice Received">
+      <bpmn:outgoing>SequenceFlow_LocateVendor</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Locate Vendor in SAP -->
+    <bpmn:task id="Task_LocateVendor" name="Locate Vendor in SAP System">
+      <bpmn:incoming>SequenceFlow_LocateVendor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckFound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Vendor Found? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_VendorFound" name="Vendor in SAP?">
+      <bpmn:incoming>SequenceFlow_CheckFound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPath_New</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Subprocess for New Vendor Record -->
+    <bpmn:subProcess id="SubProcess_RecordNewVendor" name="Record New Vendor">
+      <bpmn:startEvent id="StartEvent_SubProc_1" name="Request Start">
+        <bpmn:outgoing>SequenceFlow_FillForm</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <!-- Task 2: Fill Form -->
+      <bpmn:task id="Task_FillForm" name="Fill Vendor Master Record Form">
+        <bpmn:incoming>SequenceFlow_FillForm</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ClassifyRequest</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Gateway 2: Classification -->
+      <bpmn:exclusiveGateway id="ExclusiveGateway_Classification" name="Classify Urgency">
+        <bpmn:incoming>SequenceFlow_ClassifyRequest</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_UrgentPath_New</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_NonUrgentPath_New</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+      <!-- Task 3: Attach & Outbox -->
+      <bpmn:task id="Task_AttachOutbox" name="Attach Request to Invoice">
+        <bpmn:incoming>SequenceFlow_UrgentPath_New</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_NonUrgentPath_New</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_SubProcEnd</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Subprocess End -->
+      <bpmn:endEvent id="EndEvent_SubProc_1" name="Request Finished">
+        <bpmn:incoming>SequenceFlow_SubProcEnd</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <!-- Sequence Flows for Subprocess -->
+    <bpmn:sequenceFlow id="SequenceFlow_FillForm" sourceRef="StartEvent_SubProc_1" targetRef="Task_FillForm">
+      <bpmn:name>Filling Form</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Urgent Path (24hr Window) -->
+    <bpmn:sequenceFlow id="SequenceFlow_UrgentPath_New" sourceRef="ExclusiveGateway_Classification" targetRef="Task_AttachOutbox">
+      <bpmn:name>If urgent, max 24 hr window</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Non-Urgent Path (1-5 Days) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NonUrgentPath_New" sourceRef="ExclusiveGateway_Classification" targetRef="Task_AttachOutbox">
+      <bpmn:name>If non-urgent, 1-5 working days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Subprocess Completion Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SubProcEnd" sourceRef="Task_AttachOutbox" targetRef="EndEvent_SubProc_1">
+      <bpmn:name>Request Finished</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Main Process Flows from Gateway 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckFound" sourceRef="Task_LocateVendor" targetRef="ExclusiveGateway_VendorFound">
+      <bpmn:name>Check Vendor Status</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Yes Path (Skip Subprocess) -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesPath" sourceRef="ExclusiveGateway_VendorFound" targetRef="InclusiveGateway_MergeInfo">
+      <bpmn:name>If found, skip record</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- No Path (Start Subprocess) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoPath_New" sourceRef="ExclusiveGateway_VendorFound" targetRef="SubProcess_RecordNewVendor">
+      <bpmn:name>If not found, start record</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Point -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeInfo" name="Merge Vendor Info">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddSAPNumber_New</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 4: Add SAP Number -->
+    <bpmn:task id="Task_AddSAPNumber" name="Add SAP Vendor Number to Invoice">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortDecision_New</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Logic Correction for XML Validity -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddSAPNumber_New" sourceRef="InclusiveGateway_MergeInfo" targetRef="Task_AddSAPNumber">
+      <bpmn:name>Proceed to SAP Number</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 5 & Gateway 3: Sorting -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SortMethod" name="Sort Method?">
+      <bpmn:incoming>SequenceFlow_AddSAPNumber_New</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterSAP_Amount_New</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EnterSAP_Vendor_New</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6: Enter SAP -->
+    <bpmn:task id="Task_EnterSAP" name="Enter Invoice in SAP System">
+      <bpmn:incoming>SequenceFlow_EnterSAP_Amount_New</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_EnterSAP_Vendor_New</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishProcess_New</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Invoice Process Finished">
+      <bpmn:incoming>SequenceFlow_FinishProcess_New</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sorting Flows (Merging back to Enter SAP) -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterSAP_Amount_New" sourceRef="ExclusiveGateway_SortMethod" targetRef="Task_EnterSAP">
+      <bpmn:name>If sorted by amount</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishProcess_New" sourceRef="Task_EnterSAP" targetRef="EndEvent_1">
+      <bpmn:name>Complete Entry</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

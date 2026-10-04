@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_ACME" name="ACME Inc." processRef="Process_PurchaseOrder"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_PurchaseOrder">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Department" name="Department">
+        <bpmn:flowNodeRef>StartEvent_Demand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StockCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConsumeStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_CompletedLocal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SpecifyDemand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateRequisition</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Procurement" name="Central procurement department">
+        <bpmn:flowNodeRef>Task_CheckSupplierInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NewSupplierCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateNewSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergePaths</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateOrderTemplate</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Approver" name="Approver">
+        <bpmn:flowNodeRef>Task_ApproveTriggerOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderCreated</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Demand" name="Demand identified">
+      <bpmn:outgoing>SequenceFlow_StartToStockCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway: Stock Check -->
+    <bpmn:exclusiveGateway id="Gateway_StockCheck" name="Goods in stock?">
+      <bpmn:incoming>SequenceFlow_StartToStockCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConsumeLocally</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateRequisitionPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Consume Stock -->
+    <bpmn:task id="Task_ConsumeStock" name="Use goods from stock">
+      <bpmn:incoming>SequenceFlow_ConsumeLocally</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndLocalConsumption</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_CompletedLocal" name="Purchase completed">
+      <bpmn:incoming>SequenceFlow_EndLocalConsumption</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Specify Demand -->
+    <bpmn:task id="Task_SpecifyDemand" name="Specify and quantify the demand">
+      <bpmn:incoming>SequenceFlow_CreateRequisitionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCreateRequisition</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Create Requisition -->
+    <bpmn:task id="Task_CreateRequisition" name="Create purchase requisition">
+      <bpmn:incoming>SequenceFlow_ToCreateRequisition</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_RequisitionERP">
+        <bpmn:targetRef>DataStore_ERPSystem1</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+
+    <!-- Task: Check Supplier Info -->
+    <bpmn:task id="Task_CheckSupplierInfo" name="Check supplier information">
+      <bpmn:incoming>SequenceFlow_RequisitionToProcurement</bpmn:incoming>
+      <bpmn:dataInputAssociation id="DataIn_CheckERP1">
+        <bpmn:sourceRef>DataStore_ERPSystem2</bpmn:sourceRef>
+        <bpmn:targetRef>Property_SupplierInfoCheck</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:task>
+
+    <!-- Gateway: New Supplier Check -->
+    <bpmn:exclusiveGateway id="Gateway_NewSupplierCheck" name="New supplier?">
+      <bpmn:incoming>SequenceFlow_CheckToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateNewSupplierPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SkipCreateSupplier</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create New Supplier -->
+    <bpmn:task id="Task_CreateNewSupplier" name="Create new supplier in ERP">
+      <bpmn:incoming>SequenceFlow_CreateNewSupplierPath</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_NewSupplierERP">
+        <bpmn:targetRef>DataStore_ERPSystem2</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+
+    <!-- Gateway: Merge Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergePaths" name="Merge Supplier Paths">
+      <bpmn:incoming>SequenceFlow_SkipCreateSupplier</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SupplierCreatedToTemplate</bpmn:incoming>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Create Order Template -->
+    <bpmn:task id="Task_CreateOrderTemplate" name="Create order template">
+      <bpmn:incoming>SequenceFlow_MergeToTemplate</bpmn:incoming>
+      <bpmn:dataOutputAssociation id="DataOut_OrderTemplateERP">
+        <bpmn:targetRef>DataStore_ERPSystem2</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+
+    <!-- Task: Approve & Trigger -->
+    <bpmn:task id="Task_ApproveTriggerOrder" name="Approve &amp; trigger order">
+      <bpmn:incoming>SequenceFlow_TemplateToApproval</bpmn:incoming>
+      <bpmn:dataInputAssociation id="DataIn_ApprovalERP2">
+        <bpmn:sourceRef>DataStore_ERPSystem3</bpmn:sourceRef>
+        <bpmn:targetRef>Property_OrderTemplateReview</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderCreated" name="Purchase order created">
+      <bpmn:incoming>SequenceFlow_ApprovalToCompletion</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToStockCheck" sourceRef="StartEvent_Demand" targetRef="Gateway_StockCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ConsumeLocally" name="Yes - Goods in stock" sourceRef="Gateway_StockCheck" targetRef="Task_ConsumeStock"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateRequisitionPath" name="No - Not enough goods" sourceRef="Gateway_StockCheck" targetRef="Task_SpecifyDemand"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndLocalConsumption" sourceRef="Task_ConsumeStock" targetRef="EndEvent_CompletedLocal"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToCreateRequisition" sourceRef="Task_SpecifyDemand" targetRef="Task_CreateRequisition"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RequisitionToProcurement" name="Purchase requisition created" sourceRef="Task_CreateRequisition" targetRef="Task_CheckSupplierInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToDecision" sourceRef="Task_CheckSupplierInfo" targetRef="Gateway_NewSupplierCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateNewSupplierPath" name="Yes - New supplier" sourceRef="Gateway_NewSupplierCheck" targetRef="Task_CreateNewSupplier"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SkipCreateSupplier" name="No - Known supplier" sourceRef="Gateway_NewSupplierCheck" targetRef="InclusiveGateway_MergePaths"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SupplierCreatedToTemplate" sourceRef="Task_CreateNewSupplier" targetRef="InclusiveGateway_MergePaths"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToTemplate" name="Merge paths" sourceRef="InclusiveGateway_MergePaths" targetRef="Task_CreateOrderTemplate"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TemplateToApproval" sourceRef="Task_CreateOrderTemplate" targetRef="Task_ApproveTriggerOrder"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalToCompletion" name="Purchase order triggered" sourceRef="Task_ApproveTriggerOrder" targetRef="EndEvent_OrderCreated"/>
+
+    <!-- Data Stores -->
+    <bpmn:dataStoreReference id="DataStore_ERPSystem1" name="ERP System - Requisitions">
+      <bpmn:name>ERP System</bpmn:name>
+    </bpmn:dataStoreReference>
+    
+    <bpmn:dataStoreReference id="DataStore_ERPSystem2" name="ERP System - Suppliers &amp; Templates">
+      <bpmn:name>ERP system</bpmn:name>
+    </bpmn:dataStoreReference>
+
+  </bpmn:process>
+</bpmn:definitions>

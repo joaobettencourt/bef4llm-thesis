@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_BecomingAParent" targetNamespace="http://bpmnio.com">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Participant_GovSystem" name="Parental Leave Support System" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Lane Organization -->
+    <bpmn:laneSet id="Lane_Set_01">
+      <bpmn:lane id="Lane_Parent" name="Parent">
+        <bpmn:flowNodeRef>StartEvent_Initiate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SelectModel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_DecideExtension</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Admin" name="Administration">
+        <bpmn:flowNodeRef>ServiceTask_FetchInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_CollectInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotifyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifySS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifyCompany</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Initiate" name="Initiate Leave Request">
+      <bpmn:outgoing>SequenceFlow_01_StartToFetch</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Fetch Information -->
+    <bpmn:serviceTask id="ServiceTask_FetchInfo" name="Fetch Potential Models">
+      <bpmn:description>Retrieve months duration, split options between parents.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_01_StartToFetch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02_FetchToSelect</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Parent Selects -->
+    <bpmn:userTask id="UserTask_SelectModel" name="Parent Select Model">
+      <bpmn:description>Select duration and split between parents.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_02_FetchToSelect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03_SelectToCollect</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Collect Info -->
+    <bpmn:userTask id="UserTask_CollectInfo" name="Collect Relevant Information">
+      <bpmn:description>Gather necessary documents and data.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_03_SelectToCollect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04_CollectToNotify</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Notification Timing -->
+    <bpmn:xorGateway id="Gateway_NotifyCheck" name="Notify in time?">
+      <bpmn:description>Decision point to ensure notifications are sent timely.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_04_CollectToNotify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05_NotifySS</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Parallel Notifications -->
+    <bpmn:userTask id="UserTask_NotifySS" name="Notify Social Security">
+      <bpmn:description>Send notification to SS.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_05_NotifyToSS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_08_NotifySSDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Notifications -->
+    <bpmn:parallelGateway id="ParallelNotifyStart" name="">
+      <bpmn:incoming>SequenceFlow_04_CollectToNotify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05_NotifySS</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Notify Company -->
+    <bpmn:userTask id="UserTask_NotifyCompany" name="Notify Company">
+      <bpmn:description>Send notification to Employer.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_06_NotifyToComp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07_NotifyCompanyDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for Company Notification -->
+    <bpmn:sequenceFlow id="SequenceFlow_06_NotifyToComp" sourceRef="ParallelNotifyStart" targetRef="UserTask_NotifyCompany">
+      <bpmn:name>To Company</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Gather Info from Companies -->
+    <bpmn:userTask id="UserTask_GatherInfoCompanies" name="Gather Information from Companies">
+      <bpmn:description>Collect confirmation and details.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_07_NotifyCompanyDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_09_GatherInfoDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for SS Notification -->
+    <bpmn:sequenceFlow id="SequenceFlow_05_NotifyToSS" sourceRef="ParallelNotifyStart" targetRef="UserTask_NotifySS">
+      <bpmn:name>To SS</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Collect to Notify -->
+    <bpmn:sequenceFlow id="SequenceFlow_04_CollectToNotify" sourceRef="UserTask_CollectInfo" targetRef="ParallelNotifyStart">
+      <bpmn:name>Ready</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Notify SS Done -->
+    <bpmn:sequenceFlow id="SequenceFlow_08_NotifySSDone" sourceRef="UserTask_NotifySS" targetRef="Gateway_ConvergeNotify">
+      <bpmn:name>Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Gather Info Done -->
+    <bpmn:sequenceFlow id="SequenceFlow_09_GatherInfoDone" sourceRef="UserTask_GatherInfoCompanies" targetRef="Gateway_ConvergeNotify">
+      <bpmn:name>Gathering Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Convergence Gateway -->
+    <bpmn:xorGateway id="Gateway_ConvergeNotify" name="">
+      <bpmn:incoming>SequenceFlow_08_NotifySSDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10_ConvergeToDecision</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Task: Decide Extension -->
+    <bpmn:userTask id="UserTask_DecideExtension" name="Decide on Extension">
+      <bpmn:description>At end of period, parent decides about extension.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_10_ConvergeToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11_ApproveExtension</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Extension Choice -->
+    <bpmn:xorGateway id="Gateway_ExtendChoice" name="Extend Leave?">
+      <bpmn:incoming>SequenceFlow_10_ConvergeToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_12_RejectExtension</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Task: Process Extension -->
+    <bpmn:userTask id="UserTask_ApproveExt" name="Process Extension">
+      <bpmn:description>If extension is approved.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_11_ApproveExtension</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_15_ProcessDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Finalize Leave -->
+    <bpmn:userTask id="UserTask_RejectExt" name="Finalize Leave">
+      <bpmn:description>If extension is rejected.</bpmn:description>
+      <bpmn:incoming>SequenceFlow_12_RejectExtension</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_16_FinalizedDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Final Convergence Gateway -->
+    <bpmn:xorGateway id="Gateway_FinalConverge" name="">
+      <bpmn:incoming>SequenceFlow_15_ProcessDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13_CompleteToEnd</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Complete" name="Leave Process Complete">
+      <bpmn:incoming>SequenceFlow_13_CompleteToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Extension Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_02_FetchToSelect" sourceRef="ServiceTask_FetchInfo" targetRef="UserTask_SelectModel">
+      <bpmn:name>Select</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_03_SelectToCollect" sourceRef="UserTask_SelectModel" targetRef="UserTask_CollectInfo">
+      <bpmn:name>Select</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_10_ConvergeToDecision" sourceRef="Gateway_ConvergeNotify" targetRef="UserTask_DecideExtension">
+      <bpmn:name>To Decision</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_11_ApproveExtension" sourceRef="UserTask_DecideExtension" targetRef="Gateway_ExtendChoice">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_07_NotifyCompanyDone" sourceRef="UserTask_NotifyCompany" targetRef="UserTask_GatherInfoCompanies">
+      <bpmn:name>Gather</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_12_RejectExtension" sourceRef="Gateway_ExtendChoice" targetRef="UserTask_RejectExt">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_01_StartToFetch" sourceRef="StartEvent_Initiate" targetRef="ServiceTask_FetchInfo">
+      <bpmn:name>Initiate</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_15_ProcessDone" sourceRef="UserTask_ApproveExt" targetRef="Gateway_FinalConverge">
+      <bpmn:name>Process</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_16_FinalizedDone" sourceRef="UserTask_RejectExt" targetRef="Gateway_FinalConverge">
+      <bpmn:name>Finalize</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_13_CompleteToEnd" sourceRef="Gateway_FinalConverge" targetRef="EndEvent_Complete">
+      <bpmn:name>Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

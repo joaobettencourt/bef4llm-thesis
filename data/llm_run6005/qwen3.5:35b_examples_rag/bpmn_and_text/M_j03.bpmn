@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Contract_Manufacturing_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Contract_Process_01">
+    <bpmn:participant id="Participant_Manufacturing_Company" name="Manufacturing Company Process" processRef="Process_Contract_Manufacturing_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Contract_Manufacturing_01" isExecutable="false">
+    <bpmn:dataObjectReference id="DataOrderList" name="Parts Order List"/>
+    <bpmn:dataObjectReference id="DataStockLevel" name="Current Stock Level"/>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Procurement">
+        <bpmn:name>Procurement Department</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_OrderNeeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_QueryShops_Diverge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QueryShop_A</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QueryShop_B</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ConvergeOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCheapestSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_PlaceOrders</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Assembly">
+        <bpmn:name>Assembly &amp; Stock Management</bpmn:name>
+        <bpmn:flowNodeRef>Gw_CheckStockLevel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StartBuilding</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_ReorderCheapest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_ReorderFastest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EmailTask_ComplainToFriends</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OrderNeeded" name="Contract Project Initiated">
+      <bpmn:outgoing>Seq_StartToQuery</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Query Shops Parallel Gateway (Diverging) -->
+    <bpmn:parallelGateway id="Gw_QueryShops_Diverge" gatewayDirection="Diverging">
+      <bpmn:incoming>Seq_StartToQuery</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ToShopA</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ToShopB</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Query Tasks -->
+    <bpmn:task id="Task_QueryShop_A" name="Query Shop A (Price/Time)">
+      <bpmn:incoming>Seq_ToShopA</bpmn:incoming>
+      <bpmn:outgoing>Seq_ShopAResults</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_QueryShop_B" name="Query Shop B (Price/Time)">
+      <bpmn:incoming>Seq_ToShopB</bpmn:incoming>
+      <bpmn:outgoing>Seq_ShopBResults</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Converge Offers Gateway -->
+    <bpmn:exclusiveGateway id="Gw_ConvergeOffers" gatewayDirection="Converging">
+      <bpmn:incoming>Seq_ShopAResults</bpmn:outgoing>
+      <bpmn:incoming>Seq_ShopBResults</bpmn:outgoing>
+      <bpmn:outgoing>Seq_SelectSupplier</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Select Cheapest Supplier -->
+    <bpmn:task id="Task_SelectCheapestSupplier" name="Select Supplier (Always Cheapest)">
+      <bpmn:incoming>Seq_SelectSupplier</bpmn:incoming>
+      <bpmn:outgoing>Seq_PlaceOrders</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Place Orders -->
+    <bpmn:serviceTask id="ServiceTask_PlaceOrders" name="Place Order with Webshops">
+      <bpmn:incoming>Seq_PlaceOrders</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitForArrival</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Receive Parts (Intermediate Catch Event) -->
+    <bpmn:intermediateCatchEvent id="IntEvent_PartsArrive" name="Parts Arrived">
+      <bpmn:incoming>Seq_WaitForArrival</bpmn:outgoing>
+      <bpmn:outgoing>Seq_StartBuildingTrigger</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_PartsArrive"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Start Building -->
+    <bpmn:startTask id="StartTask_Building" name="Build Product">
+      <bpmn:incoming>Seq_StartBuildingTrigger</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CheckStockLevel</bpmn:outgoing>
+    </bpmn:startTask>
+
+    <!-- Stock Check Gateway -->
+    <bpmn:exclusiveGateway id="Gw_CheckStockLevel" gatewayDirection="Diverging">
+      <bpmn:incoming>Seq_StartBuildingTrigger</bpmn:outgoing>
+      <bpmn:outgoing>Seq_IfZero</bpmn:outgoing>
+      <bpmn:outgoing>Seq_Below5</bpmn:outgoing>
+      <bpmn:outgoing>Seq_BuildContinue</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Logic for Stock Level 0 -->
+    <bpmn:task id="EmailTask_ComplainToFriends" name="Write Complaint Email">
+      <bpmn:incoming>Seq_IfZero</bpmn:incoming>
+      <bpmn:outgoing>Seq_ReorderFastestTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Logic for Stock Level &lt; 5 -->
+    <bpmn:serviceTask id="ServiceTask_ReorderCheapest" name="Reorder Cheapest Parts">
+      <bpmn:incoming>Seq_Below5</bpmn:outgoing>
+      <bpmn:outgoing>Seq_BuildContinueTrigger</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Logic for Stock Level &lt; 3 -->
+    <bpmn:serviceTask id="ServiceTask_ReorderFastest" name="Reorder Fastest Parts">
+      <bpmn:incoming>Seq_IfZero</bpmn:outgoing>
+      <bpmn:outgoing>Seq_BuildContinueTrigger2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Build Continue Logic -->
+    <bpmn:exclusiveGateway id="Gw_CheckStockLevel_Converge" gatewayDirection="Converging">
+      <bpmn:incoming>Seq_BuildContinueTrigger</bpmn:outgoing>
+      <bpmn:incoming>Seq_BuildContinueTrigger2</bpmn:outgoing>
+      <bpmn:outgoing>Seq_StartBuildingLoopBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back to Building -->
+    <bpmn:startTask id="StartTask_Building_Loop" name="Continue Build">
+      <bpmn:incoming>Seq_StartBuildingLoopBack</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CheckStockLevelAgain</bpmn:outgoing>
+    </bpmn:startTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProjectComplete" name="Contract Fulfilled">
+      <bpmn:incoming>Seq_BuildContinueTrigger2</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_StartToQuery" sourceRef="StartEvent_OrderNeeded" targetRef="Gw_QueryShops_Diverge"/>
+    <bpmn:sequenceFlow id="Seq_ToShopA" name="" sourceRef="Gw_QueryShops_Diverge" targetRef="Task_QueryShop_A"/>
+    <bpmn:sequenceFlow id="Seq_ToShopB" name="" sourceRef="Gw_QueryShops_Diverge" targetRef="Task_QueryShop_B"/>
+    <bpmn:sequenceFlow id="Seq_ShopAResults" name="" sourceRef="Task_QueryShop_A" targetRef="Gw_ConvergeOffers"/>
+    <bpmn:sequenceFlow id="Seq_ShopBResults" name="" sourceRef="Task_QueryShop_B" targetRef="Gw_ConvergeOffers"/>
+    <bpmn:sequenceFlow id="Seq_SelectSupplier" name="" sourceRef="Gw_ConvergeOffers" targetRef="Task_SelectCheapestSupplier"/>
+    <bpmn:sequenceFlow id="Seq_PlaceOrders" name="" sourceRef="Task_SelectCheapestSupplier" targetRef="ServiceTask_PlaceOrders"/>
+    <bpmn:sequenceFlow id="Seq_WaitForArrival" name="" sourceRef="ServiceTask_PlaceOrders" targetRef="IntEvent_PartsArrive"/>
+    <bpmn:sequenceFlow id="Seq_StartBuildingTrigger" name="" sourceRef="IntEvent_PartsArrive" targetRef="Gw_CheckStockLevel"/>
+
+    <!-- Stock Logic Flows -->
+    <bpmn:sequenceFlow id="Seq_IfZero" name="Stock = 0" sourceRef="Gw_CheckStockLevel" targetRef="EmailTask_ComplainToFriends"/>
+    <bpmn:sequenceFlow id="Seq_Below5" name="Stock &lt;= 5 (and >3)" sourceRef="Gw_CheckStockLevel" targetRef="ServiceTask_ReorderCheapest"/>
+    <bpmn:sequenceFlow id="Seq_BuildContinue" name="" sourceRef="Gw_CheckStockLevel_Converge" targetRef="StartTask_Building_Loop"/>
+
+  </bpmn:process>
+</bpmn:definitions>

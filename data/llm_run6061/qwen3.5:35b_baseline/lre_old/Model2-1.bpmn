@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ServiceProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ServiceProcess">
+    <!-- Pool 1: Teleco Operations -->
+    <bpmn:participant id="Pool_Teleco_Ops" name="Teleco Operations" processRef="Proc_Teleco"/>
+
+    <!-- Pool 2: Resource Provisioning -->
+    <bpmn:participant id="Pool_ResourceProv" name="Resource Provisioning" processRef="Proc_RP"/>
+
+    <!-- Pool 3: Billing & Collections -->
+    <bpmn:participant id="Pool_Billing" name="Billing &amp; Collections" processRef="Proc_Billing"/>
+
+    <!-- Message Flows between Pools -->
+    <bpmn:messageFlow id="Msg_Flow_PremiumLink" sourceRef="Gateway_IsPremium" targetRef="Event_ExternalSupportStart"/>
+
+    <bpmn:messageFlow id="Msg_Flow_ProblemReportToRP" sourceRef="Task_SendProblemReport" targetRef="Event_RPReceiveReport"/>
+
+    <bpmn:messageFlow id="Msg_Flow_StatusBackFromRP" sourceRef="End_SM_NoProblem" targetRef="Gateway_SMPrepareFinal"/>
+
+    <bpmn:messageFlow id="Msg_Flow_RestorationRequestToRP" sourceRef="Task_CreateRestReq" targetRef="Event_RPReceiveRestReq"/>
+
+    <bpmn:messageFlow id="Msg_Flow_TroubleReportBackFromRP" sourceRef="End_RPSendTroubleReport" targetRef="Gateway_SMResolveInfo"/>
+
+    <bpmn:messageFlow id="Msg_Flow_PerformanceToCS" sourceRef="Task_SendPerformance" targetRef="Lane_CS_StartFinalPath"/>
+
+    <bpmn:messageFlow id="Msg_Flow_ResolutionToCS" sourceRef="Task_SendResolutionReport" targetRef="Lane_CS_StartFinalPath"/>
+
+    <bpmn:messageFlow id="Msg_Flow_RebateToBilling" sourceRef="Gateway_BillingRebate" targetRef="Event_BillingReceiveRebate"/>
+  </bpmn:collaboration>
+
+  <!-- Process Teleco Operations -->
+  <bpmn:process id="Proc_Teleco" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CS" name="Customer Service Dept.">
+        <bpmn:flowNodeRef>StartEvent_CustomerPerception</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterProblemReport</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SM" name="Service Management">
+        <bpmn:flowNodeRef>Gateway_SignificanceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeSLA</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerPerception" name="Customer perceives degradation">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: CS Dept -->
+    <bpmn:task id="Task_EnterProblemReport" name="Enter Problem Report into System T">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Analyze SLA (SM Lane) -->
+    <bpmn:task id="Task_AnalyzeSLA" name="Compare Report with SLA &amp; Determine Measures">
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Premium? -->
+    <bpmn:exclusiveGateway id="Gateway_IsPremium" name="Is Customer Premium?">
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PremiumPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 2: Significance affects measures? (Loop) -->
+    <bpmn:exclusiveGateway id="Gateway_SignificanceCheck" name="Significance Affects Measures?">
+      <bpmn:incoming>SequenceFlow_6</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrioritizePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Create Detailed Report (SM Lane) -->
+    <bpmn:task id="Task_CreateDetailedReport" name="Create Detailed Problem Report">
+      <bpmn:incoming>SequenceFlow_7</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendProblemReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Analyzable by SM? -->
+    <bpmn:exclusiveGateway id="Gateway_AnalyzabilityCheck" name="Analyzable at Dept Level?">
+      <bpmn:incoming>SequenceFlow_SendProblemReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SMAnalyzePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Service Management Analysis (SM Lane) -->
+    <bpmn:task id="Task_SM_AnalyzeInternal" name="Analyze Problem &amp; Create Trouble Report">
+      <bpmn:incoming>SequenceFlow_SMAnalyzePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_8</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 5: Prepare Final Status (SM Lane) -->
+    <bpmn:exclusiveGateway id="Gateway_SMPrepareFinal" name="Receive Info?">
+      <bpmn:incoming>SequenceFlow_8</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideMeasuresPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6: Counter Measures Decision (SM Lane) -->
+    <bpmn:task id="Task_DecideCounterMeasures" name="Determine Counter Measures">
+      <bpmn:incoming>SequenceFlow_DecideMeasuresPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CaseSelectionPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 6: Case Selection (No Problem / Minor / Restoration) -->
+    <bpmn:exclusiveGateway id="Gateway_CaseSelection" name="Case Type?">
+      <bpmn:incoming>SequenceFlow_CaseSelectionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoProblemPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7a: Send Performance to CS (SM Lane) -->
+    <bpmn:task id="Task_SendPerformance" name="Send Actual Service Performance to Customer Service">
+      <bpmn:incoming>SequenceFlow_NoProblemPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_9</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 8a: Minor Actions & Report (SM Lane) -->
+    <bpmn:exclusiveGateway id="Gateway_MinorActions" name="Minor Corrective Actions?">
+      <bpmn:incoming>SequenceFlow_9</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MinorPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8a: Minor Actions & Report (SM Lane) -->
+    <bpmn:task id="Task_MinorActionsReport" name="Undertake Corrective Actions &amp; Create Resolution Report">
+      <bpmn:incoming>SequenceFlow_MinorPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendResolutionReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 9a: Send Resolution to CS (SM Lane) -->
+    <bpmn:task id="Task_SendResolutionReport" name="Send Problem Resolution Report to Customer Service">
+      <bpmn:incoming>SequenceFlow_SendResolutionReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 10a: Create Restoration Request (SM Lane) -->
+    <bpmn:exclusiveGateway id="Gateway_RestorationRequired" name="Automatic Resource Restoration Required?">
+      <bpmn:incoming>SequenceFlow_9</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateRestReqPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 10a: Create Restoration Request (SM Lane) -->
+    <bpmn:task id="Task_CreateRestReq" name="Create Automatic Resource Restoration Request">
+      <bpmn:incoming>SequenceFlow_CreateRestReqPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 7: Convergence for Resolution Info (SM Lane) -->
+    <bpmn:exclusiveGateway id="Gateway_SMResolveInfo" name="Receive Troubleshooting Report?">
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateResolutionReportFinalPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 11a: Create Problem Resolution Report (SM Lane) -->
+    <bpmn:task id="Task_CreateResolutionReportFinal" name="Create Final Problem Resolution Report">
+      <bpmn:incoming>SequenceFlow_CreateResolutionReportFinalPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToCS_Final</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event SM Process 1 (No Problem Path) -->
+    <bpmn:endEvent id="End_SM_NoProblem" name="Process Ends (SM)">
+      <bpmn:incoming>SequenceFlow_SendToCS_Final</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- End Event SM Process 2 (Minor Actions Path) -->
+    <bpmn:endEvent id="End_SM_MinorActions" name="Process Ends (SM)">
+      <bpmn:incoming>SequenceFlow_SendToCS_Final</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Start Final CS Lane Flow -->
+     <bpmn:startEvent id="Lane_CS_StartFinalPath" name="Receive Report from SM">
+       <bpmn:outgoing>Parallel_CS_Split_Path1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 8: CS Parallel Split (Report & Rebate) -->
+     <bpmn:parallelGateway id="Parallel_CS_Split" name="Trigger Activities">
+       <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CustomerReportPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 12a: Create Customer Report (CS Lane) -->
+    <bpmn:task id="Task_CreateCustomerReport" name="Create Service Performance &amp; Resolution Report">
+      <bpmn:incoming>SequenceFlow_CustomerReportPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendCustomerReport</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task 13a: Send Customer Report (CS Lane) -->
+    <bpmn:task id="Task_SendCustomerReport" name="Send Report to Customer">
+      <bpmn:incoming>SequenceFlow_SendCustomerReport</bpmn:incoming>
+      <bpmn:outgoing>Parallel_CS_Merge_Path1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 9: Billing Rebate Decision/Flow -->
+     <bpmn:exclusiveGateway id="Gateway_BillingRebate" name="SLA Violation?">
+       <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RebatePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event CS Process (All activities completed) -->
+     <bpmn:endEvent id="End_CS_Process" name="Process Ends within Customer Service">
+       <bpmn:incoming>Parallel_CS_Merge_Path1</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+   <!-- Resource Provisioning Process (Pool 2) -->
+  <bpmn:process id="Proc_RP" isExecutable="false">
+     <bpmn:laneSet>
+      <bpmn:lane id="Lane_RP_Team" name="Resource Provisioning Team"/>
+    </bpmn:laneSet>
+
+     <!-- Event 1: Receive Detailed Problem Report -->
+    <bpmn:startEvent id="Event_RPReceiveReport" name="Receive Detailed Problem Report">
+       <bpmn:outgoing>SequenceFlow_RP_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task RP Check Problems -->
+     <bpmn:task id="Task_RP_CheckProblems" name="Check for Possible Problems">
+       <bpmn:incoming>SequenceFlow_RP_1</bpmn:incoming>
+       <bpmn:outgoing>Gateway_ProblemDetected_Path</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 10: Problem Detected? (RP) -->
+     <bpmn:exclusiveGateway id="Gateway_ProblemDetected_RP" name="Problem Detected?">
+       <bpmn:incoming>SequenceFlow_RP_2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NoProblemsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task RP No Problems -> Notification -->
+    <bpmn:task id="Task_RP_NormalNotification" name="Create Normal Service Execution Notification">
+       <bpmn:incoming>SequenceFlow_NoProblemsPath</bpmn:incoming>
+       <bpmn:outgoing>Parallel_Gateway_RP_StatusMerge_Path1</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task RP Problem Detected -> Analyze & Report -->
+    <bpmn:task id="Task_RP_AnalyzeProblem" name="Analyze Problem">
+       <bpmn:incoming>SequenceFlow_ProblemDetectedPath</bpmn:incoming>
+       <bpmn:outgoing>Task_RP_CreateTroubleReport_Path</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task RP Create Trouble Report -->
+    <bpmn:endEvent id="End_RPSendStatus" name="Send Status Report">
+       <bpmn:incoming>Parallel_Gateway_RP_StatusMerge_Path1</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Start Event for Restoration Request (Timer Boundary on Lane) - Simplified as Catch Event -->
+     <bpmn:startEvent id="Lane_RP_StartRestReq" name="Wait for Restoration Request">
+       <bpmn:outgoing>SequenceFlow_RP_Wait</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- End RP Terminate Timeout -->
+     <bpmn:endEvent id="End_RP_TerminateTimeout" name="Process Terminated">
+       <bpmn:incoming>SequenceFlow_TimeLimitExceeded</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Wait for Request (Message Flow) - Using Message Start Event logic via Gateway -->
+     <bpmn:startEvent id="Event_RPReceiveRestReq" name="Receive Restoration Request">
+       <bpmn:outgoing>SequenceFlow_TimeCheckPath</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Time Limit (2 Days) - Simplified as Sequence Flow logic -->
+     <bpmn:task id="Task_RP_CheckTimeLimit" name="Check if within 2 days">
+       <bpmn:incoming>SequenceFlow_TimeCheckPath</bpmn:incoming>
+       <bpmn:outgoing>Gateway_TimeLimitMet_Path</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 12: Time Limit Met? (RP) -->
+     <bpmn:exclusiveGateway id="Gateway_TimeLimitMet_RP" name="Within 2 Days?">
+       <bpmn:incoming>SequenceFlow_TimeLimitMet_Path</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_TrackErrorsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task RP Track Errors & Actions -->
+    <bpmn:task id="Task_RP_TrackErrors" name="Track All Possible Errors">
+       <bpmn:incoming>SequenceFlow_TrackErrorsPath</bpmn:incoming>
+       <bpmn:outgoing>Task_RP_UndertakeActions_Path</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task RP Undertake Actions -->
+    <bpmn:task id="Task_RP_UndertakeActions" name="Undertake Necessary Corrective Actions">
+       <bpmn:incoming>SequenceFlow_TrackErrorsPath</bpmn:incoming>
+       <bpmn:outgoing>Task_RP_CreateTroubleShootingReport_Path</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task RP Create Trouble-Shooting Report -->
+    <bpmn:endEvent id="End_RPSendTroubleReport" name="Send Troubleshooting Report">
+       <bpmn:incoming>Task_RP_CreateTroubleShootingReport_Path</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+   <!-- Billing & Collections Process (Pool 3) -->
+  <bpmn:process id="Proc_Billing" isExecutable="false">
+     <bpmn:laneSet/>
+
+    <!-- Event Billing Receive Rebate (Message Flow) -->
+    <bpmn:startEvent id="Event_BillingReceiveRebate" name="Receive SLA Violation Rebate">
+       <bpmn:outgoing>SequenceFlow_Billing_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Task: Adjust Billing -->
+    <bpmn:task id="Task_AdjustBilling" name="Adjust the Billing">
+      <bpmn:incoming>SequenceFlow_Billing_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Billing_End</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Billing_Process" name="Process Ends (Billing)">
+       <bpmn:incoming>SequenceFlow_Billing_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+
+   <!-- External Support Process Pool for Premium Link -->
+  <bpmn:collaboration id="Collab_External">
+     <bpmn:participant id="Pool_ExtSupport" name="Premium Support Process" processRef="Proc_Ext"/>
+  </bpmn:collaboration>
+
+   <!-- External Process Definition (Simplified) -->
+  <bpmn:process id="Proc_Ext" isExecutable="false">
+     <bpmn:startEvent id="Event_ExternalSupportStart" name="Receive Premium Link Request">
+       <bpmn:outgoing>SequenceFlow_Ext_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- End Event (Not detailed) -->
+     <bpmn:endEvent id="End_Ext_Process" name="Process Ends (Premium Support)">
+        <bpmn:incoming>SequenceFlow_Ext_End</bpmn:incoming>
+      </bpmn:endEvent>
+  </bpmn:process>
+
+   <!-- Sequence Flows for Teleco Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_CustomerPerception" targetRef="Task_EnterProblemReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Enter Report" sourceRef="Task_EnterProblemReport" targetRef="Gateway_SignificanceCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_3" name="Analyze SLA" sourceRef="Gateway_SignificanceCheck" targetRef="Task_AnalyzeSLA"/>
+    <bpmn:sequenceFlow id="SequenceFlow_4" name="Determine Measures" sourceRef="Task_AnalyzeSLA" targetRef="Gateway_IsPremium"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PremiumPath" name="Is Premium?" sourceRef="Gateway_IsPremium" targetRef="Event_ExternalSupportStart">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_5" name="Significance Check" sourceRef="Task_AnalyzeSLA" targetRef="Gateway_SignificanceCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PrioritizePath" name="Re-prioritize?" sourceRef="Gateway_SignificanceCheck" targetRef="Task_CreateDetailedReport">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_6" name="Create Report" sourceRef="Task_AnalyzeSLA" targetRef="Gateway_SignificanceCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_7" name="Detailed Report" sourceRef="Gateway_SignificanceCheck" targetRef="Task_CreateDetailedReport">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_SendProblemReport" name="Send to SM" sourceRef="Task_CreateDetailedReport" targetRef="Gateway_AnalyzabilityCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SMAnalyzePath" name="Analyzable?" sourceRef="Gateway_AnalyzabilityCheck" targetRef="Task_SM_AnalyzeInternal">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_8" name="Analyzed" sourceRef="Task_SM_AnalyzeInternal" targetRef="Gateway_SMPrepareFinal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DecideMeasuresPath" name="Decide Measures" sourceRef="Gateway_SMPrepareFinal" targetRef="Task_DecideCounterMeasures"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CaseSelectionPath" name="Case Type?" sourceRef="Task_DecideCounterMeasures" targetRef="Gateway_CaseSelection"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NoProblemPath" name="No Problem Detected" sourceRef="Gateway_CaseSelection" targetRef="Task_SendPerformance">
+      <bpmn:name>no problem</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_9" name="Minor Actions?" sourceRef="Task_DecideCounterMeasures" targetRef="Gateway_MinorActions"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MinorPath" name="Minor Corrective Actions Required" sourceRef="Gateway_MinorActions" targetRef="Task_MinorActionsReport">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_SendResolutionReport" name="Send Resolution Report" sourceRef="Task_MinorActionsReport" targetRef="Gateway_RestorationRequired"/>
+    <bpmn:sequenceFlow id="SequenceFlow_10" name="Restoration Required?" sourceRef="Task_DecideCounterMeasures" targetRef="Gateway_BillingRebate">
+      <bpmn:name>automatic restoration</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_CreateRestReqPath" name="Create Request" sourceRef="Task_DecideCounterMeasures" targetRef="Task_CreateRestReq">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerReportPath" name="Create Report" sourceRef="Parallel_CS_Split" targetRef="Task_CreateCustomerReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendCustomerReport" name="Send to Customer" sourceRef="Task_CreateCustomerReport" targetRef="Lane_CS_StartFinalPath">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_RebatePath" name="SLA Violation?" sourceRef="Gateway_BillingRebate" targetRef="Event_BillingReceiveRebate">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  <!-- Sequence Flows for Resource Provisioning Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_RP_1" sourceRef="Event_RPReceiveReport" targetRef="Task_RP_CheckProblems"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProblemDetectedPath" name="Problem Detected?" sourceRef="Gateway_ProblemDetected_RP" targetRef="Task_RP_AnalyzeProblem">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_NoProblemsPath" name="No Problems Detected?" sourceRef="Gateway_ProblemDetected_RP" targetRef="Task_RP_NormalNotification">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  <!-- Sequence Flows for Billing Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_Billing_1" sourceRef="Event_BillingReceiveRebate" targetRef="Task_AdjustBilling"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Billing_End" name="Adjust Billing" sourceRef="Task_AdjustBilling" targetRef="End_Billing_Process"/>
+
+  <!-- Sequence Flows for External Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_Ext_Start" sourceRef="Event_ExternalSupportStart" targetRef="End_Ext_Process"/>
+
+
+</bpmn:definitions>

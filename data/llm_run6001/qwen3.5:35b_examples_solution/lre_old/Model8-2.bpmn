@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RecruitmentProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HR_Process">
+    <bpmn:participant id="Participant_Organization" name="HR Department Process" processRef="Process_VacancyManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_VacancyManagement" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Recruiter" name="HR Recruiter">
+        <bpmn:flowNodeRef>StartMessageEvent_Vacancy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckReportClarity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_InformationClear</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskDepartmentDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_WaitApprovalResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_CorrectionRequired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_ApprovalReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PostJobAdvert</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_JobPosted</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartMessageEvent_Vacancy" name="Vacancy Reported">
+      <bpmn:outgoing>SFlow_ReviewReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Clarity -->
+    <bpmn:task id="Task_CheckReportClarity" name="Check Vacancy Report">
+      <bpmn:incoming>SFlow_ReviewReport</bpmn:incoming>
+      <bpmn:outgoing>SFlow_Gw_ClarityDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Clarity Check -->
+    <bpmn:exclusiveGateway id="Gw_InformationClear" name="Is information clear?">
+      <bpmn:incoming>SFlow_Gw_ClarityDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CreateJD_Clear</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_AskDept_Confused</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Ask Dept (if confused) -->
+    <bpmn:task id="Task_AskDepartmentDetails" name="Ask Department for Details">
+      <bpmn:incoming>SFlow_AskDept_Confused</bpmn:incoming>
+      <bpmn:outgoing>SFlow_MergeToCreateJD</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Create Job Description -->
+    <bpmn:task id="Task_CreateJobDescription" name="Create Job Description">
+      <bpmn:incoming>SFlow_CreateJD_Clear</bpmn:incoming>
+      <bpmn:incoming>SFlow_MergeToCreateJD</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SubmitForApproval</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Wait for Approval (Event Based) -->
+    <bpmn:eventBasedGateway id="Gw_WaitApprovalResponse" name="Wait for Department Response">
+      <bpmn:incoming>SFlow_SubmitForApproval</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CatchCorrectionReq</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_CatchApprovalRecvd</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Catch Event 1: Correction Required -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_CorrectionRequired" name="Correction Requested">
+      <bpmn:incoming>SFlow_CatchCorrectionReq</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TaskCorrectJD</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4: Correct Description -->
+    <bpmn:task id="Task_CorrectJobDescription" name="Correct Job Description">
+      <bpmn:incoming>SFlow_TaskCorrectJD</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ResubmitApproval</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event 2: Approval Received -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_ApprovalReceived" name="Job Description Approved">
+      <bpmn:incoming>SFlow_CatchApprovalRecvd</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TaskPostAdvert</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 5: Post Job -->
+    <bpmn:task id="Task_PostJobAdvert" name="Post the Job">
+      <bpmn:incoming>SFlow_TaskPostAdvert</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndPosted</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_JobPosted" name="Job Posted">
+      <bpmn:incoming>SFlow_EndPosted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_ReviewReport" sourceRef="StartMessageEvent_Vacancy" targetRef="Task_CheckReportClarity"/>
+    
+    <bpmn:sequenceFlow id="SFlow_Gw_ClarityDecision" name="" sourceRef="Task_CheckReportClarity" targetRef="Gw_InformationClear"/>
+
+    <!-- Clear Path -->
+    <bpmn:sequenceFlow id="SFlow_CreateJD_Clear" name="Yes, clear" sourceRef="Gw_InformationClear" targetRef="Task_CreateJobDescription"/>
+
+    <!-- Confused Path -->
+    <bpmn:sequenceFlow id="SFlow_AskDept_Confused" name="No, confused" sourceRef="Gw_InformationClear" targetRef="Task_AskDepartmentDetails"/>
+
+    <!-- Merge after Ask Dept -->
+    <bpmn:sequenceFlow id="SFlow_MergeToCreateJD" sourceRef="Task_AskDepartmentDetails" targetRef="Task_CreateJobDescription"/>
+
+    <!-- Submit for Approval (Wait) -->
+    <bpmn:sequenceFlow id="SFlow_SubmitForApproval" name="" sourceRef="Task_CreateJobDescription" targetRef="Gw_WaitApprovalResponse"/>
+
+    <!-- Wait Path 1: Correction Requested -->
+    <bpmn:sequenceFlow id="SFlow_CatchCorrectionReq" name="Rejection/Correction Req." sourceRef="Gw_WaitApprovalResponse" targetRef="CatchEvent_CorrectionRequired"/>
+
+    <!-- Loop Back after Correction -->
+    <bpmn:sequenceFlow id="SFlow_ResubmitApproval" name="" sourceRef="Task_CorrectJobDescription" targetRef="Gw_WaitApprovalResponse"/>
+
+    <!-- Wait Path 2: Approval Received -->
+    <bpmn:sequenceFlow id="SFlow_CatchApprovalRecvd" name="Approved" sourceRef="Gw_WaitApprovalResponse" targetRef="CatchEvent_ApprovalReceived"/>
+
+    <!-- Post Job Flow -->
+    <bpmn:sequenceFlow id="SFlow_TaskPostAdvert" sourceRef="CatchEvent_ApprovalReceived" targetRef="Task_PostJobAdvert"/>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SFlow_EndPosted" name="" sourceRef="Task_PostJobAdvert" targetRef="EndEvent_JobPosted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

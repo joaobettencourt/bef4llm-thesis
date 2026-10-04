@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PurchaseOrderProcess">
+    <bpmn:participant id="Participant_SO_Auftrag" name="SO: Angebot/Auftrag" processRef="Process_OrderProcessing" />
+    <bpmn:participant id="Participant_AddressManagement" name="SO: Address-Management" processRef="Process_AddressUpdate" />
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_AddParentAddressRequest" name="Add Parent Company Request" />
+  <bpmn:message id="Message_AddParentAddressResponse" name="Address Update Response" />
+
+  <bpmn:process id="Process_OrderProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SO_Auftrag" name="SO: Angebot/Auftrag">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_ShippingInvoicing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_InvoicingStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CustomerType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrowEvent_SendInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive Subsidiary Order">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent shipping and invoicing preparation -->
+    <bpmn:parallelGateway id="ParallelGateway_ShippingInvoicing">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareGoods</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PrepInvoiceStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare goods for shipment -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare Goods for Shipment">
+      <bpmn:incoming>SequenceFlow_PrepareGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShipGoods</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Ship goods -->
+    <bpmn:task id="Task_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>SequenceFlow_ShipGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsShippedToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for invoicing preparation -->
+    <bpmn:parallelGateway id="ParallelGateway_InvoicingStart">
+      <bpmn:incoming>SequenceFlow_PrepInvoiceStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareInvoicing</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare invoicing -->
+    <bpmn:task id="Task_PrepInvoice" name="Prepare Invoicing">
+      <bpmn:incoming>SequenceFlow_PrepareInvoicing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCustomerType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway 1: Customer Type -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerType" name="Is Subsidiary?">
+      <bpmn:incoming>SequenceFlow_CheckCustomerType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IsSubsidiaryYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IsIndependent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Decision Gateway 2: Subsidiary Relationship Modeled -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RelationshipModeled" name="Relationship in ERP?">
+      <bpmn:incoming>SequenceFlow_IsSubsidiaryYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AlreadyModeled</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotYetModeled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Invoice -->
+    <bpmn:task id="Task_CreateInvoice" name="Create Invoice">
+      <bpmn:incoming>SequenceFlow_AlreadyModeled</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_NotYetModeledToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSendInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for sending invoice -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>SequenceFlow_ToSendInvoice</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_AddParentAddressResponse" />
+      <bpmn:outgoing>SequenceFlow_EndInvoice</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_EndInvoice</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Shipping Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_1" targetRef="ParallelGateway_ShippingInvoicing" />
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareGoods" name="Prepare Goods" sourceRef="ParallelGateway_ShippingInvoicing" targetRef="Task_PrepareGoods" />
+    <bpmn:sequenceFlow id="SequenceFlow_ShipGoods" sourceRef="Task_PrepareGoods" targetRef="Task_ShipGoods" />
+
+    <!-- Sequence Flows for Invoicing Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrepInvoiceStart" name="Prepare Invoicing Start" sourceRef="ParallelGateway_ShippingInvoicing" targetRef="ParallelGateway_InvoicingStart" />
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareInvoicing" sourceRef="ParallelGateway_InvoicingStart" targetRef="Task_PrepInvoice" />
+
+    <!-- Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCustomerType" name="Check Customer Type" sourceRef="Task_PrepInvoice" targetRef="ExclusiveGateway_CustomerType" />
+    <bpmn:sequenceFlow id="SequenceFlow_IsSubsidiaryYes" name="Is Subsidiary - Yes" sourceRef="ExclusiveGateway_CustomerType" targetRef="ExclusiveGateway_RelationshipModeled" />
+    <bpmn:sequenceFlow id="SequenceFlow_IsIndependent" name="Customer Independent" sourceRef="ExclusiveGateway_CustomerType" targetRef="Task_CreateInvoice" />
+
+    <!-- Relationship Modeled Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AlreadyModeled" name="Already in ERP - Yes" sourceRef="ExclusiveGateway_RelationshipModeled" targetRef="Task_CreateInvoice" />
+    <bpmn:sequenceFlow id="SequenceFlow_NotYetModeled" name="Not Yet Modeled" sourceRef="ExclusiveGateway_RelationshipModeled" targetRef="IntermediateThrowEvent_RequestAddressUpdate" />
+
+    <!-- Intermediate Throw Event for Address Update Request -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_RequestAddressUpdate" name="Request Parent Company">
+      <bpmn:incoming>SequenceFlow_NotYetModeled</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_AddParentAddressRequest" />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Merge Gateway after address management -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RelationshipModeledToMerge">
+      <bpmn:incoming>SequenceFlow_AddressManagementDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotYetModeledToMerge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Address Management back to main flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddressManagementDone" sourceRef="Task_AddressUpdateComplete" targetRef="ExclusiveGateway_RelationshipModeledToMerge" />
+
+    <!-- Merge Flows for Invoice Creation -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSendInvoice" name="Create and Send Invoice" sourceRef="Task_CreateInvoice" targetRef="IntermediateThrowEvent_SendInvoice" />
+    <bpmn:sequenceFlow id="SequenceFlow_EndInvoice" name="Order Processed" sourceRef="IntermediateThrowEvent_SendInvoice" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+
+  <bpmn:process id="Process_AddressUpdate" isExecutable="false">
+    <!-- Task for Address Management (in separate lane/participant) -->
+    <bpmn:startEvent id="StartEvent_AddressRequest" name="Receive Request">
+      <bpmn:messageEventDefinition messageRef="Message_AddParentAddressRequest" />
+      <bpmn:outgoing>SequenceFlow_ProcessAddressUpdate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for Address Management -->
+    <bpmn:task id="Task_AddressUpdateComplete" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>SequenceFlow_ProcessAddressUpdate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for Response -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_AddressUpdateComplete" name="Address Update Complete">
+      <bpmn:messageEventDefinition messageRef="Message_AddParentAddressResponse" />
+      <bpmn:outgoing>SequenceFlow_EndAddressProcess</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_AddressComplete" name="Update Complete">
+      <bpmn:incoming>SequenceFlow_EndAddressProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Address Management Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessAddressUpdate" sourceRef="StartEvent_AddressRequest" targetRef="Task_AddressUpdateComplete" />
+    <bpmn:sequenceFlow id="SequenceFlow_SendResponse" name="Send Response" sourceRef="Task_AddressUpdateComplete" targetRef="IntermediateThrowEvent_AddressUpdateComplete" />
+    <bpmn:sequenceFlow id="SequenceFlow_EndAddressProcess" sourceRef="IntermediateThrowEvent_AddressUpdateComplete" targetRef="EndEvent_AddressComplete" />
+
+  </bpmn:process>
+
+  <!-- Message Flow between participants -->
+  <bpmn:messageFlow id="MessageFlow_RequestResponse" name="Add Parent Company Request/Response">
+    <bpmn:sourceRef>IntermediateThrowEvent_RequestAddressUpdate</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_AddressRequest</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ResponseBack" name="Add Parent Company Response">
+    <bpmn:sourceRef>IntermediateThrowEvent_AddressUpdateComplete</bpmn:sourceRef>
+    <bpmn:targetRef>ExclusiveGateway_RelationshipModeledToMerge</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

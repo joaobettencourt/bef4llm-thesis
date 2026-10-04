@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MasterDataChange">
+    <bpmn:participant id="Participant_Process" name="Master Data Change Process" processRef="Process_MDC"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MDC" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_EC" name="EC">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EC_TellINQ</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_INQ" name="INQ">
+        <bpmn:flowNodeRef>Task_INQ_NotifyIP</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_IP" name="IP">
+        <bpmn:flowNodeRef>Task_IP_CheckTime</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XGateway_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IP_Confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IP_Reject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Confirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Change Request Initiated">
+      <bpmn:outgoing>SequenceFlow_EC_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: EC tells INQ -->
+    <bpmn:task id="Task_EC_TellINQ" name="Tell INQ about master data change">
+      <bpmn:incoming>SequenceFlow_EC_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_INQ_NotifyIP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: INQ notifies IP -->
+    <bpmn:task id="Task_INQ_NotifyIP" name="Notify IP of the change">
+      <bpmn:incoming>SequenceFlow_INQ_NotifyIP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IP_CheckTime</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: IP checks time -->
+    <bpmn:task id="Task_IP_CheckTime" name="Check if change possible at desired time">
+      <bpmn:incoming>SequenceFlow_IP_CheckTime</bpmn:incoming>
+      <bpmn:outgoing>XGateway_Decision_Incoming</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="XGateway_Decision" name="Can be changed?">
+      <bpmn:incoming>XGateway_Decision_Incoming</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Confirm_Path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Reject_Path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4a: IP confirms -->
+    <bpmn:task id="Task_IP_Confirm" name="Confirm changes of INQ">
+      <bpmn:incoming>SequenceFlow_Confirm_Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndConfirmed</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4b: IP rejects -->
+    <bpmn:task id="Task_IP_Reject" name="Reject changes of INQ">
+      <bpmn:incoming>SequenceFlow_Reject_Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Confirmed" name="Changes Confirmed">
+      <bpmn:incoming>SequenceFlow_EndConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Changes Rejected">
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EC_Start" sourceRef="StartEvent_1" targetRef="Task_EC_TellINQ"/>
+    <bpmn:sequenceFlow id="SequenceFlow_INQ_NotifyIP" name="Change Reported" sourceRef="Task_EC_TellINQ" targetRef="Task_INQ_NotifyIP"/>
+    <bpmn:sequenceFlow id="SequenceFlow_IP_CheckTime" name="Notification Received" sourceRef="Task_INQ_NotifyIP" targetRef="Task_IP_CheckTime"/>
+    
+    <!-- Gateway Connections -->
+    <bpmn:sequenceFlow id="XGateway_Decision_Incoming" sourceRef="Task_IP_CheckTime" targetRef="XGateway_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Confirm_Path" name="Yes, possible" sourceRef="XGateway_Decision" targetRef="Task_IP_Confirm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[canChange]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_Reject_Path" name="No, not possible" sourceRef="XGateway_Decision" targetRef="Task_IP_Reject">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!canChange]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Connections -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndConfirmed" sourceRef="Task_IP_Confirm" targetRef="EndEvent_Confirmed"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" sourceRef="Task_IP_Reject" targetRef="EndEvent_Rejected"/>
+
+  </bpmn:process>
+</bpmn:definitions>

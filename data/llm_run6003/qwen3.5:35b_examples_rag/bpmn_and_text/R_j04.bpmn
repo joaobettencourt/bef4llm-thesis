@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CarService_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_CarService_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ServiceReminder" name="Service Reminder Received">
+      <bpmn:outgoing>SequenceFlow_CheckRegistration</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Registration Status -->
+    <bpmn:task id="Task_CheckRegistrationStatus" name="Check Car Registration Status">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>Gateway_IsRegistered_Out1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is Registered? -->
+    <bpmn:exclusiveGateway id="Gateway_IsRegistered" name="Is Car Registered?" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyUser</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Notify User of Appointment -->
+    <bpmn:userTask id="UserTask_NotifyUser" name="Notify User of Appointment">
+      <bpmn:incoming>SequenceFlow_NotifyUser</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_SplitWaitAction_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Wait Timer vs Service Path -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitWaitAction" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_NotifyUser</bpmn:incoming>
+      <bpmn:outgoing>TimerPath_FlowStart_Out1</bpmn:outgoing> <!-- Timer Path -->
+    </bpmn:parallelGateway>
+
+    <!-- Branch 1: Compliance Check (30 Days) -->
+    <bpmn:intermediateCatchEvent id="Intermediate_Catch_30Days" name="Wait for Action">
+      <bpmn:incoming>TimerPath_FlowStart_Out1</bpmn:incoming>
+      <bpmn:timerEventDefinition id="TimerDef_30Days"/> <!-- Timer Event Definition -->
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:userTask id="UserTask_IssueFine" name="Issue Fine">
+       <bpmn:incoming>SequenceFlow_TimerTriggered</bpmn:incoming>
+       <bpmn:outgoing>End_FineIssued_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Branch 2: Service Execution -->
+    <bpmn:startEvent id="StartServicePath" name="Go to Facility"> 
+      <bpmn:outgoing>SequenceFlow_MechanicEnterProblems</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Mechanic Tasks & Process Flow -->
+    <bpmn:userTask id="UserTask_EnterProblems" name="Mechanic Enters Problems">
+      <bpmn:incoming>SequenceFlow_MechanicEnterProblems</bpmn:incoming>
+      <bpmn:outgoing>UserTask_SendStatusUpdates_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Wait for Repair Completion -->
+      <bpmn:intermediateCatchEvent id="Intermediate_CatchRepairComplete" name="Wait for Repair">
+        <bpmn:incoming>UserTask_SendStatusUpdates_Out1</bpmn:incoming>
+         <bpmn:timerEventDefinition/> <!-- Simulating wait time -->
+    </bpmn:intermediateCatchEvent>
+
+     <bpmn:userTask id="UserTask_Payment" name="Pay via App">
+       <bpmn:incoming>UserTask_SendStatusUpdates_Out1</bpmn:incoming>
+        <bpmn:outgoing>UserTask_ConfirmSuccess_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <bpmn:userTask id="UserTask_ConfirmSuccess" name="Confirm Repair Success">
+       <bpmn:incoming>UserTask_Payment_Out1</bpmn:incoming>
+        <bpmn:outgoing>UserTask_SetNextServiceDate_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <bpmn:userTask id="UserTask_SetNextService" name="Set Next Service Date">
+       <bpmn:incoming>UserTask_ConfirmSuccess_Out1</bpmn:incoming>
+        <bpmn:outgoing>End_ServiceCompleted_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- End Events -->
+      <bpmn:endEvent id="End_FineIssued" name="Fine Issued">
+       <bpmn:incoming>UserTask_IssueFine_Out1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_ServiceCompleted" name="Service Completed & Pickerl Received">
+      <bpmn:incoming>UserTask_SetNextServiceDate_Out1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+     <bpmn:sequenceFlow id="SequenceFlow_CheckRegistration" sourceRef="StartEvent_ServiceReminder" targetRef="Gateway_IsRegistered"/>
+     
+      <bpmn:sequenceFlow id="SequenceFlow_NotifyUser" name="Yes - Notify User" sourceRef="Gateway_IsRegistered" targetRef="UserTask_NotifyUser"/>
+
+     <!-- Timer Path -->
+       <bpmn:parallelGateway id="ParallelGateway_SplitWaitAction_Diverging"> 
+          <bpmn:incoming>SequenceFlow_NotifyUser</bpmn:outgoing>
+           <bpmn:outgoing>TimerPath_FlowStart_Out1</bpmn:outgoing> 
+    </bpmn:parallelGateway>
+
+      <bpmn:sequenceFlow id="SequenceFlow_TimerTriggered" sourceRef="Intermediate_Catch_30Days" targetRef="UserTask_IssueFine"/>
+       <bpmn:sequenceFlow id="End_FineIssued_Out1" name="" sourceRef="UserTask_IssueFine" targetRef="End_FineIssued"/>
+
+     <!-- Service Path -->
+      <bpmn:startEvent id="StartServicePath_2"> 
+        <bpmn:outgoing>SequenceFlow_MechanicEnterProblems</bpmn:outgoing>
+    </bpmn:startEvent>
+       <bpmn:sequenceFlow id="SequenceFlow_MechanicEnterProblems" sourceRef="ParallelGateway_SplitWaitAction_Diverging" targetRef="UserTask_EnterProblems"/>
+
+      <!-- Wait for Repair -->
+        <bpmn:userTask id="UserTask_SendStatusUpdates"> 
+          <bpmn:incoming>SequenceFlow_MechanicEnterProblems</bpmn:outgoing>
+           <bpmn:outgoing>UserTask_Payment_Out1</bpmn:outgoing>
+    </bpmn:userTask>
+
+      <!-- Payment & Confirmation -->
+        <bpmn:sequenceFlow id="UserTask_SendStatusUpdates_Out1" sourceRef="UserTask_EnterProblems" targetRef="Intermediate_CatchRepairComplete"/>
+        
+       <bpmn:sequenceFlow id="UserTask_Payment_Out1" name="" sourceRef="Intermediate_CatchRepairComplete" targetRef="UserTask_ConfirmSuccess"/>
+
+        <!-- End Service -->
+         <bpmn:endEvent id="End_ServiceCompleted"> 
+          <bpmn:incoming>UserTask_SetNextServiceDate_Out1</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

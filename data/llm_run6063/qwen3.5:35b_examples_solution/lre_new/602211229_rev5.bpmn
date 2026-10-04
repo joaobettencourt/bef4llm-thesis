@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ReimbursementProcess">
+    <bpmn:participant id="Participant_ERICS" name="ERICS Company&#10;" processRef="Process_Reimbursement" />
+    <bpmn:participant id="Participant_Customer" name="Customer" />
+    <bpmn:messageFlow id="MessageFlow_CreditNote" sourceRef="IntermediateThrowEvent_SendNotification" targetRef="Participant_Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Reimbursement" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Processing" name="Reimbursement Processing Department">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectBeneficiary</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetPeriodDuration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CustomerType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectAssociation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ManualSelection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_Merge1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetThreshold</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_PeriodEnd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintCreditNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrowEvent_SendNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CalculateReimbursement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayReimbursement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_Merge2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Reimbursement Request Received">
+      <bpmn:outgoing>SequenceFlow_StartToContact</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_EndFromMerge2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_CreateContact" name="Create Reimbursement Contact">
+      <bpmn:incoming>SequenceFlow_StartToContact</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContactToBeneficiary</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectBeneficiary" name="Select Beneficiary">
+      <bpmn:incoming>SequenceFlow_ContactToBeneficiary</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BeneficiaryToPeriod</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SetPeriodDuration" name="Set Refund Period and Contract Duration">
+      <bpmn:incoming>SequenceFlow_BeneficiaryToPeriod</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PeriodToCustomerType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway - Customer Type Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerType" name="Verband Member?">
+      <bpmn:incoming>SequenceFlow_PeriodToCustomerType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerbanPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NormalPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Verband Path -->
+    <bpmn:task id="Task_SelectAssociation" name="Select Association as Customer Group">
+      <bpmn:incoming>SequenceFlow_VerbanPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssociationToMerge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Normal Path -->
+    <bpmn:task id="Task_ManualSelection" name="Select Customers Manually">
+      <bpmn:incoming>SequenceFlow_NormalPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualToMerge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway after Customer Selection -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_Merge1">
+      <bpmn:incoming>SequenceFlow_AssociationToMerge1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ManualToMerge1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge1ToThreshold</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task - Set Threshold -->
+    <bpmn:task id="Task_SetThreshold" name="Set Threshold">
+      <bpmn:incoming>SequenceFlow_Merge1ToThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ThresholdToTimer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Event - Wait for Refund Period End -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_PeriodEnd" name="Refund Period Ended">
+      <bpmn:incoming>SequenceFlow_ThresholdToTimer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerToParallelSplit</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Parallel Gateway - Split for Concurrent Activities -->
+    <bpmn:parallelGateway id="ParallelGateway_Split">
+      <bpmn:incoming>SequenceFlow_TimerToParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelCreditNote</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ParallelReimbursement</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task - Print Credit Note -->
+    <bpmn:task id="Task_PrintCreditNote" name="Print and Send Credit Note">
+      <bpmn:incoming>SequenceFlow_ParallelCreditNote</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditToNotification</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Throw Event - Send Notification -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendNotification" name="Send Credit Note to Customer">
+      <bpmn:incoming>SequenceFlow_CreditToNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotificationToMerge2</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task - Calculate Reimbursement -->
+    <bpmn:task id="Task_CalculateReimbursement" name="Calculate Reimbursement">
+      <bpmn:incoming>SequenceFlow_ParallelReimbursement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReimbToPay</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Pay Reimbursement -->
+    <bpmn:task id="Task_PayReimbursement" name="Pay Reimbursement">
+      <bpmn:incoming>SequenceFlow_ReimbToPay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentToMerge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway - Wait for Both Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_Merge2">
+      <bpmn:incoming>SequenceFlow_NotificationToMerge2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PaymentToMerge2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndFromMerge2</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToContact" sourceRef="StartEvent_1" targetRef="Task_CreateContact" />
+    <bpmn:sequenceFlow id="SequenceFlow_ContactToBeneficiary" sourceRef="Task_CreateContact" targetRef="Task_SelectBeneficiary" />
+    <bpmn:sequenceFlow id="SequenceFlow_BeneficiaryToPeriod" sourceRef="Task_SelectBeneficiary" targetRef="Task_SetPeriodDuration" />
+    <bpmn:sequenceFlow id="SequenceFlow_PeriodToCustomerType" sourceRef="Task_SetPeriodDuration" targetRef="ExclusiveGateway_CustomerType" />
+
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_VerbanPath" name="Verband Member" sourceRef="ExclusiveGateway_CustomerType" targetRef="Task_SelectAssociation">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customer.isVerbanMember}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NormalPath" name="Normal Subsidiaries" sourceRef="ExclusiveGateway_CustomerType" targetRef="Task_ManualSelection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!customer.isVerbanMember}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after Customer Selection -->
+    <bpmn:sequenceFlow id="SequenceFlow_AssociationToMerge1" sourceRef="Task_SelectAssociation" targetRef="InclusiveGateway_Merge1" />
+    <bpmn:sequenceFlow id="SequenceFlow_ManualToMerge1" sourceRef="Task_ManualSelection" targetRef="InclusiveGateway_Merge1" />
+
+    <!-- Continue Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_Merge1ToThreshold" sourceRef="InclusiveGateway_Merge1" targetRef="Task_SetThreshold" />
+    <bpmn:sequenceFlow id="SequenceFlow_ThresholdToTimer" sourceRef="Task_SetThreshold" targetRef="IntermediateCatchEvent_PeriodEnd" />
+
+    <!-- Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToParallelSplit" sourceRef="IntermediateCatchEvent_PeriodEnd" targetRef="ParallelGateway_Split" />
+    <bpmn:sequenceFlow id="SequenceFlow_ParallelCreditNote" sourceRef="ParallelGateway_Split" targetRef="Task_PrintCreditNote" />
+    <bpmn:sequenceFlow id="SequenceFlow_ParallelReimbursement" sourceRef="ParallelGateway_Split" targetRef="Task_CalculateReimbursement" />
+
+    <!-- Credit Note Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreditToNotification" sourceRef="Task_PrintCreditNote" targetRef="IntermediateThrowEvent_SendNotification" />
+    <bpmn:sequenceFlow id="SequenceFlow_NotificationToMerge2" sourceRef="IntermediateThrowEvent_SendNotification" targetRef="InclusiveGateway_Merge2" />
+
+    <!-- Reimbursement Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReimbToPay" sourceRef="Task_CalculateReimbursement" targetRef="Task_PayReimbursement" />
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentToMerge2" sourceRef="Task_PayReimbursement" targetRef="InclusiveGateway_Merge2" />
+
+    <!-- Final Merge and End -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndFromMerge2" name="Both Activities Complete" sourceRef="InclusiveGateway_Merge2" targetRef="EndEvent_1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${notificationSent AND paymentMade}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

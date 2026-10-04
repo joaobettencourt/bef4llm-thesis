@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_InvProc_ACME" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_InvoiceProcess">
+    <bpmn:participant id="Pool_ACMEInc" name="ACME Inc." processRef="Proc_InvoicePayment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_InvoicePayment" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_ACME">
+      <bpmn:lane id="Lane_FinancialDept" name="Financial Department">
+        <bpmn:flowNodeRef>StartEvent_InvoiceReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_RequestingDept" name="Requesting Department">
+        <bpmn:flowNodeRef>Task_VerifyRegisterSaperion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_DeptHead" name="Department Head">
+        <bpmn:flowNodeRef>Task_ApproveInvoiceSaperion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergeApproval</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_InvoiceReceived" name="Invoice Received">
+        <bpmn:outgoing>SF_Start_Check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CheckInvoice" name="Check Purchase Invoice">
+      <bpmn:incoming>SF_Start_Check</bpmn:incoming>
+        <bpmn:outgoing>SF_SendToDept</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Department Task -->
+       <bpmn:task id="Task_VerifyRegisterSaperion" name="Verify &amp; Register in SAPERION">
+        <bpmn:incoming>SF_SendToDept</bpmn:incoming>
+          <bpmn:outgoing>SF_CheckAmountGateway</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway to check Amount -->
+     <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Is amount &gt; $500?">
+       <bpmn:incoming>SF_CheckAmountGateway</bpmn:incoming>
+        <bpmn:outgoing>SF_PathOver500</bpmn:outgoing>
+         <bpmn:outgoing>SF_UnderOrEqual500</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Dept Head Task -->
+      <bpmn:task id="Task_ApproveInvoiceSaperion" name="Approve Invoice via SAPERION">
+        <bpmn:incoming>SF_PathOver500</bpmn:incoming>
+          <bpmn:outgoing>SF_GoToPaymentTrigger</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Merge Gateway for Approval Path and Direct Payment -->
+     <bpmn:exclusiveGateway id="Gateway_MergeApproval" name="Merge Paths">
+        <bpmn:incoming>SF_GoToPaymentTrigger</bpmn:incoming> 
+          <bpmn:incoming>SF_UnderOrEqual500</bpmn:incoming>
+           <bpmn:outgoing>SF_TriggerERP</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+      <!-- Payment Trigger Task --> 
+
+        <bpmn:task id="Task_TriggerERPPayment" name="Trigger ERP System for Payment">
+             <bpmn:incoming>SF_TriggerERP</bpmn:incoming> 
+            <bpmn:outgoing>SF_EndProcess</bpmn:outgoing>
+        </bpmn:task>
+
+         <!-- End Event --> 
+
+          <bpmn:endEvent id="EndEvent_ProcessComplete" name="Payment Processed">
+             <bpmn:incoming>SF_EndProcess</bpmn:incoming> 
+        </bpmn:endEvent>
+
+
+    <!-- Flows --> 
+    
+      <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_Check" sourceRef="StartEvent_InvoiceReceived" targetRef="Task_CheckInvoice"/>
+
+       <!-- To Department Task -->
+       <bpmn:sequenceFlow id="SF_SendToDept" name="Send to Dept for Verification" sourceRef="Task_CheckInvoice" targetRef="Task_VerifyRegisterSaperion">
+        </bpmn:sequenceFlow>
+
+    <!-- Gateway Flows --> 
+      <!-- To Amount Check Gateway -->
+       <bpmn:sequenceFlow id="SF_CheckAmountGateway" name="Submit for Review Logic" sourceRef="Task_VerifyRegisterSaperion" targetRef="Gateway_AmountCheck">
+        </bpmn:sequenceFlow>
+
+    <!-- Manager Flow Branch Logic Flows --> 
+      <!-- Path > 500 -->
+       <bpmn:sequenceFlow id="SF_PathOver500" name="Amount &gt; $500" sourceRef="Gateway_AmountCheck" targetRef="Task_ApproveInvoiceSaperion">
+        </bpmn:sequenceFlow>
+
+      <!-- Path <= 500 --> 
+       <bpmn:sequenceFlow id="SF_UnderOrEqual500" name="Amount &lt;= $500" sourceRef="Gateway_AmountCheck" targetRef="Gateway_MergeApproval">
+        </bpmn:sequenceFlow>
+
+    <!-- Merge Flow to Payment --> 
+       <bpmn:sequenceFlow id="SF_GoToPaymentTrigger" name="Approved Path" sourceRef="Task_ApproveInvoiceSaperion" targetRef="Gateway_MergeApproval"/>
+
+      <!-- Final Trigger Flow -->
+        <bpmn:sequenceFlow id="SF_TriggerERP" name="Proceed to Payment" sourceRef="Gateway_MergeApproval" targetRef="Task_TriggerERPPayment">
+       </bpmn:sequenceFlow>
+
+    <!-- End Flow --> 
+     <bpmn:sequenceFlow id="SF_EndProcess" sourceRef="Task_TriggerERPPayment" targetRef="EndEvent_ProcessComplete"/>
+
+
+  </bpmn:process>
+</bpmn:definitions>

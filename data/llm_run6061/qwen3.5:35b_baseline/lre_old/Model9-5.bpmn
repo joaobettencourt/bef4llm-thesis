@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ExpenseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ExpenseProcess">
+    <bpmn:participant id="Participant_MainSystem" name="Expense Report System" processRef="Proc_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_System" name="System Department">
+        <bpmn:flowNodeRef>StartEvent_ReportReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAccountExistence</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AccountExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateEmployeeAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessReimbursement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor Department">
+        <bpmn:flowNodeRef>Task_SupervisorApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ApprovalResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Notification Tasks (System) -->
+       <bpmn:lane id="Lane_Notifications" name="Notifications">
+         <bpmn:flowNodeRef>Task_SendRejectionEmail</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+       </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Receive Expense Report">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Account Existence -->
+    <bpmn:task id="Task_CheckAccountExistence" name="Check Employee Account">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Account Exists? -->
+    <bpmn:exclusiveGateway id="Gateway_AccountExists" name="Account Exists?">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateAccountPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedToReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Create Account (if needed) -->
+    <bpmn:task id="Task_CreateEmployeeAccount" name="Create New Employee Account">
+      <bpmn:incoming>SequenceFlow_CreateAccountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Review Report -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>SequenceFlow_ProceedToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountCheckPath</bpmn:outgoing>
+
+    </bpmn:task>
+
+    <!-- Gateway 2: Amount Check -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>SequenceFlow_AmountCheckPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AutoApprove</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorApprovalRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: Auto Approve -->
+    <bpmn:task id="Task_ProcessReimbursement" name="Process Reimbursement">
+      <bpmn:incoming>SequenceFlow_AutoApprove</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessEndPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B: Supervisor Approval -->
+    <bpmn:task id="Task_SupervisorApproval" name="Supervisor Review">
+      <bpmn:incoming>SequenceFlow_SupervisorApprovalRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalDecisionPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Approval Result -->
+    <bpmn:exclusiveGateway id="Gateway_ApprovalResult" name="Approved?">
+      <bpmn:incoming>SequenceFlow_ApprovalDecisionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToReimbursement</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectionPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Success" name="Reimbursement Processed">
+       <bpmn:incoming>SequenceFlow_SuccessEndPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Rejection End Event -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Cancelled">
+      <bpmn:incoming>SequenceFlow_RejectedEndPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_ReportReceived" targetRef="Task_CheckAccountExistence"/>
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Check Account Status" sourceRef="Task_CheckAccountExistence" targetRef="Gateway_AccountExists"/>
+
+    <!-- Create Account Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateAccountPath" name="No, create account" sourceRef="Gateway_AccountExists" targetRef="Task_CreateEmployeeAccount"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToReview" sourceRef="Task_CreateEmployeeAccount" targetRef="Task_ReviewReport"/>
+
+    <!-- Proceed to Review Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedToReview" name="Yes, proceed" sourceRef="Gateway_AccountExists" targetRef="Task_ReviewReport"/>
+
+    <!-- Amount Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AmountCheckPath" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountCheck"/>
+
+    <!-- Auto Approve Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AutoApprove" name="Yes (&lt;$200)" sourceRef="Gateway_AmountCheck" targetRef="Task_ProcessReimbursement"/>
+
+    <!-- Supervisor Approval Required Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApprovalRequired" name="No (>= $200)" sourceRef="Gateway_AmountCheck" targetRef="Task_SupervisorApproval"/>
+
+    <!-- Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalDecisionPath" sourceRef="Task_SupervisorApproval" targetRef="Gateway_ApprovalResult"/>
+
+    <!-- Merge to Reimbursement (Approved) -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToReimbursement" name="Yes, Approved" sourceRef="Gateway_ApprovalResult" targetRef="Task_ProcessReimbursement"/>
+
+    <!-- Task for rejection email -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_RejectionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectedEndPath</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Rejection End Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_RejectionPath" name="No, Reject" sourceRef="Gateway_ApprovalResult" targetRef="Task_SendRejectionEmail"/>
+     <bpmn:sequenceFlow id="SequenceFlow_RejectedEndPath" sourceRef="Task_SendRejectionEmail" targetRef="EndEvent_Rejected"/>
+
+    <!-- Success End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessEndPath" name="Process Reimbursement" sourceRef="Task_ProcessReimbursement" targetRef="EndEvent_Success"/>
+
+  </bpmn:process>
+</bpmn:definitions>

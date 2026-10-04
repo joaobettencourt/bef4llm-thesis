@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_InvoiceProcess">
+    <bpmn:participant id="Participant_SSPAdminOffice" name="SSP Admin Office" processRef="Process_InvoiceProcessing" />
+    <bpmn:participant id="Participant_Client" name="Client" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvoiceProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_AdminOffice" name="Admin Office">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortClient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AttachForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckCompleteness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterSLAInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckPriority</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApplyRedStamp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ComplianceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AllocateDEO</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ExperienceStaff" name="Experience Staff">
+        <bpmn:flowNodeRef>SubProcess_NonComplianceInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive Invoice">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_StartToSortClient</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Sort by Client -->
+    <bpmn:userTask id="Task_SortClient" name="Sort invoice per client">
+      <bpmn:incoming>SequenceFlow_StartToSortClient</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSortVendor</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Sort by Vendor -->
+    <bpmn:userTask id="Task_SortVendor" name="Sort invoice per vendor">
+      <bpmn:incoming>SequenceFlow_ToSortVendor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AttachForm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Attach Form -->
+    <bpmn:userTask id="Task_AttachForm" name="Attach invoice entry form to invoice">
+      <bpmn:incoming>SequenceFlow_AttachForm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterInfo</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Enter Info -->
+    <bpmn:userTask id="Task_EnterInfo" name="Enter required info on invoice entry form">
+      <bpmn:incoming>SequenceFlow_EnterInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCompleteness</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Check Completeness -->
+    <bpmn:exclusiveGateway id="Gateway_CheckCompleteness" name="Invoice complete?">
+      <bpmn:incoming>SequenceFlow_CheckCompleteness</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotComplete</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CompleteToSLA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for incomplete invoice -->
+    <bpmn:endEvent id="EndEvent_Incomplete" name="Invoice Incomplete">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_NotComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Enter SLA Info -->
+    <bpmn:userTask id="Task_EnterSLAInfo" name="Enter info for SLA and check priority">
+      <bpmn:incoming>SequenceFlow_CompleteToSLA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPriority</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Check Priority -->
+    <bpmn:exclusiveGateway id="Gateway_CheckPriority" name="High priority?">
+      <bpmn:incoming>SequenceFlow_CheckPriority</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighToStamp</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowComplianceCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Apply Red Stamp -->
+    <bpmn:userTask id="Task_ApplyRedStamp" name="Apply red stamp on entry invoice">
+      <bpmn:incoming>SequenceFlow_HighToStamp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StampComplianceCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Compliance Check -->
+    <bpmn:exclusiveGateway id="Gateway_ComplianceCheck" name="Invoice compliant?">
+      <bpmn:incoming>SequenceFlow_LowComplianceCheck</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_StampComplianceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompliantToDEO</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotCompliant</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Allocate to DEO -->
+    <bpmn:userTask id="Task_AllocateDEO" name="Allocate invoice to DEO">
+      <bpmn:incoming>SequenceFlow_CompliantToDEO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DEOToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for completed process -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Invoice Processed">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_DEOToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- SubProcess for Non-Compliance Invoice -->
+    <bpmn:subProcess id="SubProcess_NonComplianceInvoice" name="Process non-compliance invoice">
+      <bpmn:incoming>SequenceFlow_NotCompliant</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubprocessToDEO</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSortClient" sourceRef="StartEvent_1" targetRef="Task_SortClient">
+      <bpmn:description>Invoice received from client</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToSortVendor" sourceRef="Task_SortClient" targetRef="Task_SortVendor" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_AttachForm" sourceRef="Task_SortVendor" targetRef="Task_AttachForm">
+      <bpmn:description>Invoice sorted by vendor</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EnterInfo" sourceRef="Task_AttachForm" targetRef="Task_EnterInfo">
+      <bpmn:description>Entry form attached to invoice</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCompleteness" name="Check completeness after client completed" sourceRef="Task_EnterInfo" targetRef="Gateway_CheckCompleteness">
+      <bpmn:description>Client has completed the invoice</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotComplete" name="No - Not Complete" sourceRef="Gateway_CheckCompleteness" targetRef="EndEvent_Incomplete">
+      <bpmn:messageName>InvoiceIncompleteMessage</bpmn:messageName>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteToSLA" name="Yes - Complete" sourceRef="Gateway_CheckCompleteness" targetRef="Task_EnterSLAInfo">
+      <bpmn:description>Invoice is complete</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPriority" name="Check priority after SLA info entered" sourceRef="Task_EnterSLAInfo" targetRef="Gateway_CheckPriority">
+      <bpmn:description>Admin enters SLA information</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HighToStamp" name="Yes - High Priority" sourceRef="Gateway_CheckPriority" targetRef="Task_ApplyRedStamp">
+      <bpmn:description>Invoice has high priority</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LowComplianceCheck" name="No - Low Priority" sourceRef="Gateway_CheckPriority" targetRef="Gateway_ComplianceCheck">
+      <bpmn:description>Invoice has low priority</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StampComplianceCheck" name="After red stamp applied" sourceRef="Task_ApplyRedStamp" targetRef="Gateway_ComplianceCheck">
+      <bpmn:description>Admin applies red stamp</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotCompliant" name="No - Not Compliant" sourceRef="Gateway_ComplianceCheck" targetRef="SubProcess_NonComplianceInvoice">
+      <bpmn:description>Invoice is not compliant</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CompliantToDEO" name="Yes - Compliant" sourceRef="Gateway_ComplianceCheck" targetRef="Task_AllocateDEO">
+      <bpmn:description>Invoice is compliant</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SubprocessToDEO" name="After missing info obtained" sourceRef="SubProcess_NonComplianceInvoice" targetRef="Task_AllocateDEO">
+      <bpmn:description>Missing information has been obtained</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DEOToEndEvent" sourceRef="Task_AllocateDEO" targetRef="EndEvent_Completed">
+      <bpmn:description>Invoice allocated to DEO, process complete</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message for invoice incomplete notification -->
+  <bpmn:message id="Message_InvoiceIncomplete" name="Invoice Incomplete Notification">
+    <bpmn:name>InvoiceIncompleteMessage</bpmn:name>
+  </bpmn:message>
+
+</bpmn:definitions>

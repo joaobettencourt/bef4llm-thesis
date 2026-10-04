@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_CreditCardAddition" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_CreditCardProcess">
+    <bpmn:participant id="Participant_MainProcess" name="Credit Card Addition Process" processRef="Proc_AddCC_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_AddCC_001" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_EnterDetails" name="Enter Credit Card Details">
+      <bpmn:outgoing>Flow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: User enters details -->
+    <bpmn:userTask id="UserTask_InputCCDetails" name="Enter Credit Card Details">
+      <bpmn:incoming>Flow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_TaskToAddressCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: Address Check -->
+    <bpmn:exclusiveGateway id="Gate_AddressCorrect" name="Billing Address Correct?">
+      <bpmn:incoming>Flow_TaskToAddressCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_YesContinue</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoModify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: User modifies if incorrect -->
+    <bpmn:userTask id="UserTask_ModifyAddress" name="Modify Billing Address">
+      <bpmn:incoming>Flow_NoModify</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepeatCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 3: User clicks continue -->
+    <bpmn:userTask id="UserTask_ClickContinue" name="Click Continue Button">
+      <bpmn:incoming>Flow_YesContinue</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToVerification</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 4: Credit Card Verification -->
+    <bpmn:serviceTask id="Service_VerifyCC" name="Verify with CC Authority">
+      <bpmn:incoming>Flow_ToVerification</bpmn:incoming>
+      <bpmn:outgoing>Flow_ResultsCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 2: Verification Result -->
+    <bpmn:exclusiveGateway id="Gate_VerificationResult" name="Verification Valid?">
+      <bpmn:incoming>Flow_ResultsCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_AddCC</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CancelAddition</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Card Added -->
+    <bpmn:endEvent id="End_CardAdded" name="Credit Card Added">
+      <bpmn:incoming>Flow_AddCC</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Addition Cancelled -->
+    <bpmn:endEvent id="End_Cancelled" name="Addition Cancelled">
+      <bpmn:incoming>Flow_CancelAddition</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToTask" sourceRef="Start_EnterDetails" targetRef="UserTask_InputCCDetails"/>
+    
+    <bpmn:sequenceFlow id="Flow_TaskToAddressCheck" sourceRef="UserTask_InputCCDetails" targetRef="Gate_AddressCorrect"/>
+    
+    <bpmn:sequenceFlow id="Flow_YesContinue" name="Yes - Correct Address" 
+                      sourceRef="Gate_AddressCorrect" targetRef="UserTask_ClickContinue">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${addressValid}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_NoModify" name="No - Incorrect Address" 
+                      sourceRef="Gate_AddressCorrect" targetRef="UserTask_ModifyAddress">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!addressValid}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_RepeatCheck" sourceRef="UserTask_ModifyAddress" targetRef="Gate_AddressCorrect"/>
+    
+    <bpmn:sequenceFlow id="Flow_ToVerification" name="Continue to Verification" 
+                      sourceRef="UserTask_ClickContinue" targetRef="Service_VerifyCC">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${continueClicked}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_ResultsCheck" sourceRef="Service_VerifyCC" targetRef="Gate_VerificationResult"/>
+    
+    <bpmn:sequenceFlow id="Flow_AddCC" name="Valid - Add Card" 
+                      sourceRef="Gate_VerificationResult" targetRef="End_CardAdded">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${verificationSuccess}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_CancelAddition" name="Invalid - Cancel Addition" 
+                      sourceRef="Gate_VerificationResult" targetRef="End_Cancelled">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!verificationSuccess}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

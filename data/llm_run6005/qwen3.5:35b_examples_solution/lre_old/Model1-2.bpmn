@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ComputerRepair">
+    <bpmn:participant id="Participant_RepairProcess" name="Computer Repair Process" processRef="Process_Repair"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Repair" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_BringDefectivePC" name="Customer brings defective computer">
+      <bpmn:outgoing>SeqFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: CRS checks defect and calculates cost -->
+    <bpmn:task id="Task_CheckDefectAndCalculate" name="CRS checks defect &amp; hands out repair cost calculation">
+      <bpmn:incoming>SeqFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToCostDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToCheck" sourceRef="Start_BringDefectivePC" targetRef="Task_CheckDefectAndCalculate"/>
+
+    <!-- Decision Gateway (Accept costs?) -->
+    <bpmn:exclusiveGateway id="Gate_AcceptCosts" name="Customer accepts repair cost?">
+      <bpmn:incoming>SeqFlow_ToCostDecision</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_YesContinueRepair</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_NoTakeHome</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow to Decision -->
+    <bpmn:sequenceFlow id="SeqFlow_ToCostDecision" sourceRef="Task_CheckDefectAndCalculate" targetRef="Gate_AcceptCosts"/>
+
+    <!-- End Event for Rejected Repair (Customer takes computer home) -->
+    <bpmn:endEvent id="End_TakeHomeUnrepaired" name="Computer taken home unrepaired">
+      <bpmn:incoming>SeqFlow_NoTakeHome</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Rejected Path -->
+    <bpmn:sequenceFlow id="SeqFlow_NoTakeHome" sourceRef="Gate_AcceptCosts" targetRef="End_TakeHomeUnrepaired"/>
+
+    <!-- Parallel Gateway to split into two repair paths (arbitrary order) -->
+    <bpmn:parallelGateway id="Parallel_SplitRepair" name="Start Repair Activities">
+      <bpmn:incoming>SeqFlow_YesContinueRepair</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_HardwarePath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SoftwarePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow to Parallel Split -->
+    <bpmn:sequenceFlow id="SeqFlow_YesContinueRepair" sourceRef="Gate_AcceptCosts" targetRef="Parallel_SplitRepair"/>
+
+    <!-- Task 1: Check and repair hardware -->
+    <bpmn:task id="Task_Hardware" name="Check and repair hardware">
+      <bpmn:incoming>SeqFlow_HardwarePath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToHardwareTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Check and configure software -->
+    <bpmn:task id="Task_Software" name="Check and configure software">
+      <bpmn:incoming>SeqFlow_SoftwarePath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToSoftwareTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for parallel paths -->
+    <bpmn:sequenceFlow id="SeqFlow_HardwarePath" sourceRef="Parallel_SplitRepair" targetRef="Task_Hardware"/>
+    <bpmn:sequenceFlow id="SeqFlow_SoftwarePath" sourceRef="Parallel_SplitRepair" targetRef="Task_Software"/>
+
+    <!-- Test System Functionality (after hardware) -->
+    <bpmn:task id="TestAfterHardware" name="Test system functionality after hardware repair">
+      <bpmn:incoming>SeqFlow_ToHardwareTest</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_HardwareToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Test System Functionality (after software) -->
+    <bpmn:task id="TestAfterSoftware" name="Test system functionality after software repair">
+      <bpmn:incoming>SeqFlow_ToSoftwareTest</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SoftwareToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows to tests -->
+    <bpmn:sequenceFlow id="SeqFlow_ToHardwareTest" sourceRef="Task_Hardware" targetRef="TestAfterHardware"/>
+    <bpmn:sequenceFlow id="SeqFlow_ToSoftwareTest" sourceRef="Task_Software" targetRef="TestAfterSoftware"/>
+
+    <!-- Boundary Event for Error on Hardware Test -->
+    <bpmn:boundaryEvent id="Boundary_Error_Hardware">
+      <bpmn:errorEventDefinition/>
+      <bpmn:attachedToRef>TestAfterHardware</bpmn:attachedToRef>
+      <bpmn:name>Error detected</bpmn:name>
+      <bpmn:outgoing>SeqFlow_Boundary_Hardware_ToRepairLoop</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Boundary Event for Error on Software Test -->
+    <bpmn:boundaryEvent id="Boundary_Error_Software">
+      <bpmn:errorEventDefinition/>
+      <bpmn:attachedToRef>TestAfterSoftware</bpmn:attachedToRef>
+      <bpmn:name>Error detected</bpmn:name>
+      <bpmn:outgoing>SeqFlow_Boundary_Software_ToRepairLoop</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Sequence Flows from boundary events -->
+    <bpmn:sequenceFlow id="SeqFlow_Boundary_Hardware_ToRepairLoop" sourceRef="Boundary_Error_Hardware" targetRef="Gate_RetryDecision"/>
+    <bpmn:sequenceFlow id="SeqFlow_Boundary_Software_ToRepairLoop" sourceRef="Boundary_Error_Software" targetRef="Gate_RetryDecision"/>
+
+    <!-- Decision Gateway for Retry -->
+    <bpmn:exclusiveGateway id="Gate_RetryDecision" name="Execute another repair activity?">
+      <bpmn:incoming>SeqFlow_Boundary_Hardware_ToRepairLoop</bpmn:incoming>
+      <bpmn:incoming>SeqFlow_Boundary_Software_ToRepairLoop</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_YesRetryToParallelSplit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for Retry Decision -->
+    <bpmn:sequenceFlow id="SeqFlow_YesRetryToParallelSplit" sourceRef="Gate_RetryDecision" targetRef="Parallel_SplitRepair"/>
+
+    <!-- Merge Gateway after tests complete successfully -->
+    <bpmn:parallelGateway id="Merge_Complete" name="Both Tests Complete">
+      <bpmn:incoming>SeqFlow_HardwareToMerge</bpmn:incoming>
+      <bpmn:incoming>SeqFlow_SoftwareToMerge</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows to merge -->
+    <bpmn:sequenceFlow id="SeqFlow_HardwareToMerge" sourceRef="TestAfterHardware" targetRef="Merge_Complete"/>
+    <bpmn:sequenceFlow id="SeqFlow_SoftwareToMerge" sourceRef="TestAfterSoftware" targetRef="Merge_Complete"/>
+
+    <!-- End Event for Successful Repair -->
+    <bpmn:endEvent id="End_SuccessfulRepair" name="Computer repaired successfully">
+      <bpmn:incoming>SeqFlow_MergeToSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from merge to end -->
+    <bpmn:sequenceFlow id="SeqFlow_MergeToSuccess" sourceRef="Merge_Complete" targetRef="End_SuccessfulRepair"/>
+
+  </bpmn:process>
+</bpmn:definitions>

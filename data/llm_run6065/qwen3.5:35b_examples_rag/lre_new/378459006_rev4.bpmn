@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SSP_Client">
+    <bpmn:participant id="Participant_SSP_Org" name="SSP Organization" processRef="Process_Payment"/>
+    <bpmn:participant id="Participant_Clients" name="Clients"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Payment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice" name="Payment Office">
+        <bpmn:flowNodeRef>LaneTask_GenerateReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneTask_VendorPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef:LaneGateway_DistributeReports/>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry Office">
+        <bpmn:flowNodeRef>LaneTask_ArchiveInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneTask_TrackPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AR" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>LaneTask_GenerateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef:LaneTask_ChargeClient</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event - Timer at end of every week -->
+    <bpmn:startEvent id="StartEvent_Weekly">
+      <bpmn:outgoing>bpmn:SequenceFlow_Start</bpmn:outgoing>
+      <bpmn:timerEventDefinition xsi:type="bpmn:TimerEventDefinition"/>
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:userTask id="LaneTask_GenerateReport" name="Generate Payment Report">
+      <bpmn:incoming>bpmn:SequenceFlow_Start</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_PaymentProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="LaneTask_VendorPayment" name="Pay Vendor">
+      <bpmn:incoming>bpmn:SequenceFlow_PaymentProcess</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_DistributeReport</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Report Distribution -->
+    <bpmn:parallelGateway id="LaneGateway_DistributeReports">
+      <bpmn:incoming>bpmn:SequenceFlow_DistributeReport</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ToRegistry</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_ToAR</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Accounts Receivable Department Tasks -->
+    <bpmn:userTask id="LaneTask_GenerateInvoice" name="Generate Monthly Invoice for Clients">
+      <bpmn:incoming>bpmn:SequenceFlow_ToAR</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ChargeClientProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="LaneTask_ChargeClient" name="Charge $35 per Invoice and Notify Client">
+      <bpmn:incoming>bpmn:SequenceFlow_ChargeClientProcess</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_SendInvoiceToClients</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:userTask id="LaneTask_ArchiveInvoices" name="Archive Paper-Based Paid Invoices">
+      <bpmn:incoming>bpmn:SequenceFlow_ToRegistry</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TrackPaymentProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="LaneTask_TrackPayment" name="Track Down Payment">
+      <bpmn:incoming>bpmn:SequenceFlow_TrackPaymentProcess</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Start" sourceRef="StartEvent_Weekly" targetRef="LaneTask_GenerateReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentProcess" name="Generate Report and Pay Vendor" sourceRef="LaneTask_GenerateReport" targetRef="LaneTask_VendorPayment"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeReport" name="Distribute Payment Report" sourceRef="LaneTask_VendorPayment" targetRef="LaneGateway_DistributeReports"/>
+
+    <!-- Parallel Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRegistry" name="Send to Registry Office" sourceRef="LaneGateway_DistributeReports" targetRef="LaneTask_ArchiveInvoices">
+      <bpmn:name>Payment Report</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToAR" name="Send to Accounts Receivable" sourceRef="LaneGateway_DistributeReports" targetRef="LaneTask_GenerateInvoice">
+      <bpmn:name>Payment Report</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Client Notification -->
+    <bpmn:message id="Message_PaymentInvoice"/>
+    <bpmn:intermediateThrowEvent id="IntermediateSendToClients" name="Send Payment Invoice to Clients">
+      <bpmn:incoming>bpmn:SequenceFlow_SendInvoiceToClients</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete">
+      <bpmn:incoming>bpmn:SequenceFlow_SendInvoiceToClients</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

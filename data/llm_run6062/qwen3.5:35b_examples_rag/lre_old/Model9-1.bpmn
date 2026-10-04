@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_AccountDefaultersProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_AccountDefaulterProcessing">
+    <bpmn:participant id="Participant_CreditSystem" name="Account Defaulters Processing System" processRef="Process_AccountDefaulterProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AccountDefaulterProcessing" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_WeekdayMorning" name="Every weekday morning">
+      <bpmn:outgoing>SequenceFlow_BackupDB</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Database Backup -->
+    <bpmn:task id="Task_DatabaseBackup" name="Database backup">
+      <bpmn:incoming>SequenceFlow_BackupDB</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDefaultersTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Defaulters Table -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NewRecords" name="New records in Account Defaulters table?">
+      <bpmn:incoming>SequenceFlow_CheckDefaultersTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoNewRecords</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NewRecordsFound</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Check CRM Returns (if no new DB records) -->
+    <bpmn:task id="Task_CheckCRMReturns" name="Check CRM for new returns">
+      <bpmn:incoming>SequenceFlow_NoNewRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NewReturnsExist</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Check CRM Returns -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ReturnsFound" name="New returns filed?">
+      <bpmn:incoming>SequenceFlow_NewReturnsExist</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterAccounts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Register Accounts (from DB or CRM) -->
+    <bpmn:task id="Task_RegisterDefaultingAccounts" name="Register defaulting accounts and customers">
+      <bpmn:incoming>SequenceFlow_NewRecordsFound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckClientCodes</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Check Client Codes -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ClientCodeAdvised" name="Defaulting client codes previously advised?">
+      <bpmn:incoming>SequenceFlow_CheckClientCodes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceTable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Produce Table (if not advised) -->
+    <bpmn:task id="Task_ProduceDefaultingTable" name="Produce table of defaulting accounts">
+      <bpmn:incoming>SequenceFlow_NoNewRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToAccountManagement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Send Table -->
+    <bpmn:task id="Task_SendTable" name="Send table to account management">
+      <bpmn:incoming>SequenceFlow_ProduceTable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCRMReturns2ndTime</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Check CRM Returns (Second Time) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NewReturnsSecondCheck" name="New returns filed?">
+      <bpmn:incoming>SequenceFlow_CheckCRMReturns2ndTime</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReconcileDefaultersTable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6: Reconcile -->
+    <bpmn:task id="Task_ReconcileWithExisting" name="Reconcile with existing account defaulters table">
+      <bpmn:incoming>SequenceFlow_NewReturnsExist2ndTime</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndProcessCompleted" name="Processing completed">
+      <bpmn:incoming>SequenceFlow_ProcessComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Timer for 2:30 PM Alert (Boundary/Parallel) -->
+    <bpmn:intermediateCatchEvent id="Timer_230PM" name="Alert supervisor">
+      <bpmn:incoming>SequenceFlow_Timeout</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSupervisorAlert1</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 4:00 PM Alert -->
+    <bpmn:intermediateCatchEvent id="Timer_4PM" name="Send message to supervisor">
+      <bpmn:incoming>SequenceFlow_Timeout2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSupervisorAlert2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackupDB" sourceRef="StartEvent_WeekdayMorning" targetRef="Task_DatabaseBackup"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDefaultersTable" sourceRef="Task_DatabaseBackup" targetRef="ExclusiveGateway_NewRecords"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NoNewRecords" name="No new records" sourceRef="ExclusiveGateway_NewRecords" targetRef="Task_ProduceDefaultingTable"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NewRecordsFound" name="Yes, found" sourceRef="ExclusiveGateway_NewRecords" targetRef="Task_RegisterDefaultingAccounts"/>
+    
+    <!-- CRM Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCRMReturns2ndTime" sourceRef="Task_SendTable" targetRef="ExclusiveGateway_NewReturnsSecondCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProduceTable" name="Not previously advised" sourceRef="ExclusiveGateway_ClientCodeAdvised" targetRef="Task_SendToAccountManagement"/>
+    
+    <!-- Register Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClientCodes" sourceRef="Task_RegisterDefaultingAccounts" targetRef="ExclusiveGateway_ClientCodeAdvised"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NewReturnsExist2ndTime" name="Yes, new returns exist" sourceRef="ExclusiveGateway_NewReturnsSecondCheck" targetRef="Task_ReconcileWithExisting"/>
+    
+    <!-- Reconciliation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessComplete" sourceRef="Task_ReconcileWithExisting" targetRef="EndProcessCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

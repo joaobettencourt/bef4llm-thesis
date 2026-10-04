@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_001" name="Computer Hardware Shop Dispatch" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>ExclusiveGateway_QtyCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCarrier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_InsuranceCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manager" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_ArrangeInsurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_JoinAdminWarehouse</bpmn:flowNodeRef> <!-- Using Exclusive for join logic in this simplified model -->
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ShipGoods" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_StartSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Prepared" name="Abholung bereitgestellt">
+      <bpmn:incoming>SequenceFlow_FinalTaskOut</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateways -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Start Parallel Prep">
+      <bpmn:incoming>SequenceFlow_StartSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WarehousePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Quantity Decision (Exclusive) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_QtyCheck" name="Menge prüfen">
+      <bpmn:incoming>SequenceFlow_AdminPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargeQty</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallQty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Insurance Decision (Exclusive) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_InsuranceCheck" name="Versicherung nötig?">
+      <bpmn:incoming>SequenceFlow_LabelFilled</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArrangeIns</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SkipIns</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Join Gateway (Parallel) -->
+    <bpmn:parallelGateway id="ExclusiveGateway_JoinAdminWarehouse" name="Alle Vorbereitungen">
+      <bpmn:incoming>SequenceFlow_AdminReady</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WarehouseReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTaskIn</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_GetOffers" name="Angebote einholen">
+      <bpmn:incoming>SequenceFlow_LargeQty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCarrierIn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectCarrier" name="Spediteur beauftragen">
+      <bpmn:incoming>SequenceFlow_SelectCarrierIn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_FillLabel" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_SmallQty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LabelFilled</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ArrangeInsurance" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_ArrangeIns</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SkipInsJoin</bpmn:outgoing> <!-- Joining back to flow -->
+    </bpmn:task>
+
+    <bpmn:task id="Task_PackGoods" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_WarehousePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WarehouseReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PreparePickup" name="Zur Abholung bereitstellen">
+      <bpmn:incoming>SequenceFlow_FinalTaskIn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTaskOut</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartSplit" sourceRef="StartEvent_ShipGoods" targetRef="ParallelGateway_Split" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminPath" name="" sourceRef="ParallelGateway_Split" targetRef="ExclusiveGateway_QtyCheck" />
+    <bpmn:sequenceFlow id="SequenceFlow_WarehousePath" name="" sourceRef="ParallelGateway_Split" targetRef="Task_PackGoods" />
+
+    <!-- Large Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LargeQty" name="Große Mengen (Sonderversand)" sourceRef="ExclusiveGateway_QtyCheck" targetRef="Task_GetOffers">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[largeQuantity]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Small Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SmallQty" name="Kleine Mengen (Normal)" sourceRef="ExclusiveGateway_QtyCheck" targetRef="Task_FillLabel">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[smallQuantity]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_LabelFilled" sourceRef="Task_FillLabel" targetRef="ExclusiveGateway_InsuranceCheck" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ArrangeIns" name="Ja (Versicherung nötig)" sourceRef="ExclusiveGateway_InsuranceCheck" targetRef="Task_ArrangeInsurance">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[insuranceRequired]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Joining Insurance Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipIns" name="Nein (Keine Versicherung)" sourceRef="ExclusiveGateway_InsuranceCheck" targetRef="ExclusiveGateway_JoinAdminWarehouse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!insuranceRequired]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Joining Insurance Task Output to Main Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipInsJoin" sourceRef="Task_ArrangeInsurance" targetRef="ExclusiveGateway_JoinAdminWarehouse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[insuranceDone]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Large Path Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCarrierIn" sourceRef="Task_GetOffers" targetRef="Task_SelectCarrier" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminReady" name="" sourceRef="Task_SelectCarrier" targetRef="ExclusiveGateway_JoinAdminWarehouse">
+      <!-- Large path joins here -->
+    </bpmn:sequenceFlow>
+
+    <!-- Final Steps -->
+    <bpmn:sequenceFlow id="SequenceFlow_WarehouseReady" sourceRef="Task_PackGoods" targetRef="ExclusiveGateway_JoinAdminWarehouse" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalTaskIn" name="" sourceRef="ExclusiveGateway_JoinAdminWarehouse" targetRef="Task_PreparePickup" />
+
+  </bpmn:process>
+</bpmn:definitions>

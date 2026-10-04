@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_BankAccountVerification">
+    <bpmn:participant id="Participant_PayPalClient" name="PayPal Client" processRef="Process_ClientSide"/>
+    <bpmn:participant id="Participant_PayPalSystem" name="PayPal System" processRef="Process_SystemSide"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_BankDetailsSubmit" name="Bank Details Submit"/>
+  <bpmn:message id="Message_DepositNotification" name="Deposit Notification"/>
+  <bpmn:message id="Message_ClientVerificationRequest" name="Client Verification Request"/>
+  <bpmn:message id="Message_VerificationSubmitted" name="Verification Submitted"/>
+
+  <bpmn:process id="Process_ClientSide" isExecutable="false">
+    <bpmn:startEvent id="Start_BankAccountPayment" name="Client wants to pay with bank account">
+      <bpmn:outgoing>Flow_1_StartToEnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_EnterBankDetails" name="Enter Bank Details">
+      <bpmn:incoming>Flow_1_StartToEnterDetails</bpmn:incoming>
+      <bpmn:outgoing>Flow_2_EnterContinue</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ClickContinue" name="Click Continue">
+      <bpmn:incoming>Flow_2_EnterContinue</bpmn:incoming>
+      <bpmn:outgoing>Flow_3_SubmitToSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_AccountConfirmed" name="Bank Account Confirmed">
+      <bpmn:incoming>Flow_ClientAccountConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_AccountRemoved" name="Account Removed (Not Confirmed)">
+      <bpmn:incoming>Flow_ClientAccountRemoved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="Task_LogInPayPal" name="Log into PayPal Account">
+      <bpmn:description>After 3-5 working days notification from system</bpmn:description>
+      <bpmn:incoming>Flow_ClientNotificationReceived</bpmn:incoming>
+      <bpmn:outgoing>Flow_EnterDepositAmounts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_EnterDepositAmounts" name="Enter Deposit Amounts">
+      <bpmn:description>Two deposit amounts from bank account</bpmn:description>
+      <bpmn:incoming>Flow_EnterDepositAmounts</bpmn:incoming>
+      <bpmn:outgoing>Flow_ClickVerify</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ClickVerify" name="Click Verify">
+      <bpmn:description>Submit deposit amounts for verification</bpmn:description>
+      <bpmn:incoming>Flow_ClickVerify</bpmn:incoming>
+      <bpmn:outgoing>Flow_VerificationSubmitted</bpmn:outgoing>
+    </bpmn:userTask>
+
+  </bpmn:process>
+
+  <bpmn:process id="Process_SystemSide" isExecutable="false">
+    <bpmn:startEvent id="Start_ClientRequest" name="Client requests bank account payment">
+      <bpmn:outgoing>Flow_ReceiveDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_SubmitBankDetails" name="Submit Bank Details to System">
+      <bpmn:description>Client submits bank details (first name, bank name, account type, BSB, account number)</bpmn:description>
+      <bpmn:incoming>Flow_ReceiveDetails</bpmn:incoming>
+      <bpmn:outgoing>Flow_SystemReceivesDetails</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_MakeDeposits" name="Make Two Random Deposits">
+      <bpmn:description>System makes two random deposits in client's bank account</bpmn:description>
+      <bpmn:incoming>Flow_SystemReceivesDetails</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendDepositInfoToClient</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:intermediateThrowEvent id="IntermediateWaitPeriod" name="3-5 Working Days Wait">
+      <bpmn:description>System waits 3-5 working days before notifying client</bpmn:description>
+      <bpmn:incoming>Flow_SendDepositInfoToClient</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifyClientCheckAccount</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:userTask id="Task_SystemNotifyClient" name="Notify Client to Check Bank Account">
+      <bpmn:description>System notifies client about received deposits</bpmn:description>
+      <bpmn:incoming>Flow_NotifyClientCheckAccount</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendVerificationRequest</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_CheckDepositValues" name="Check Deposit Values">
+      <bpmn:description>System checks values entered by client against system records</bpmn:description>
+      <bpmn:incoming>Flow_ClientVerificationSubmitted</bpmn:incoming>
+      <bpmn:outgoing>Gateway_ValuesMatchDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ValuesMatchDecision" name="Deposit Values Match?">
+      <bpmn:description>If values match, account is confirmed; otherwise removed</bpmn:description>
+      <bpmn:incoming>Flow_CheckDepositResults</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValuesMatchYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ValuesMatchNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_LinkAccountConfirmed" name="Link Bank Account to PayPal">
+      <bpmn:description>Bank account is confirmed and linked successfully</bpmn:description>
+      <bpmn:incoming>Flow_ValuesMatchYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ClientAccountConfirmed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_RemoveBankAccount" name="Remove Bank Account from System">
+      <bpmn:description>Bank account could not be confirmed, removed from system</bpmn:description>
+      <bpmn:incoming>Flow_ValuesMatchNo</bpmn:incoming>
+      <bpmn:outgoing>Flow_ClientAccountRemoved</bpmn:outgoing>
+    </bpmn:userTask>
+
+  </bpmn:process>
+
+  <!-- Message Flows between Client and System -->
+  <bpmn:messageFlow id="MessageFlow_SubmitDetails">
+    <bpmn:sourceRef>Task_ClickContinue</bpmn:sourceRef>
+    <bpmn:targetRef>Task_SubmitBankDetails</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <!-- Message Flow: System notifies client about deposits -->
+  <bpmn:messageFlow id="MessageFlow_DepositNotification">
+    <bpmn:sourceRef>IntermediateWaitPeriod</bpmn:sourceRef>
+    <bpmn:targetRef>Task_LogInPayPal</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <!-- Message Flow: Client submits verification to System -->
+  <bpmn:messageFlow id="MessageFlow_VerificationSubmit">
+    <bpmn:sourceRef>Task_ClickVerify</bpmn:sourceRef>
+    <bpmn:targetRef>Task_CheckDepositValues</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <!-- Sequence Flows for Client Side -->
+  <bpmn:sequenceFlow id="Flow_1_StartToEnterDetails" sourceRef="Start_BankAccountPayment" targetRef="Task_EnterBankDetails"/>
+  <bpmn:sequenceFlow id="Flow_2_EnterContinue" name="" sourceRef="Task_EnterBankDetails" targetRef="Task_ClickContinue"/>
+  <bpmn:sequenceFlow id="Flow_ClientNotificationReceived" name="" sourceRef="Message_DepositNotification" targetRef="Task_LogInPayPal"/>
+
+</bpmn:definitions>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SSP_Invoice_Processing" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_SSP_Invoices">
+    <bpmn:participant id="Pool_SSP_InvProc" name="SSP Invoice Processing Process" processRef="Process_SSP_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SSP_Main" isExecutable="false">
+    
+    <!-- Lane Definitions for Departments -->
+    <bpmn:laneSet id="LaneSet_Depts">
+      <bpmn:lane id="Lane_MailCentre" name="Mail Centre Office">
+        <bpmn:flowNodeRef>StartEvent_InvoiceReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CategorizeInvoiceTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AdminDept" name="Administration Department">
+        <bpmn:flowNodeRef>ProcessInvoiceTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>PutInCollectionBoxTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_DataEntry" name="Data Entry Office">
+        <bpmn:flowNodeRef>DataEntryTimerEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SAPSystemTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Validation" name="Validation Office">
+        <bpmn:flowNodeRef>ValidateInvoiceProcessTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Payment" name="Payment Office">
+        <bpmn:flowNodeRef>WeeklyTimerEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExecutePaymentTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Registry" name="Registry Office">
+        <bpmn:flowNodeRef>ArchiveInvoicesTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Archived</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_InvoiceReceived" name="Invoice Received from Client">
+        <bpmn:outgoing>SF_MailCentre_Categorize</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Mail Centre Tasks -->
+    <bpmn:task id="CategorizeInvoiceTask" name="Categorize Invoice by Staff Member">
+        <bpmn:incoming>SF_MailCentre_Categorize</bpmn:incoming>
+        <bpmn:outgoing>SF_Admin_DeptForward</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Administration Department Tasks -->
+    <bpmn:task id="ProcessInvoiceTask" name="Process Invoice (Complex)">
+        <bpmn:incoming>SF_Admin_DeptForward</bpmn:incoming>
+        <bpmn:outgoing>SF_CollectionBox_Task</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="PutInCollectionBoxTask" name="Place Invoice in Collection Box">
+        <bpmn:incoming>SF_CollectionBox_Task</bpmn:incoming>
+        <bpmn:outgoing>SF_DataEntry_TakeInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Data Entry Office Timer Start Event -->
+    <bpmn:startEvent id="StartTimer_10AM" name="Daily 10 AM Timer">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+        <bpmn:outgoing>SF_DataEntry_TakeInvoice</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Data Entry Office Tasks -->
+    <bpmn:task id="SAPSystemTask" name="Enter Data in SAP System (Complex)">
+        <bpmn:incoming>SF_DataEntry_TakeInvoice</bpmn:incoming>
+        <bpmn:outgoing>SF_Validation_HourlyTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Hourly Timer Start Event -->
+    <bpmn:startEvent id="StartTimer_Hourly" name="Every Hour Timer">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+        <bpmn:outgoing>SF_Validation_ValidProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Validation Office Tasks -->
+    <bpmn:task id="ValidateInvoiceProcessTask" name="Execute Validation Process (Big)">
+        <bpmn:incoming>SF_Validation_ValidProcess</bpmn:incoming>
+        <bpmn:outgoing>SF_Payment_OfficeFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Weekly Timer Start Event -->
+    <bpmn:startEvent id="StartTimer_Weekly" name="Beginning of Week Timer">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+        <bpmn:outgoing>SF_Payment_OfficeFlow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:task id="ExecutePaymentTask" name="Execute Payment (Big Process)">
+        <bpmn:incoming>SF_Payment_OfficeFlow</bpmn:incoming>
+        <bpmn:outgoing>SF_Registry_Archive</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:endEvent id="EndEvent_Archived" name="Invoice Archived">
+        <bpmn:incoming>SF_Registry_Archive</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Mail Centre to Administration -->
+    <bpmn:sequenceFlow id="SF_MailCentre_Categorize" sourceRef="StartEvent_InvoiceReceived" targetRef="CategorizeInvoiceTask"/>
+    <bpmn:sequenceFlow id="SF_Admin_DeptForward" name="Forward Invoice" sourceRef="CategorizeInvoiceTask" targetRef="ProcessInvoiceTask"/>
+
+    <!-- Administration Department Internal Flow -->
+    <bpmn:sequenceFlow id="SF_CollectionBox_Task" sourceRef="ProcessInvoiceTask" targetRef="PutInCollectionBoxTask"/>
+
+    <!-- Data Entry Office Flows (Daily 10AM) -->
+    <bpmn:sequenceFlow id="SF_DataEntry_TakeInvoice" name="Take Invoices at 10 AM Daily" sourceRef="StartTimer_10AM" targetRef="SAPSystemTask"/>
+
+    <!-- Hourly Review Flow to Validation Office -->
+    <bpmn:sequenceFlow id="SF_Validation_HourlyTrigger" name="Hourly Trigger for Validation" sourceRef="SAPSystemTask" targetRef="ValidateInvoiceProcessTask">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hour == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Hourly Timer to Validation -->
+    <bpmn:sequenceFlow id="SF_Validation_ValidProcess" name="Forward for Validation Hourly" sourceRef="StartTimer_Hourly" targetRef="ValidateInvoiceProcessTask"/>
+
+    <!-- Payment Office Flow (Weekly) -->
+    <bpmn:sequenceFlow id="SF_Payment_OfficeFlow" name="Execute Weekly Payment" sourceRef="StartTimer_Weekly" targetRef="ExecutePaymentTask">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${dayOfWeek == 1}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Registry Office Flow -->
+    <bpmn:sequenceFlow id="SF_Registry_Archive" name="Archive After Payment" sourceRef="ExecutePaymentTask" targetRef="EndEvent_Archived"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

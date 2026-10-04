@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_TELECO_Sys">
+    <bpmn:participant id="Participant_CS" name="Customer Service" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_SM" name="Service Management" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_RP" name="Resource Provisioning" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CS" name="Customer Service">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SignificanceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateDetailedReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPerformanceToCS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ConcurrentActivities</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SM" name="Service Management">
+        <bpmn:flowNodeRef>Task_CompareSLA</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PremiumCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateEvent_ExtraFixLink</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeProblemSM</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CanAnalyze</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareFinalStatusReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ActionTypeCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_RP" name="Resource Provisioning">
+        <bpmn:flowNodeRef>Task_CheckPossibleProblemsRP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ProblemDetected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeProblemRP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateEvent_RestorationRequestWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TimeLimitCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Service Degradation Detected">
+      <bpmn:outgoing>SequenceFlow_EnterReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- CS Lane Tasks & Logic -->
+    <bpmn:task id="Task_EnterReport" name="Enter Problem Report into System T">
+      <bpmn:incoming>SequenceFlow_EnterReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompareSLA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- SM Lane Tasks & Logic -->
+    <bpmn:task id="Task_CompareSLA" name="Compare Report with SLA / Determine Measures">
+      <bpmn:incoming>SequenceFlow_CompareSLA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PremiumCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway Premium Check -->
+    <bpmn:exclusiveGateway id="Gateway_PremiumCheck" name="Is Customer Premium?">
+      <bpmn:incoming>SequenceFlow_PremiumCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExtraFixLinkYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Extra Fix Process Link (Intermediate Event) -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_ExtraFixLink" name="Link to Extra Problem Fix">
+      <bpmn:incoming>SequenceFlow_ExtraFixLinkYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SignificanceCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Significance Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SignificanceCheck" name="Significance Affects Measures?">
+      <bpmn:incoming>SequenceFlow_SignificanceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateDetailedReport</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- CS Lane Detailed Report -->
+    <bpmn:task id="Task_CreateDetailedReport" name="Create Detailed Problem Report">
+      <bpmn:incoming>SequenceFlow_CreateDetailedReport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToSM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- SM Lane Analysis -->
+    <bpmn:exclusiveGateway id="Gateway_CanAnalyze" name="Analyzable by SM?">
+      <bpmn:incoming>SequenceFlow_AnalysisRequestSM</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SMAnalysisYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task Analyze SM -->
+    <bpmn:task id="Task_AnalyzeProblemSM" name="Analyze Problem &amp; Create Trouble Report">
+      <bpmn:incoming>SequenceFlow_SMAnalysisYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateStatusReportSM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- RP Lane Analysis -->
+    <bpmn:exclusiveGateway id="Gateway_ProblemDetected" name="Possible Problems Detected?">
+      <bpmn:incoming>SequenceFlow_CheckProblemsRP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoProblemFound</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- RP Tasks -->
+    <bpmn:task id="Task_AnalyzeProblemRP" name="Analyze Problem &amp; Create Trouble Report">
+      <bpmn:incoming>SequenceFlow_ProblemDetected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateStatusReportRP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- RP Normal Execution -->
+    <bpmn:task id="Task_NormalExecution" name="Create Notification (Normal Service)">
+      <bpmn:incoming>SequenceFlow_NoProblemFound</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateStatusReportRP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Status Report Creation -->
+    <bpmn:exclusiveGateway id="Gateway_CanAnalyze" name="Analyzable by SM?">
+      <bpmn:incoming>SequenceFlow_AnalysisRequestSM</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SMAnalysisYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task Analyze SM -->
+    <bpmn:task id="Task_AnalyzeProblemSM" name="Analyze Problem &amp; Create Trouble Report">
+      <bpmn:incoming>SequenceFlow_SMAnalysisYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateStatusReportSM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterReport" sourceRef="StartEvent_1" targetRef="Task_EnterReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CompareSLA" sourceRef="Task_EnterReport" targetRef="Task_CompareSLA"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PremiumCheck" sourceRef="Task_CompareSLA" targetRef="Gateway_PremiumCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ExtraFixLinkYes" name="Premium - Yes" sourceRef="Gateway_PremiumCheck" targetRef="IntermediateEvent_ExtraFixLink"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SignificanceCheck" sourceRef="IntermediateEvent_ExtraFixLink" targetRef="Gateway_SignificanceCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CreateDetailedReport" name="No - Continue" sourceRef="Gateway_SignificanceCheck" targetRef="Task_CreateDetailedReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendToSM" sourceRef="Task_CreateDetailedReport" targetRef="Gateway_CanAnalyze"/>
+
+  </bpmn:process>
+</bpmn:definitions>

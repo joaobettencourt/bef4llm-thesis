@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Client" name="PayPal Client" processRef="Process_Client"/>
+    <bpmn:participant id="Participant_System" name="PayPal System" processRef="Process_System"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_SubmitDetails">
+      <bpmn:name>Submit Bank Details</bpmn:name>
+      <bpmn:sourceRef="Task_ClientEnterBankDetails"/>
+      <bpmn:targetRef="Event_SystemReceiveDetails"/>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_Notification">
+      <bpmn:name>Deposit Notification</bpmn:name>
+      <bpmn:sourceRef="Task_SystemMakeDeposits"/>
+      <bpmn:targetRef="Event_ClientNotificationReceived"/>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_Verification">
+      <bpmn:name>Verification Data</bpmn:name>
+      <bpmn:sourceRef="Task_ClientVerifyAmounts"/>
+      <bpmn:targetRef="Event_SystemReceiveVerification"/>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Client Process -->
+  <bpmn:process id="Process_Client" isExecutable="false">
+    
+    <bpmn:startEvent id="StartClient_SelectOption" name="Select Bank Account Payment Option">
+      <bpmn:outgoing>SequenceFlow_EnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_ClientEnterBankDetails" name="Enter bank details and click continue">
+      <bpmn:incoming>SequenceFlow_EnterDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubmitToSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event for Notification (3-5 working days) -->
+    <bpmn:startEvent id="StartClient_NotifyCheck" name="Notification Received">
+      <bpmn:incoming/> 
+      <bpmn:outgoing>SequenceFlow_CheckDeposits</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event for Notification (Alternative representation) -->
+    <bpmn:intermediateCatchEvent id="Event_ClientNotificationReceived" name="Receive Deposit Notification">
+      <bpmn:incoming/> 
+      <bpmn:outgoing>SequenceFlow_CheckDeposits</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Using Start Event for simplicity in flow logic without Timer definition complexity -->
+    <bpmn:startEvent id="StartClient_3to5Days" name="Wait 3-5 Days">
+      <bpmn:outgoing>SequenceFlow_CheckDeposits</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Corrected Flow Logic for Client -->
+    <bpmn:userTask id="Task_ClientCheckDeposits" name="Log into PayPal and check bank">
+      <bpmn:incoming>SequenceFlow_CheckDeposits</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_EnterAmounts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Correction on incoming/outgoing tags -->
+    
+  </bpmn:process>
+
+  <!-- System Process -->
+  <bpmn:process id="Process_System" isExecutable="false">
+    
+    <bpmn:startEvent id="StartSystem_ReceiveDetails" name="Bank Details Submitted">
+      <bpmn:outgoing>SequenceFlow_MakeDeposits</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_SystemMakeDeposits" name="Make two random deposits to bank account">
+      <bpmn:incoming>SequenceFlow_MakeDeposits</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendNotification</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Verification Logic -->
+    <bpmn:startEvent id="StartSystem_Verification" name="Verification Data Received">
+      <bpmn:incoming/> 
+      <bpmn:outgoing>SequenceFlow_CheckValues</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_SystemCheckVerification" name="Verify deposit amounts match">
+      <bpmn:incoming>SequenceFlow_SubmitToSystem</bpmn:incoming> 
+      <!-- Note: In real BPMN, this would be triggered by the message flow event -->
+      <bpmn:outgoing>SequenceFlow_GatewayDecisionValuesMatch</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_1" name="Do values match?">
+      <bpmn:incoming>SequenceFlow_GatewayDecisionValuesMatch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountLinked</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccountRemoved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndClient_Confirmed" name="Bank Account Confirmed">
+      <bpmn:incoming>SequenceFlow_LinkedToConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndSystem_Removed" name="Account Removed (Verification Failed)">
+      <bpmn:incoming>SequenceFlow_AccountRemoved</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  
+  <!-- Client Process Sequences -->
+  <bpmn:sequenceFlow id="SequenceFlow_EnterDetails" sourceRef="StartClient_SelectOption" targetRef="Task_ClientEnterBankDetails"/>
+  <bpmn:sequenceFlow id="SequenceFlow_SubmitToSystem" name="Submit Bank Details" sourceRef="Task_ClientEnterBankDetails" targetRef="Event_SystemReceiveDetails"> 
+    <!-- Note: In strict BPMN, Sequence Flows cannot connect to Message Flow targets directly in Process definition without intermediate events.
+         However, for valid XML structure demonstration of flow logic within the process context provided by user request constraints -->
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_CheckDeposits" sourceRef="StartClient_3to5Days" targetRef="Task_ClientCheckDeposits"/>
+  
+  <!-- Correction for Task Client Check Deposits incoming/outgoing tags -->
+  <bpmn:userTask id="Task_ClientVerifyAmounts" name="Enter amounts and click verify">
+    <bpmn:incoming>SequenceFlow_EnterAmounts</bpmn:incoming>
+    <bpmn:outgoing>SequenceFlow_SubmitToSystem</bpmn:outgoing>
+  </bpmn:userTask>
+
+  <!-- System Process Sequences -->
+  <bpmn:sequenceFlow id="SequenceFlow_MakeDeposits" sourceRef="StartSystem_ReceiveDetails" targetRef="Task_SystemMakeDeposits"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_SendNotification" name="Send Notification (3-5 working days)" sourceRef="Task_SystemMakeDeposits" targetRef="Event_ClientNotificationReceived"> 
+    <!-- Note: Connecting to event in other pool via message flow logic representation -->
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_CheckValues" name="Verify Values Match" sourceRef="StartSystem_Verification" targetRef="Task_SystemCheckVerification"/>
+  
+  <!-- Correction for Task System Check Verification incoming/outgoing tags -->
+  <bpmn:userTask id="Task_ClientEnterAmounts" name="Enter two deposit amounts">
+    <bpmn:incoming>SequenceFlow_EnterDepositAmounts</bpmn:incoming>
+    <bpmn:outgoing>SequenceFlow_SubmitToSystem</bpmn:outgoing>
+  </bpmn:userTask>
+
+  <!-- Gateway Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_GatewayDecisionValuesMatch" sourceRef="Task_SystemCheckVerification" targetRef="ExclusiveGateway_1"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_AccountLinked" name="Yes - Values Match" sourceRef="ExclusiveGateway_1" targetRef="EndClient_Confirmed">
+    <!-- Note: In collaboration, this might trigger a message back to client -->
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceLinkToConfirmed" name="Bank account linked successfully" sourceRef="ExclusiveGateway_1" targetRef="EndClient_Confirmed"/>
+  
+  <!-- Correction for End Event Incoming Tag Structure (Fixing Line 24 Error) -->
+  <bpmn:endEvent id="EndSystem_Removed" name="Account Removed">
+    <bpmn:incoming>SequenceFlow_AccountRemoved</bpmn:incoming>
+  </bpmn:endEvent>
+
+  <!-- Corrected Sequence Flow for Removal Path -->
+  <bpmn:sequenceFlow id="SequenceFlow_AccountRemoved" name="No - Values Do Not Match" sourceRef="ExclusiveGateway_1" targetRef="EndSystem_Removed"/>
+
+</bpmn:definitions>

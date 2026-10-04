@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderToCash_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OTC_Process">
+    <bpmn:messageFlow id="Msg_WarehouseNotification" sourceRef="EndEvent_SendOrder" targetRef="StartEvent_PartsCheck" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OrderToCash_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_CustomerOrderReceived" name="Customer order received">
+      <bpmn:outgoing>Seq_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Process Order Task -->
+    <bpmn:task id="Task_ProcessOrder" name="Process customer order">
+      <bpmn:incoming>Seq_ProcessOrder</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send to Warehouse (End Event with message) -->
+    <bpmn:endEvent id="EndEvent_SendOrder" name="Send order to warehouse">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_SendToWarehouse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_ProcessOrder" sourceRef="Start_CustomerOrderReceived" targetRef="Task_ProcessOrder" />
+    <bpmn:sequenceFlow id="Seq_SendToWarehouse" name="Send to warehouse" sourceRef="Task_ProcessOrder" targetRef="EndEvent_SendOrder" />
+
+  </bpmn:process>
+
+  <!-- Warehouse Process -->
+  <bpmn:process id="Proc_Warehouse_1">
+    <!-- Start Event (Message Catch) -->
+    <bpmn:startEvent id="StartEvent_PartsCheck" name="Receive order notification">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Seq_DetermineParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Determine Parts Task -->
+    <bpmn:task id="Task_DetermineRequiredParts" name="Determine required parts for production">
+      <bpmn:incoming>Seq_DetermineParts</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Parts Available? -->
+    <bpmn:exclusiveGateway id="Gateway_PartsAvailable" name="All parts available?">
+      <bpmn:incoming>Seq_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>Seq_StartProduction</bpmn:outgoing>
+      <bpmn:outgoing>Seq_OrderMissingPartsFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Order Missing Parts Task -->
+    <bpmn:task id="Task_OrderMissingParts" name="Order missing parts">
+      <bpmn:incoming>Seq_OrderMissingPartsFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_Gateway_ProductionReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Production Ready -->
+    <bpmn:exclusiveGateway id="Gateway_ProductionReady">
+      <bpmn:incoming>Seq_OrderMissingPartsFlow2</bpmn:incoming>
+      <bpmn:outgoing>Seq_StartProductionFromWarehouse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Production Started -->
+    <bpmn:endEvent id="EndEvent_ProductionStarted" name="Inform production started">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_StartProductionFromWarehouse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_DetermineParts" sourceRef="StartEvent_PartsCheck" targetRef="Task_DetermineRequiredParts" />
+    <bpmn:sequenceFlow id="Seq_CheckAvailability" name="Determine parts availability" sourceRef="Task_DetermineRequiredParts" targetRef="Gateway_PartsAvailable" />
+
+    <!-- Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="Seq_StartProduction" name="Yes - All available" sourceRef="Gateway_PartsAvailable" targetRef="EndEvent_SendToWarehouseProcess">
+      <!-- This will connect to production process start in a real multi-process model -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:endEvent id="EndEvent_SendToWarehouseProcess" name="Send order for warehouse processing">
+       <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_StartProduction</bpmn:incoming>
+     </bpmn:endEvent>
+
+    <!-- Order Missing Parts Flow -->
+    <bpmn:sequenceFlow id="Seq_OrderMissingPartsFlow" name="No - Need to order parts" sourceRef="Gateway_PartsAvailable" targetRef="Task_OrderMissingParts" />
+    
+    <!-- Production Ready Gateway Connection -->
+    <bpmn:exclusiveGateway id="Gateway_MergeProductionReady">
+      <bpmn:incoming>Seq_Gateway_ProductionReady</bpmn:incoming>
+      <bpmn:outgoing>Seq_StartProductionFromWarehouse2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Production Ready Flow -->
+    <bpmn:sequenceFlow id="Seq_Gateway_ProductionReady" sourceRef="Task_OrderMissingParts" targetRef="Gateway_MergeProductionReady" />
+    
+  </bpmn:process>
+
+</bpmn:definitions>

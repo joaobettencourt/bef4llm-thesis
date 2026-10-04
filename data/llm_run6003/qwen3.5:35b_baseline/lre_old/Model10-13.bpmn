@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_INQ_IP">
+    <bpmn:participant id="Participant_INQ" name="INQ System" processRef="Process_INQ" />
+    <bpmn:participant id="Participant_IP" name="IP System" processRef="Process_IP" />
+
+    <!-- Message Flow 1: INQ sends request to IP -->
+    <bpmn:messageFlow id="MessageFlow_01_Request" sourceRef="Task_INQ_TransmitRequest" targetRef="StartEvent_IP_RequestTriggered">
+      <bpmn:name>Transaction Data Request</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow 2: IP sends Answer (Data) to INQ -->
+    <bpmn:messageFlow id="MessageFlow_02_Answer" sourceRef="Task_IP_SendResponse" targetRef="IntermediateCatch_INQ_WaitAnswer">
+      <bpmn:name>Data Response</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow 3: IP sends Answer (Rejected) to INQ -->
+    <bpmn:messageFlow id="MessageFlow_03_Reject" sourceRef="Task_IP_SendReject" targetRef="IntermediateCatch_INQ_WaitAnswer">
+      <bpmn:name>Rejection Response</bpmn:name>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- INQ Process -->
+  <bpmn:process id="Process_INQ" isExecutable="false">
+    
+    <bpmn:startEvent id="StartEvent_INQ_RequestInitiated" name="Request Initiated">
+      <bpmn:outgoing>SequenceFlow_01_Transmit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_INQ_TransmitRequest" name="Transmits transaction data request to IP">
+      <bpmn:incoming>SequenceFlow_01_Transmit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02_WaitAnswer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_INQ_WaitAnswer" name="Wait for IP Answer">
+      <bpmn:incoming>SequenceFlow_02_WaitAnswer</bpmn:incoming>
+      <!-- Note: In a real model, this event would have incoming message flows from the collaboration -->
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="EndEvent_INQ_ResponseReceived" name="Response Received">
+      <bpmn:incoming>SequenceFlow_03_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01_Transmit" sourceRef="StartEvent_INQ_RequestInitiated" targetRef="Task_INQ_TransmitRequest" />
+    <bpmn:sequenceFlow id="SequenceFlow_02_WaitAnswer" sourceRef="Task_INQ_TransmitRequest" targetRef="IntermediateCatch_INQ_WaitAnswer" />
+    <bpmn:sequenceFlow id="SequenceFlow_03_Complete" sourceRef="IntermediateCatch_INQ_WaitAnswer" targetRef="EndEvent_INQ_ResponseReceived" />
+
+  </bpmn:process>
+
+  <!-- IP Process -->
+  <bpmn:process id="Process_IP" isExecutable="false">
+    
+    <bpmn:startEvent id="StartEvent_IP_RequestTriggered" name="Request Received">
+      <bpmn:messageRef>Message_INQ_Request</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_01_CheckProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_IP_CheckRequest" name="Checks the request of INQ">
+      <bpmn:incoming>SequenceFlow_01_CheckProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02_DecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for outcome -->
+    <bpmn:exclusiveGateway id="Gateway_IP_Outcome" name="Examination Outcome">
+      <bpmn:incoming>SequenceFlow_02_DecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03_SendDataPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_04_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Transmission of data -->
+    <bpmn:task id="Task_IP_SendResponse" name="Transmission of data">
+      <bpmn:incoming>SequenceFlow_03_SendDataPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05_EndIP_DataSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Rejected -->
+    <bpmn:task id="Task_IP_SendReject" name="Rejected">
+      <bpmn:incoming>SequenceFlow_04_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06_EndIP_Rejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_IP_DataSent" name="Data Sent">
+      <bpmn:incoming>SequenceFlow_05_EndIP_DataSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_IP_Rejected" name="Rejected Process End">
+      <bpmn:incoming>SequenceFlow_06_EndIP_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01_CheckProcess" sourceRef="StartEvent_IP_RequestTriggered" targetRef="Task_IP_CheckRequest" />
+    <bpmn:sequenceFlow id="SequenceFlow_02_DecisionPoint" name="Examination Result" sourceRef="Task_IP_CheckRequest" targetRef="Gateway_IP_Outcome" />
+
+    <!-- Gateway Outcomes -->
+    <bpmn:exclusiveGateway name="Transmission of data or rejected?" id="ExclusiveGateway_Transmission"> 
+      <bpmn:incoming>SequenceFlow_02_DecisionPoint</bpmn:incoming>
+       outgoing>SequenceFlow_03_SendDataPath</outgoing>
+     </bpmn:task>
+
+    <!-- Corrected Gateway Logic -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Transmission" name="Transmission of data or rejected?">
+      <bpmn:incoming>SequenceFlow_02_DecisionPoint</bpmn:incoming>
+       outgoing>SequenceFlow_03_SendDataPath</outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows for Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_03_SendDataPath" name="Transmission of data" sourceRef="ExclusiveGateway_Transmission" targetRef="Task_IP_SendResponse" />
+    <bpmn:sequenceFlow id="SequenceFlow_04_RejectPath" name="Rejected" sourceRef="ExclusiveGateway_Transmission" targetRef="Task_IP_SendReject" />
+
+  </bpmn:process>
+</bpmn:definitions>

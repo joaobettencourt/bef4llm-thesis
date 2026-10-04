@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderingProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Msg_BankConfirmation" name="Bank Confirmation Response"/>
+
+  <bpmn:collaboration id="Collab_OnlineShopOrdering">
+    <bpmn:participant id="Participant_ShopSystem" name="Ordering in an Online Shop" processRef="Process_OrderFlow"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFlow" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_CustomerSystem">
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_Login</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterCredentials</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ValidLogin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_LoginFailed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectProduct</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AllSelected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPaymentData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitBankConfirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterAddressDetails</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System" name="System Backend">
+        <bpmn:flowNodeRef>Gw_ValidLogin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCredentials</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddToCartSave</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AllSelected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FinalizeOrderInitiatePaymentShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderFinished</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Login" name="Login Request">
+      <bpmn:outgoing>SequenceFlow_EnterCredentials</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_LoginFailed" name="Shopping Experience Stops (Invalid Login)">
+      <bpmn:incoming>SequenceFlow_FailedLogin</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_OrderFinished" name="Order Finished Successfully">
+      <bpmn:incoming>SequenceFlow_FinalizeComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_EnterCredentials" name="Enter Credentials">
+      <bpmn:incoming>SequenceFlow_EnterCredentials</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckCreds</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CheckCredentials" name="Check Credentials">
+      <bpmn:incoming>SequenceFlow_CheckCreds</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidLoginDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectProduct" name="Select Product">
+      <bpmn:incoming>SequenceFlow_LoopBack</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddToCart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_AddToCartSave" name="Add to Cart &amp; Save Product">
+      <bpmn:incoming>SequenceFlow_AddToCart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAllSelected</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_FinalizeOrderInitiatePaymentShipment" name="Finalize Order &amp; Initiate Payment/Shipment">
+      <bpmn:incoming>SequenceFlow_CheckAllSelected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitParallelActions</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterPaymentData" name="Enter Payment Data">
+      <bpmn:incoming>SequenceFlow_PaymentBranchStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitBankConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterAddressDetails" name="Enter Shipping &amp; Billing Address">
+      <bpmn:incoming>SequenceFlow_AddressBranchStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gw_ValidLogin">
+      <bpmn:name>Login Successful?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ValidLoginDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessfulLogin</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailedLogin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Gateway -->
+    <bpmn:exclusiveGateway id="Gw_AllSelected">
+      <bpmn:name>All Products Selected?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckAllSelected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedToFinalization</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Catch Event (Bank Confirmation) -->
+    <bpmn:intermediateCatchEvent id="Event_WaitBankConfirm" name="Wait for Bank Confirmation">
+      <bpmn:messageRef>Msg_BankConfirmation</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_WaitBankConfirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentConfirmed</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Parallel Gateway (Split) -->
+    <bpmn:parallelGateway id="Gw_SplitParallelActions">
+      <bpmn:name>Prepare Payment &amp; Address Steps</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SplitParallelActions</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentBranchStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AddressBranchStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Parallel Gateway (Join) -->
+    <bpmn:parallelGateway id="Gw_JoinParallelActions">
+      <bpmn:name>Synchronize Payment &amp; Address</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PaymentConfirmed</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AddressComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeComplete</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Login Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterCredentials" sourceRef="StartEvent_Login" targetRef="Task_EnterCredentials"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckCreds" name="Submit Credentials" sourceRef="Task_EnterCredentials" targetRef="Task_CheckCredentials"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ValidLoginDecision" name="Check Credentials Result" sourceRef="Task_CheckCredentials" targetRef="Gw_ValidLogin"/>
+
+    <!-- Login Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessfulLogin" name="Yes - Valid" sourceRef="Gw_ValidLogin" targetRef="Task_SelectProduct"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FailedLogin" name="No - Invalid" sourceRef="Gw_ValidLogin" targetRef="EndEvent_LoginFailed"/>
+
+    <!-- Loop Body Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddToCart" name="Add Item to Cart &amp; Save" sourceRef="Task_SelectProduct" targetRef="Task_AddToCartSave"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAllSelected" name="Check Selection Status" sourceRef="Task_AddToCartSave" targetRef="Gw_AllSelected"/>
+
+    <!-- Loop Back Flow (No) -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBack" name="Not All Selected?" sourceRef="Gw_AllSelected" targetRef="Task_SelectProduct"/>
+
+    <!-- Continue Flow (Yes) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedToFinalization" name="All Selected - Proceed to Finalization" sourceRef="Gw_AllSelected" targetRef="Task_FinalizeOrderInitiatePaymentShipment"/>
+
+    <!-- Parallel Split for Payment & Address (After Order Initiation) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SplitParallelActions" name="Start Concurrent Steps" sourceRef="Task_FinalizeOrderInitiatePaymentShipment" targetRef="Gw_SplitParallelActions"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentBranchStart" name="Prepare Payment Data Entry" sourceRef="Gw_SplitParallelActions" targetRef="Task_EnterPaymentData"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AddressBranchStart" name="Enter Address Details" sourceRef="Gw_SplitParallelActions" targetRef="Task_EnterAddressDetails"/>
+
+    <!-- Payment Confirmation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitBankConfirm" name="Submit Data &amp; Wait for Bank" sourceRef="Task_EnterPaymentData" targetRef="Event_WaitBankConfirm"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentConfirmed" name="Confirmation Received" sourceRef="Event_WaitBankConfirm" targetRef="Gw_JoinParallelActions"/>
+
+    <!-- Address Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddressComplete" name="Address Details Entered" sourceRef="Task_EnterAddressDetails" targetRef="Gw_JoinParallelActions"/>
+
+  </bpmn:process>
+</bpmn:definitions>

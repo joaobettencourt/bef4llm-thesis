@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RegistrationProcess">
+  <bpmn:collaboration id="Collaboration_Registration">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Registration Service" processRef="Process_Registration"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Registration" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_Visit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_FillForm</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System" name="System">
+        <bpmn:flowNodeRef>Service_CheckAvailabilityCreditRating</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SchufaCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Unsuccessful</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_CreateInterimRecord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_DeviceProvision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_RegisterISPAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParallelMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SendWelcomePackage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Successful</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Visit" name="Visitor Arrives">
+      <bpmn:outgoing>SequenceFlow_StartToForm</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- User Task: Fill Form -->
+    <bpmn:userTask id="UserTask_FillForm" name="Fill Registration-Form">
+      <bpmn:incoming>SequenceFlow_StartToForm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FormToCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Check Availability & Credit -->
+    <bpmn:serviceTask id="Service_CheckAvailabilityCreditRating" name="Check Product Availability and Credit Rating">
+      <bpmn:incoming>SequenceFlow_FormToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Schufa Check -->
+    <bpmn:exclusiveGateway id="Gateway_SchufaCheck" name="Schufa &gt; 9000?">
+      <bpmn:incoming>SequenceFlow_CheckToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnsuccessfulPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SuccessfulPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Unsuccessful -->
+    <bpmn:endEvent id="EndEvent_Unsuccessful" name="Registration Unsuccessful">
+      <bpmn:incoming>SequenceFlow_UnsuccessfulPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Service Task: Create Interim Record -->
+    <bpmn:serviceTask id="Service_CreateInterimRecord" name="Create Interim Customer Dataset">
+      <bpmn:incoming>SequenceFlow_SuccessfulPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RecordToSplit</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit" name="Parallel Start">
+      <bpmn:incoming>SequenceFlow_RecordToSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PathDeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PathISPRegister</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- SubProcess 1 -->
+    <bpmn:subProcess id="SubProcess_DeviceProvision" name="Device Provision">
+      <bpmn:startEvent id="Start_SubProc_1"/>
+      <bpmn:endEvent id="End_SubProc_1"/>
+      <bpmn:userTask id="UserTask_PrepareDevice" name="Prepare Device">
+        <bpmn:incoming>SequenceFlow_DeviceProvision_Start</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_DeviceProvision_End</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:sequenceFlow id="SequenceFlow_DeviceProvision_Start" sourceRef="Start_SubProc_1" targetRef="UserTask_PrepareDevice"/>
+      <bpmn:sequenceFlow id="SequenceFlow_DeviceProvision_End" sourceRef="UserTask_PrepareDevice" targetRef="End_SubProc_1"/>
+    </bpmn:subProcess>
+
+    <!-- Subprocess 2 -->
+    <bpmn:subProcess id="SubProcess_RegisterISPAccount" name="Register Customer Account at ISP Nodes">
+      <bpmn:startEvent id="Start_SubProc_2"/>
+      <bpmn:endEvent id="End_SubProc_2"/>
+      <bpmn:userTask id="UserTask_RegisterAtISP" name="Register at ISP">
+        <bpmn:incoming>SequenceFlow_ISPRegistration_Start</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ISPRegistration_End</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:sequenceFlow id="SequenceFlow_ISPRegistration_Start" sourceRef="Start_SubProc_2" targetRef="UserTask_RegisterAtISP"/>
+      <bpmn:sequenceFlow id="SequenceFlow_ISPRegistration_End" sourceRef="UserTask_RegisterAtISP" targetRef="End_SubProc_2"/>
+    </bpmn:subProcess>
+
+    <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="Gateway_ParallelMerge" name="Wait for Completion">
+      <bpmn:incoming>SequenceFlow_PathDeviceProvision_End</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PathISPEnd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToWelcome</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- User Task: Send Welcome Package -->
+    <bpmn:userTask id="UserTask_SendWelcomePackage" name="Create and Send Welcome Package">
+      <bpmn:incoming>SequenceFlow_MergeToWelcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WelcomeToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event: Successful -->
+    <bpmn:endEvent id="EndEvent_Successful" name="Registration Completed Successfully">
+      <bpmn:incoming>SequenceFlow_WelcomeToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToForm" sourceRef="StartEvent_Visit" targetRef="UserTask_FillForm"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FormToCheck" name="Submit Form" sourceRef="UserTask_FillForm" targetRef="Service_CheckAvailabilityCreditRating">
+      <bpmn:name>Submitted</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToGateway" name="Check Complete" sourceRef="Service_CheckAvailabilityCreditRating" targetRef="Gateway_SchufaCheck"/>
+
+    <!-- Gateway Conditions -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnsuccessfulPath" name="Schufa &gt; 9000" conditionExpression="${schufaScore > 9000}" sourceRef="Gateway_SchufaCheck" targetRef="EndEvent_Unsuccessful"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessfulPath" name="Schufa <= 9000" conditionExpression="${schufaScore &lt;= 9000}" sourceRef="Gateway_SchufaCheck" targetRef="Service_CreateInterimRecord"/>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RecordToSplit" name="Proceed to Subprocesses" sourceRef="Service_CreateInterimRecord" targetRef="Gateway_ParallelSplit"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PathDeviceProvision" name="Start Device Provisioning" sourceRef="Gateway_ParallelSplit" targetRef="SubProcess_DeviceProvision">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PathISPRegister" name="Start ISP Registration" sourceRef="Gateway_ParallelSplit" targetRef="SubProcess_RegisterISPAccount">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Subprocess Internal Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PathDeviceProvision_End" sourceRef="End_SubProc_1" targetRef="Gateway_ParallelMerge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PathISPEnd" sourceRef="End_SubProc_2" targetRef="Gateway_ParallelMerge"/>
+
+    <!-- Merge Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToWelcome" name="All Tasks Complete" sourceRef="Gateway_ParallelMerge" targetRef="UserTask_SendWelcomePackage"/>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WelcomeToEnd" name="Send Package" sourceRef="UserTask_SendWelcomePackage" targetRef="EndEvent_Successful"/>
+
+  </bpmn:process>
+</bpmn:definitions>

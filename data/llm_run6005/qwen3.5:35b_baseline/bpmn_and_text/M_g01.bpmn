@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_3DPrintingProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_3D_Printing">
+    <bpmn:participant name="Customer Process Owner" processRef="Proc_3D_Printing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_3D_Printing" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_Owner">
+      <bpmn:lane name="Process Owner">
+        <bpmn:flowNodeRef>StartEvent_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendSketches</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Satisfied</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProvideFeedback</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectColor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HasStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderPlastic</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckQuantity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddToList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelSplit_PrintPrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HeatPrinter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenGCode</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelJoin_PrintStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintModel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Request 3D Model">
+      <bpmn:name>Request 3D Model</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_SendSketches</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Sketches -->
+    <bpmn:task id="Task_SendSketches" name="Send sketches to Artist">
+      <bpmn:name>Send sketches to Artist</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendSketches</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitDraft</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Wait for Draft/Revision -->
+    <bpmn:task id="Task_ArtistWork" name="Receive Artist Draft">
+      <bpmn:name>Receive Artist Draft</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProvideFeedbackLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSatisfied</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Satisfied? -->
+    <bpmn:exclusiveGateway id="Gateway_Satisfied">
+      <bpmn:name>Satisfied?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckSatisfied</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProvideFeedbackLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelectColorStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Provide Feedback -->
+    <bpmn:task id="Task_ProvideFeedback" name="Tell Artist Changes">
+      <bpmn:name>Tell him what to change</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProvideFeedbackLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitDraft</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Select Color -->
+    <bpmn:task id="Task_SelectColor" name="Choose Plastic Color">
+      <bpmn:name>Select plastic color for printing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SelectColorStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Has Stock? -->
+    <bpmn:exclusiveGateway id="Gateway_HasStock">
+      <bpmn:name>In stock?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderPlasticPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckQuantityStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Order Plastic -->
+    <bpmn:task id="Task_OrderPlastic" name="Order Color">
+      <bpmn:name>Order plastic color</bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderPlasticPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Quantity -->
+    <bpmn:exclusiveGateway id="Gateway_CheckQuantity">
+      <bpmn:name>&lt; 100g?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckQuantityStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddToListPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConvergeStockDirect</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Add to List -->
+    <bpmn:task id="Task_AddToList" name="Add to Shopping List">
+      <bpmn:name>Add color to shopping list</bpmn:name>
+      <bpmn:incoming>SequenceFlow_AddToListPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeStockDirect</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split -->
+    <bpmn:parallelGateway id="ParallelSplit_PrintPrep">
+      <bpmn:name>Start Prep Tasks</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ConvergeStockDirect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HeatPrinterPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GenGCodePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Heat Printer -->
+    <bpmn:task id="Task_HeatPrinter" name="Turn on &amp; Heat Printer">
+      <bpmn:name>Heating bed and extruder</bpmn:name>
+      <bpmn:incoming>SequenceFlow_HeatPrinterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrinterReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Generate GCode -->
+    <bpmn:task id="Task_GenGCode" name="Generate gcode from STL">
+      <bpmn:name>Create printer file (gcode)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GenGCodePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFile_PrintReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Join -->
+    <bpmn:parallelGateway id="ParallelJoin_PrintStart">
+      <bpmn:name>Begin Printing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PrinterReady</bpmn:incoming>
+      <bpmn:incoming>SequenceFile_PrintReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartPrint</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Print Model -->
+    <bpmn:task id="Task_PrintModel" name="Print the 3D Model">
+      <bpmn:name>Print model on 3D printer</bpmn:name>
+      <bpmn:incoming>SequenceFlow_StartPrint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrintComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Model Printed Successfully">
+      <bpmn:name>Model Printed Successfully</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PrintComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendSketches" name="Request Start">
+      <bpmn:name>New Order Requested</bpmn:name>
+      <bpmn:sourceRef>StartEvent_Request</bpmn:sourceRef>
+      <bpmn:targetRef>Task_SendSketches</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitDraft" name="Wait for Draft">
+      <bpmn:name>Awaiting Artist Work</bpmn:name>
+      <bpmn:sourceRef>Task_SendSketches</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ArtistWork</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckSatisfied" name="Check Satisfaction">
+      <bpmn:name>Draft Received</bpmn:name>
+      <bpmn:sourceRef>Task_ArtistWork</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_Satisfied</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProvideFeedbackLoop" name="Not Satisfied">
+      <bpmn:name>Needs Changes</bpmn:name>
+      <bpmn:sourceRef>Gateway_Satisfied</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ProvideFeedback</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectColorStart" name="Satisfied">
+      <bpmn:name>Satisfied with Design</bpmn:name>
+      <bpmn:sourceRef>Gateway_Satisfied</bpmn:sourceRef>
+      <bpmn:targetRef>Task_SelectColor</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckStock" name="Check Stock">
+      <bpmn:name>Select Color Complete</bpmn:name>
+      <bpmn:sourceRef>Task_SelectColor</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_HasStock</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderPlasticPath" name="No Stock">
+      <bpmn:name>No Color In Stock</bpmn:name>
+      <bpmn:sourceRef>Gateway_HasStock</bpmn:sourceRef>
+      <bpmn:targetRef>Task_OrderPlastic</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckQuantityStart" name="Has Stock">
+      <bpmn:name>In Stock Available</bpmn:name>
+      <bpmn:sourceRef>Gateway_HasStock</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_CheckQuantity</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddToListPath" name="Low Quantity">
+      <bpmn:name>&lt; 100g Remaining</bpmn:name>
+      <bpmn:sourceRef>Gateway_CheckQuantity</bpmn:sourceRef>
+      <bpmn:targetRef>Task_AddToList</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeStockDirect" name="Sufficient Stock">
+      <bpmn:name>Sufficient Quantity Available</bpmn:name>
+      <bpmn:sourceRef>Gateway_CheckQuantity</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelSplit_PrintPrep</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeStock" name="Plastic Ordered">
+      <bpmn:name>Color Received</bpmn:name>
+      <bpmn:sourceRef>Task_OrderPlastic</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelSplit_PrintPrep</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HeatPrinterPath" name="Start Heating">
+      <bpmn:name>Begin Printer Prep</bpmn:name>
+      <bpmn:sourceRef>ParallelSplit_PrintPrep</bpmn:sourceRef>
+      <bpmn:targetRef>Task_HeatPrinter</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GenGCodePath" name="Generate GCode">
+      <bpmn:name>Create Print File</bpmn:name>
+      <bpmn:sourceRef>ParallelSplit_PrintPrep</bpmn:sourceRef>
+      <bpmn:targetRef>Task_GenGCode</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFile_PrintReady" name="Printer Ready">
+      <bpmn:name>GCode Generated</bpmn:name>
+      <bpmn:sourceRef>Task_GenGCode</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelJoin_PrintStart</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrinterReady" name="Heating Complete">
+      <bpmn:name>Printer Heated Up</bpmn:name>
+      <bpmn:sourceRef>Task_HeatPrinter</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelJoin_PrintStart</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartPrint" name="Begin Print">
+      <bpmn:name>All Ready to Start</bpmn:name>
+      <bpmn:sourceRef>ParallelJoin_PrintStart</bpmn:sourceRef>
+      <bpmn:targetRef>Task_PrintModel</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrintComplete" name="Print Done">
+      <bpmn:name>Printing Finished</bpmn:name>
+      <bpmn:sourceRef>Task_PrintModel</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_Completed</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

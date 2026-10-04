@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collaboration_SchufaScoring">
+    <participant id="Participant_BankProcess" name="Bank Scoring Process" processRef="Process_Bank_Scoring"/>
+    <participant id="Participant_SchufaSystem" name="Schufa System" processRef="Process_Schufa_System"/>
+  </collaboration>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_RequestScoring" name="Request Scoring"/>
+  <bpmn:message id="Message_ImmediateResult" name="Immediate Result Response"/>
+  <bpmn:message id="Message_DelayNotification" name="Delay Notification"/>
+  <bpmn:message id="Message_FinalResult" name="Final Result Response"/>
+
+  <!-- Bank Process -->
+  <process id="Process_Bank_Scoring">
+    <laneSet>
+      <lane id="Lane_CS_Team" name="CS Support Team / Frontend">
+        <flowNodeRef>StartEvent_Request</flowNodeRef>
+        <flowNodeRef>Task_SendRequest</flowNodeRef>
+        <flowNodeRef>CatchEvent_WaitResponse</flowNodeRef>
+        <flowNodeRef>Gateway_ResultTypeCheck</flowNodeRef>
+        <flowNodeRef>UserTask_DisplayResultImmediate</flowNodeRef>
+        <flowNodeRef>UserTask_NotifyDelay</flowNodeRef>
+        <flowNodeRef>CatchEvent_WaitFinalResult</flowNodeRef>
+        <flowNodeRef>UserTask_DisplayResultDelayed</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_Request" name="Scoring Request">
+      <outgoing>SequenceFlow_StartToRequest</outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_RequestScoring"/>
+    </startEvent>
+
+    <!-- Service Task: Send to Schufa -->
+    <serviceTask id="Task_SendRequest" name="Send Scoring Request">
+      <incoming>SequenceFlow_StartToRequest</incoming>
+      <outgoing>SequenceFlow_RequestSent</outgoing>
+    </serviceTask>
+
+    <!-- Intermediate Catch Event: Wait for Response (Immediate or Delayed) -->
+    <intermediateCatchEvent id="CatchEvent_WaitResponse" name="Wait for Schufa Response">
+      <incoming>SequenceFlow_RequestSent</incoming>
+      <bpmn:messageEventDefinition messageRef="Message_ImmediateResult"/>
+    </intermediateCatchEvent>
+
+    <!-- Gateway: Check if result is immediate or delayed notification received -->
+    <exclusiveGateway id="Gateway_ResultTypeCheck" name="Result Type?">
+      <incoming>SequenceFlow_ResponseReceived</incoming>
+      <outgoing>SequencePath_Immediate</outgoing>
+      <outgoing>SequencePath_DelayedNotification</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence: Start to Task -->
+    <sequenceFlow id="SequenceFlow_StartToRequest" sourceRef="StartEvent_Request" targetRef="Task_SendRequest">
+      <bpmn:name>New Request</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Send to Wait Event (Simulating response arrival) -->
+    <sequenceFlow id="SequenceFlow_RequestSent" sourceRef="Task_SendRequest" targetRef="CatchEvent_WaitResponse">
+      <bpmn:name>Sent</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Catch to Gateway -->
+    <sequenceFlow id="SequenceFlow_ResponseReceived" name="Response Received" sourceRef="CatchEvent_WaitResponse" targetRef="Gateway_ResultTypeCheck"/>
+
+    <!-- Path 1: Immediate Result (Fast Scoring) -->
+    <userTask id="UserTask_DisplayResultImmediate" name="Display Score to Employee">
+      <incoming>SequencePath_Immediate</incoming>
+      <outgoing>SequenceFlow_EndProcess</outgoing>
+    </userTask>
+
+    <!-- Path 2: Delay Notification (Slow Scoring) -->
+    <sequenceFlow id="SequencePath_DelayedNotification" name="Delayed / Level 1 Failed" sourceRef="Gateway_ResultTypeCheck" targetRef="UserTask_NotifyDelay">
+      <bpmn:name>No Immediate Result</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Notify Employee of Delay -->
+    <userTask id="UserTask_NotifyDelay" name="Notify Employee of Delayed Response">
+      <incoming>SequencePath_DelayedNotification</incoming>
+      <outgoing>SequenceFlow_WaitFinalResult</outgoing>
+    </userTask>
+
+    <!-- Intermediate Catch Event: Wait for Final Result -->
+    <intermediateCatchEvent id="CatchEvent_WaitFinalResult" name="Wait for Final Score">
+      <incoming>SequenceFlow_WaitFinalResult</incoming>
+      <bpmn:messageEventDefinition messageRef="Message_FinalResult"/>
+    </intermediateCatchEvent>
+
+    <!-- Task: Display Delayed Result -->
+    <userTask id="UserTask_DisplayResultDelayed" name="Display Final Score to Employee">
+      <incoming>CatchFlow_WaitFinal</incoming>
+      <outgoing>SequenceFlow_EndProcess</outgoing>
+    </userTask>
+
+    <!-- Sequence Flow: Immediate Path -->
+    <sequenceFlow id="SequencePath_Immediate" sourceRef="Gateway_ResultTypeCheck" targetRef="UserTask_DisplayResultImmediate">
+      <bpmn:name>Immediate Result Available</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Wait for Final Result after notification -->
+    <sequenceFlow id="SequenceFlow_WaitFinalResult" sourceRef="UserTask_NotifyDelay" targetRef="CatchEvent_WaitFinalResult">
+      <bpmn:name>Wait For Level 2</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Final Result Received -->
+    <sequenceFlow id="CatchFlow_WaitFinal" sourceRef="CatchEvent_WaitFinalResult" targetRef="UserTask_DisplayResultDelayed">
+      <bpmn:name>Level 2 Complete</bpmn:name>
+    </sequenceFlow>
+
+    <!-- End Event: Process Completed -->
+    <endEvent id="EndEvent_ProcessComplete" name="Scoring Process Ended">
+      <incoming>SequenceFlow_EndProcess</incoming>
+    </endEvent>
+
+    <!-- Sequence Flow to End (from both paths) -->
+    <sequenceFlow id="SequenceFlow_EndProcess" sourceRef="UserTask_DisplayResultImmediate" targetRef="EndEvent_ProcessComplete"/>
+  </process>
+
+  <!-- Schufa System Process -->
+  <process id="Process_Schufa_System">
+    <laneSet>
+      <lane id="Lane_AutoScoring" name="Automated Scoring Level 1">
+        <flowNodeRef>StartEvent_RequestReceived</flowNodeRef>
+        <flowNodeRef>Task_PerformLevel1Scoring</flowNodeRef>
+        <flowNodeRef>Gateway_CheckResultReady</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_ManualReview" name="Manual Review Level 2">
+        <flowNodeRef>UserTask_ManualAssessment</flowNodeRef>
+        <flowNodeRef>EndEvent_Level1Complete</flowNodeRef>
+        <flowNodeRef>EndEvent_Level2Complete</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event: Request Received -->
+    <startEvent id="StartEvent_RequestReceived" name="Scoring Request">
+      <outgoing>SequenceFlow_StartToLevel1</outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_RequestScoring"/>
+    </startEvent>
+
+    <!-- Service Task: Perform Level 1 Scoring -->
+    <serviceTask id="Task_PerformLevel1Scoring" name="Perform Automated Scoring (Level 1)">
+      <incoming>SequenceFlow_StartToLevel1</incoming>
+      <outgoing>SequenceFlow_Level1Complete</outgoing>
+    </serviceTask>
+
+    <!-- Gateway: Check if result is ready -->
+    <exclusiveGateway id="Gateway_CheckResultReady" name="Score Ready?">
+      <incoming>SequenceFlow_Level1Complete</incoming>
+      <outgoing>SequencePath_ResultAvailable</outgoing>
+      <outgoing>SequencePath_NeedLevel2</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Manual Assessment (Level 2) -->
+    <userTask id="UserTask_ManualAssessment" name="Manual Score Assessment">
+      <incoming>SequenceFlow_Level1Failed</incoming>
+      <outgoing>SequenceFlow_ManualComplete</outgoing>
+    </userTask>
+
+    <!-- End Event: Level 1 Complete -->
+    <endEvent id="EndEvent_Level1Complete" name="Level 1 Scoring Ended">
+      <incoming>SequencePath_ResultAvailable</incoming>
+    </endEvent>
+
+    <!-- End Event: Level 2 Complete -->
+    <endEvent id="EndEvent_Level2Complete" name="Final Score Completed">
+      <incoming>CatchFlow_ManualResult</incoming>
+    </endEvent>
+
+    <!-- Sequence Flow: Start to Level 1 Task -->
+    <sequenceFlow id="SequenceFlow_StartToLevel1" sourceRef="StartEvent_RequestReceived" targetRef="Task_PerformLevel1Scoring">
+      <bpmn:name>New Request Received</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Level 1 Complete -->
+    <sequenceFlow id="SequenceFlow_Level1Complete" sourceRef="Task_PerformLevel1Scoring" targetRef="Gateway_CheckResultReady">
+      <bpmn:name>Automated Scoring Done</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Result Available Path -->
+    <sequenceFlow id="SequencePath_ResultAvailable" sourceRef="Gateway_CheckResultReady" targetRef="EndEvent_Level1Complete">
+      <bpmn:name>Score Ready Immediately</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Need Level 2 Path -->
+    <sequenceFlow id="SequencePath_NeedLevel2" sourceRef="Gateway_CheckResultReady" targetRef="UserTask_ManualAssessment">
+      <bpmn:name>Manual Assessment Required</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Manual Complete -->
+    <sequenceFlow id="SequenceFlow_ManualComplete" sourceRef="UserTask_ManualAssessment" targetRef="EndEvent_Level2Complete">
+      <bpmn:name>Manual Assessment Done</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence Flow: Manual Result to Bank -->
+    <messageFlow id="MessageFlow_FinalResultToBank" sourceRef="UserTask_ManualAssessment" targetRef="CatchEvent_WaitFinalResult">
+      <bpmn:message messageRef="Message_FinalResult"/>
+    </messageFlow>
+
+  </process>
+</bpmn:definitions>

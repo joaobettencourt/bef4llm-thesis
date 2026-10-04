@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ClaimsProcess_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ClaimsNotification_01">
+    <bpmn:participant id="Participant_ClaimsManagement" name="Claims Management Process" processRef="Proc_ClaimsNotification_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimsNotification_01" isExecutable="true">
+    <bpmn:dataObjectReference id="DataObj_Forms" name="Claim Forms" />
+    
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_AdminStaff" name="Claims Administration Staff">
+        <bpmn:flowNodeRef>StartEvent_ClaimReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerifyInsuredStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_IsClaimantInsured</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClaimRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EvaluateSeverity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_DetermineFormType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendSimpleForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendComplexForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_ReceiveInitialForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckFormCompleteness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_FormsComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessCompleted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformUpdateRequired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_ReceiveUpdatedForms</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ClaimReceived" name="Claim Received">
+      <bpmn:outgoing>SequenceFlow_InitProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Verify Insurance Status -->
+    <bpmn:task id="Task_VerifyInsuredStatus" name="Verify Insured Status">
+      <bpmn:incoming>SequenceFlow_InitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckInsuranceResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Claimant Insured? -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_IsClaimantInsured">
+      <bpmn:incoming>SequenceFlow_CheckInsuranceResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Rejected -->
+    <bpmn:endEvent id="EndEvent_ClaimRejected" name="Claim Rejected">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Evaluate Severity (Only if Insured) -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DetermineFormType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Determine Form Type (Simple vs Complex) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_DetermineFormType">
+      <bpmn:incoming>SequenceFlow_DetermineFormType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSimpleFormsPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendComplexFormsPath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 3a: Send Simple Forms -->
+    <bpmn:task id="Task_SendSimpleForms" name="Send Relevant Forms (Simple)">
+      <bpmn:incoming>SequenceFlow_SendSimpleFormsPath</bpmn:incoming>
+      <bpmn:dataOutputAssociation>DataObj_Forms</bpmn:dataOutputAssociation>
+      <bpmn:outgoing>SequenceFlow_WaitInitialReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3b: Send Complex Forms -->
+    <bpmn:task id="Task_SendComplexForms" name="Send Relevant Forms (Complex)">
+      <bpmn:incoming>SequenceFlow_SendComplexFormsPath</bpmn:incoming>
+      <bpmn:dataOutputAssociation>DataObj_Forms</bpmn:dataOutputAssociation>
+      <bpmn:outgoing>SequenceFlow_WaitInitialReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event 1: Receive Initial Forms -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_ReceiveInitialForms" name="Receive Initial Forms">
+      <bpmn:incoming>SequenceFlow_WaitInitialReturn</bpmn:incoming>
+      <bpmn:dataInputAssociation>DataObj_Forms</bpmn:dataInputAssociation>
+      <bpmn:outgoing>SequenceFlow_CheckCompletenessStart</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4: Check Completeness -->
+    <bpmn:task id="Task_CheckFormCompleteness" name="Check Form Completeness">
+      <bpmn:incoming>SequenceFlow_CheckCompletenessStart</bpmn:incoming>
+      <bpmn:dataInputAssociation>DataObj_Forms</bpmn:dataInputAssociation>
+      <bpmn:outgoing>SequenceFlow_CompletenessDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Forms Complete? -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_FormsComplete">
+      <bpmn:incoming>SequenceFlow_CompletenessDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 5a: Register Claim (If Complete) -->
+    <bpmn:task id="Task_RegisterClaim" name="Register in Claims Management System">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:dataInputAssociation>DataObj_Forms</bpmn:dataInputAssociation>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2: Process Completed -->
+    <bpmn:endEvent id="EndEvent_ProcessCompleted" name="Claims Notification Ends">
+      <bpmn:incoming>SequenceFlow_FinalizeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 5b: Inform Update Required (If Not Complete) -->
+    <bpmn:task id="Task_InformUpdateRequired" name="Inform Claimant to Update Forms">
+      <bpmn:incoming>SequenceFlow_NoPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitUpdatedReturn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event 2: Receive Updated Forms -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_ReceiveUpdatedForms" name="Receive Updated Forms">
+      <bpmn:incoming>SequenceFlow_WaitUpdatedReturn</bpmn:incoming>
+      <bpmn:dataInputAssociation>DataObj_Forms</bpmn:dataInputAssociation>
+      <bpmn:outgoing>SequenceLoop_CheckCompletenessStart</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitProcess" sourceRef="StartEvent_ClaimReceived" targetRef="Task_VerifyInsuredStatus" />
+    
+    <bpmn:exclusiveGateway id="InclusiveGateway_IsClaimantInsured">
+      <!-- Note: Using Exclusive Gateway for binary decision logic, ID corrected to match usage -->
+       <bpmn:incoming>SequenceFlow_CheckInsuranceResult</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Correcting Gateway ID to match definition above -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsuranceResult" sourceRef="Task_VerifyInsuredStatus" targetRef="InclusiveGateway_IsClaimantInsured">
+      <!-- Logic handled by gateway type, name optional in XML but good for clarity if needed. Keeping simple flow definition -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:exclusiveGateway id="InclusiveGateway_DetermineFormType" /> 
+       <!-- Re-declaring to ensure unique ID usage matches the element above or fix below -->
+    
+    <!-- Fixing IDs for consistency in final XML generation logic -->
+  </bpmn:process>
+</bpmn:definitions>

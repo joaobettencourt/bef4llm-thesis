@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_BankAccountAddition">
+    <bpmn:participant id="Participant_Client" name="PayPal Client" processRef="Process_Client"/>
+    <bpmn:participant id="Participant_System" name="PayPal System" processRef="Process_System"/>
+  </bpmn:collaboration>
+
+  <!-- PayPal Client Process -->
+  <bpmn:process id="Process_Client">
+    <bpmn:startEvent id="StartClient_1" name="Bank Account Addition Started">
+      <bpmn:outgoing>bpmn:SequenceFlow_Client_0</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_Client_EnterDetails" name="Enter Bank Details (First Name, Bank Name, Account Type, BSB, Account Number)">
+      <bpmn:incoming>bpmn:SequenceFlow_Client_0</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Client_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Client_ClickContinue" name="Click Continue">
+      <bpmn:incoming>bpmn:SequenceFlow_Client_1</bpmn:incoming>
+      <bpmn:outgoing>bpmn:MessageFlow_Client_System_0</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for notification after 3-5 working days -->
+    <bpmn:intermediateCatchEvent id="IntermediateClient_WaitNotification" name="Wait Notification (3-5 Working Days)">
+      <bpmn:incoming>bpmn:MessageFlow_System_Client_0</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Client_2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Client checks bank account -->
+    <bpmn:userTask id="Task_Client_CheckBankAccount" name="Check Bank Account for Deposits">
+      <bpmn:incoming>bpmn:SequenceFlow_Client_2</bpmn:incoming>
+      <bpmn:outgoing>bpmn:MessageFlow_Client_System_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Client enters deposit amounts -->
+    <bpmn:userTask id="Task_Client_EnterDeposits" name="Enter Deposit Amounts">
+      <bpmn:incoming>bpmn:MessageFlow_System_0</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Client_3</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Client clicks verify -->
+    <bpmn:userTask id="Task_Client_ClickVerify" name="Click Verify">
+      <bpmn:incoming>bpmn:MessageFlow_System_1</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Client_4</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndClient_Success" name="Bank Account Confirmed">
+      <bpmn:incoming>bpmn:MessageFlow_System_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndClient_Failure" name="Account Not Confirmed (Removed)">
+      <bpmn:incoming>bpmn:SequenceFlow_Client_5</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Client_0" sourceRef="StartClient_1" targetRef="Task_Client_EnterDetails"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Client_1" name="Submit Bank Details" sourceRef="Task_Client_ClickContinue" targetRef="IntermediateClient_WaitNotification">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${bankDetailsSubmitted}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- PayPal System Process -->
+  <bpmn:process id="Process_System">
+    <bpmn:startEvent id="StartSystem_1" name="Bank Details Received">
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_0</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- System makes deposits -->
+    <bpmn:userTask id="IntermediateSystem_DepositInitiation" name="Make Two Random Deposits">
+      <bpmn:incoming>bpmn:MessageFlow_Client_System_0</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- System sends notification -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystem_NotifyClient" name="Send Notification (3-5 Working Days)">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_2</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- System receives deposit amounts -->
+    <bpmn:userTask id="IntermediateSystem_DepositAmountReceived" name="Receive Deposit Amounts">
+      <bpmn:incoming>bpmn:MessageFlow_System_0</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_3</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- System receives verify request -->
+    <bpmn:userTask id="IntermediateSystem_VerifyRequest" name="Receive Verify Request">
+      <bpmn:incoming>bpmn:MessageFlow_System_1</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_4</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Verification Gateway -->
+    <bpmn:exclusiveGateway id="SystemGateway_Verification">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_ConfirmSuccess</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_ConfirmFailure</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Success Path -->
+    <bpmn:userTask id="SystemTask_ConfirmSuccess" name="Link Bank Account (Confirmed)">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_ConfirmSuccess</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_EndSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Failure Path -->
+    <bpmn:userTask id="SystemTask_RemoveAccount" name="Remove Bank Account (Not Confirmed)">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_ConfirmFailure</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SystemSequenceFlow_EndFailure</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndSystem_Success" name="Account Confirmed">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndSystem_Failure" name="Account Removed">
+      <bpmn:incoming>bpmn:SystemSequenceFlow_EndFailure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SystemSequenceFlow_0" sourceRef="StartSystem_1" targetRef="IntermediateSystem_DepositInitiation"/>
+    <bpmn:sequenceFlow id="SystemSequenceFlow_1" name="Deposits Made" sourceRef="IntermediateSystem_DepositInitiation" targetRef="IntermediateSystem_NotifyClient">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${depositsCompleted}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Verification -->
+    <bpmn:sequenceFlow id="SystemSequenceFlow_3" name="Verify Values" sourceRef="IntermediateSystem_DepositAmountReceived" targetRef="SystemGateway_Verification">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${depositValuesEntered}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Success Path -->
+    <bpmn:sequenceFlow id="SystemSequenceFlow_ConfirmSuccess" name="Values Match" sourceRef="SystemGateway_Verification" targetRef="SystemTask_ConfirmSuccess">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${valuesMatch}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Failure Path -->
+    <bpmn:sequenceFlow id="SystemSequenceFlow_ConfirmFailure" name="Values Do Not Match" sourceRef="SystemGateway_Verification" targetRef="SystemTask_RemoveAccount">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${valuesDoNotMatch}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flows -->
+    <bpmn:sequenceFlow id="SystemSequenceFlow_EndSuccess" sourceRef="SystemTask_ConfirmSuccess" targetRef="EndSystem_Success"/>
+    <bpmn:sequenceFlow id="SystemSequenceFlow_EndFailure" name="Account Removed" sourceRef="SystemTask_RemoveAccount" targetRef="EndSystem_Failure">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${accountRemoved}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:message id="Message_SubmitBankDetails"/>
+  <bpmn:message id="Message_NotifyClient"/>
+  <bpmn:message id="Message_DepositAmounts"/>
+  <bpmn:message id="Message_VerifyRequest"/>
+  <bpmn:message id="Message_Confirmation"/>
+
+  <!-- Message Flow Definitions -->
+  <bpmn:sequenceFlow id="SequenceFlow_Client_2" sourceRef="IntermediateClient_WaitNotification" targetRef="Task_Client_CheckBankAccount"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Client_3" name="Enter Deposit Amounts" sourceRef="Task_Client_EnterDeposits" targetRef="Task_Client_ClickVerify">
+    <bpmn:name conditionExpression xsi:type="formalExpression">${depositAmountsEntered}</bpmn:name>
+  </bpmn:sequenceFlow>
+
+</bpmn:definitions>

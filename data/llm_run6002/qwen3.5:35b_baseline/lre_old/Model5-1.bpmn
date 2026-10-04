@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_LoanApproval_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_CustomerRequest" name="Loan Request"/>
+  <bpmn:message id="Message_ApprovedFeedback" name="Approved Feedback"/>
+  <bpmn:message id="Message_DeniedFeedback" name="Denied Feedback"/>
+  <bpmn:message id="Message_ProcessedFeedback" name="Processed Feedback"/>
+
+  <bpmn:collaboration id="Collab_LoanProcess_01">
+    <bpmn:participant id="Pool_Bank" name="Bank Lending Process" processRef="Proc_BankLoanApproval"/>
+    <bpmn:participant id="Pool_Customer" name="Customer Interaction" processRef="Proc_CustomerInteraction"/>
+
+    <!-- Message Flow 1: Customer Request -->
+    <bpmn:messageFlow id="MsgFlow_Request_01" sourceRef="Task_CustRequestLoan" targetRef="StartEvent_BankReceiveReq">
+      <bpmn:name>Submit Loan Request</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Message Flows for Feedback -->
+    <bpmn:messageFlow id="MsgFlow_Feedback_Approve_01" sourceRef="EndEvent_LenderApproved" targetRef="Task_CustFeedbackReceived">
+      <bpmn:name>Loan Approved</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MsgFlow_Feedback_Deny_01" sourceRef="EndEvent_LenderDenied" targetRef="Task_CustFeedbackReceived">
+      <bpmn:name>Loan Denied</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MsgFlow_Feedback_Approver_01" sourceRef="EndEvent_LenderProcessed" targetRef="Task_CustFeedbackReceived">
+      <bpmn:name>Review Complete</bpmn:name>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Proc_BankLoanApproval" isExecutable="true">
+    
+    <bpmn:startEvent id="StartEvent_BankReceiveReq" name="Receive Loan Request">
+      <bpmn:messageRefMessage_01/>
+      <bpmn:outgoing>SequenceFlow_AssessRisk</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_BankAssessRisk" name="Assess Loan Risk (Web Service)">
+      <bpmn:incoming>SequenceFlow_AssessRisk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_RiskDecision" name="Risk &amp; Amount Check">
+      <bpmn:incoming>SequenceFlow_DecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_HighRisk</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_SmallLowRisk</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_ReviewOrLarge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: High Risk -->
+    <bpmn:endEvent id="EndEvent_LenderDenied" name="Loan Denied">
+      <bpmn:messageRefMessage_Deny/>
+      <bpmn:incoming>SequencePath_HighRisk</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Small & Low Risk -->
+    <bpmn:endEvent id="EndEvent_LenderApproved" name="Loan Approved">
+      <bpmn:messageRefMessage_Approve/>
+      <bpmn:incoming>SequencePath_SmallLowRisk</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 3: Review Needed or Amount >= $10k -->
+    <bpmn:serviceTask id="Task_BankApproverService" name="Request Approver Web Service">
+      <bpmn:incoming>SequencePath_ReviewOrLarge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event for Path 3 -->
+    <bpmn:endEvent id="EndEvent_LenderProcessed" name="Review Complete">
+      <bpmn:messageRefMessage_Feedback/>
+      <bpmn:incoming>SequenceFlow_FinalizeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Customer Process (Simplified for interaction) -->
+  <bpmn:process id="Proc_CustomerInteraction" isExecutable="true">
+    
+    <bpmn:startEvent id="StartEvent_CustInitiate" name="Customer Start">
+      <bpmn:outgoing>SequenceFlow_RequestLoan</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to send request -->
+    <bpmn:task id="Task_CustRequestLoan" name="Submit Loan Request">
+      <bpmn:incoming>SequenceFlow_RequestLoan</bpmn:incoming>
+      <bpmn:outgoing/> 
+    </bpmn:task>
+
+    <!-- Task to receive feedback (End of interaction) -->
+    <bpmn:endEvent id="Task_CustFeedbackReceived" name="Receive Feedback">
+      <bpmn:messageRefMessage_Feedback/>
+       <bpmn:incoming>SequenceFlow_FinalizeCustomer</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows for Bank Process -->
+  <bpmn:sequenceFlow id="SequenceFlow_AssessRisk" sourceRef="StartEvent_BankReceiveReq" targetRef="Task_BankAssessRisk"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_DecisionGateway" sourceRef="Task_BankAssessRisk" targetRef="Gateway_RiskDecision"/>
+
+  <!-- Path 1: High Risk -->
+  <bpmn:sequenceFlow id="SequencePath_HighRisk" name="High Risk" sourceRef="Gateway_RiskDecision" targetRef="EndEvent_LenderDenied">
+    <bpmn:conditionExpression xsi:type="tFormalExpression">${riskLevel == 'HIGH'}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Path 2: Small & Low Risk -->
+  <bpmn:sequenceFlow id="SequencePath_SmallLowRisk" name="Small &amp; Low Risk" sourceRef="Gateway_RiskDecision" targetRef="EndEvent_LenderApproved">
+    <bpmn:conditionExpression xsi:type="tFormalExpression">${amount <= 5000 AND riskLevel == 'LOW'}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Path 3: Review Needed or Amount >= $10k -->
+  <bpmn:sequenceFlow id="SequencePath_ReviewOrLarge" name="Review OR Large Amount" sourceRef="Gateway_RiskDecision" targetRef="Task_BankApproverService">
+    <bpmn:conditionExpression xsi:type="tFormalExpression">${needsFurtherReview == true OR amount >= 10000}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Finalize Process Flow -->
+  <bpmn:sequenceFlow id="SequenceFlow_FinalizeProcess" sourceRef="Task_BankApproverService" targetRef="EndEvent_LenderProcessed"/>
+
+</bpmn:definitions>

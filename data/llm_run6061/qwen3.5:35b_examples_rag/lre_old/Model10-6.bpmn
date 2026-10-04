@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Dismissal"/>
+
+  <bpmn:collaboration id="Collaboration_DismissalProcess">
+    <bpmn:participant id="Participant_MSPN" name="MSPN" processRef="Pool_MSPN"/>
+    <bpmn:participant id="Participant_MSPO" name="MSPO" processRef="Pool_MSPO"/>
+    <bpmn:messageFlow id="MessageFlow_DismissalSent" sourceRef="IntermediateThrowEvent_SendDismissal" targetRef="StartMessageEvent_ReceiveDismissal">
+      <bpmn:sourceRef>IntermediateThrowEvent_SendDismissal</bpmn:sourceRef>
+      <bpmn:targetRef>StartMessageEvent_ReceiveDismissal</bpmn:targetRef>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- MSPN Process -->
+  <bpmn:process id="Pool_MSPN" isExecutable="false">
+    <bpmn:startEvent id="StartNoneEvent_MSPO_DismissalSend" name="Initiate Dismissal">
+      <bpmn:outgoing>SequenceFlow_StartToThrow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SendDismissal" name="Prepare and Send Dismissal">
+      <bpmn:incoming>SequenceFlow_StartToThrow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToThrow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndNoneEvent_MSPO_DismissalSent" name="Dismissal Sent">
+      <bpmn:incoming>SequenceFlow_ThrowToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendDismissal" name="Send Dismissal to MSPO">
+      <bpmn:messageRef>Message_Dismissal</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_TaskToThrow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ThrowToEnd</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToThrow" sourceRef="StartNoneEvent_MSPO_DismissalSend" targetRef="Task_SendDismissal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToThrow" sourceRef="Task_SendDismissal" targetRef="IntermediateThrowEvent_SendDismissal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ThrowToEnd" sourceRef="IntermediateThrowEvent_SendDismissal" targetRef="EndNoneEvent_MSPO_DismissalSent"/>
+
+  </bpmn:process>
+
+  <!-- MSPO Process -->
+  <bpmn:process id="Pool_MSPO" isExecutable="false">
+    <bpmn:startMessageEvent id="StartMessageEvent_ReceiveDismissal" name="Receive Dismissal from MSPN">
+      <bpmn:messageRef>Message_Dismissal</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_StartToReview</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:task id="Task_ReviewDismissal" name="Review Dismissal">
+      <bpmn:incoming>SequenceFlow_StartToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndNoneEvent_MSPO_Rejected" name="Dismissal Rejected">
+      <bpmn:incoming>SequenceFlow_GatewayRejectToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndNoneEvent_MSPO_Confirmed" name="Dismissal Confirmed">
+      <bpmn:incoming>SequenceFlow_GatewayConfirmToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision" name="Decision on Dismissal">
+      <bpmn:incoming>SequenceFlow_TaskToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayReject</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GatewayConfirm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReview" sourceRef="StartMessageEvent_ReceiveDismissal" targetRef="Task_ReviewDismissal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToGateway" sourceRef="Task_ReviewDismissal" targetRef="ExclusiveGateway_Decision"/>
+
+    <!-- Gateway to Reject -->
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayRejectToEnd" name="Reject Dismissal" sourceRef="ExclusiveGateway_Decision" targetRef="EndNoneEvent_MSPO_Rejected">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${decision = 'reject'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway to Confirm -->
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayConfirmToEnd" name="Confirm Dismissal" sourceRef="ExclusiveGateway_Decision" targetRef="EndNoneEvent_MSPO_Confirmed">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${decision = 'confirm'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+</bpmn:definitions>

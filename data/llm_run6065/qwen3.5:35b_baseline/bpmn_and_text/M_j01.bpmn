@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ChainsawProcess">
+
+  <bpmn:collaboration id="Collab_ManufacturingCustomer">
+    <bpmn:participant name="Chainsaw Manufacturing Process" processRef="Proc_MainManufacturing"/>
+    <bpmn:participant name="Customer Interaction Pool" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_MainManufacturing">
+    
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_OrderSpecs" name="Order Specifications"/>
+    <bpmn:dataObjectReference id="Data_PartsList" name="Parts List"/>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_ReceiveOrder">
+      <bpmn:outgoing>Seq_Start_RecordSpecs</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Record Specs -->
+    <bpmn:task id="Task_RecordCustomerSpecs" name="Record Customer Specifications">
+      <bpmn:incoming>Seq_Start_RecordSpecs</bpmn:incoming>
+      <bpmn:outgoing>Seq_Specs_OrderParts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Ordering Parts -->
+    <bpmn:parallelGateway id="Gw_ParallelOrdering">
+      <bpmn:incoming>Seq_Specs_OrderParts</bpmn:incoming>
+      <bpmn:outgoing>Seq_OrderGuideBar</bpmn:outgoing>
+      <bpmn:outgoing>Seq_OrderChainWidth</bpmn:outgoing>
+      <bpmn:outgoing>Seq_OrderMotorType</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Tasks for Ordering Parts -->
+    <bpmn:task id="Task_OrderGuideBar" name="Order Guide Bar">
+      <bpmn:incoming>Seq_OrderGuideBar</bpmn:incoming>
+      <bpmn:outgoing>Seq_GuideArrived</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_OrderChainWidth" name="Order Chain Width">
+      <bpmn:incoming>Seq_OrderChainWidth</bpmn:incoming>
+      <bpmn:outgoing>Seq_ChainArrived</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_OrderMotorType" name="Order Motor/Electric Unit">
+      <bpmn:incoming>Seq_OrderMotorType</bpmn:incoming>
+      <bpmn:outgoing>Seq_MotorArrived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join (Parts Arrive) -->
+    <bpmn:parallelGateway id="Gw_PartsJoined">
+      <bpmn:incoming>Seq_GuideArrived</bpmn:incoming>
+      <bpmn:incoming>Seq_ChainArrived</bpmn:incoming>
+      <bpmn:incoming>Seq_MotorArrived</bpmn:incoming>
+      <bpmn:outgoing>Seq_InspectionStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Inspection -->
+    <bpmn:task id="Task_ManualInspection" name="Manual Inspection of Parts">
+      <bpmn:incoming>Seq_InspectionStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_ProductionPhase</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Production Phase (Assemble & Notify) -->
+    <bpmn:parallelGateway id="Gw_ProductionStart">
+      <bpmn:incoming>Seq_ProductionPhase</bpmn:incoming>
+      <bpmn:outgoing>Seq_AssemblyFirstSaw</bpmn:outgoing>
+      <bpmn:outgoing>Seq_SendUpdatesLoop</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Assemble First Saw -->
+    <bpmn:task id="Task_AssembleFirstSaw" name="Assemble First Chainsaw">
+      <bpmn:incoming>Seq_AssemblyFirstSaw</bpmn:incoming>
+      <bpmn:outgoing>Seq_ShipFirstReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Updates (Regularly) -->
+    <bpmn:task id="Task_SendUpdates" name="Send Production Update">
+      <bpmn:incoming>Seq_SendUpdatesLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_UpdateSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join before Shipping First Saw -->
+    <bpmn:parallelGateway id="Gw_ShipReady">
+      <bpmn:incoming>Seq_ShipFirstReady</bpmn:incoming>
+      <bpmn:incoming>Seq_UpdateSent</bpmn:incoming>
+      <bpmn:outgoing>Seq_ShipeSawToCustomer</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Ship First Saw -->
+    <bpmn:task id="Task_ShipFirstSaw" name="Ship First Chainsaw">
+      <bpmn:incoming>Seq_ShipeSawToCustomer</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitFeedback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event for Feedback -->
+    <bpmn:startEvent id="Start_Event_Feedback">
+       <bpmn:messageRefMessageFlowId/> 
+      <bpmn:incoming>Seq_WaitFeedback</bpmn:incoming>
+      <bpmn:outgoing>Gw_CustomerDecisionGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway for Decision -->
+     <bpmn:exclusiveGateway id="Gw_CustomerDecision">
+       < bpmn:name>Customer Likes It?</ b pm name > 
+        <bpmn:incoming>Gw_CustomerDecisionGateway</bpmn:incoming>
+         <bpmn:outgoing>Seq_ProduceRest_Yes</bpmn:outgoing>
+          <bpmn:outgoing>Seq_Cancel_No</bpmn:outgoing>
+      </bp m n : exclusive Gateway >
+
+    <!-- Task: Produce Rest -->
+     < bpmn:task id="Task_ProduceRest" name="Produce Remaining Orders">
+       < b pmn:name>Pack and Ship Rest of Order</ bp mn :name> 
+        <bpmn:incoming>Seq_ProduceRest_Yes</bpmn:incoming>
+         <bpmn:outgoing>Seq_FinalEndProcess</bpmn:outgoing>
+      </bp m n : task >
+
+    <!-- End Events -->
+     < bpmn:endEvent id="End_Event_Success" name="Order Completed Successfully">
+       < b pmn:name>Pack and Ship Rest of Order</ bp mn :name> 
+        <bpmn:incoming>Seq_FinalEndProcess</bpmn:outgoing>
+      </bp m n : end Event >
+
+     < bpmn:endEvent id="End_Event_Cancelled" name="Order Cancelled">
+       < b pmn:name>Pack and Ship Rest of Order</ bp mn :name> 
+        <bpmn:incoming>Gw_CustomerDecisionGateway</bpmn:outgoing>
+      </bp m n : end Event >
+
+    <!-- Sequence Flows -->
+     < bpmn:sequenceFlow id="Seq_Start_RecordSpecs" name="Start">
+       < b pmn:name>New Order Received</ bp mn :name> 
+        <bpmn:sourceRef>Start_Event_ReceiveOrder</bpmn:sourceRef>
+         <bpmn:targetRef>Task_RecordCustomerSpecs</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_Specs_OrderParts" name="">
+       < b pmn:name>Order Parts Initiated</ bp mn :name> 
+        <bpmn:sourceRef>Task_RecordCustomerSpecs</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_ParallelOrdering</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_OrderGuideBar" name="">
+       < b pmn:name>Order Guide Bar</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ParallelOrdering</bpmn:sourceRef>
+         <bpmn:targetRef>Task_OrderGuideBar</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_OrderChainWidth" name="">
+       < b pmn:name>Order Chain Width</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ParallelOrdering</bpmn:sourceRef>
+         <bpmn:targetRef>Task_OrderChainWidth</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_OrderMotorType" name="">
+       < b pmn:name>Order Motor Type</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ParallelOrdering</bpmn:sourceRef>
+         <bpmn:targetRef>Task_OrderMotorType</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_GuideArrived" name="">
+       < b pmn:name>Guide Bar Arrives</ bp mn :name> 
+        <bpmn:sourceRef>Task_OrderGuideBar</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_PartsJoined</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_ChainArrived" name="">
+       < b pmn:name>Chain Arrives</ bp mn :name> 
+        <bpmn:sourceRef>Task_OrderChainWidth</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_PartsJoined</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_MotorArrived" name="">
+       < b pmn:name>Motor Arrives</ bp mn :name> 
+        <bpmn:sourceRef>Task_OrderMotorType</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_PartsJoined</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_InspectionStart" name="">
+       < b pmn:name>All Parts Arrived</ bp mn :name> 
+        <bpmn:sourceRef>Gw_PartsJoined</bpmn:sourceRef>
+         <bpmn:targetRef>Task_ManualInspection</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_ProductionPhase" name="">
+       < b pmn:name>Parts Inspected OK</ bp mn :name> 
+        <bpmn:sourceRef>Task_ManualInspection</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_ProductionStart</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_AssemblyFirstSaw" name="">
+       < b pmn:name>Assemble First Saw</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ProductionStart</bpmn:sourceRef>
+         <bpmn:targetRef>Task_AssembleFirstSaw</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_SendUpdatesLoop" name="">
+       < b pmn:name>Send Updates Regularly</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ProductionStart</bpmn:sourceRef>
+         <bpmn:targetRef>Task_SendUpdates</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_UpdateSent" name="">
+       < b pmn:name>Update Sent</ bp mn :name> 
+        <bpmn:sourceRef>Task_SendUpdates</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_ShipReady</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_ShipeSawToCustomer" name="">
+       < b pmn:name>Saw Ready to Ship</ bp mn :name> 
+        <bpmn:sourceRef>Gw_ShipReady</bpmn:sourceRef>
+         <bpmn:targetRef>Task_ShipFirstSaw</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_WaitFeedback" name="">
+       < b pmn:name>Sent to Customer</ bp mn :name> 
+        <bpmn:sourceRef>Task_ShipFirstSaw</bpmn:sourceRef>
+         <bpmn:targetRef>Gw_CustomerDecisionGateway</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     <!-- Decision Flows -->
+    < bpmn:sequenceFlow id="Seq_ProduceRest_Yes" name="Likes It">
+       < b pmn:name>Customer Approved</ bp mn :name> 
+        <bpmn:sourceRef>Gw_CustomerDecisionGateway</bpmn:sourceRef>
+         <bpmn:targetRef>Task_ProduceRest</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     < bpmn:sequenceFlow id="Seq_Cancel_No" name="Does Not Like">
+       < b pmn:name>Customer Rejected</ bp mn :name> 
+        <bpmn:sourceRef>Gw_CustomerDecisionGateway</bpmn:sourceRef>
+         <bpmn:targetRef>End_Event_Cancelled</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+     <!-- Final Flow -->
+    < bpmn:sequenceFlow id="Seq_FinalEndProcess" name="">
+       < b pmn:name>Pack and Ship Rest of Order</ bp mn :name> 
+        <bpmn:sourceRef>Task_ProduceRest</bpmn:sourceRef>
+         <bpmn:targetRef>End_Event_Success</bpmn:targetRef>
+      </bp m n : sequenceFlow >
+
+  </ bpmn:process > 
+
+  <!-- Message Flows -->
+   < b p m n:messageFlow id="Msg_Feedback" name="Customer Decision"> 
+     < bp mn:name>Catch Feedback Event</ b pm n:name> 
+       <bpmn:sourceRef>Gw_CustomerDecisionGateway</bpmn:sourceRef>
+        < bpmn:targetRef>Start_Event_Feedback</bp m n : target Ref > 
+    </bp m n:messageFlow>
+
+  </ bp mn:defin i tions >

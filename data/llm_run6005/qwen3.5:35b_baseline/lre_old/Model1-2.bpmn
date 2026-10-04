@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ComputerRepair">
+    <bpmn:participant name="Computer Service Center" processRef="Proc_RepairProcess"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_RepairProcess" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive Defective Computer">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: CRS checks defect and calculates cost -->
+    <bpmn:task id="Task_CheckCost" name="CRS Checks Defect &amp; Calculates Cost">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CostDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision on costs -->
+    <bpmn:exclusiveGateway id="XG_CostAcceptable" name="Costs Acceptable?">
+      <bpmn:incoming>SequenceFlow_CostDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectOrder</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartRepair</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Customer takes computer home -->
+    <bpmn:endEvent id="End_TakeHome" name="Take Home Unrepaired">
+      <bpmn:incoming>SequenceFlow_RejectOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway Split for Repair Activities (Arbitrary Order) -->
+    <bpmn:parallelGateway id="PG_SplitRepair" name="Start Repair Process">
+      <bpmn:incoming>SequenceFlow_StartRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HWPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SWPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Branch 1: Hardware -->
+    <bpmn:task id="Task_HardwareFix" name="Check and Repair Hardware">
+      <bpmn:incoming>SequenceFlow_HWPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestHWFunctionality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Test HW -->
+    <bpmn:task id="Task_TestHW" name="Test System Functionality (Hardware)">
+      <bpmn:incoming>SequenceFlow_TestHWFunctionality</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HWErrorCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway HW Error -->
+    <bpmn:exclusiveGateway id="XG_HWError" name="HW Error Detected?">
+      <bpmn:incoming>SequenceFlow_HWErrorCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopHWRework</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HWToMerge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Branch 2: Software -->
+    <bpmn:task id="Task_SWConfig" name="Check and Configure Software">
+      <bpmn:incoming>SequenceFlow_SWPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestSWFunctionality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Test SW -->
+    <bpmn:task id="Task_TestSW" name="Test System Functionality (Software)">
+      <bpmn:incoming>SequenceFlow_TestSWFunctionality</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SWErrorCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway SW Error -->
+    <bpmn:exclusiveGateway id="XG_SWError" name="SW Error Detected?">
+      <bpmn:incoming>SequenceFlow_SWErrorCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopSWRework</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SWToMerge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="PG_MergeRepair" name="Merge Repair Paths">
+      <bpmn:incoming>SequenceFlow_HWToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SWToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishRepair</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="End_RepairFinished" name="Repair Finished">
+      <bpmn:incoming>SequenceFlow_FinishRepair</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definitions (Explicitly defined for clarity) -->
+    
+    <!-- Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_1" targetRef="Task_CheckCost"/>
+
+    <!-- Cost Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CostDecision" name="Calculate Costs" sourceRef="Task_CheckCost" targetRef="XG_CostAcceptable"/>
+
+    <!-- Reject Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectOrder" name="No (Unacceptable)" sourceRef="XG_CostAcceptable" targetRef="End_TakeHome"/>
+
+    <!-- Repair Start Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartRepair" name="Yes (Acceptable)" sourceRef="XG_CostAcceptable" targetRef="PG_SplitRepair"/>
+
+    <!-- Parallel Split Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_HWPath" name="Hardware Repair" sourceRef="PG_SplitRepair" targetRef="Task_HardwareFix"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SWPath" name="Software Config" sourceRef="PG_SplitRepair" targetRef="Task_SWConfig"/>
+
+    <!-- HW Testing Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestHWFunctionality" sourceRef="Task_HardwareFix" targetRef="Task_TestHW"/>
+
+    <!-- SW Testing Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestSWFunctionality" sourceRef="Task_SWConfig" targetRef="Task_TestSW"/>
+
+    <!-- HW Error Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_HWErrorCheck" name="Test Result - Functionality OK?" sourceRef="Task_TestHW" targetRef="XG_HWError"/>
+
+    <!-- HW Merge Flow (No error) -->
+    <bpmn:sequenceFlow id="SequenceFlow_HWToMerge" name="No (OK)" sourceRef="XG_HWError" targetRef="PG_MergeRepair"/>
+
+    <!-- SW Error Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SWErrorCheck" name="Test Result - Functionality OK?" sourceRef="Task_TestSW" targetRef="XG_SWError"/>
+
+    <!-- SW Merge Flow (No error) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SWToMerge" name="No (OK)" sourceRef="XG_SWError" targetRef="PG_MergeRepair"/>
+
+    <!-- HW Loop Back Flow (error detected, rework needed) -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopHWRework" name="Yes (Error - Rework Required)" sourceRef="XG_HWError" targetRef="Task_HardwareFix"/>
+
+    <!-- SW Loop Back Flow (error detected, rework needed) -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopSWRework" name="Yes (Error - Rework Required)" sourceRef="XG_SWError" targetRef="Task_SWConfig"/>
+
+    <!-- Final Finish Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishRepair" name="Both Repairs Complete" sourceRef="PG_MergeRepair" targetRef="End_RepairFinished"/>
+
+  </bpmn:process>
+</bpmn:definitions>

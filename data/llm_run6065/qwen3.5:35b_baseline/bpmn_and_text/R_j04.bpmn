@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CarServiceProcess">
+
+  <bpmn:collaboration id="Collab_ServiceCycle">
+    <bpmn:participant name="Car Service Process" processRef="Proc_CarService"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_CarService" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_ServiceCycle">
+      <bpmn:lane id="Lane_SystemApp" name="System/App (Police)">
+        <bpmn:flowNodeRef>Task_CheckRegistration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_IsRegistered</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyUser</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Customer" name="Customer/User">
+        <bpmn:flowNodeRef>StartEvent_ReminderTriggered</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CustomerWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayViaApp</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Mechanic" name="Mechanic/Facility">
+        <bpmn:flowNodeRef>Gw_SplitRepairEmails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterProblems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendStatusUpdates</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_JoinRepairEmails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MechanicMarkSuccess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetNextServiceTime</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReminderTriggered" name="Reminder Triggered">
+       <bpmn:outgoing>SequenceFlow_Start_CheckReg</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Registration (System) -->
+    <bpmn:task id="Task_CheckRegistration" name="Check Car Registration Status">
+      <bpmn:incoming>SequenceFlow_Start_CheckReg</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Reg_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is Registered? -->
+    <bpmn:exclusiveGateway id="Gw_IsRegistered">
+       <bpmn:incoming>SequenceFlow_Reg_Gateway</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Yes_Notify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Notify User (System) -->
+    <bpmn:task id="Task_NotifyUser" name="Notify Customer of Service">
+      <bpmn:incoming>SequenceFlow_Yes_Notify</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Customer_WaitStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Customer Waits/Decides (Customer) -->
+    <bpmn:task id="Task_CustomerWait" name="Wait for Service / Go to Facility">
+      <bpmn:incoming>SequenceFlow_Customer_WaitStart</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_GoToFacility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Timer Event for Fine (Attached to CustomerWait) -->
+    <bpmn:boundaryEvent id="Boundary_Timer30Days" name="Fine after 30 Days">
+      <bpmn:attachedToRef>Task_CustomerWait</bpmn:attachedToRef>
+       <bpmn:outgoing>SequenceFlow_Fine_Issue</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- End Event for Fine -->
+     <bpmn:endEvent id="EndEvent_Fined" name="Customer Fined">
+       <bpmn:incoming>SequenceFlow_Fine_Issue</bpmn:incoming>
+     </bpmn:endEvent>
+
+    <!-- Gateway for Parallel Repair/Emails (Mechanic Lane) -->
+    <bpmn:exclusiveGateway id="Gw_SplitRepairEmails">
+      <bpmn:incoming>SequenceFlow_GoToFacility</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Mech_Problems</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task: Mechanic Enters Problems (Mechanic) -->
+    <bpmn:task id="Task_EnterProblems" name="Enter Car Problems">
+      <bpmn:incoming>SequenceFlow_Mech_Problems</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SplitRepairEmails_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Parallel Repair/Emails (Split) -->
+    <bpmn:parallelGateway id="Gw_ParallelStart">
+      <bpmn:incoming>SequenceFlow_SplitRepairEmails_Gateway</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RepairCar</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_EmailUpdates</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Task: Send Status Updates (Customer/System) -->
+    <bpmn:task id="Task_SendStatusUpdates" name="Send Email Status Updates">
+      <bpmn:incoming>SequenceFlow_EmailUpdates</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_JoinRepairEmails_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Repair Car (Mechanic) -->
+    <bpmn:task id="Task_RepairCar" name="Perform Repairs">
+      <bpmn:incoming>SequenceFlow_RepairCar</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_JoinRepairEmails_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Parallel Repair/Emails (Join) -->
+    <bpmn:parallelGateway id="Gw_ParallelEnd">
+      <bpmn:incoming>SequenceFlow_JoinRepairEmails_Gateway</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Customer_WaitStart2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Task: Pay via App (Customer) -->
+    <bpmn:task id="Task_PayViaApp" name="Pay Through App">
+      <bpmn:incoming>SequenceFlow_Customer_WaitStart2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Mech_Success</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Mechanic Mark Success/Pickerl (Mechanic) -->
+    <bpmn:task id="Task_MechanicMarkSuccess" name="Enter Successful Repair & Pickerl">
+      <bpmn:incoming>SequenceFlow_Mech_Success</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_SetNextTime</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Set Next Service Time (Mechanic) -->
+    <bpmn:task id="Task_SetNextServiceTime" name="Enter Next Service Date">
+      <bpmn:incoming>SequenceFlow_SetNextTime</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_End_Success</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Service Completed">
+      <bpmn:incoming>SequenceFlow_End_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Start_CheckReg" sourceRef="StartEvent_ReminderTriggered" targetRef="Task_CheckRegistration"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Reg_Gateway" name="Registered?" sourceRef="Gw_IsRegistered" targetRef="Task_NotifyUser">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isRegistered}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Customer_WaitStart" sourceRef="Task_NotifyUser" targetRef="Task_CustomerWait"/>
+    
+     <!-- Boundary Event Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_Fine_Issue" name="30 Days Passed" sourceRef="Boundary_Timer30Days" targetRef="EndEvent_Fined"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GoToFacility" sourceRef="Task_CustomerWait" targetRef="Gw_SplitRepairEmails"/>
+    
+     <!-- Mechanic Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Mech_Problems" name="Start Service Visit" sourceRef="Gw_SplitRepairEmails" targetRef="Task_EnterProblems"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SplitRepairEmails_Gateway" sourceRef="Task_EnterProblems" targetRef="Gw_ParallelStart"/>
+    
+     <!-- Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_RepairCar" name="Mechanic Work" sourceRef="Gw_ParallelStart" targetRef="Task_RepairCar"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EmailUpdates" name="Email Updates" sourceRef="Gw_ParallelStart" targetRef="Task_SendStatusUpdates"/>
+
+     <!-- Parallel Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_JoinRepairEmails_Gateway" sourceRef="Task_RepairCar" targetRef="Gw_ParallelEnd"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EmailJoin" name="Updates Done" sourceRef="Task_SendStatusUpdates" targetRef="Gw_ParallelEnd"/>
+
+     <!-- Post Repair Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Customer_WaitStart2" sourceRef="Gw_ParallelEnd" targetRef="Task_PayViaApp"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Mech_Success" name="Ready for Completion" sourceRef="Task_PayViaApp" targetRef="Task_MechanicMarkSuccess"/>
+
+     <!-- Final Steps -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetNextTime" sourceRef="Task_MechanicMarkSuccess" targetRef="Task_SetNextServiceTime"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_End_Success" name="Process Complete" sourceRef="Task_SetNextServiceTime" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

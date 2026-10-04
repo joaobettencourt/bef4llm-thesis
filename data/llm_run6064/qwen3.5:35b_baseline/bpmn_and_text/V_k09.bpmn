@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_StorageManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_StorageMgmt">
+    <bpmn:participant id="Participant_OrderProcessing" name="Order Processing System" processRef="Process_StorageManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_StorageManagement" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_ReadOrder" name="Read Order from Automatic System">
+      <bpmn:outgoing>SequenceFlow_StartToStockCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Stock -->
+    <bpmn:task id="Task_CheckStock" name="Check if Product in Stock">
+      <bpmn:incoming>SequenceFlow_LoopBackToStockCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StockDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Stock Decision -->
+    <bpmn:exclusiveGateway id="Gateway_StockDecision">
+      <bpmn:incoming>SequenceFlow_StartToStockCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InStockPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotInStockPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Product In Stock -->
+    <bpmn:task id="Task_WithdrawProduct" name="Withdraw from Warehouse">
+      <bpmn:incoming>SequenceFlow_InStockPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRegisterArrival</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Product Not In Stock -->
+    <bpmn:task id="Task_ReorderProduct" name="Reorder from Wholesaler">
+      <bpmn:incoming>SequenceFlow_NotInStockPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDelayCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Delay Check -->
+    <bpmn:exclusiveGateway id="Gateway_DelayCheck">
+      <bpmn:incoming>SequenceFlow_ToDelayCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PenaltyRequiredPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPenaltyPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Penalty Task -->
+    <bpmn:task id="Task_DemandPenalty" name="Demand Delivery Delay Penalty">
+      <bpmn:incoming>SequenceFlow_PenaltyRequiredPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRegisterArrivalFromPenalty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Register Arrival (merge point) -->
+    <bpmn:task id="Task_RegisterStock" name="Register in Stock Management System">
+      <bpmn:incoming>SequenceFlow_ToRegisterArrival</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_NoPenaltyPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToRegisterArrivalFromPenalty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckOrderReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Order Ready Decision -->
+    <bpmn:exclusiveGateway id="Gateway_OrderReady">
+      <bpmn:incoming>SequenceFlow_CheckOrderReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReadyPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotReadyPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Path for Shipping -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Ship">
+      <bpmn:incoming>SequenceFlow_ReadyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestCourier</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackProducts</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Courier Request -->
+    <bpmn:task id="Task_RequestCourier" name="Request Courier">
+      <bpmn:incoming>SequenceFlow_RequestCourier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToShipMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Pack Products -->
+    <bpmn:task id="Task_PackProducts" name="Pack Products">
+      <bpmn:incoming>SequenceFlow_PackProducts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToShipMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge before Ship -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Ship_Merge">
+      <bpmn:incoming>SequenceFlow_ToShipMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShipeProducts</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Ship Products -->
+    <bpmn:endEvent id="End_Event_Shipped" name="Shipped">
+      <bpmn:incoming>SequenceFlow_ShipeProducts</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Loop Back Path (Not Ready) -->
+    <bpmn:task id="Task_SelectNextProduct" name="Select Next Product from Order">
+      <bpmn:incoming>SequenceFlow_NotReadyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBackToStockCheck</bpmn:outgoing>
+    </bpmn:task>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_StartToStockCheck" sourceRef="Start_Event_ReadOrder" targetRef="Task_CheckStock"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_StockDecision" name="" sourceRef="Task_CheckStock" targetRef="Gateway_StockDecision"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_InStockPath" name="In Stock">
+    <bpmn:name>Is In Stock</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_NotInStockPath" name="" sourceRef="Gateway_StockDecision" targetRef="Task_ReorderProduct"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_ToRegisterArrival" sourceRef="Task_WithdrawProduct" targetRef="Task_RegisterStock"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ToDelayCheck" name="" sourceRef="Task_ReorderProduct" targetRef="Gateway_DelayCheck"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_PenaltyRequiredPath" name="">
+    <bpmn:name>Wait &gt;10 Days</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_NoPenaltyPath" sourceRef="Gateway_DelayCheck" targetRef="Task_RegisterStock"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ToRegisterArrivalFromPenalty" name="" sourceRef="Task_DemandPenalty" targetRef="Task_RegisterStock"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_CheckOrderReady" sourceRef="Task_RegisterStock" targetRef="Gateway_OrderReady"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ReadyPath" name="" sourceRef="Gateway_OrderReady" targetRef="Parallel_Gateway_Ship">
+    <bpmn:name>Order Ready</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_NotReadyPath" name="" sourceRef="Gateway_OrderReady" targetRef="Task_SelectNextProduct"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_RequestCourier" sourceRef="Parallel_Gateway_Ship" targetRef="Task_RequestCourier"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_PackProducts" name="" sourceRef="Parallel_Gateway_Ship" targetRef="Task_PackProducts"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ToShipMerge" name="" sourceRef="Task_RequestCourier" targetRef="Parallel_Gateway_Ship_Merge"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_ShipeProducts" sourceRef="Parallel_Gateway_Ship_Merge" targetRef="End_Event_Shipped">
+    <bpmn:name>Ship Products</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_LoopBackToStockCheck" name="" sourceRef="Task_SelectNextProduct" targetRef="Task_CheckStock"/>
+
+</bpmn:definitions>

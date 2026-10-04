@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OEE">
+    <bpmn:participant id="Participant_MonitoringSystem" name="OEE Monitoring System" processRef="Process_OEEMonitoring" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEEMonitoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_MachineConnected" name="Machine Connected">
+      <bpmn:outgoing>Seq_CheckConnection</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Disconnected" name="Process Stopped (Disconnected)">
+      <bpmn:incoming>Seq_ConnectionLost</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Intermediate Catch Event for Restart Signal -->
+    <bpmn:intermediateCatchEvent id="Evt_RestartSignal" name="Wait for Restart">
+       <bpmn:signalEventDefinition signalRef="Sig_MachineRestarted"/>
+      <bpmn:incoming>Seq_WaitingForRestart</bpmn:incoming>
+      <bpmn:outgoing>Seq_ResumeMeasurement</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask id="Task_CollectData" name="Collect Machine Data">
+      <bpmn:incoming>Seq_StartLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_CalculateOEE</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="ServiceCalc_OEE" name="Calculate OEE">
+      <bpmn:incoming>Seq_CalculateOEE</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckThreshold</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Task_StopMachine" name="Stop Machine">
+      <bpmn:incoming>Seq_ActionSplitFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_MergeActions</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway Definitions -->
+    <bpmn:exclusiveGateway id="Gate_ConnectionStatus" name="Connected?">
+      <bpmn:incoming>Seq_CheckConnection</bpmn:incoming>
+      <bpmn:outgoing>Seq_StartLoop</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ConnectionLost</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="Gate_OEELowThreshold" name="OEE Below Threshold?">
+      <bpmn:incoming>Seq_CheckThreshold</bpmn:incoming>
+      <bpmn:outgoing>Seq_ContinueMonitoring</bpmn:outgoing>
+      <bpmn:outgoing>Seq_LowOEEActionFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="Gate_ActionSplit" name="">
+      <bpmn:incoming>Seq_LowOEEActionFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_StopMachineFlow</bpmn:outgoing>
+      <bpmn:outgoing>Seq_SendEmailFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:parallelGateway id="Gate_MergeActions" name="">
+      <bpmn:incoming>Seq_StopMachineFlow</bpmn:incoming>
+      <bpmn:incoming>Seq_SendEmailFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitingForRestart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckConnection" sourceRef="Start_MachineConnected" targetRef="Gate_ConnectionStatus" />
+    
+    <bpmn:sequenceFlow id="Seq_StartLoop" name="Yes (Online)" sourceRef="Gate_ConnectionStatus" targetRef="Task_CollectData">
+      <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ConnectionLost" name="No (Disconnected)" sourceRef="Gate_ConnectionStatus" targetRef="End_Disconnected">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_CalculateOEE" sourceRef="Task_CollectData" targetRef="ServiceCalc_OEE" />
+
+    <bpmn:sequenceFlow id="Seq_CheckThreshold" name="Calculate Result" sourceRef="ServiceCalc_OEE" targetRef="Gate_OEELowThreshold">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <!-- OEE Threshold Logic -->
+    <bpmn:sequenceFlow id="Seq_ContinueMonitoring" name="No (OK)" sourceRef="Gate_OEELowThreshold" targetRef="Task_CollectData">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_LowOEEActionFlow" name="Yes (Low)" sourceRef="Gate_OEELowThreshold" targetRef="Gate_ActionSplit">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <!-- Action Split -->
+    <bpmn:sequenceFlow id="Seq_StopMachineFlow" name="Action 1" sourceRef="Gate_ActionSplit" targetRef="Task_StopMachine">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Service_SendEmail" name="Send Email to Engineer">
+       <bpmn:messageEventDefinition messageRef="Msg_EmailEngineer"/>
+      <bpmn:incoming>Seq_SendEmailFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_MergeActions</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Global Message Definition -->
+    <bpmn:message id="Msg_EmailEngineer" name="Email to Engineer">
+       <!-- Message definition -->
+    </bpmn:message>
+
+    <bpmn:sequenceFlow id="Seq_SendEmailFlow" name="Action 2" sourceRef="Gate_ActionSplit" targetRef="Service_SendEmail">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <!-- Merge and Wait -->
+    <bpmn:signal id="Sig_MachineRestarted" name="Machine Restart Signal"/>
+
+    <bpmn:sequenceFlow id="Seq_WaitingForRestart" name="Wait for Restart" sourceRef="Gate_MergeActions" targetRef="Evt_RestartSignal">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ResumeMeasurement" name="Machine Restarted" sourceRef="Evt_RestartSignal" targetRef="Task_CollectData">
+       <!-- Removed internal bpmn:name to ensure XSD validity -->
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

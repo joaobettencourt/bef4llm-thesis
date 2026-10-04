@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_INQ_IP">
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="ThrowEvent_SendRequest" targetRef="StartEvent_IP"/>
+    <bpmn:messageFlow id="MessageFlow_Response" sourceRef="Task_IP_Answer" targetRef="CatchEvent_ReceiveResponse"/>
+  </bpmn:collaboration>
+
+  <!-- INQ Participant -->
+  <bpmn:process id="Pool_INQ" name="INQ">
+    <bpmn:startEvent id="StartEvent_INQ">
+      <bpmn:name>Create Request</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_StartToThrow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateThrowEvent id="ThrowEvent_SendRequest">
+      <bpmn:name>Send Request to IP</bpmn:name>
+      <bpmn:incoming>SequenceFlow_StartToThrow</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ThrowToCatch</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Note: In strict BPMN, intermediate events need incoming/outgoing sequence flows within the process. 
+         For message flow connection to another pool, we typically connect via Message Flow in Collaboration.
+         However, for internal logic of waiting, we model it as a Catch Event after sending if synchronous wait is implied or just EndEvent.
+         To match standard collaboration patterns: Start -> Throw (Message) ... Wait/Catch (Message) -> End -->
+
+    <bpmn:endEvent id="EndEvent_INQ">
+      <bpmn:name>Request Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CatchToEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToThrow" sourceRef="StartEvent_INQ" targetRef="ThrowEvent_SendRequest"/>
+  </bpmn:process>
+
+  <!-- IP Participant -->
+  <bpmn:process id="Pool_IP" name="IP">
+    <bpmn:startMessageEvent id="StartEvent_IP">
+      <bpmn:name>Receive Request</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <!-- Task to Check/Validate the Request -->
+    <bpmn:task id="Task_IP_Check">
+      <bpmn:name>Examine Transaction Data</bpmn:name>
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Valid">
+      <bpmn:name>Data Valid?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckToGateway</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GatewayYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GatewayNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Data Transmission -->
+    <bpmn:task id="Task_IP_Transmit">
+      <bpmn:name>Transmit Transaction</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GatewayYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TransmitToAnswer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Rejection -->
+    <bpmn:task id="Task_IP_Reject">
+      <bpmn:name>Reject Request</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GatewayNo</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectToAnswer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_Merge">
+      <bpmn:name>Merge Paths</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TransmitToAnswer</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_RejectToAnswer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AnswerToSendResponse</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_IP">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_AnswerToSendResponse</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_IP" targetRef="Task_IP_Check"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToGateway" sourceRef="Task_IP_Check" targetRef="ExclusiveGateway_Valid"/>
+
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayYes" name="Valid - Transmit Data" sourceRef="ExclusiveGateway_Valid" targetRef="Task_IP_Transmit"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayNo" name="Invalid - Reject" sourceRef="ExclusiveGateway_Valid" targetRef="Task_IP_Reject"/>
+
+    <!-- Response Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TransmitToAnswer" sourceRef="Task_IP_Transmit" targetRef="ParallelGateway_Merge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RejectToAnswer" sourceRef="Task_IP_Reject" targetRef="ParallelGateway_Merge"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

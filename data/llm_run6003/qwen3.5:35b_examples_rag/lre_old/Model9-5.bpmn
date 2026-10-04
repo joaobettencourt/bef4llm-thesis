@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ExpenseReportProcess">
+  <bpmn:collaboration id="Collaboration_ExpenseApproval">
+    <bpmn:participant id="Participant_EmployeeOperations" name="Employee Expense Approval Process"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseReport" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Expense Report Received">
+      <bpmn:outgoing>SequenceFlow_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Check if employee has account -->
+    <bpmn:exclusiveGateway id="Gateway_AccountExists" name="Employee Has Account?">
+      <bpmn:incoming>SequenceFlow_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesHasAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoCreateAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Account -->
+    <bpmn:task id="Task_CreateAccount" name="Create New Employee Account">
+      <bpmn:incoming>SequenceFlow_NoCreateAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreatedToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Review Report Amount -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>SequenceFlow_YesHasAccount</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountCreatedToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AutoApprove</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Auto Approved -->
+    <bpmn:endEvent id="End_AutoApproved" name="Reimbursement Processed">
+      <bpmn:incoming>SequenceFlow_AutoApprove</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 1: Supervisor Approval Request -->
+    <bpmn:userTask id="Task_SupervisorApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_SupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForSupervisorResponse</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event for Supervisor Response -->
+    <bpmn:intermediateCatchEvent id="Intermediate_SupervisorDecision" name="Supervisor Decision">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_WaitForSupervisorResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Approved</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 3: Supervisor Decision -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor Decision">
+      <bpmn:incoming>SequenceFlow_Approved</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Send Rejection Notice -->
+    <bpmn:userTask id="Task_SendRejectionNotice" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_Rejected</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectedToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_RejectedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 3: Send Approval in Progress Email (7 days timeout) -->
+    <bpmn:userTask id="Task_SendApprovalInProgress" name="Send 'In Progress' Email">
+      <bpmn:incoming>SequenceFlow_Timeout7Days</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetrySupervisorRequest</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Successful Reimbursement -->
+    <bpmn:endEvent id="End_Reimbursed" name="Reimbursement Processed">
+      <bpmn:incoming>SequenceFlow_Approved</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Timer Boundary Event for 7-day timeout -->
+    <bpmn:startTimerEvent id="StartTimer_7Days" name="7 Days">
+      <bpmn:timerDuration>P7D</bpmn:timerDuration>
+    </bpmn:startTimerEvent>
+
+    <!-- Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAccountCheck" sourceRef="StartEvent_ReportReceived" targetRef="Gateway_AccountExists"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesHasAccount" name="Yes" sourceRef="Gateway_AccountExists" targetRef="Gateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoCreateAccount" name="No" sourceRef="Gateway_AccountExists" targetRef="Task_CreateAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreatedToReview" sourceRef="Task_CreateAccount" targetRef="Gateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AutoApprove" name="Amount &lt; $200" sourceRef="Gateway_AmountCheck" targetRef="End_AutoApproved"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApproval" name="Amount >= $200" sourceRef="Gateway_AmountCheck" targetRef="Task_SupervisorApproval"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForSupervisorResponse" sourceRef="Task_SupervisorApproval" targetRef="Intermediate_SupervisorDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Approved" name="Approved" sourceRef="Intermediate_SupervisorDecision" targetRef="Gateway_SupervisorDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Rejected" name="Rejected" sourceRef="Gateway_SupervisorDecision" targetRef="Task_SendRejectionNotice"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedToEnd" sourceRef="Task_SendRejectionNotice" targetRef="End_Rejected"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Timeout7Days" name="No Response (7 Days)" sourceRef="Gateway_SupervisorDecision" targetRef="Task_SendApprovalInProgress"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RetrySupervisorRequest" sourceRef="Task_SendApprovalInProgress" targetRef="Task_SupervisorApproval"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_fault_detection_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_FaultManagement">
+    <bpmn:participant id="Participant_UserProcess" name="User Process" processRef="Process_UserActions"/>
+    <bpmn:participant id="Participant_DetectorSystem" name="Fault Detector System" processRef="Process_DetectorLogic"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_ReportFailure">
+      <bpmn:name>Report Failure</bpmn:name>
+      <bpmn:sourceRef>Event_Throw_ReportFailure</bpmn:sourceRef>
+      <bpmn:targetRef>Event_Catch_FailureReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_ShareResults">
+      <bpmn:name>Share Repair Results</bpmn:name>
+      <bpmn:sourceRef>Event_Throw_ShareResults</bpmn:sourceRef>
+      <bpmn:targetRef>Event_Catch_RepairReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- User Process -->
+  <bpmn:process id="Process_UserActions" isExecutable="false">
+    
+    <!-- Start Events -->
+    <bpmn:startEvent id="Start_Suspicion" name="User Suspicion of Fault">
+      <bpmn:outgoing>SequenceFlow_ExamineFailure</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event for External Report -->
+    <bpmn:intermediateCatchEvent id="Event_Catch_FailureReceived" name="Receive Failure Report">
+      <bpmn:incoming>SequenceFlow_ExamineFailure</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExamineFailure</bpmn:outgoing> <!-- Logic correction: Catch event should flow to task -->
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Examine Failure (Merged from Suspicion and Report) -->
+    <bpmn:task id="Task_Examine" name="Examine the Failure">
+      <bpmn:incoming>SequenceFlow_FromSuspicion</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ConfirmReject" name="Confirm Failure?">
+      <bpmn:incoming>SequenceFlow_DecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="End_Rejected" name="Fault Rejected">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirmation Path Tasks -->
+    <bpmn:task id="Task_InformCustFail" name="Inform Customer of Failure">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToManagerFail</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_InformMgrFail" name="Inform Manager of Failure">
+      <bpmn:incoming>SequenceFlow_ToManagerFail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FixFault</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Repair Task -->
+    <bpmn:task id="Task_Fix" name="Fix Fault at Measuring Device">
+      <bpmn:incoming>SequenceFlow_FixFault</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShareResultsSeq</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for Results -->
+    <bpmn:intermediateThrowEvent id="Event_Throw_ShareResults" name="Share Repair Results">
+      <bpmn:incoming>SequenceFlow_ShareResultsSeq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyResCust</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Resolution Notification Tasks -->
+    <bpmn:task id="Task_NotifyResCust" name="Inform Customer of Resolution">
+      <bpmn:incoming>SequenceFlow_NotifyResCust</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyResMgr</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_NotifyResMgr" name="Inform Manager of Resolution">
+      <bpmn:incoming>SequenceFlow_NotifyResMgr</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteUser</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Completion -->
+    <bpmn:endEvent id="End_UserComplete" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_CompleteUser</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromSuspicion" sourceRef="Start_Suspicion" targetRef="Task_Examine"/>
+    
+    <!-- Connecting Catch Event to Task (Correcting flow logic) -->
+    <bpmn:intermediateCatchEvent id="Event_Catch_FailureReceived">
+      <bpmn:messageRef>Message_ReportFailure</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_ToExamineTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Re-structuring flow for Catch Event to Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToExamineTask" sourceRef="Event_Catch_FailureReceived" targetRef="Task_Examine"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionPoint" name="Examination Complete" sourceRef="Task_Examine" targetRef="Gateway_ConfirmReject"/>
+
+    <!-- Decision Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="No - Reject Failure" sourceRef="Gateway_ConfirmReject" targetRef="End_Rejected">
+      <bpmn:name>User rejects failure</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Confirmation Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Yes - Confirm Failure" sourceRef="Gateway_ConfirmReject" targetRef="Task_InformCustFail">
+      <bpmn:name>User confirms failure</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Notification Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToManagerFail" sourceRef="Task_InformCustFail" targetRef="Task_InformMgrFail"/>
+    
+    <!-- Repair and Resolution Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_FixFault" name="Proceed to Fix Fault" sourceRef="Task_InformMgrFail" targetRef="Task_Fix">
+      <bpmn:name>Both parties informed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Share Results Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ShareResultsSeq" sourceRef="Task_Fix" targetRef="Event_Throw_ShareResults">
+      <bpmn:name>Share Results with Detector</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Resolution Notifications Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyResCust" name="Notify Customer Resolution" sourceRef="Event_Throw_ShareResults" targetRef="Task_NotifyResCust">
+      <bpmn:name>Share Results</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyResMgr" name="Notify Manager Resolution" sourceRef="Task_NotifyResCust" targetRef="Task_NotifyResMgr">
+      <bpmn:name>Share Results</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteUser" name="Process Complete" sourceRef="Task_NotifyResMgr" targetRef="End_UserComplete"/>
+
+  </bpmn:process>
+
+  <!-- Detector Process -->
+  <bpmn:process id="Process_DetectorLogic" isExecutable="false">
+    
+    <!-- Start Event for Detection -->
+    <bpmn:startEvent id="Start_Detected" name="Fault Detected by Device">
+      <bpmn:outgoing>SequenceFlow_ReportFailure</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Throw Event to Send Report -->
+    <bpmn:intermediateThrowEvent id="Event_Throw_ReportFailure" name="Report Failure">
+      <bpmn:messageRef>Message_ReportFailure</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_ReportFailure</bpmn:incoming>
+      <!-- No outgoing sequence flow needed if it ends the reporting phase, but for structure we can link to end or wait -->
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event for Repair Results -->
+    <bpmn:intermediateCatchEvent id="Event_Catch_RepairReceived" name="Receive Repair Results">
+      <bpmn:messageRef>Message_ShareResults</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_DetectorComplete</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_DetectorComplete" name="Repair Process Complete">
+      <bpmn:incoming>SequenceFlow_DetectorComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Detector -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReportFailure" sourceRef="Start_Detected" targetRef="Event_Throw_ReportFailure">
+      <bpmn:name>Send Failure Notification</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Catch Event to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_DetectorComplete" sourceRef="Event_Catch_RepairReceived" targetRef="End_DetectorComplete"/>
+
+  </bpmn:process>
+
+  <!-- Global Message Definitions -->
+  <bpmn:message id="Message_ReportFailure" name="Report Failure Notification"/>
+  <bpmn:message id="Message_ShareResults" name="Repair Results"/>
+
+</bpmn:definitions>

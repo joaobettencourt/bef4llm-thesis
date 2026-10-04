@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ContractProject" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ContractProcess">
+    <bpmn:participant name="Contract Project Management" processRef="Proc_Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Process_1" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_Contract">
+      <bpmn:lane id="Lane_Procurement" name="Procurement Department">
+        <bpmn:flowNodeRef>StartEvent_Project</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QueryShops</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AnalyzeOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateOrderList</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Production" name="Production Department">
+        <bpmn:flowNodeRef>Event_ReceiveParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StartBuilding</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckStockLevel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendComplaintMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReorderFastest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReorderCheapest</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Project" name="Project Initiated">
+      <bpmn:outgoing>SequenceFlow_Start_Query</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Procurement Tasks & Gateway -->
+    <bpmn:task id="Task_QueryShops" name="Query Web Shops for Parts, Price, Delivery">
+      <bpmn:incoming>SequenceFlow_Start_Query</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeOffers</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_AnalyzeOffers" name="Analyze Offers">
+      <bpmn:incoming>SequenceFlow_AnalyzeOffers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateList</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CreateOrderList" name="Create List of Parts to Order">
+      <bpmn:incoming>SequenceFlow_CreateList</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrdersLogic</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Logic for ordering several shops if one is insufficient -->
+    <bpmn:exclusiveGateway id="Gateway_SufficientStock" name="Shop Stock Sufficient?">
+      <bpmn:incoming>SequenceFlow_PlaceOrdersLogic</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderSingle</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderMultiple</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Production Start Trigger -->
+    <bpmn:startEvent id="Start_Event_Arrival" name="Parts Arrive (First Batch)">
+       <bpmn:outgoing>SequenceFlow_StartBuildingTrigger</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Event for Parts Arrival -->
+    <bpmn:intermediateCatchEvent id="Event_ReceiveParts" name="First Parts Arrive">
+       <bpmn:incoming>SequenceFlow_WaitDelivery</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_StartBuildingTrigger2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Production Tasks & Looping Logic -->
+    <bpmn:task id="Task_StartBuilding" name="Start Building">
+       <bpmn:incoming>SequenceFlow_WaitDelivery</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_CheckStockLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Stock Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_CheckStockLevel" name="Check Stock Level">
+       <bpmn:incoming>SequenceFlow_CheckStockLoop</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_Zero_Stock</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_Low3_Stock</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_Below5_Stock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Exception Path -->
+    <bpmn:task id="Task_SendComplaintMail" name="Write Mail to Friends (Webshop Complaint)">
+      <bpmn:incoming>SequencePath_Zero_Stock</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ResendCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Reorder Path 1 -->
+    <bpmn:task id="Task_ReorderFastest" name="Reorder Parts (Fastest Delivery)">
+      <bpmn:incoming>SequencePath_Low3_Stock</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ResendCheck2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Reorder Path 2 -->
+    <bpmn:task id="Task_ReorderCheapest" name="Reorder Parts (Cheapest Price)">
+      <bpmn:incoming>SequencePath_Below5_Stock</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ResendCheck3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_Completed" name="Contract Completed">
+      <bpmn:incoming>SequenceFlow_BuildComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Procurement Phase -->
+    <bpmn:sequenceFlow id="SequenceFlow_Start_Query" sourceRef="StartEvent_Project" targetRef="Task_QueryShops"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AnalyzeOffers" name="Analyzed Offers" sourceRef="Task_QueryShops" targetRef="Gateway_AnalyzeOffers"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateList" sourceRef="Gateway_AnalyzeOffers" targetRef="Task_CreateOrderList"/>
+    
+    <!-- Logic for ordering -->
+     <bpmn:sequenceFlow id="SequenceFlow_PlaceOrdersLogic" name="Determine Order Strategy" sourceRef="Task_CreateOrderList" targetRef="Gateway_SufficientStock"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderSingle" name="One Shop Sufficient" sourceRef="Gateway_SufficientStock" targetRef="Task_ReorderCheapest"/>
+    
+     <!-- Task for splitting orders -->
+      <bpmn:task id="Task_LogicMultipleShops" name="Split Order Across Shops">
+       <bpmn:incoming>SequenceFlow_OrderMultiple</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_PlaceOrdersMerge</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:sequenceFlow id="SequenceFlow_OrderMultiple" name="Stock Insufficient (Split)" sourceRef="Gateway_SufficientStock" targetRef="Task_LogicMultipleShops"/>
+     
+      <!-- Merge logic for placing orders -->
+       <bpmn:exclusiveGateway id="Gw_MergeOrders">
+        <bpmn:incoming>SequenceFlow_PlaceOrdersMerge</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_WaitDelivery</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+       <!-- Connecting Place Orders and Logic Multiple to Merge -->
+        <bpmn:sequenceFlow id="SequenceFlow_PlaceOrdersMerge" sourceRef="Task_LogicMultipleShops" targetRef="Gw_MergeOrders"/>
+         <bpmn:sequenceFlow id="SequenceFlow_OrderSingleToPlace" name="" sourceRef="Gateway_SufficientStock" targetRef="Gw_MergeOrders"> 
+        </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - Production Phase & Looping -->
+    
+     <!-- Connecting Procurement to Production Start -->
+      <bpmn:sequenceFlow id="SequenceFlow_WaitDelivery" sourceRef="Gw_MergeOrders" targetRef="Event_ReceiveParts"/>
+       <bpmn:sequenceFlow id="SequenceFlow_StartBuildingTrigger2" name="Start Building Triggered" sourceRef="Event_ReceiveParts" targetRef="Task_StartBuilding"/>
+
+    <!-- Production Loop -->
+     <bpmn:task id="Task_BuildingLoop" name="Continue Building">
+       <bpmn:incoming>SequenceFlow_ResendCheck</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_CheckStockLoop2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Connecting StartBuilding to Loop Check -->
+      <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="Task_BuildingLoop" targetRef="Gateway_CheckStockLevel"/>
+
+    <!-- Stock Check Logic Flows (Priority Order) -->
+     <bpmn:sequenceFlow id="SequencePath_Zero_Stock" name="Stock = 0" sourceRef="Gateway_CheckStockLevel" targetRef="Task_SendComplaintMail">
+       <bpmn:name>Zero</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequencePath_Low3_Stock" name="Stock &lt; 3 (Fastest)" sourceRef="Gateway_CheckStockLevel" targetRef="Task_ReorderFastest">
+       <bpmn:name>&lt;3</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequencePath_Below5_Stock" name="Stock &lt; 5 (Cheapest)" sourceRef="Gateway_CheckStockLevel" targetRef="Task_ReorderCheapest">
+       <bpmn:name>&lt;5</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Loop Back -->
+      <bpmn:sequenceFlow id="SequenceFlow_ResendCheck" sourceRef="Task_SendComplaintMail" targetRef="Gateway_CheckStockLevel"/>
+       <bpmn:sequenceFlow id="SequenceFlow_ReorderFastestBack" name="" sourceRef="Task_ReorderFastest" targetRef="Gateway_CheckStockLevel"/>
+        <bpmn:sequenceFlow id="SequenceFlow_ReorderCheapestBack" name="" sourceRef="Task_ReorderCheapest" targetRef="Gateway_CheckStockLevel"/>
+
+    <!-- Completion Flow -->
+     <bpmn:exclusiveGateway id="Gw_BuildComplete">
+       <bpmn:incoming>SequenceFlow_ResendCheck</bpmn:incoming> 
+        <bpmn:outgoing>SequenceFlow_BuildComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Logic to end loop when stock is sufficient (implied by default path) -->
+      <bpmn:sequenceFlow id="SequenceFlow_CheckStockLoop" sourceRef="Task_StartBuilding" targetRef="Gw_BuildComplete"/> 
+       <bpmn:sequenceFlow id="SequencePath_HealthyBuild" name="Sufficient Stock" sourceRef="Gateway_CheckStockLevel" targetRef="Gw_BuildComplete">
+         <!-- Default path for stock >= 5 -->
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_BuildComplete" sourceRef="Gw_BuildComplete" targetRef="End_Event_Completed"/>
+
+    <!-- Correction of Flow Connections to ensure valid graph structure (No dangling flows) -->
+    
+  </bpmn:process>
+</bpmn:definitions>

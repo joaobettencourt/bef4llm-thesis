@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_MaternityLeave_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_EGov_ParentSupport">
+    <bpmn:participant name="Maternity Leave Support System" processRef="Process_MatLeave_Support"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_MatLeave_Support">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Parent (Applicant)">
+        <bpmn:flowNodeRef>Task_Parent_SelectModel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Parent_CollectInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ExtensionDecision</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="System (Admin)">
+        <bpmn:flowNodeRef>Task_System_FetchModels</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotifySplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_NotifySS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_NotifCompany</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotifyMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_System_GatherInfo</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Request Maternity Leave">
+      <bpmn:outgoing>SequenceFlow_FetchModels</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Fetch Information about potential models (System) -->
+    <bpmn:task id="Task_System_FetchModels" name="Fetch Leave Models">
+      <bpmn:incoming>SequenceFlow_FetchModels</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToParentSelect</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Let parent select (Parent) -->
+    <bpmn:task id="Task_Parent_SelectModel" name="Select Leave Model">
+      <bpmn:incoming>SequenceFlow_ToParentSelect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Collect relevant information (Parent) -->
+    <bpmn:task id="Task_Parent_CollectInfo" name="Collect Relevant Information">
+      <bpmn:incoming>SequenceFlow_CollectInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifySplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Split for Notifications (System) -->
+    <bpmn:parallelGateway id="Gateway_NotifySplit" name="Notify Agencies">
+      <bpmn:incoming>SequenceFlow_NotifySplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifSS</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotifCompany</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Notify Social Security (System) -->
+    <bpmn:task id="Task_Sys_NotifySS" name="Notify Social Security">
+      <bpmn:incoming>SequenceFlow_NotifSS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotifs1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Notify Company (System) -->
+    <bpmn:task id="Task_Sys_NotifCompany" name="Notify Employer">
+      <bpmn:incoming>SequenceFlow_NotifCompany</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotifs2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Merge Notifications (System) -->
+    <bpmn:parallelGateway id="Gateway_NotifyMerge">
+      <bpmn:incoming>SequenceFlow_MergeNotifs1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeNotifs2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatherInfo</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Gather information from companies (System) -->
+    <bpmn:task id="Task_System_GatherInfo" name="Gather Confirmation Info">
+      <bpmn:incoming>SequenceFlow_GatherInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToTimerEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event: End of Period (System) -->
+    <bpmn:intermediateCatchEvent id="Event_EndOfPeriod" name="End of Leave Period">
+      <bpmn:incoming>SequenceFlow_ToTimerEvent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideExtension</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway: Decide Extension (Parent) -->
+    <bpmn:exclusiveGateway id="Gateway_ExtensionDecision" name="Extend Leave?">
+      <bpmn:incoming>SequenceFlow_DecideExtension</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessExtension</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinalizeLeave</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Process Extension (System/Parent) -->
+    <bpmn:task id="Task_ProcessExtension" name="Initiate Extension Request">
+      <bpmn:incoming>SequenceFlow_ProcessExtension</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_FetchModels</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_Event_Completed" name="Leave Completed">
+      <bpmn:incoming>SequenceFlow_FinalizeLeave</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FetchModels" sourceRef="StartEvent_Request" targetRef="Task_System_FetchModels"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToParentSelect" name="Show Models" sourceRef="Task_System_FetchModels" targetRef="Task_Parent_SelectModel"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CollectInfo" sourceRef="Task_Parent_SelectModel" targetRef="Task_Parent_CollectInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NotifySplit" name="Start Notifications" sourceRef="Task_Parent_CollectInfo" targetRef="Gateway_NotifySplit"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NotifSS" sourceRef="Gateway_NotifySplit" targetRef="Task_Sys_NotifySS"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NotifCompany" name="Notify Employer" sourceRef="Gateway_NotifySplit" targetRef="Task_Sys_NotifCompany"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MergeNotifs1" sourceRef="Task_Sys_NotifySS" targetRef="Gateway_NotifyMerge"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MergeNotifs2" sourceRef="Task_Sys_NotifCompany" targetRef="Gateway_NotifyMerge"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatherInfo" name="Wait &amp; Gather Info" sourceRef="Gateway_NotifyMerge" targetRef="Task_System_GatherInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToTimerEvent" sourceRef="Task_System_GatherInfo" targetRef="Event_EndOfPeriod"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecideExtension" name="Check Extension Eligibility" sourceRef="Event_EndOfPeriod" targetRef="Gateway_ExtensionDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessExtension" name="Yes - Extend" sourceRef="Gateway_ExtensionDecision" targetRef="Task_ProcessExtension"/>
+
+    <bpmn:sequenceFlow id="SequenceLoop_FetchModels" name="Re-fetch Models" sourceRef="Task_ProcessExtension" targetRef="Task_System_FetchModels"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeLeave" name="No - Finalize" sourceRef="Gateway_ExtensionDecision" targetRef="End_Event_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

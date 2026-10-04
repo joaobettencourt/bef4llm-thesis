@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OEE_Monitoring" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_OEEMonitoring" name="OEE Monitoring Process" processRef="Process_OEE_Monitoring"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEE_Monitoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="OEE Check Triggered">
+      <bpmn:outgoing>SequenceFlow_CheckConnection</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Connection Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ConnectionCheck" name="Machine Connected?"/>
+
+    <!-- End Event for Disconnected Machine -->
+    <bpmn:endEvent id="EndEvent_Disconnect" name="Process Stopped">
+      <bpmn:incoming>SequenceFlow_MachineDisconnected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Collect Information Task -->
+    <bpmn:userTask id="Task_CollectInfo" name="Collect Machine Information">
+      <bpmn:incoming>SequenceFlow_ConnectionOK</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCalculation</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Calculate OEE Task -->
+    <bpmn:serviceTask id="Service_CalculateOEE" name="Calculate Overall Equipment Efficiency">
+      <bpmn:incoming>SequenceFlow_ToCalculation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ThresholdCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Threshold Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_OEELow" name="OEE Below Threshold?"/>
+
+    <!-- Parallel Split for Low OEE Response -->
+    <bpmn:parallelGateway id="ParallelSplit_LowOEE" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_BelowThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StopMachine</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendEmail</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Stop Machine Task -->
+    <bpmn:userTask id="Task_StopMachine" name="Stop the Machine">
+      <bpmn:incoming>SequenceFlow_StopMachine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitRestart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Send Email Task -->
+    <bpmn:serviceTask id="Service_SendEmail" name="Send Email to Engineer">
+      <bpmn:incoming>SequenceFlow_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitRestart2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Restart Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_RestartCheck" name="Machine Restarted?"/>
+
+    <!-- Continue Measuring Task (Normal Operation) -->
+    <bpmn:userTask id="Task_ContinueMeasuring" name="Continue Measuring">
+      <bpmn:incoming>SequenceFlow_AboveThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackToStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for Normal Completion -->
+    <bpmn:endEvent id="EndEvent_Normal" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_AboveThreshold</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Connection Check Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckConnection" sourceRef="StartEvent_1" targetRef="Gateway_ConnectionCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MachineDisconnected" name="No" sourceRef="Gateway_ConnectionCheck" targetRef="EndEvent_Disconnect">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!machineConnected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConnectionOK" name="Yes" sourceRef="Gateway_ConnectionCheck" targetRef="Task_CollectInfo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${machineConnected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - OEE Calculation Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToCalculation" sourceRef="Task_CollectInfo" targetRef="Service_CalculateOEE"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ThresholdCheck" sourceRef="Service_CalculateOEE" targetRef="Gateway_OEELow"/>
+
+    <!-- Sequence Flows - Low OEE Response Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_BelowThreshold" name="Yes (Below Threshold)" sourceRef="Gateway_OEELow" targetRef="ParallelSplit_LowOEE">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${oeeBelowThreshold}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - Normal Operation Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AboveThreshold" name="No (Above Threshold)" sourceRef="Gateway_OEELow" targetRef="Task_ContinueMeasuring">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${oeeNotBelowThreshold}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - Parallel Response Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_StopMachine" sourceRef="ParallelSplit_LowOEE" targetRef="Task_StopMachine"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmail" sourceRef="ParallelSplit_LowOEE" targetRef="Service_SendEmail"/>
+
+    <!-- Sequence Flows - Wait for Restart -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitRestart" sourceRef="Task_StopMachine" targetRef="Gateway_RestartCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitRestart2" sourceRef="Service_SendEmail" targetRef="Gateway_RestartCheck"/>
+
+    <!-- Sequence Flows - Restart Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_MachineNotRestarted" name="No (Still Stopped)" sourceRef="Gateway_RestartCheck" targetRef="Task_StopMachine">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!machineRestarted}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows - Loop Back to Start -->
+    <bpmn:sequenceFlow id="SequenceLoopBackToStart" sourceRef="Task_ContinueMeasuring" targetRef="Gateway_ConnectionCheck"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CustomPrinting">
+    <bpmn:participant id="Participant_CustomPrinting" name="Custom 3D Printing Process" processRef="Process_CustomModelPrint"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CustomModelPrint" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_1" name="Receive Custom Model Request">
+      <bpmn:outgoing>SequenceFlow_StartToArtist</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Artist Collaboration Phase -->
+    <bpmn:task id="Task_SendSketches" name="Send Sketches to Artist">
+      <bpmn:incoming>SequenceFlow_StartToArtist</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AwaitDesign</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_DesignReview">
+      <bpmn:incoming>SequenceFlow_AwaitDesign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SatisfiedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangeRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_ProvideFeedback" name="Provide Change Request">
+      <bpmn:incoming>SequenceFlow_ChangeRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendBackToArtist</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Color Selection Phase -->
+    <bpmn:exclusiveGateway id="Gateway_ColorStockCheck">
+      <bpmn:incoming>SequenceFlow_SatisfiedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StockAvailable</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoStock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Stock Check Sub-Process -->
+    <bpmn:task id="Task_CheckColorAmount" name="Check Color Amount">
+      <bpmn:incoming>SequenceFlow_StockAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ColorAmount">
+      <bpmn:incoming>SequenceFlow_AmountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Under100g</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EnoughStock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Shopping List Path -->
+    <bpmn:task id="Task_AddToShoppingList" name="Add Color to Shopping List">
+      <bpmn:incoming>SequenceFlow_Under100g</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShoppingComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Order Color Path -->
+    <bpmn:task id="Task_OrderColor" name="Order Required Plastic">
+      <bpmn:incoming>SequenceFlow_NoStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ColorReceived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Printing Preparation Phase -->
+    <bpmn:parallelGateway id="Parallel_Gateway_PrintSetup">
+      <bpmn:incoming>SequenceFlow_ShoppingComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ColorReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HeatPrinter</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Printer Heating -->
+    <bpmn:task id="Task_PrinterSetup" name="Turn On Printer &amp; Heat Bed/Extruder">
+      <bpmn:incoming>SequenceFlow_HeatPrinter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StatusFeedbackLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- G-code Generation -->
+    <bpmn:exclusiveGateway id="Gateway_GcodeReady">
+      <bpmn:incoming>SequenceFile_HeatPrinterParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartPrinting</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Print Model -->
+    <bpmn:task id="Task_PrintModel" name="Print 3D Model">
+      <bpmn:incoming>SequenceFlow_StartPrinting</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrintComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_1" name="Model Printed Successfully">
+      <bpmn:incoming>SequenceFlow_PrintComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_Sketches"/>
+    <bpmn:dataObjectReference id="Data_STLFile"/>
+    <bpmn:dataObjectReference id="Data_GcodeFile"/>
+    <bpmn:dataObjectReference id="Data_ColorStockInfo"/>
+
+    <!-- Associations -->
+    <bpmn:association sourceRef="Task_SendSketches" targetRef="Data_Sketches"/>
+    <bpmn:association sourceRef="Task_PrintModel" targetRef="Data_GcodeFile"/>
+    
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_StartToArtist" name="" sourceRef="Start_Event_1" targetRef="Task_SendSketches"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_AwaitDesign" name="" sourceRef="Task_SendSketches" targetRef="Gateway_DesignReview"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_SatisfiedPath" name="Satisfied with Design">
+    <bpmn:name>Yes</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ChangeRequest" name="Needs Changes">
+    <bpmn:name>No - Request Change</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_SendBackToArtist" sourceRef="Task_ProvideFeedback" targetRef="Gateway_DesignReview"/>
+
+  <!-- Color Selection -->
+  <bpmn:sequenceFlow id="SequenceFlow_ColorSelectionStart" name="" sourceRef="Gateway_SatisfiedPath" targetRef="Gateway_ColorStockCheck">
+    <bpmn:name>Choose Plastic Color</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Stock Check -->
+  <bpmn:sequenceFlow id="SequenceFlow_StockAvailable" name="" sourceRef="Task_CheckColorAmount" targetRef="Gateway_ColorAmount">
+    <bpmn:name>In Stock</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- No Stock Path -->
+  <bpmn:sequenceFlow id="SequenceFlow_NoStock" name="" sourceRef="Task_CheckColorAmount" targetRef="Task_OrderColor">
+    <bpmn:name>No Stock</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Amount Decision -->
+  <bpmn:sequenceFlow id="SequenceFlow_AmountDecision" name="" sourceRef="Gateway_ColorStockCheck" targetRef="Task_CheckColorAmount"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Under100g" name="">
+    <bpmn:name>Under 100 grams</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_EnoughStock" name="" sourceRef="Gateway_ColorAmount" targetRef="Parallel_Gateway_PrintSetup">
+    <bpmn:name>Sufficient Stock (100g+)</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Shopping List -->
+  <bpmn:sequenceFlow id="SequenceFlow_ShoppingComplete" name="" sourceRef="Task_AddToShoppingList" targetRef="Parallel_Gateway_PrintSetup"/>
+
+  <!-- Color Order Complete Path -->
+  <bpmn:sequenceFlow id="SequenceFlow_ColorReceived" name="" sourceRef="Task_OrderColor" targetRef="Parallel_Gateway_PrintSetup">
+    <bpmn:name>Order Received</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Printer Setup -->
+  <bpmn:sequenceFlow id="SequenceFile_HeatPrinterParallel" name="" sourceRef="Parallel_Gateway_PrintSetup" targetRef="Task_PrinterSetup"/>
+
+  <!-- Status Feedback Loop (simulated) -->
+  <bpmn:sequenceFlow id="SequenceFlow_StatusFeedbackLoop" name="" sourceRef="Task_PrinterSetup" targetRef="Gateway_DesignReview">
+    <bpmn:name>Continuous Status</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- G-code Generation -->
+  <bpmn:task id="Task_GenerateGcode" name="Generate gcode from STL File">
+    <bpmn:incoming>SequenceFile_HeatPrinterParallel</bpmn:incoming>
+    <bpmn:outgoing>SequenceFlow_StartPrinting</bpmn:outgoing>
+  </bpmn:task>
+
+  <!-- Print Start -->
+  <bpmn:sequenceFlow id="SequenceFlow_GcodeReady" name="" sourceRef="Task_PrinterSetup" targetRef="Gateway_DesignReview">
+    <bpmn:name>G-code Ready</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <!-- Print Model -->
+  <bpmn:sequenceFlow id="SequenceFlow_StartPrinting" name="" sourceRef="Task_GenerateGcode" targetRef="Task_PrintModel"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_PrintComplete" name="" sourceRef="Task_PrintModel" targetRef="End_Event_1">
+    <bpmn:name>Print Complete</bpmn:name>
+  </bpmn:sequenceFlow>
+
+</bpmn:definitions>

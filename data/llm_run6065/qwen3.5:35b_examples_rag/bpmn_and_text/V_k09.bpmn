@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_StorageManagement_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Storage_Management">
+    <bpmn:participant id="Participant_Process" name="Storage Management Process" processRef="Process_OrderFulfillment_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFulfillment_01" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_OrderReceived" name="Order Read from System">
+      <bpmn:outgoing>SequenceFlow_SelectProduct</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Product (Loop Start) -->
+    <bpmn:task id="Task_SelectProduct" name="Select First/Next Product in Order List">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckStock</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Stock Availability -->
+    <bpmn:exclusiveGateway id="Gw_StockAvailable" name="In Stock?">
+      <bpmn:incoming>SequenceFlow_CheckStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InStockYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotInStockNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: In Stock -->
+    <bpmn:serviceTask id="ServiceTask_WithdrawItem" name="Withdraw From Warehouse">
+      <bpmn:incoming>SequenceFlow_InStockYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckMoreItems</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Path 2: Not In Stock -->
+    <bpmn:task id="Task_ReorderProduct" name="Reorder Product from Wholesaler">
+      <bpmn:incoming>SequenceFlow_NotInStockNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitArrival</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Arrival (Simulated by Task) -->
+    <bpmn:serviceTask id="ServiceTask_WaitArrival" name="Wait for Product Arrival">
+      <bpmn:incoming>SequenceFlow_WaitArrival</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDelay</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Check Delay Logic -->
+    <bpmn:exclusiveGateway id="Gw_DelayCheck" name="Wait &gt; 10 Days?">
+      <bpmn:incoming>SequenceFlow_CheckDelay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PenaltyYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPenaltyNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Penalty Path -->
+    <bpmn:serviceTask id="ServiceTask_DemandPenalty" name="Demand Delivery Delay Penalty">
+      <bpmn:incoming>SequenceFlow_PenaltyYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterStock</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- No Penalty Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoPenaltyNo" sourceRef="Gw_DelayCheck" targetRef="ServiceTask_RegisterStock">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Register Stock (Common for both paths) -->
+    <bpmn:serviceTask id="ServiceTask_RegisterStock" name="Register Product in System">
+      <bpmn:incoming>SequenceFlow_NoPenaltyNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PenaltyYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckMoreItems</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: More Items? (Loop Control) -->
+    <bpmn:exclusiveGateway id="Gw_MoreProducts" name="All Products Processed?">
+      <bpmn:incoming>SequenceFlow_CheckMoreItems</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessNextItem</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckReadiness</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back to Select Next Product -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessNextItem" sourceRef="Gw_MoreProducts" targetRef="Task_SelectProduct">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway: Check Shipment Readiness -->
+    <bpmn:exclusiveGateway id="Gw_ShipmentReady" name="Order Ready for Shipment?">
+      <bpmn:incoming>SequenceFlow_CheckReadiness</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesShip</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoRetry</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path Ready for Shipment -->
+    <bpmn:parallelGateway id="Gw_ShipParallelSplit" name="">
+      <bpmn:incoming>SequenceFlow_YesShip</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestCourier</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackProducts</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Request Courier -->
+    <bpmn:serviceTask id="ServiceTask_RequestCourier" name="Request Courier">
+      <bpmn:incoming>SequenceFlow_RequestCourier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CourierReadyJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Pack Products -->
+    <bpmn:task id="Task_PackProducts" name="Pack Products">
+      <bpmn:incoming>SequenceFlow_PackProducts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProductsReadyJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Join Parallel Paths -->
+    <bpmn:parallelGateway id="Gw_ShipParallelJoin" name="">
+      <bpmn:incoming>SequenceFlow_CourierReadyJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ProductsReadyJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalShip</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Ship Task -->
+    <bpmn:task id="Task_ShipOrder" name="Shipment">
+      <bpmn:incoming>SequenceFlow_FinalShip</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_OrderShipped" name="Order Shipped">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Retry Path (Not Ready) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoRetry" sourceRef="Gw_ShipmentReady" targetRef="Task_SelectProduct">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows for Stock Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="Start_Event_OrderReceived" targetRef="Task_SelectProduct">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Select Product to Stock Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckStock" sourceRef="Task_SelectProduct" targetRef="Gw_StockAvailable">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- In Stock Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_InStockYes" name="Yes" sourceRef="Gw_StockAvailable" targetRef="ServiceTask_WithdrawItem">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Not In Stock Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotInStockNo" name="No" sourceRef="Gw_StockAvailable" targetRef="Task_ReorderProduct">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Arrival Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitArrival" sourceRef="Task_ReorderProduct" targetRef="ServiceTask_WaitArrival">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Check Delay Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDelay" sourceRef="ServiceTask_WaitArrival" targetRef="Gw_DelayCheck">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Penalty Path (Yes) -->
+    <bpmn:sequenceFlow id="SequenceFlow_PenaltyYes" name="Wait &gt; 10 Days?" sourceRef="Gw_DelayCheck" targetRef="ServiceTask_DemandPenalty">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Register Stock Flow (from Withdraw) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckMoreItems" sourceRef="ServiceTask_WithdrawItem" targetRef="Gw_MoreProducts">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Register Stock Flow (from Reorder) -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterStockIn" sourceRef="ServiceTask_DemandPenalty" targetRef="ServiceTask_RegisterStock">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- More Products Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckReadiness" sourceRef="Gw_MoreProducts" targetRef="Gw_ShipmentReady">
+      <bpmn:name>All Processed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Shipment Ready Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesShip" name="Yes" sourceRef="Gw_ShipmentReady" targetRef="Gw_ShipParallelSplit">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestCourier" sourceRef="Gw_ShipParallelSplit" targetRef="ServiceTask_RequestCourier">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PackProducts" sourceRef="Gw_ShipParallelSplit" targetRef="Task_PackProducts">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CourierReadyJoin" sourceRef="ServiceTask_RequestCourier" targetRef="Gw_ShipParallelJoin">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProductsReadyJoin" sourceRef="Task_PackProducts" targetRef="Gw_ShipParallelJoin">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Ship Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalShip" sourceRef="Gw_ShipParallelJoin" targetRef="Task_ShipOrder">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Process Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_ShipOrder" targetRef="End_Event_OrderShipped">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

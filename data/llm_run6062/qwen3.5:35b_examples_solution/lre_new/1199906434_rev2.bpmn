@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_DataValidationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_ProcessOrder" name="Data Validation Error Handling" processRef="Proc_DataValidationError" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_DataValidationError" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="IS notified about data validation error">
+      <bpmn:outgoing>Flow_Start_CheckTypos</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane Set for organization -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_TechSupport">
+        <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckTypos</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CustomerCorrection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CustomerCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_PublicSources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ScurePublicSources</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task 1: Check for typos -->
+    <bpmn:task id="Task_CheckTypos" name="Check for typing errors">
+      <bpmn:incoming>Flow_Start_CheckTypos</bpmn:incoming>
+      <bpmn:outgoing>Flow_TyposDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Typo found? -->
+    <bpmn:exclusiveGateway id="Gw_CustomerCorrection" name="Typo found?">
+      <bpmn:incoming>Flow_TyposDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_ResolvedFound</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CheckCustomerCorrection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Start to Task -->
+    <bpmn:sequenceFlow id="Flow_Start_CheckTypos" sourceRef="Start_1" targetRef="Task_CheckTypos" />
+    
+    <!-- From Check Typos task to decision gateway -->
+    <bpmn:sequenceFlow id="Flow_TyposDecision" name="" sourceRef="Task_CheckTypos" targetRef="Gw_CustomerCorrection" />
+
+    <!-- Path 1: Typo found - Issue resolved -->
+    <bpmn:endEvent id="End_Resolved">
+      <bpmn:name>Issue was resolved</bpmn:name>
+      <bpmn:incoming>Seq_ResolvedFound</bpmn:incoming>
+      <bpmn:incoming>Seq_CustomerFixedIt</bpmn:incoming>
+      <bpmn:incoming>Seq_PublicSourceSolution</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: No typo found - Check if customer can correct -->
+    <bpmn:sequenceFlow id="Seq_ResolvedFound" name="Yes, typo found" sourceRef="Gw_CustomerCorrection" targetRef="End_Resolved" />
+    
+    <bpmn:task id="Task_CustomerCheck" name="Check if customer can fix mistake">
+      <bpmn:incoming>Seq_CheckCustomerCorrection</bpmn:incoming>
+      <bpmn:outgoing>Flow_CustomerDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Customer correction decision -->
+    <bpmn:exclusiveGateway id="Gw_PublicSources" name="Customer can fix?">
+      <bpmn:incoming>Flow_CustomerDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_CustomerFixedIt</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ScurePublicSources</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- From Customer Check task to decision gateway -->
+    <bpmn:sequenceFlow id="Seq_CheckCustomerCorrection" name="No typo found" sourceRef="Gw_CustomerCorrection" targetRef="Task_CustomerCheck" />
+    
+    <!-- Path 3a: Customer can fix - Issue resolved -->
+    <bpmn:sequenceFlow id="Seq_CustomerFixedIt" name="Yes, customer fixed it" sourceRef="Gw_PublicSources" targetRef="End_Resolved" />
+
+    <!-- Path 4: No typo found and customer cannot fix - Scour public sources -->
+    <bpmn:task id="Task_ScurePublicSources" name="Scour public sources for solutions">
+      <bpmn:incoming>Seq_ScurePublicSources</bpmn:incoming>
+      <bpmn:outgoing>Flow_PublicSourceDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Solution found in public sources? -->
+    <bpmn:endEvent id="End_Unresolved">
+       <bpmn:name>Issue unresolvable</bpmn:name>
+      <bpmn:incoming>Seq_NoSolutionFound</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- From Customer Check to Public Sources Gateway -->
+    <bpmn:sequenceFlow id="Seq_ScurePublicSources" name="No, customer cannot fix" sourceRef="Gw_PublicSources" targetRef="Task_ScurePublicSources" />
+    
+    <!-- Path 4a: Solution found - Issue resolved -->
+    <bpmn:endEvent id="End_Resolved2">
+      <bpmn:name>Issue was resolved</bpmn:name>
+      <bpmn:incoming>Seq_PublicSourceSolution</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- From Public Sources task to decision gateway -->
+    <bpmn:sequenceFlow id="Flow_CustomerDecision" name="" sourceRef="Task_CustomerCheck" targetRef="Gw_PublicSources" />
+    
+    <!-- Path 4b: No solution found - Issue unresolvable -->
+    <bpmn:endEvent id="End_Unresolved2">
+      <bpmn:name>Issue unresolvable</bpmn:name>
+      <bpmn:incoming>Seq_NoSolutionFound</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- From Public Sources task to decision gateway -->
+    <bpmn:sequenceFlow id="Flow_PublicSourceDecision" name="" sourceRef="Task_ScurePublicSources" targetRef="Gw_CustomerCorrection">
+      <bpmn:name>Solution found?</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

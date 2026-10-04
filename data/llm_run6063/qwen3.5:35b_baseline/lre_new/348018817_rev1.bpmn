@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_ExpenseProcess">
+    <bpmn:participant name="Expense Processing System" processRef="Process_ExpenseReport"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseReport" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent name="Employee Files Expense Report" id="_Start_FileReport">
+      <bpmn:outgoing>_Flow_CheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Account Existence -->
+    <bpmn:task name="Check Employee Account Exists" id="_Task_CheckAccount">
+      <bpmn:incoming>_Flow_CheckAccount</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AccountExistsDecision</bpmn:outgoing>
+      
+      <!-- Boundary Timer Event (28 Days) - Modeled as Intermediate Catching Timer for XML Validity without DI -->
+    </bpmn:task>
+
+    <!-- Parallel Gateway to handle Timeout Logic (Simulating Boundary Event behavior via flow split) -->
+    <bpmn:startEvent id="_Timer_Start_28Days" name="Timeout Start">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">P28D</bpmn:timerDefinition>
+        <bpmn:outgoing>_Flow_TimeoutTriggeredCheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway to Merge Timeout Path with Main Flow (Conceptual) -->
+    <bpmn:parallelGateway id="_Gateway_CheckAccountWait">
+      <bpmn:incoming>_Flow_AccountExistsDecision</bpmn:incoming>
+      <bpmn:outgoing>_Flow_MergeReviewPath1</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 2a: Create Account (No Account) -->
+    <bpmn:exclusiveGateway id="_Gateway_AccountExists">
+        <bpmn:incoming>_Flow_CheckAccount</bpmn:incoming>
+        <bpmn:outgoing>_Flow_HasAccountPath</bpmn:outgoing> <!-- Yes -->
+        <bpmn:outgoing>_Flow_NoAccountPath</bpmn:outgoing>  <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2a: Create Account (No Account) -->
+    <bpmn:task name="Create Employee Account" id="_Task_CreateAcc">
+      <bpmn:incoming>_Flow_NoAccountPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_MergeReviewPath2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Review Report (Common) -->
+    <bpmn:exclusiveGateway id="_Gateway_JoinBeforeReview">
+        <bpmn:incoming>_Flow_HasAccountPath</bpmn:incoming>
+        <bpmn:incoming>_Flow_MergeReviewPath2</bpmn:incoming> 
+        <bpmn:outgoing>_Flow_ReviewReportStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 -->
+    <bpmn:task name="Review Expense Report" id="_Task_ReviewReport">
+      <bpmn:incoming>_Flow_ReviewReportStart</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AmountCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4a: Check Amount (<=200) -> Pay Directly -->
+    <bpmn:exclusiveGateway id="_Gateway_AmountCheck">
+      <bpmn:incoming>_Flow_AmountCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>_Flow_PayDirectPath</bpmn:outgoing> <!-- Amount <= 200 -->
+      <bpmn:outgoing>_Flow_RequestApprovalPath</bpmn:outgoing> <!-- Amount > 200 -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4a: Deposit Reimbursement (<=200) -->
+    <bpmn:task name="Deposit Reimbursement" id="_Task_DepositLow">
+      <bpmn:incoming>_Flow_PayDirectPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_EndPaidLowLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent name="Invoice Paid (Direct)" id="_End_PaidLow">
+      <bpmn:incoming>_Flow_EndPaidLowLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 4b: Request Supervisor Approval (>200) -->
+    <bpmn:startEvent id="_Timer_Start_7Days" name="Timeout Start">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">P7D</bpmn:timerDefinition>
+        <bpmn:outgoing>_Flow_TimeoutTriggeredApproval</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 4b -->
+    <bpmn:task name="Request Supervisor Approval" id="_Task_RequestApproval">
+      <bpmn:incoming>_Flow_RequestApprovalPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SupervisorDecisionInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4c: Send Email In Progress (Timeout >7 Days) -->
+    <bpmn:startEvent id="_Timer_Start_28Days" name="Timeout Start">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">P28D</bpmn:timerDefinition>
+        <bpmn:outgoing>_Flow_TimeoutTriggeredApprovalLoop</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Task 4c -->
+    <bpmn:task name="Send Email In Progress" id="_Task_SendInProgressEmail">
+      <bpmn:incoming>_Flow_TimeoutTriggeredApprovalLoop</bpmn:incoming>
+      <bpmn:outgoing>_Flow_LoopBackToRequestApproval</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task 4d: Send Email Resubmit (28 Days on Check Account) -->
+    <bpmn:startEvent id="_Timer_Start_28Days_Check" name="Timeout Start">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">P28D</bpmn:timerDefinition>
+        <bpmn:outgoing>_Flow_TimeoutTriggeredCheckAccountEmail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Task 4d -->
+    <bpmn:task name="Send Email Resubmit" id="_Task_SendResubmitEmail">
+      <bpmn:incoming>_Flow_TimeoutTriggeredCheckAccountEmail</bpmn:incoming>
+      <bpmn:outgoing>_End_ResubmitStopLink</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event 2 -->
+    <bpmn:endEvent name="Process Stopped (Resubmit)" id="_End_Resubmit">
+      <bpmn:incoming>_Flow_TimeoutTriggeredCheckAccountEmail</bpmn:incoming> 
+       <!-- Correction: Incoming from Task Send Resubmit Email -->
+      <bpmn:incoming>_Flow_EndStopEmailLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- End Event 3 (Rejected) -->
+    <bpmn:endEvent name="Request Rejected" id="_End_Rejected">
+        <bpmn:incoming>_Flow_EmailRejectLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway for Supervisor Decision (Approve/Reject within 7 days) -->
+    <bpmn:exclusiveGateway id="_Gateway_SupervisorDecision">
+      <bpmn:incoming>_Flow_SupervisorResponse</bpmn:incoming> 
+       <!-- Correction: Incoming from Task Request Approval if not timed out? Logic simplified for XML validity. -->
+        <bpmn:outgoing>_Flow_ApprovedPathSup</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_RejectedPathSup</bpmn:outgoing> 
+    </bpmn:exclusiveGateway>
+
+     <!-- Task 4e: Deposit Reimbursement (Approved >200) -->
+    <bpmn:task name="Deposit High Value" id="_Task_DepositHigh">
+      <bpmn:incoming>_Flow_ApprovedPathSup</bpmn:incoming>
+      <bpmn:outgoing>_End_PaidApprovedLink</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event 4 (Paid Approved) -->
+    <bpmn:endEvent name="Invoice Paid (Approved)" id="_End_PaidApproved">
+      <bpmn:incoming>_Flow_EndPaidApprovedLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 4f: Email Rejected Notification -->
+    <bpmn:task name="Send Email Rejected" id="_Task_SendRejectEmail">
+        <bpmn:incoming>_Flow_RejectedPathSup</bpmn:incoming>
+        <bpmn:outgoing>_End_RejectedLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Check Account -->
+    <bpmn:sequenceFlow sourceRef="_Start_FileReport" targetRef="_Task_CheckAccount" id="_Flow_CheckAccount"/>
+    
+    <!-- Check Account Decision (Has/No) -->
+     <bpmn:exclusiveGateway id="_Gateway_AccountExists">
+        <bpmn:incoming>_Flow_CheckAccount</bpmn:incoming>
+        <bpmn:outgoing>_Flow_HasAccountPath</bpmn:outgoing> <!-- Yes -->
+        <bpmn:outgoing>_Flow_NoAccountPath</bpmn:outgoing>  <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Path -->
+     <bpmn:sequenceFlow sourceRef="_Task_CheckAccount" targetRef="_Gateway_AccountExists" id="_Flow_CheckAccount"/> 
+       <!-- Correction: Task Check Account -> Gateway Exists. Boundary Timer on Task handles timeout logic conceptually in this simplified XML structure (Parallel Split for valid flow). -->
+
+    <!-- No Account Path to Create Acc -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_AccountExists" targetRef="_Task_CreateAcc" id="_Flow_NoAccountPath">
+        <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Has Account Path (Direct to Review) -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_AccountExists" targetRef="_Task_ReviewReport" id="_Flow_HasAccountPath">
+        <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Point for Review -->
+     <bpmn:exclusiveGateway id="_Gateway_JoinBeforeReview">
+         <bpmn:incoming>_Flow_NoAccountCreateAccPath</bpmn:incoming> 
+          <!-- Correction: Incoming from Create Acc and Has Account Path? No, direct to Task is valid if exclusive. But merging requires join point for strict flow control in XML generation context -->
+        <bpmn:outgoing>_Flow_MergeBeforeReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Create Acc -> Join Point (Simplified) -->
+     <bpmn:sequenceFlow sourceRef="_Task_CreateAcc" targetRef="_Task_ReviewReport" id="_Flow_NoAccountCreateAccPath"/> 
+       <!-- Correction: Direct flow to Task is valid if no parallel merge required. But for clarity I'll use a join point logic implicitly via sequence flows -->
+
+    <!-- Review Report -> Amount Check -->
+     <bpmn:sequenceFlow sourceRef="_Task_ReviewReport" targetRef="_Gateway_AmountCheck" id="_Flow_AmountCheckDecision"/>
+
+    <!-- Amount <= 200 Path (Direct Pay) -->
+     <bpmn:exclusiveGateway id="_Gateway_AmountCheck">
+        <bpmn:incoming>_Flow_AmountCheckDecision</bpmn:incoming>
+        <bpmn:outgoing>_Flow_PayDirectPath</bpmn:outgoing> <!-- Amount <= 200 -->
+        <bpmn:outgoing>_Flow_RequestApprovalPath</bpmn:outgoing> <!-- Amount > 200 -->
+    </bpmn:exclusiveGateway>
+
+     <!-- Correction on Logic: Amount > 200 = Request Approval. Amount <= 200 = Deposit Directly. -->
+    
+     <bpmn:sequenceFlow sourceRef="_Task_ReviewReport" targetRef="_Gateway_AmountCheck" id="_Flow_AmountCheckDecision"/>
+    <bpmn:exclusiveGateway id="_Gateway_AmountCheck">
+        <bpmn:incoming>_Flow_AmountCheckDecision</bpmn:incoming>
+        <bpmn:outgoing>_Flow_PayDirectPath</bpmn:outgoing> <!-- Amount <= 200 -->
+        <bpmn:outgoing>_Flow_RequestApprovalPath</bpmn:outgoing> <!-- Amount > 200 -->
+    </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow sourceRef="_Task_CheckAccount" targetRef="_Gateway_AccountExists" id="_Flow_CheckAccount"/> 
+       <!-- Correction: Start -> Task Check Account. Then to Gateway Exists? No, Task Check Account is the check itself. -->
+    
+    <!-- Correct Flow Structure for Valid XML Generation (Simplified Logic Mapping) -->
+
+  </bpmn:process>
+</bpmn:definitions>

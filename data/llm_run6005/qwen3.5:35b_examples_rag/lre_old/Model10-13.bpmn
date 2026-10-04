@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_INQ_IP">
+    <bpmn:participant id="Participant_INQ" name="INQ" processRef="Process_INQ"/>
+    <bpmn:participant id="Participant_IP" name="IP" processRef="Process_IP"/>
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="IntermediateThrowEvent_SendRequest" targetRef="StartCatchEvent_ReceiveRequest"/>
+    <bpmn:messageFlow id="MessageFlow_ResponseAccepted" sourceRef="IntermediateThrowEvent_AcceptResponse" targetRef="EndINQ_DataTransmitted"/>
+    <bpmn:messageFlow id="MessageFlow_ResponseRejected" sourceRef="IntermediateThrowEvent_RejectResponse" targetRef="EndINQ_RequestRejected"/>
+  </bpmn:collaboration>
+
+  <!-- INQ Process -->
+  <bpmn:process id="Process_INQ" isExecutable="false">
+    <bpmn:startEvent id="StartNone_EventINQ" name="Initiate Request">
+      <bpmn:outgoing>SequenceFlow_InitRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_INQ_Request" name="Prepare Transaction Data Request">
+      <bpmn:incoming>SequenceFlow_InitRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToIP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for Message -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendRequest" name="Send Request to IP">
+      <bpmn:incoming>SequenceFlow_SendToIP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event for Response -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_ReceiveResponse" name="Wait for IP Response">
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DistributeResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway for Result -->
+    <bpmn:endEvent id="EndINQ_DataTransmitted" name="Data Transmission Accepted">
+      <bpmn:incoming>SequenceFlow_Accepted</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndINQ_RequestRejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Exclusive Gateway for Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_INQ_Result" name="Result Received?">
+      <bpmn:incoming>SequenceFlow_DistributeResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Accepted</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitRequest" sourceRef="StartNone_EventINQ" targetRef="Task_INQ_Request"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendToIP" sourceRef="Task_INQ_Request" targetRef="IntermediateThrowEvent_SendRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse" sourceRef="IntermediateThrowEvent_SendRequest" targetRef="IntermediateCatchEvent_ReceiveResponse"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeResult" sourceRef="IntermediateCatchEvent_ReceiveResponse" targetRef="ExclusiveGateway_INQ_Result"/>
+
+  </bpmn:process>
+
+  <!-- IP Process -->
+  <bpmn:process id="Process_IP" isExecutable="false">
+    <bpmn:startEvent id="StartMessage_EventIP" name="Request Received from INQ">
+      <bpmn:outgoing>SequenceFlow_StartCheck</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event for Request -->
+    <bpmn:intermediateCatchEvent id="StartCatchEvent_ReceiveRequest" name="Receive Transaction Data Request">
+      <bpmn:outgoing>SequenceFlow_StartCheck</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task for Checking -->
+    <bpmn:task id="Task_IP_Check" name="Examine Transaction Data Request">
+      <bpmn:incoming>SequenceFlow_StartCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Decision -->
+    <bpmn:endEvent id="EndIP_Accepted" name="Data Transmission Completed">
+      <bpmn:incoming>SequenceFlow_SendAccepted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndIP_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_SendRejected</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Intermediate Throw Event for Response -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_AcceptResponse" name="Send Acceptance to INQ">
+      <bpmn:incoming>SequenceFlow_SendAccepted</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToMessageAccept</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Throw Event for Rejection -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_RejectResponse" name="Send Rejection to INQ">
+      <bpmn:incoming>SequenceFlow_SendRejected</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToMessageReject</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Exclusive Gateway for Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_IP_Decision" name="Examination Outcome">
+      <bpmn:incoming>SequenceFlow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendAccepted</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartCheck" sourceRef="StartMessage_EventIP" targetRef="Task_IP_Check"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToGateway" sourceRef="Task_IP_Check" targetRef="ExclusiveGateway_IP_Decision"/>
+
+    <!-- Gateway Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendAccepted" name="Transmission of data" sourceRef="ExclusiveGateway_IP_Decision" targetRef="IntermediateThrowEvent_AcceptResponse"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendRejected" name="Request rejected" sourceRef="ExclusiveGateway_IP_Decision" targetRef="IntermediateThrowEvent_RejectResponse"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

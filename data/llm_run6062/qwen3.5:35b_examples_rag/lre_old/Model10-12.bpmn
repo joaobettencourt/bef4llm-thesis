@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_MasterDataChangeProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_MasterDataChange">
+    <bpmn:participant id="Participant_EC" name="EC (Entity/Client)" processRef="Pool_EC"/>
+    <bpmn:participant id="Participant_INQ" name="INQ (Inquiry Agent)" processRef="Pool_INQ"/>
+    <bpmn:participant id="Participant_IP" name="IP (Information Processor)" processRef="Pool_IP"/>
+
+    <!-- Message flows between participants -->
+    <bpmn:messageFlow id="MessageFlow_EC_to_INQ" sourceRef="Task_EC_TellChange" targetRef="IntermediateCatchEvent_INQ_ReceiveNotification"/>
+    <bpmn:messageFlow id="MessageFlow_INQ_to_IP" sourceRef="Task_INQ_NotifyIP" targetRef="StartMessageEvent_IP_ChangeReceived"/>
+
+  </bpmn:collaboration>
+
+  <!-- EC Pool -->
+  <bpmn:process id="Pool_EC" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_EC_ReceiveRequest" name="Master Data Change Request Received">
+      <bpmn:outgoing>SequenceFlow_EC_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EC_TellChange" name="Tell INQ about master data change">
+      <bpmn:incoming>SequenceFlow_EC_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EC_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_EC_Completed" name="Change Notification Sent">
+      <bpmn:incoming>SequenceFlow_EC_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EC_01" sourceRef="StartEvent_EC_ReceiveRequest" targetRef="Task_EC_TellChange"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EC_02" sourceRef="Task_EC_TellChange" targetRef="EndEvent_EC_Completed"/>
+
+  </bpmn:process>
+
+  <!-- INQ Pool -->
+  <bpmn:process id="Pool_INQ" isExecutable="false">
+    <bpmn:startMessageEvent id="StartMessageEvent_INQ_ReceiveNotification" name="Change Notification Received">
+      <bpmn:messageRef>Message_MasterDataChange</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_INQ_01</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:task id="Task_INQ_NotifyIP" name="Notify IP of the change">
+      <bpmn:incoming>SequenceFlow_INQ_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_INQ_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_INQ_Completed" name="IP Notification Sent">
+      <bpmn:incoming>SequenceFlow_INQ_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_INQ_01" sourceRef="StartMessageEvent_INQ_ReceiveNotification" targetRef="Task_INQ_NotifyIP"/>
+    <bpmn:sequenceFlow id="SequenceFlow_INQ_02" sourceRef="Task_INQ_NotifyIP" targetRef="EndEvent_INQ_Completed"/>
+
+  </bpmn:process>
+
+  <!-- IP Pool -->
+  <bpmn:process id="Pool_IP" isExecutable="false">
+    <bpmn:startMessageEvent id="StartMessageEvent_IP_ChangeReceived" name="Change Notification from INQ">
+      <bpmn:messageRef>Message_MasterDataChange</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_IP_01</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:task id="Task_IP_CheckChanges" name="Check if master data can be changed at desired time">
+      <bpmn:incoming>SequenceFlow_IP_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IP_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_IP_Decision" name="Can changes be made?">
+      <bpmn:incoming>SequenceFlow_IP_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IP_Confirm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IP_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_IP_ConfirmChanges" name="Confirm changes of INQ">
+      <bpmn:incoming>SequenceFlow_IP_Confirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IP_04</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_IP_RejectChanges" name="Reject changes of INQ">
+      <bpmn:incoming>SequenceFlow_IP_Reject</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IP_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_IP_Confirmed" name="Changes Confirmed">
+      <bpmn:incoming>SequenceFlow_IP_04</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_IP_Rejected" name="Changes Rejected">
+      <bpmn:incoming>SequenceFlow_IP_05</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_IP_01" sourceRef="StartMessageEvent_IP_ChangeReceived" targetRef="Task_IP_CheckChanges"/>
+    <bpmn:sequenceFlow id="SequenceFlow_IP_02" sourceRef="Task_IP_CheckChanges" targetRef="ExclusiveGateway_IP_Decision"/>
+
+    <!-- Decision outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_IP_Confirm" name="Yes - Can change" sourceRef="ExclusiveGateway_IP_Decision" targetRef="Task_IP_ConfirmChanges">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${canChange}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_IP_Reject" name="No - Cannot change" sourceRef="ExclusiveGateway_IP_Decision" targetRef="Task_IP_RejectChanges">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!canChange}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End events -->
+    <bpmn:sequenceFlow id="SequenceFlow_IP_04" sourceRef="Task_IP_ConfirmChanges" targetRef="EndEvent_IP_Confirmed"/>
+    <bpmn:sequenceFlow id="SequenceFlow_IP_05" sourceRef="Task_IP_RejectChanges" targetRef="EndEvent_IP_Rejected"/>
+
+  </bpmn:process>
+
+  <!-- Message definitions -->
+  <bpmn:message id="Message_MasterDataChange" name="Master Data Change Notification">
+    <bpmn:name>Master Data Change</bpmn:name>
+  </bpmn:message>
+
+</bpmn:definitions>

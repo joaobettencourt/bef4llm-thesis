@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_VacationsRequest">
+    <bpmn:participant id="Participant_Organization" name="Organization Vacation Process" processRef="Process_VacationsRequest"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_VacationsRequest" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_Submit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewRejection</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>Task_ApproveReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_DecisionApproved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_HR" name="Human Resources">
+        <bpmn:flowNodeRef>Task_ManagementProcedures</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Submit" name="Submit Vacation Request">
+      <bpmn:outgoing>SFlow_RegisterRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Register Request (Employee Lane) -->
+    <bpmn:task id="Task_RegisterRequest" name="Register Requirement">
+      <bpmn:incoming>SFlow_RegisterRequest</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToSupervisor</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Supervisor Review (Supervisor Lane) -->
+    <bpmn:task id="Task_ApproveReject" name="Approve or Reject Request">
+      <bpmn:incoming>SFlow_ToSupervisor</bpmn:incoming>
+      <bpmn:outgoing>SFlow_DecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Decision (Supervisor Lane) -->
+    <bpmn:exclusiveGateway id="Gw_DecisionApproved" name="Request Approved?">
+      <bpmn:incoming>SFlow_DecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ApprovedPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_RejectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path: Approved (HR Lane) -->
+    <bpmn:task id="Task_ManagementProcedures" name="Complete Management Procedures">
+      <bpmn:incoming>SFlow_ApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path: Rejected (Employee Lane) -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Denied">
+       <bpmn:incoming>SFlow_ReviewRejectionComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Task: Review Reasons (Employee Lane - triggered by return) -->
+    <bpmn:task id="Task_ReviewRejection" name="Review Rejection Reasons">
+      <bpmn:incoming>SFlow_ReturnedRequest</bpmn:incoming>
+       <bpmn:outgoing>SFlow_ReviewComplete</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event for Approved -->
+    <bpmn:endEvent id="EndEvent_Approved" name="Vacation Processed">
+      <bpmn:incoming>SFlow_EndApproved</bpmn:incoming>
+    </bpmn:endEvent>
+
+
+    <!-- Sequence Flows -->
+
+    <!-- Start to Register Request -->
+    <bpmn:sequenceFlow id="SFlow_RegisterRequest" sourceRef="StartEvent_Submit" targetRef="Task_RegisterRequest"/>
+
+    <!-- Employee Lane to Supervisor Lane (Handoff) -->
+    <bpmn:sequenceFlow id="SFlow_ToSupervisor" name="Request Received" sourceRef="Task_RegisterRequest" targetRef="Task_ApproveReject"/>
+
+    <!-- Task to Gateway -->
+    <bpmn:sequenceFlow id="SFlow_DecisionPoint" sourceRef="Task_ApproveReject" targetRef="Gw_DecisionApproved"/>
+
+    <!-- Approved Path (to HR) -->
+    <bpmn:sequenceFlow id="SFlow_ApprovedPath" name="Yes - Approved" sourceRef="Gw_DecisionApproved" targetRef="Task_ManagementProcedures">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejected Path (Back to Employee) -->
+     <bpmn:sequenceFlow id="SFlow_RejectedPath" name="No - Rejected" sourceRef="Gw_DecisionApproved" targetRef="Task_ReviewRejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+     <!-- Flow from Review to End -->
+    <bpmn:sequenceFlow id="SFlow_ReviewComplete" sourceRef="Task_ReviewRejection" targetRef="EndEvent_Rejected"/>
+
+    <!-- HR Task to Approved End Event -->
+    <bpmn:sequenceFlow id="SFlow_EndApproved" name="Procedures Complete" sourceRef="Task_ManagementProcedures" targetRef="EndEvent_Approved"/>
+
+  </bpmn:process>
+</bpmn:definitions>

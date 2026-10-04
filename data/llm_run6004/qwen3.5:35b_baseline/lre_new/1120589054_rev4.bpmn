@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_OrderToCash" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrderToCash">
+    <bpmn:participant id="Pool_1" name="Order to Cash Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_OrderToCash">
+      <bpmn:lane id="Lane_Sales" name="Sales & Order Management">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformSales</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse & Logistics">
+        <bpmn:flowNodeRef>Gateway_CheckParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IdentifyParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderMissingParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergePartsReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageLabel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Production" name="Production">
+        <bpmn:flowNodeRef>Gateway_StartProdMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StartProduction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QualityCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_1" name="Customer Order Received">
+        <bpmn:outgoing>SF_Start_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ProcessOrder" name="Process Customer Order">
+      <bpmn:incoming>SF_Start_ProcessOrder</bpmn:incoming>
+        <bpmn:outgoing>SF_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Warehouse Logic -->
+       <bpmn:exclusiveGateway id="Gateway_CheckParts" name="Parts Available?">
+      <bpmn:incoming>SF_IdentifyPartsFlow</bpmn:incoming>
+        <bpmn:outgoing>SF_PartsReadyDirect</bpmn:outgoing>
+       <bpmn:outgoing>SF_OrderMissingPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task Identify Parts -->
+      <bpmn:task id="Task_IdentifyParts" name="Determine Required Parts">
+        <bpmn:incoming>SF_SendToWarehouse</bpmn:incoming>
+          <bpmn:outgoing>SF_IdentifyPartsFlow</bpmn:outgoing>
+      </bpmn:task>
+
+     <!-- Task Order Missing -->
+       <bpmn:task id="Task_OrderMissingParts" name="Order Missing Parts">
+        <bpmn:incoming>SF_OrderMissingPath</bpmn:incoming>
+          <bpmn:outgoing>SF_ReceiveOrderedFlow</bpmn:outgoing>
+      </bpmn:task>
+
+     <!-- Task Receive Ordered (Wait for delivery) -->
+       <bpmn:task id="Task_ReceiveParts" name="Receive & Store Parts">
+        <bpmn:incoming>SF_ReceiveOrderedFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_MergeToProdStart</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Merge Point for Production Start -->
+     <bpmn:exclusiveGateway id="Gateway_StartProdMerge" name="All Parts Ready?">
+        <bpmn:incoming>SF_PartsReadyDirect</bpmn:incoming>
+          <bpmn:incoming>SF_MergeToProdStart</bpmn:incoming>
+           <bpmn:outgoing>SF_StartProductionFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Production Tasks --> 
+      <bpmn:task id="Task_StartProduction" name="Start Production">
+        <bpmn:incoming>SF_StartProductionFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_QualityCheckFlow</bpmn:outgoing>
+      </bpmn:task>
+
+       <bpmn:task id="Task_QualityCheck" name="Perform Quality Check">
+        <bpmn:incoming>SF_QualityCheckFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_PackageLabelFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Packaging Task --> 
+       <bpmn:exclusiveGateway id="Gateway_MergePartsReady" name="Merge Ready Parts">
+        <bpmn:incoming>SF_StartProductionFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_PackageLabelFlow</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+       <bpmn:task id="Task_PackageLabel" name="Package and Label">
+        <bpmn:incoming>SF_PackageLabelFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_SalesInformedLink</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- End Event --> 
+       <bpmn:endEvent id="EndEvent_1" name="Product Sold">
+             <bpmn:incoming>SF_FinalSaleFlow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+
+      <!-- Flows --> 
+
+     <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_ProcessOrder" sourceRef="StartEvent_1" targetRef="Task_ProcessOrder"/>
+
+       <!-- To Warehouse Lane -->
+       <bpmn:sequenceFlow id="SF_SendToWarehouse" name="Send to Warehouse" sourceRef="Task_ProcessOrder" targetRef="Task_IdentifyParts">
+        </bpmn:sequenceFlow>
+
+    <!-- Parts Check Logic Flows --> 
+      <bpmn:sequenceFlow id="SF_IdentifyPartsFlow" sourceRef="Task_IdentifyParts" targetRef="Gateway_CheckParts"/>
+      
+       <bpmn:sequenceFlow id="SF_PartsReadyDirect" name="Yes, Available" sourceRef="Gateway_CheckParts" targetRef="Gateway_StartProdMerge">
+        </bpmn:sequenceFlow>
+
+      <!-- Order Path --> 
+         <bpmn:sequenceFlow id="SF_OrderMissingPath" name="No, Missing" sourceRef="Gateway_CheckParts" targetRef="Task_OrderMissingParts"/>
+         
+           <bpmn:sequenceFlow id="SF_ReceiveOrderedFlow" sourceRef="Task_OrderMissingParts" targetRef="Task_ReceiveParts">
+        </bpmn:sequenceFlow>
+
+      <!-- Merge to Production --> 
+         <bpmn:sequenceFlow id="SF_MergeToProdStart" name="All Parts Ready" sourceRef="Task_ReceiveParts" targetRef="Gateway_StartProdMerge"/>
+         
+           <bpmn:sequenceFlow id="SF_StartProductionFlow" sourceRef="Gateway_StartProdMerge" targetRef="Task_StartProduction">
+        </bpmn:sequenceFlow>
+
+    <!-- Production to Packaging --> 
+      <bpmn:sequenceFlow id="SF_QualityCheckFlow" name="QC Passed" sourceRef="Task_StartProduction" targetRef="Task_QualityCheck"/>
+      
+         <bpmn:sequenceFlow id="SF_PackageLabelFlow" sourceRef="Gateway_MergePartsReady" targetRef="Task_PackageLabel">Wait, need to fix this. 
+</bpmn:endEvent>
+
+<!-- Final Corrected Sequence Flows for the Process Logic (Consolidated) -->
+
+
+    <bpmn:sequenceFlow id="SF_QualityCheckFlow" sourceRef="Task_StartProduction" targetRef="Task_QualityCheck"/>
+    
+     <bpmn:sequenceFlow id="SF_PackageLabelFlow" name="After QC, Package" sourceRef="Task_QualityCheck" targetRef="Task_PackageLabel"/>
+
+      <!-- Inform Sales Task --> 
+       <bpmn:task id="Task_InformSales" name="Inform Sales Team">
+        <bpmn:incoming>SF_SalesInformedLink</bpmn:incoming>
+          <bpmn:outgoing>SF_FinalSaleFlow</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Flow to End --> 
+         <bpmn:sequenceFlow id="SF_SalesInformedLink" sourceRef="Task_PackageLabel" targetRef="Task_InformSales"/>
+         
+           <bpmn:sequenceFlow id="SF_FinalSaleFlow" name="Product Sold" sourceRef="Task_InformSales" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_VacationsRequest">
+    <bpmn:participant id="Participant_Organization" name="Organization" processRef="Process_VacationsRequest"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_VacationsRequest" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_SubmitVacation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewRejection</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>ExclusiveGateway_ApproveReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyRejection</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_HR" name="HR Representative">
+        <bpmn:flowNodeRef>Task_GenerateNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompleteManagementProcedures</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_End" name="End">
+        <bpmn:flowNodeRef>EndEvent_ProcessedApproved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubmitVacation" name="Submit Vacation Request">
+      <bpmn:outgoing>SequenceFlow_RegisterRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Register request -->
+    <bpmn:task id="Task_RegisterRequest" name="Register Requirement">
+      <bpmn:incoming>SequenceFlow_RegisterRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorReceive</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Approval/Rejection -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ApproveReject" name="Request Approved?">
+      <bpmn:incoming>SequenceFlow_SupervisorReceive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyRejection</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovedToHR</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Notify rejection -->
+    <bpmn:task id="Task_NotifyRejection" name="Notify Rejection">
+      <bpmn:incoming>SequenceFlow_NotifyRejection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnToEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Employee reviews rejection -->
+    <bpmn:task id="Task_ReviewRejection" name="Review Rejection Reasons">
+      <bpmn:incoming>SequenceFlow_ReturnToEmployee</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterRequestLoopback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: HR Generate notification -->
+    <bpmn:task id="Task_GenerateNotification" name="Generate Notification">
+      <bpmn:incoming>SequenceFlow_ApprovedToHR</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManagementProcedures</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: HR Complete procedures -->
+    <bpmn:task id="Task_CompleteManagementProcedures" name="Complete Management Procedures">
+      <bpmn:incoming>SequenceFlow_ManagementProcedures</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Process Approved -->
+    <bpmn:endEvent id="EndEvent_ProcessedApproved" name="Vacation Request Approved">
+      <bpmn:incoming>SequenceFlow_EndApproved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Rejected Process -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_NotifyRejectionLoopback</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterRequest" sourceRef="StartEvent_SubmitVacation" targetRef="Task_RegisterRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorReceive" name="To Supervisor" sourceRef="Task_RegisterRequest" targetRef="ExclusiveGateway_ApproveReject"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyRejection" name="Rejected - Notify Employee" sourceRef="ExclusiveGateway_ApproveReject" targetRef="Task_NotifyRejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${requestApproved = false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnToEmployee" sourceRef="Task_NotifyRejection" targetRef="Task_ReviewRejection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterRequestLoopback" name="Resubmit Request" sourceRef="Task_ReviewRejection" targetRef="ExclusiveGateway_ApproveReject">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resubmit = true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyRejectionLoopback" name="End Process on Rejection" sourceRef="Task_ReviewRejection" targetRef="EndEvent_Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resubmit = false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedToHR" name="Approved - To HR" sourceRef="ExclusiveGateway_ApproveReject" targetRef="Task_GenerateNotification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${requestApproved = true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ManagementProcedures" sourceRef="Task_GenerateNotification" targetRef="Task_CompleteManagementProcedures"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndApproved" name="Process Complete" sourceRef="Task_CompleteManagementProcedures" targetRef="EndEvent_ProcessedApproved"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OEE_Process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" name="OEE Monitoring Process" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Start OEE Check">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Connection Status Gateway (Check if machine is connected) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Connection" name="Is Machine Connected?">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConnectYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisconnectNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Collect Information -->
+    <bpmn:task id="Task_CollectInfo" name="Collect information from machine">
+      <bpmn:incoming>SequenceFlow_ConnectYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Service Task: Calculate OEE -->
+    <bpmn:serviceTask id="ServiceTask_CalcOEE" name="Calculate Overall Equipment Efficiency">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OEEDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: OEE Threshold Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_OEE" name="OEE below threshold?">
+      <bpmn:incoming>SequenceFlow_OEEDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OKLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowOEE</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for Low OEE Actions (Stop Machine AND Send Email) -->
+    <bpmn:parallelGateway id="ParallelGateway_Action" name="">
+      <bpmn:incoming>SequenceFlow_LowOEE</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StopMachine</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendEmail</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Stop Machine -->
+    <bpmn:userTask id="UserTask_Stop" name="Stop the machine">
+      <bpmn:incoming>SequenceFlow_StopMachine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeAction1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Send Email -->
+    <bpmn:serviceTask id="ServiceTask_Email" name="Send email to engineer">
+      <bpmn:incoming>SequenceFlow_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeAction2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway Convergence -->
+    <bpmn:parallelGateway id="ParallelGateway_Conce" name="">
+      <bpmn:incoming>SequenceFlow_ConvergeAction1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ConvergeAction2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitRestart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task/Event: Wait for Restart -->
+    <bpmn:userTask id="UserTask_Restart" name="Wait for machine restart">
+      <bpmn:incoming>SequenceFlow_WaitRestart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Disconnected" name="Process Stopped">
+      <bpmn:incoming>SequenceFlow_DisconnectNo</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_1" targetRef="ExclusiveGateway_Connection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ConnectYes" name="Connected" sourceRef="ExclusiveGateway_Connection" targetRef="Task_CollectInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DisconnectNo" name="Disconnected" sourceRef="ExclusiveGateway_Connection" targetRef="EndEvent_Disconnected"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_CollectInfo" targetRef="ServiceTask_CalcOEE"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_OEEDecision" name="" sourceRef="ServiceTask_CalcOEE" targetRef="ExclusiveGateway_OEE"/>
+
+    <!-- OEE OK Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_OKLoop" name="OK / Above Threshold" sourceRef="ExclusiveGateway_OEE" targetRef="ExclusiveGateway_Connection"/>
+    
+    <!-- Low OEE Path Divergence -->
+    <bpmn:sequenceFlow id="SequenceFlow_LowOEE" name="Below Threshold" sourceRef="ExclusiveGateway_OEE" targetRef="ParallelGateway_Action"/>
+
+    <!-- Low OEE Actions (Stop & Email) -->
+    <bpmn:sequenceFlow id="SequenceFlow_StopMachine" name="" sourceRef="ParallelGateway_Action" targetRef="UserTask_Stop"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmail" name="" sourceRef="ParallelGateway_Action" targetRef="ServiceTask_Email">
+
+    <!-- Convergence after Actions -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeAction1" name="" sourceRef="UserTask_Stop" targetRef="ParallelGateway_Conce"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ConvergeAction2" name="" sourceRef="ServiceTask_Email" targetRef="ParallelGateway_Conce">
+
+    <!-- Restart Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_RestartLoop" name="" sourceRef="UserTask_Restart" targetRef="StartEvent_1"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CharacterGen">
+    <bpmn:participant id="Participant_BlizzardSystem" name="Blizzard Character Generator System" processRef="Process_CharCreation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CharCreation" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Player" name="Player">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterNameLoop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckBattleNet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterAccountInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPaymentCC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterIBANBIC</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="Blizzard System">
+        <bpmn:flowNodeRef>Gateway_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_WaitLinkClick</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckSubscription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PaymentMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NameAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmCreation</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Create Character">
+      <bpmn:outgoing>SequenceFlow_StartSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Split for Account Setup and Name Generation -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit" name="Start Activities">
+      <bpmn:incoming>SequenceFlow_StartSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountSetup</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NameGen</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Account Setup Path -->
+    <bpmn:exclusiveGateway id="Gateway_CheckBattleNet" name="Has Battle.net?">
+      <bpmn:incoming>SequenceFlow_AccountSetup</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HasAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No Account Path -->
+    <bpmn:task id="Task_EnterAccountInfo" name="Enter Account Info">
+      <bpmn:incoming>SequenceFlow_NoAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendLinkWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Link Click (Intermediate Catch Event) -->
+    <bpmn:startEvent id="CatchEvent_WaitLinkClick" name="Receive Confirmation Mail">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_LinkClicked</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Has Account Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasAccount" name="Yes" sourceRef="Gateway_CheckBattleNet" targetRef="Task_CheckSubscription"/>
+
+    <!-- Subscription Check -->
+    <bpmn:task id="Task_CheckSubscription" name="Check Active WoW Sub">
+      <bpmn:incoming>SequenceLinkWaitToSub</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubscriptionResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Payment Method Selection -->
+    <bpmn:exclusiveGateway id="Gateway_PaymentMethod" name="Payment Method?">
+      <bpmn:incoming>SequenceFlow_NoSubs</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditCard</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BankAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Credit Card Path -->
+    <bpmn:task id="Task_EnterPaymentCC" name="Enter CC Info">
+      <bpmn:incoming>SequenceFlow_CreditCard</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Bank Account Path -->
+    <bpmn:task id="Task_EnterIBANBIC" name="Enter IBAN &amp; BIC">
+      <bpmn:incoming>SequenceFlow_BankAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Name Generation Path -->
+    <bpmn:task id="Task_EnterNameLoop" name="Enter Character Names">
+      <bpmn:incoming>SequenceFlow_NameGen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Name Availability Check -->
+    <bpmn:exclusiveGateway id="Gateway_NameAvailable" name="Name Available?">
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TakenLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ValidName</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Convergence for Confirmation -->
+    <bpmn:endEvent id="End_Confirmation" name="Character Created">
+      <bpmn:incoming>SequenceFlow_PaymentMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ValidName</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Future Notification (Expansion Release) -->
+    <bpmn:startEvent id="CatchEvent_ExpansionMessage" name="Receive Expansion Message">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_FutureNotification</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartSplit" sourceRef="StartEvent_1" targetRef="Gateway_ParallelSplit"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountSetup" name="Account Setup" sourceRef="Gateway_ParallelSplit" targetRef="Gateway_CheckBattleNet">
+      <bpmn:name>Set up account</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NameGen" name="Name Generation" sourceRef="Gateway_ParallelSplit" targetRef="Task_EnterNameLoop">
+      <bpmn:name>Create names while setting up</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccount" name="No Account" sourceRef="Gateway_CheckBattleNet" targetRef="Task_EnterAccountInfo"/>
+    
+    <!-- Link Wait Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendLinkWait" sourceRef="Task_EnterAccountInfo" targetRef="CatchEvent_WaitLinkClick">
+      <bpmn:name>Send Confirmation Mail</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Subscription Logic -->
+    <bpmn:exclusiveGateway id="Gateway_SubActive">
+      <bpmn:incoming>SequenceFlow_LinkClicked</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_NoSubs</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HasSubscription</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Link Wait to Subscription Check -->
+    <bpmn:sequenceFlow id="SequenceLinkWaitToSub" sourceRef="CatchEvent_WaitLinkClick" targetRef="Task_CheckSubscription"/>
+    
+    <!-- Connection from Task_CheckSubscription to Gateway_SubActive -->
+    <bpmn:sequenceFlow id="SequenceFlow_LinkClicked" name="" sourceRef="Gateway_ParallelSplit" targetRef="Gateway_SubActive">
+      <bpmn:name>Link Clicked</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Subscription Check to Payment Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoSubs" name="No Active Sub" sourceRef="Gateway_SubActive" targetRef="Gateway_PaymentMethod"/>
+    
+    <!-- Has subscription path (directly to confirmation) -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasSubscription" name="Has Subscription" sourceRef="Gateway_SubActive" targetRef="Task_ConfirmCreation">
+      <bpmn:name>Already subscribed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Method Selection -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreditCard" name="Credit Card" sourceRef="Gateway_PaymentMethod" targetRef="Task_EnterPaymentCC"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BankAccount" name="Bank Account" sourceRef="Gateway_PaymentMethod" targetRef="Task_EnterIBANBIC"/>
+
+    <!-- Payment Merge -->
+    <bpmn:parallelGateway id="Gateway_PaymentMerge">
+      <bpmn:incoming>SequenceFlow_PaymentCC</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_BankAccountPayment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmationPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Payment to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentCC" sourceRef="Task_EnterPaymentCC" targetRef="Gateway_PaymentMerge"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BankAccountPayment" sourceRef="Task_EnterIBANBIC" targetRef="Gateway_PaymentMerge"/>
+
+    <!-- Name Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_TakenLoop" name="Taken - Try Again" sourceRef="Gateway_NameAvailable" targetRef="Task_EnterNameLoop">
+      <bpmn:name>Name Taken</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Valid Name Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidName" name="Valid Name Found" sourceRef="Gateway_NameAvailable" targetRef="Task_ConfirmCreation">
+      <bpmn:name>Name Available</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Confirmation Task -->
+    <bpmn:endEvent id="End_Event_1" name="Character Created with Selfies"/>
+    
+    <bpmn:task id="Task_ConfirmCreation" name="Confirm Creation">
+      <bpmn:incoming>SequenceFlow_ConfirmationPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalConfirmation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Confirmation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmationPath" sourceRef="Gateway_PaymentMerge" targetRef="Task_ConfirmCreation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalConfirmation" name="" sourceRef="Task_ConfirmCreation" targetRef="End_Event_1">
+      <bpmn:name>Send Confirmation</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz">
+  <bpmn:collaboration id="Collaboration_7q8w2e1r">
+    <bpmn:participant id="Participant_CVS" name="CVS" processRef="Process_BagResolution"/>
+    <bpmn:participant id="Participant_Customer" name="Customer"/>
+    <bpmn:messageFlow id="MessageFlow_Call" sourceRef="Task_CallCustomer" targetRef="Participant_Customer">
+      <bpmn:name>Contact by phone</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BagResolution">
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="DataRef_RetryCount" name="Retry count label on bag"/>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_NotCollectedBagIdentified">
+      <bpmn:name>Not collected bag identified</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task -->
+    <bpmn:task id="Task_CheckRetryCount" name="Check number of resolution retries conducted">
+      <bpmn:name>Check Retry Count</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckRetries</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gateway_RetryThresholdCheck" default="SequenceFlow_ContactCustomer">
+      <bpmn:name>Retries &gt; Threshold?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DecideThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnForDisassemble1</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ContactCustomer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task -->
+    <bpmn:task id="Task_CallCustomer" name="Try to contact customer by phone">
+      <bpmn:name>Contact Customer</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ContactCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideOutcome</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gateway_ContactOutcome">
+      <bpmn:name>Contact Outcome?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DecideOutcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnForDisassemble2</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IncreaseRetryCount1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task -->
+    <bpmn:task id="Task_IncreaseRetryCount" name="Increase retry count on bag label">
+      <bpmn:name>Increase Retry Count</bpmn:name>
+      <bpmn:incoming>SequenceFlow_IncreaseRetryCount1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeEnds</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task -->
+    <bpmn:task id="Task_ReturnDisassemble" name="Return to production area for disassemble">
+      <bpmn:name>Return Disassemble</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReturnForDisassemble1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ReturnForDisassemble2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeEnds</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 (Merge) -->
+    <bpmn:exclusiveGateway id="Gateway_EndMerge">
+      <bpmn:name>Merge Paths to End</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MergeEnds</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_BagManaged">
+      <bpmn:name>Bag managed - resolved or returned for disassembly</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRetries" sourceRef="Start_NotCollectedBagIdentified" targetRef="Task_CheckRetryCount"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecideThreshold" name="Check retry count result" sourceRef="Task_CheckRetryCount" targetRef="Gateway_RetryThresholdCheck"/>
+
+    <!-- Gateway Reroutes -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnForDisassemble1" name="Retries &gt; Threshold - Return for disassembly" sourceRef="Gateway_RetryThresholdCheck" targetRef="Task_ReturnDisassemble">
+      <bpmn:name>Return to production area</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Contact Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContactCustomer" name="Retries ≤ Threshold - Try contact customer" sourceRef="Gateway_RetryThresholdCheck" targetRef="Task_CallCustomer"/>
+
+    <!-- Outcome Paths from Gateway_ContactOutcome -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnForDisassemble2" name="Successful, Customer withdrew order" sourceRef="Gateway_ContactOutcome" targetRef="Task_ReturnDisassemble">
+      <bpmn:name>Return to production area</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Retry Count Increase Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_IncreaseRetryCount1" name="Successful, Customer promised pick-up OR Contact unsuccessful" sourceRef="Gateway_ContactOutcome" targetRef="Task_IncreaseRetryCount"/>
+
+    <!-- End Merge Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeEnds" sourceRef="Task_ReturnDisassemble" targetRef="Gateway_EndMerge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" sourceRef="Gateway_EndMerge" targetRef="End_BagManaged"/>
+
+  </bpmn:process>
+</bpmn:definitions>

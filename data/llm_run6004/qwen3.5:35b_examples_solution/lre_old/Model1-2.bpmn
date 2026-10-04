@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_abc123xyz" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ComputerRepairProcess">
+    <bpmn:participant id="Participant_Customer" name="Customer" processRef="Process_Customer"/>
+    <bpmn:participant id="Participant_CRS" name="Computer Repair Service (CRS)" processRef="Process_CRS"/>
+    
+    <!-- Message Flows between participants -->
+    <bpmn:messageFlow id="MessageFlow_ComputerDelivery" sourceRef="Task_CustomerBringDefectivePC" targetRef="StartEvent_CRSDefectReceived"/>
+    <bpmn:messageFlow id="MessageFlow_RepairCostCalculation" sourceRef="Task_CRSRepairCostCalculation" targetRef="Task_CustomerReceiveCostEstimate"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Process_Customer" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_1Customer">
+      <bpmn:name>Defective Computer</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CustomerBringPC</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CustomerBringDefectivePC" name="Bring in defective computer">
+      <bpmn:incoming>SequenceFlow_CustomerBringPC</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToCRS</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_ProcessContinues">
+      <bpmn:name>Process continues with repair</bpmn:name>
+      <bpmn:incoming>SequenceFlow_AcceptRepair</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Customer receives cost estimate (from CRS) -->
+    <bpmn:startEvent id="StartEvent_CustomerReceiveEstimate">
+      <bpmn:name>Cost Estimate Received</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CostDecisionPoint</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_CustomerTakesHome">
+      <bpmn:name>Takes computer home unrepaired</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RejectRepair</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerBringPC" sourceRef="StartEvent_1Customer" targetRef="Task_CustomerBringDefectivePC"/>
+    
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CostDecision">
+      <bpmn:name>Costs Acceptable?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CostDecisionPoint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AcceptRepair</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectRepair</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Decision flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CostDecisionPoint" sourceRef="StartEvent_CustomerReceiveEstimate" targetRef="ExclusiveGateway_CostDecision"/>
+    
+    <bpmn:task id="Task_CustomerReceiveCostEstimate">
+      <bpmn:name>Receive repair cost calculation</bpmn:name>
+      <bpmn:incoming>MessageFlow_RepairCostCalculation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CostDecisionPoint</bpmn:outgoing>
+    </bpmn:task>
+
+  </bpmn:process>
+
+  <!-- CRS Process -->
+  <bpmn:process id="Process_CRS" isExecutable="false">
+    
+    <!-- Start Event - Defect Received from Customer -->
+    <bpmn:startEvent id="StartEvent_CRSDefectReceived">
+      <bpmn:name>Defective Computer Delivered</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CheckDefect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check defect and calculate repair cost -->
+    <bpmn:task id="Task_CRSRepairCostCalculation">
+      <bpmn:name>Check defect &amp; prepare repair cost calculation</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckDefect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEstimateToCustomer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Start repair activities (after customer accepts) -->
+    <bpmn:startEvent id="StartEvent_RepairAccepted">
+      <bpmn:name>Customer Accepts Repair Costs</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_StartRepairActivities</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent repair activities -->
+    <bpmn:parallelGateway id="ParallelGateway_RepairStart">
+      <bpmn:incoming>SequenceFlow_StartRepairActivities</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SoftwareConfig</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Hardware repair activity -->
+    <bpmn:task id="Task_CheckRepairHardware">
+      <bpmn:name>Check and repair hardware</bpmn:name>
+      <bpmn:incoming>SequenceFlow_HardwareCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestAfterHardware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Software configuration activity -->
+    <bpmn:task id="Task_CheckConfigureSoftware">
+      <bpmn:name>Check and configure software</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SoftwareConfig</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestAfterSoftware</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Testing after hardware repair -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HardwareTest">
+      <bpmn:name>Hardware Test Result?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TestAfterHardware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairLoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HardwareOKProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Testing after software configuration -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SoftwareTest">
+      <bpmn:name>Software Test Result?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TestAfterSoftware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairLoopBack2</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SoftwareOKProceed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Test system functionality task -->
+    <bpmn:endEvent id="EndEvent_RepairFinished">
+      <bpmn:name>Computer Repaired Successfully</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SoftwareOKProceed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary events for error detection -->
+    <bpmn:boundaryEvent id="BoundaryEvent_HardwareError" attachedToRef="Task_CheckRepairHardware">
+      <bpmn:errorEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_ErrorDetected</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BoundaryEvent_SoftwareError" attachedToRef="Task_CheckConfigureSoftware">
+      <bpmn:errorEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_ErrorDetected2</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Loop back gateway for repair activities -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RepairLoop">
+      <bpmn:name>Error Detected?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ErrorDetected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryHardwareRepair</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDefect" sourceRef="StartEvent_CRSDefectReceived" targetRef="Task_CRSRepairCostCalculation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendEstimateToCustomer" name="Send cost estimate">
+      <bpmn:name>Send cost estimate</bpmn:name>
+      <bpmn:sourceRef>Task_CRSRepairCostCalculation</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel execution of hardware and software tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartRepairActivities" sourceRef="StartEvent_RepairAccepted" targetRef="ParallelGateway_RepairStart"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareCheck" name="Hardware Check">
+      <bpmn:name>Execute hardware repair</bpmn:name>
+      <bpmn:sourceRef>ParallelGateway_RepairStart</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareConfig" name="Software Config">
+      <bpmn:name>Execute software configuration</bpmn:name>
+      <bpmn:sourceRef>ParallelGateway_RepairStart</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Testing flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestAfterHardware" name="Test after hardware repair">
+      <bpmn:name>Check functionality</bpmn:name>
+      <bpmn:sourceRef>Task_CheckRepairHardware</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TestAfterSoftware" name="Test after software config">
+      <bpmn:name>Check functionality</bpmn:name>
+      <bpmn:sourceRef>Task_CheckConfigureSoftware</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Error handling flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorDetected" name="Error detected">
+      <bpmn:name>Error during hardware repair</bpmn:name>
+      <bpmn:sourceRef>BoundaryEvent_HardwareError</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorDetected2" name="Error detected">
+      <bpmn:name>Error during software repair</bpmn:name>
+      <bpmn:sourceRef>BoundaryEvent_SoftwareError</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryHardwareRepair" name="Retry repair">
+      <bpmn:name>Execute another repair activity</bpmn:name>
+      <bpmn:sourceRef>ExclusiveGateway_RepairLoop</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Success flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareOKProceed" name="Test passed">
+      <bpmn:name>No error detected - proceed to software test</bpmn:name>
+      <bpmn:sourceRef>ExclusiveGateway_HardwareTest</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareOKProceed" name="All tests passed">
+      <bpmn:name>No error detected - repair finished</bpmn:name>
+      <bpmn:sourceRef>ExclusiveGateway_SoftwareTest</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

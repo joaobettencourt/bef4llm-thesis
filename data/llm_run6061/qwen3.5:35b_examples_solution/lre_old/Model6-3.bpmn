@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Production Process Organization" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Master" name="Master Individual Production">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPPSData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_PartsMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_ProcureParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MergeProcurement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntEvent_SystemNotice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>Tsk_ImplementProduction</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_QualityInspector" name="Quality Inspector">
+        <bpmn:flowNodeRef>Tsk_CheckQuality</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="New Order Received">
+      <bpmn:outgoing>SFlow_StartToDetermine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Determine Parts (Master) -->
+    <bpmn:task id="Task_DetermineParts" name="Determine parts, quantities and delivery date">
+      <bpmn:incoming>SFlow_StartToDetermine</bpmn:incoming>
+      <bpmn:outgoing>SFlow_DetermineToPPS</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Enter Data to PPS (Master) -->
+    <bpmn:task id="Task_EnterPPSData" name="Enter data into Production Planning System">
+      <bpmn:incoming>SFlow_DetermineToPPS</bpmn:incoming>
+      <bpmn:outgoing>SFlow_PPSDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Parts Missing? (Master) -->
+    <bpmn:exclusiveGateway id="Gw_PartsMissing" name="Parts missing and must be procured?">
+      <bpmn:incoming>SFlow_PPSDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ProcureYes</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_SkipProcurement</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Procure Parts (Master) -->
+    <bpmn:task id="Tsk_ProcureParts" name="Procure missing parts">
+      <bpmn:incoming>SFlow_ProcureYes</bpmn:incoming>
+      <bpmn:outgoing>SFlow_FromProcureToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Merge Flows (Master) -->
+    <bpmn:exclusiveGateway id="Gw_MergeProcurement" name="">
+      <bpmn:incoming>SFlow_SkipProcurement</bpmn:incoming>
+      <bpmn:incoming>SFlow_FromProcureToMerge</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToSystemNotice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Event: System Notice (Master) -->
+    <bpmn:intermediateThrowEvent id="IntEvent_SystemNotice" name="Ready to start production">
+      <bpmn:incoming>SFlow_ToSystemNotice</bpmn:incoming>
+      <bpmn:outgoing>SFlow_NoticeToEmployee</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 4: Implement Production (Employee) -->
+    <bpmn:task id="Tsk_ImplementProduction" name="Take care of implementation">
+      <bpmn:incoming>SFlow_NoticeToEmployee</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ProductionToQuality</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Check Quality (Inspector) -->
+    <bpmn:task id="Tsk_CheckQuality" name="Check order for quality">
+      <bpmn:incoming>SFlow_ProductionToQuality</bpmn:incoming>
+      <bpmn:outgoing>SFlow_QualityToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Process of production is finished">
+      <bpmn:incoming>SFlow_QualityToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_StartToDetermine" sourceRef="StartEvent_1" targetRef="Task_DetermineParts"/>
+    
+    <bpmn:sequenceFlow id="SFlow_DetermineToPPS" name="" sourceRef="Task_DetermineParts" targetRef="Task_EnterPPSData"/>
+
+    <bpmn:sequenceFlow id="SFlow_PPSDecision" name="" sourceRef="Task_EnterPPSData" targetRef="Gw_PartsMissing"/>
+    
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SFlow_ProcureYes" name="Parts missing" sourceRef="Gw_PartsMissing" targetRef="Tsk_ProcureParts"/>
+    <bpmn:sequenceFlow id="SFlow_SkipProcurement" name="All parts available" sourceRef="Gw_PartsMissing" targetRef="Gw_MergeProcurement"/>
+
+    <!-- Merge Paths -->
+    <bpmn:sequenceFlow id="SFlow_FromProcureToMerge" name="" sourceRef="Tsk_ProcureParts" targetRef="Gw_MergeProcurement"/>
+    
+    <bpmn:sequenceFlow id="SFlow_ToSystemNotice" name="" sourceRef="Gw_MergeProcurement" targetRef="IntEvent_SystemNotice"/>
+
+    <!-- Production Flow -->
+    <bpmn:sequenceFlow id="SFlow_NoticeToEmployee" name="" sourceRef="IntEvent_SystemNotice" targetRef="Tsk_ImplementProduction"/>
+    
+    <bpmn:sequenceFlow id="SFlow_ProductionToQuality" name="" sourceRef="Tsk_ImplementProduction" targetRef="Tsk_CheckQuality"/>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SFlow_QualityToEnd" name="" sourceRef="Tsk_CheckQuality" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

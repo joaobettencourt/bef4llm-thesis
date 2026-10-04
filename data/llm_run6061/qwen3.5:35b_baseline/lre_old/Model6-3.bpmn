@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_OrderFulfillment" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrdrProc">
+    <bpmn:participant id="Participant_MainProcess" name="Order Fulfillment Process" processRef="Process_OrdrFulfilment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrdrFulfilment" isExecutable="false">
+    <bpmn:laneSet>
+      <!-- Lane for Master Planner -->
+      <bpmn:lane id="Lane_MasterPlanner" name="Master Planner">
+        <bpmn:flowNodeRef>StartEvent_OrderReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPPS</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- Lane for Procurement/Admin -->
+      <bpmn:lane id="Lane_Procurement" name="Procurement Admin">
+        <bpmn:flowNodeRef>Gateway_CheckPartsNeeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TransferToERP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcureMissingParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- Lane for Production & QA -->
+      <bpmn:lane id="Lane_Production" name="Production &amp; Quality">
+        <bpmn:flowNodeRef>IntermediateCatchEvent_SystemNotice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ImplementSchedule</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QualityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderCompleted</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OrderReceived" name="Receive New Order">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Determine Parts & Date (Master Planner) -->
+    <bpmn:task id="Task_DetermineParts" name="Determine Parts, Quantities &amp; Delivery">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Enter PPS & Optimize (Master Planner) -->
+    <bpmn:task id="Task_EnterPPS" name="Enter Order in PPS">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TransferData</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_OrderReceived" targetRef="Task_DetermineParts"/>
+
+    <!-- Sequence Flow 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Determination Complete" sourceRef="Task_DetermineParts" targetRef="Task_EnterPPS"/>
+
+    <!-- Task 3: Manual Transfer to ERP (Procurement Admin) - Due to coupling issue -->
+    <bpmn:task id="Task_TransferToERP" name="Transfer Data from PPS to ERP">
+      <bpmn:incoming>SequenceFlow_TransferData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckParts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 3 -->
+    <bpmn:sequenceFlow id="SequenceFlow_TransferData" sourceRef="Task_EnterPPS" targetRef="Task_TransferToERP"/>
+
+    <!-- Gateway: Check Missing Parts (Procurement Admin) -->
+    <bpmn:exclusiveGateway id="Gateway_CheckPartsNeeded" name="Check for Missing Parts">
+      <bpmn:incoming>SequenceFlow_CheckParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcurePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SkipToMerge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 4 -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckParts" sourceRef="Task_TransferToERP" targetRef="Gateway_CheckPartsNeeded"/>
+
+    <!-- Task 4: Procure Missing Parts (Procurement Admin) - If Yes -->
+    <bpmn:task id="Task_ProcureMissingParts" name="Procure Missing Parts">
+      <bpmn:incoming>SequenceFlow_ProcurePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 5 -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcurePath" name="Yes, Missing Parts" sourceRef="Gateway_CheckPartsNeeded" targetRef="Task_ProcureMissingParts"/>
+
+    <!-- Merge Gateway for Procurement Paths -->
+    <bpmn:exclusiveGateway id="Gateway_MergeProcure">
+      <bpmn:incoming>SequenceFlow_ToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SkipToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToNotice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 6 (Skip Path) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipToMerge" name="No Procurement Needed" sourceRef="Gateway_CheckPartsNeeded" targetRef="Gateway_MergeProcure"/>
+
+    <!-- Update Task_ProcureMissingParts outgoing flow to merge gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToMerge" sourceRef="Task_ProcureMissingParts" targetRef="Gateway_MergeProcure"/>
+
+    <!-- Intermediate Catch Event: Receive System Notice (Production Lane) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_SystemNotice" name="Receive Production Start Notice">
+      <bpmn:incoming>SequenceFlow_ToNotice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ImplementProd</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow to Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToNotice" sourceRef="Gateway_MergeProcure" targetRef="IntermediateCatchEvent_SystemNotice"/>
+
+    <!-- Task 5: Implement Production Schedule (Production Lane) -->
+    <bpmn:task id="Task_ImplementSchedule" name="Implement Production">
+      <bpmn:incoming>SequenceFlow_ImplementProd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 7 -->
+    <bpmn:sequenceFlow id="SequenceFlow_ImplementProd" sourceRef="IntermediateCatchEvent_SystemNotice" targetRef="Task_ImplementSchedule"/>
+
+    <!-- Task 6: Quality Check (Production Lane) -->
+    <bpmn:task id="Task_QualityCheck" name="Quality Check">
+      <bpmn:incoming>SequenceFlow_QualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow 8 -->
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheck" sourceRef="Task_ImplementSchedule" targetRef="Task_QualityCheck"/>
+
+    <!-- End Event (Production Lane) -->
+    <bpmn:endEvent id="EndEvent_OrderCompleted" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_EndOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow 9 -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndOrder" sourceRef="Task_QualityCheck" targetRef="EndEvent_OrderCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

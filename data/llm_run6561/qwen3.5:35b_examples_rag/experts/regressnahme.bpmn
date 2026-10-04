@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RegressProcess">
+    <bpmn:participant id="Participant_Sachbearbeiter" name="Sachbearbeiter Regressabwicklung" processRef="Process_Regress01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Regress01" isExecutable="true">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RegressionNotification" name="Regressmeldung erhalten">
+      <bpmn:outgoing>SequenceFlow_StartToReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task Elements -->
+    <bpmn:task id="Task_CaseReview" name="Fall prüfen auf Regressmöglichkeit">
+      <bpmn:incoming>SequenceFlow_StartToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PaymentDemand" name="Zahlungsauflage an VN senden">
+      <bpmn:incoming>SequenceFlow_SendDemand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetFollowUp</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_FollowUpSet" name="Vorgang auf Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_SetFollowUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForDeadline</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_BookReceipt" name="Eingang verbuchen">
+      <bpmn:incoming>SequenceFlow_BookReceipt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseProcessPaid</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ReviewObjection" name="Widerspruch prüfen auf Berechtigung">
+      <bpmn:incoming>SequenceFlow_CheckObjectionOrDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObjectionDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_HandoverToCollection" name="Vorgang an Inkasso-Dienstleister abgeben">
+      <bpmn:incoming>SequenceFlow_HandoverToCollection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseProcessInkasso</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway Elements -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_RegressPossibility" name="Regress möglich?">
+      <bpmn:incoming>SequenceFlow_ReviewDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendDemand</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CloseProcessNoRegres</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MoneyReceived" name="Geld eingegangen?">
+      <bpmn:incoming>SequenceFlow_WaitForDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookReceipt</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckObjectionOrDeadline</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ObjectionJustified" name="Widerspruch berechtigt?">
+      <bpmn:incoming>SequenceFlow_ObjectionDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseProcessObjection</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandoverToCollection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_ProcessClosedNoRegres" name="Vorgang geschlossen (kein Regress)">
+      <bpmn:incoming>SequenceFlow_CloseProcessNoRegres</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_ProcessClosedPaid" name="Vorgang geschlossen (bezahlt)">
+      <bpmn:incoming>SequenceFlow_CloseProcessPaid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_ProcessClosedJustified" name="Vorgang geschlossen (Widerspruch berechtigt)">
+      <bpmn:incoming>SequenceFlow_CloseProcessObjection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_ProcessClosedInkasso" name="Vorgang geschlossen (an Inkasso)">
+      <bpmn:incoming>SequenceFlow_CloseProcessInkasso</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReview" sourceRef="StartEvent_RegressionNotification" targetRef="Task_CaseReview" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewDecision" sourceRef="Task_CaseReview" targetRef="ExclusiveGateway_RegressPossibility" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendDemand" name="ja - Regress möglich" sourceRef="ExclusiveGateway_RegressPossibility" targetRef="Task_PaymentDemand" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseProcessNoRegres" name="nein - kein Regress" sourceRef="ExclusiveGateway_RegressPossibility" targetRef="EndEvent_ProcessClosedNoRegres" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SetFollowUp" sourceRef="Task_PaymentDemand" targetRef="Task_FollowUpSet" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForDeadline" sourceRef="Task_FollowUpSet" targetRef="ExclusiveGateway_MoneyReceived" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BookReceipt" name="ja - Geld eingegangen" sourceRef="ExclusiveGateway_MoneyReceived" targetRef="Task_BookReceipt" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseProcessPaid" sourceRef="Task_BookReceipt" targetRef="EndEvent_ProcessClosedPaid" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckObjectionOrDeadline" name="nein - Frist abgelaufen oder Widerspruch" sourceRef="ExclusiveGateway_MoneyReceived" targetRef="Task_ReviewObjection" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ObjectionDecision" sourceRef="Task_ReviewObjection" targetRef="ExclusiveGateway_ObjectionJustified" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseProcessObjection" name="ja - Widerspruch berechtigt" sourceRef="ExclusiveGateway_ObjectionJustified" targetRef="EndEvent_ProcessClosedJustified" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverToCollection" name="nein - Widerspruch unberechtigt" sourceRef="ExclusiveGateway_ObjectionJustified" targetRef="Task_HandoverToCollection" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseProcessInkasso" sourceRef="Task_HandoverToCollection" targetRef="EndEvent_ProcessClosedInkasso" />
+
+  </bpmn:process>
+</bpmn:definitions>

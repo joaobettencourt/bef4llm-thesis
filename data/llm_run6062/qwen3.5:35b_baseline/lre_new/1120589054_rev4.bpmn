@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderToCash_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_MainProcess" name="Order to Cash Process" processRef="Process_O2C_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_O2C_001" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesDept" name="Sales Department">
+        <bpmn:flowNodeRef>Seller_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_ProcessOrderTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_InformSalesTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse &amp; Logistics">
+        <bpmn:flowNodeRef>Wh_DeterminePartsTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Wh_PartsCheckGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Wh_OrderMissingPartsTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Wh_MergeInclusiveGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Wh_StoreFinishedGoodsTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Production" name="Production Dept">
+        <bpmn:flowNodeRef>Pd_StartProdGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Pd_StartProductionTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Pd_QualityCheckTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Pd_QCResultGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Pd_PackageLabelTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Seller_StartEvent" name="Receive Customer Order">
+      <bpmn:outgoing>Seller_ProcessOrderFlow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Process Order (Sales) -->
+    <bpmn:task id="Seller_ProcessOrderTask" name="Process Order Request">
+      <bpmn:incoming>Seller_ProcessOrderFlow</bpmn:incoming>
+      <bpmn:outgoing>Seller_DeterminePartsFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Determine Parts (Warehouse) -->
+    <bpmn:task id="Wh_DeterminePartsTask" name="Determine Required Parts">
+      <bpmn:incoming>Seller_DeterminePartsFlow</bpmn:incoming>
+      <bpmn:outgoing>Wh_CheckAvailabilityFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Availability (Warehouse) -->
+    <bpmn:exclusiveGateway id="Wh_PartsCheckGateway" name="Parts Available?">
+      <bpmn:incoming>Wh_CheckAvailabilityFlow</bpmn:incoming>
+      <bpmn:outgoing>Seller_AvailableYesFlow</bpmn:outgoing>
+      <bpmn:outgoing>Wh_MissingNoFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Parts Available (Warehouse) -->
+    <bpmn:sequenceFlow id="Seller_AvailableYesFlow" name="All parts available" sourceRef="Wh_PartsCheckGateway" targetRef="Wh_MergeInclusiveGateway">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partsAvailable == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2: Parts Missing (Warehouse) -->
+    <bpmn:task id="Wh_OrderMissingPartsTask" name="Order Missing Parts">
+      <bpmn:incoming>Wh_MissingNoFlow</bpmn:incoming>
+      <bpmn:outgoing>Seller_OrderedToMergeFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Order Task to Merge -->
+    <bpmn:sequenceFlow id="Wh_MissingNoFlow" name="Parts missing" sourceRef="Wh_PartsCheckGateway" targetRef="Wh_OrderMissingPartsTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partsAvailable == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Gateway (Warehouse/Production Boundary) -->
+    <bpmn:inclusiveGateway id="Wh_MergeInclusiveGateway" name="Merge Availability">
+      <bpmn:incoming>Seller_AvailableYesFlow</bpmn:incoming>
+      <bpmn:incoming>Seller_OrderedToMergeFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_StartProductionTriggerFlow</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Sequence Flow to Production Start -->
+    <bpmn:sequenceFlow id="Seller_OrderedToMergeFlow" sourceRef="Wh_OrderMissingPartsTask" targetRef="Wh_MergeInclusiveGateway">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partsOrdered == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Start Production (Production) -->
+    <bpmn:startEvent id="Pd_StartProdGateway" name="">
+      <bpmn:outgoing>Pd_StartProductionTriggerFlow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Corrected Gateway for production start merge point -->
+    <bpmn:inclusiveGateway id="Pd_StartProdGateway" name="Start Production">
+      <bpmn:incoming>Seller_OrderedToMergeFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_StartProductionTriggerFlow</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Start Production (Production) -->
+    <bpmn:task id="Pd_StartProductionTask" name="Start Production">
+      <bpmn:incoming>Seller_OrderedToMergeFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_QualityCheckInFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Quality Check (Production) -->
+    <bpmn:task id="Pd_QualityCheckTask" name="Perform Quality Checks">
+      <bpmn:incoming>Pd_QualityCheckInFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_CheckResultFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: QC Result (Production) -->
+    <bpmn:exclusiveGateway id="Pd_QCResultGateway" name="QC Passed?">
+      <bpmn:incoming>Pd_CheckResultFlow</bpmn:incoming>
+      <bpmn:outgoing>Seller_PackagingPathFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow to Packaging -->
+    <bpmn:sequenceFlow id="Seller_PackagingPathFlow" name="QC Passed / Finished" sourceRef="Pd_QCResultGateway" targetRef="Pd_PackageLabelTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${qcPassed == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Package and Label (Production) -->
+    <bpmn:task id="Pd_PackageLabelTask" name="Package and Label Products">
+      <bpmn:incoming>Seller_PackagingPathFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_ReturnWarehouseFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow Return to Warehouse -->
+    <bpmn:sequenceFlow id="Pd_ReturnWarehouseFlow" sourceRef="Pd_PackageLabelTask" targetRef="Wh_StoreFinishedGoodsTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${packagingDone == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Store Finished Goods (Warehouse) -->
+    <bpmn:task id="Wh_StoreFinishedGoodsTask" name="Store in Warehouse">
+      <bpmn:incoming>Pd_ReturnWarehouseFlow</bpmn:incoming>
+      <bpmn:outgoing>Seller_NotifySalesFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Notify Sales -->
+    <bpmn:sequenceFlow id="Pd_StartProductionTriggerFlow" sourceRef="Wh_MergeInclusiveGateway" targetRef="Pd_StartProductionTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${allPartsReady == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task: Inform Sales (Sales) -->
+    <bpmn:task id="Seller_InformSalesTask" name="Inform Sales of Completion">
+      <bpmn:incoming>Seller_NotifySalesFlow</bpmn:incoming>
+      <bpmn:outgoing>Pd_SellProductFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Sell -->
+    <bpmn:sequenceFlow id="Seller_NotifySalesFlow" sourceRef="Wh_StoreFinishedGoodsTask" targetRef="Seller_InformSalesTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${goodsStored == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="Pd_SellProductEnd" name="Product Sold">
+      <bpmn:incoming>Pd_SellProductFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to Sell Product (Implicitly from Sales Task) -->
+    <bpmn:sequenceFlow id="Pd_SellProductFlow" sourceRef="Seller_InformSalesTask" targetRef="Pd_SellProductEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${salesInformed == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

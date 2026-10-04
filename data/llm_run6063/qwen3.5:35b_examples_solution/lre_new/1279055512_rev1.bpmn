@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_InvoiceProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_InvProc">
+    <bpmn:participant id="Participant_SSP_System" name="SSP Invoice Processing System" processRef="Process_InvoiceProcessing" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvoiceProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailCentre" name="Mail Centre Office">
+        <bpmn:flowNodeRef>StartEvent_InvReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CategorizeInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AdminDept" name="Administration Department">
+        <bpmn:flowNodeRef>SubProcess_ProcessInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PutInCollectionBox</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DataEntry" name="Data Entry Office">
+        <bpmn:flowNodeRef>IntermediateCatchEvent_10AMTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_EnterSAPData</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Validation" name="Validation Office">
+        <bpmn:flowNodeRef>IntermediateCatchEvent_HourlyReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_ValidateInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Payment" name="Payment Office">
+        <bpmn:flowNodeRef>IntermediateCatchEvent_WeeklyTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_ProcessPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry Office">
+        <bpmn:flowNodeRef>Task_ArchiveInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_InvoiceArchived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_InvReceived" name="Invoice Received from Client">
+      <bpmn:outgoing>SequenceFlow_Categorize</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_InvoiceArchived" name="Invoice Archived">
+      <bpmn:incoming>SequenceFlow_ArchiveComplete</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Mail Centre Tasks -->
+    <bpmn:task id="Task_CategorizeInvoice" name="Categorize Invoice by Staff Member">
+      <bpmn:incoming>SequenceFlow_Categorize</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToAdmin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Administration Department Tasks -->
+    <bpmn:subProcess id="SubProcess_ProcessInvoice" name="Process Invoice (Complex Process)">
+      <bpmn:incoming>SequenceFlow_AdminReceive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCollectionBox</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Data Entry Office Tasks -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_10AMTrigger" name="At 10 AM Every Workday">
+      <bpmn:incoming>SequenceFlow_CollectionReady</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:subProcess id="SubProcess_EnterSAPData" name="Enter Data in SAP System (Complex Process)">
+      <bpmn:incoming>SequenceFlow_DataEntryStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToValidationReview</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Validation Office Tasks -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_HourlyReview" name="Every Hour">
+      <bpmn:incoming>SequenceFlow_DataEntryComplete</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:subProcess id="SubProcess_ValidateInvoice" name="Validate Invoice (Big Process)">
+      <bpmn:incoming>SequenceFlow_ForwardForValidation</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToPaymentTrigger</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Payment Office Tasks -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_WeeklyTrigger" name="Beginning of Every Week">
+      <bpmn:incoming>SequenceFlow_Validated</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:subProcess id="SubProcess_ProcessPayment" name="Process Payment (Big Process)">
+      <bpmn:incoming>SequenceFlow_PaymentStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToArchiveTrigger</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:task id="Task_ArchiveInvoice" name="Archive Invoice">
+      <bpmn:incoming>SequenceFlow_PaymentComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArchiveComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Categorize" sourceRef="StartEvent_InvReceived" targetRef="Task_CategorizeInvoice" />
+    
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_AdminReceive" name="Forward Invoice">
+      <bpmn:incoming>SequenceFlow_ForwardToAdmin</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AdminReceive" sourceRef="IntermediateThrowEvent_AdminReceive" targetRef="SubProcess_ProcessInvoice" />
+    
+    <bpmn:task id="Task_PutInCollectionBox" name="Put Invoices in Collection Box">
+      <bpmn:incoming>SequenceFlow_ToCollectionBox</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CollectionReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardToAdmin" sourceRef="Task_CategorizeInvoice" targetRef="IntermediateThrowEvent_AdminReceive" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToCollectionBox" sourceRef="SubProcess_ProcessInvoice" targetRef="Task_PutInCollectionBox" />
+
+    <!-- Data Entry Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CollectionReady" sourceRef="Task_PutInCollectionBox" targetRef="IntermediateCatchEvent_10AMTrigger" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DataEntryStart" sourceRef="IntermediateCatchEvent_10AMTrigger" targetRef="SubProcess_EnterSAPData" />
+
+    <!-- Validation Flow -->
+    <bpmn:task id="Task_ForwardForValidation" name="Forward Invoice for Validation">
+      <bpmn:incoming>SequenceFlow_DataEntryComplete</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ValidatedToPaymentTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToValidationReview" sourceRef="SubProcess_EnterSAPData" targetRef="Task_ForwardForValidation" />
+    
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_HourlyTrigger" name="Hourly Review">
+      <bpmn:incoming>SequenceFlow_ValidatedToPaymentTrigger</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Payment Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_DataEntryComplete" sourceRef="Task_ForwardForValidation" targetRef="IntermediateCatchEvent_HourlyReview" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ValidatedToPaymentTrigger" sourceRef="SubProcess_ValidateInvoice" targetRef="IntermediateThrowEvent_HourlyTrigger" />
+
+    <!-- Payment Start -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_PaymentStart" name="Weekly Trigger">
+      <bpmn:incoming>SequenceFlow_Validated</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Archive Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentStart" sourceRef="IntermediateCatchEvent_WeeklyTrigger" targetRef="SubProcess_ProcessPayment" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToArchiveTrigger" sourceRef="SubProcess_ProcessPayment" targetRef="Task_ArchiveInvoice" />
+
+    <!-- Final Connections -->
+    <bpmn:sequenceFlow id="SequenceFlow_Validated" sourceRef="IntermediateThrowEvent_HourlyReview" targetRef="SubProcess_ValidateInvoice" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardForValidation" sourceRef="Task_PutInCollectionBox" targetRef="IntermediateCatchEvent_HourlyReview" />
+
+  </bpmn:process>
+</bpmn:definitions>

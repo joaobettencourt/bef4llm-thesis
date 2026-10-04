@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_0" name="Expense Report Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_ExpenseReportReceived"/>
+  <bpmn:message id="Message_RejectionNotice"/>
+  <bpmn:message id="Message_ApprovalInProgress"/>
+  <bpmn:message id="Message_CancellationNotice"/>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_ExpenseReportReceived" name="Receive Expense Report">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:parallelGateway id="ParallelGateway_AccountTimerSplit">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Timer7Days</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckAccountExists</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_7Days" name="7 days">
+      <bpmn:timerDuration>P7D</bpmn:timerDuration>
+      <bpmn:incoming>SequenceFlow_Timer7Days</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendApprovalEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:userTask id="UserTask_SendApprovalInProgress" name="Send approval in progress email">
+      <bpmn:incoming>SequenceFlow_SendApprovalEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Timer30DaysStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_30Days" name="30 days">
+      <bpmn:timerDuration>P30D</bpmn:timerDuration>
+      <bpmn:incoming>SequenceFlow_Timer30DaysStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendCancellationEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:userTask id="UserTask_SendCancellationNotice" name="Send cancellation notice and require re-submission">
+      <bpmn:incoming>SequenceFlow_SendCancellationEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessStopped</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_ProcessStopped" name="Process Stopped">
+      <bpmn:incoming>SequenceFlow_EndProcessStopped</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AccountExistsCheck" name="Employee has account?">
+      <bpmn:incoming>SequenceFlow_CheckAccountExists</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateNewAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccountSkipTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_CreateEmployeeAccount" name="Create new employee account">
+      <bpmn:incoming>SequenceFlow_CreateNewAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountMergeParallel</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_SkipAccountCreation" name="Skip account creation">
+      <bpmn:incoming>SequenceFlow_AccountSkipTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountMergeParallel</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:parallelGateway id="ParallelGateway_AccountMerge">
+      <bpmn:incoming>SequenceFlow_AccountMergeParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewForApproval</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:userTask id="UserTask_ReviewAutomaticApproval" name="Review for automatic approval">
+      <bpmn:incoming>SequenceFlow_ReviewForApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAmountThreshold</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountCheck" name="Amount under $200?">
+      <bpmn:incoming>SequenceFlow_CheckAmountThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AutoApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorReviewPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_AutoApprovalTransfer" name="Auto-approve and transfer to direct deposit">
+      <bpmn:incoming>SequenceFlow_AutoApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndReimbursementComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_SupervisorReview" name="Supervisor review required">
+      <bpmn:incoming>SequenceFlow_SupervisorReviewPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSupervisorDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SupervisorApproval" name="Supervisor approves?">
+      <bpmn:incoming>SequenceFlow_CheckSupervisorDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectionPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovalTransferPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_SendRejectionNotice" name="Send rejection notice by email">
+      <bpmn:incoming>SequenceFlow_RejectionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Rejection Processed">
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UserTask_TransferPaymentToAccount" name="Transfer to employee direct deposit account">
+      <bpmn:incoming>SequenceFlow_ApprovalTransferPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndReimbursementComplete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_ReimbursementComplete" name="Reimbursement Complete">
+      <bpmn:incoming>SequenceFlow_AutoApprovePath</bpmn:incoming>
+      <bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Timer Flow Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_ExpenseReportReceived" targetRef="ParallelGateway_AccountTimerSplit"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Timer7Days" sourceRef="ParallelGateway_AccountTimerSplit" targetRef="IntermediateTimer_7Days"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendApprovalEmail" sourceRef="IntermediateTimer_7Days" targetRef="UserTask_SendApprovalInProgress"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Timer30DaysStart" sourceRef="UserTask_SendApprovalInProgress" targetRef="IntermediateTimer_30Days"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendCancellationEmail" sourceRef="IntermediateTimer_30Days" targetRef="UserTask_SendCancellationNotice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcessStopped" sourceRef="UserTask_SendCancellationNotice" targetRef="EndEvent_ProcessStopped"/>
+
+    <!-- Account Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAccountExists" name="Check account exists" sourceRef="ParallelGateway_AccountTimerSplit" targetRef="ExclusiveGateway_AccountExistsCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CreateNewAccount" name="No - Create new account" sourceRef="ExclusiveGateway_AccountExistsCheck" targetRef="UserTask_CreateEmployeeAccount"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AccountSkipTask" name="Yes - Skip creation" sourceRef="ExclusiveGateway_AccountExistsCheck" targetRef="UserTask_SkipAccountCreation"/>
+
+    <!-- Account Merge Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AccountMergeParallel" sourceRef="ParallelGateway_AccountMerge" targetRef="UserTask_ReviewAutomaticApproval"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToReview1" sourceRef="UserTask_CreateEmployeeAccount" targetRef="ParallelGateway_AccountMerge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToReview2" sourceRef="UserTask_SkipAccountCreation" targetRef="ParallelGateway_AccountMerge"/>
+
+    <!-- Approval Review Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewForApproval" sourceRef="UserTask_CreateEmployeeAccount" targetRef="UserTask_ReviewAutomaticApproval"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAmountThreshold" sourceRef="UserTask_ReviewAutomaticApproval" targetRef="ExclusiveGateway_AmountCheck"/>
+
+    <!-- Amount Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_AutoApprovePath" name="Yes - Under $200" sourceRef="ExclusiveGateway_AmountCheck" targetRef="UserTask_AutoApprovalTransfer"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorReviewPath" name="No - Over or equal to $200" sourceRef="ExclusiveGateway_AmountCheck" targetRef="UserTask_SupervisorReview"/>
+
+    <!-- Supervisor Decision Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckSupervisorDecision" sourceRef="UserTask_SupervisorReview" targetRef="ExclusiveGateway_SupervisorApproval"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RejectionPath" name="No - Rejected" sourceRef="ExclusiveGateway_SupervisorApproval" targetRef="UserTask_SendRejectionNotice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalTransferPath" name="Yes - Approved" sourceRef="ExclusiveGateway_SupervisorApproval" targetRef="UserTask_TransferPaymentToAccount"/>
+
+    <!-- Final Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" sourceRef="UserTask_SendRejectionNotice" targetRef="EndEvent_Rejected"/>
+  </bpmn:process>
+</bpmn:definitions>

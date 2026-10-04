@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LANParty_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LANParty">
+    <bpmn:participant id="Participant_Organizer" name="LAN Party Organizer" processRef="Process_LANParty"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LANParty" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_Organizer">
+      <bpmn:lane id="Lane_1" name="Organizer">
+        <bpmn:flowNodeRef>StartEvent_SendInvitations</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectGamesList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitPrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AppointDate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergePartyStart</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SendInvitations" name="Send Invitations">
+      <bpmn:outgoing>SequenceFlow_ToCollectGames</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send invitations (implied start) -->
+    <bpmn:task id="Task_SendInvitations" name="Send Invitations to Friends">
+      <bpmn:incoming>SequenceFlow_ToCollectGames</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectGamesList</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Collect Games List -->
+    <bpmn:task id="Task_CollectGamesList" name="Collect Game Requests">
+      <bpmn:incoming>SequenceFlow_ToCollectGames</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_SplitPrep</bpmn:outgoing> <!-- Implicit flow from previous task -->
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split for Date and Game Prep (Concurrent) -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitPrep" name="Start Preparations">
+      <bpmn:incoming>SequenceFlow_CollectGamesList</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AppointDateLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckInventory</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path A: Date Scheduling Loop -->
+    <bpmn:task id="Task_AppointDate" name="Appoint Party Date">
+      <bpmn:incoming>SequenceFlow_AppointDateLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gate for Availability -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckAvailability" name="8+ Friends Free?">
+      <bpmn:incoming>SequenceFlow_AppointDateLoop_No</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AppointDateLoop_No</bpmn:outgoing> <!-- Loop back -->
+      <bpmn:outgoing>SequenceFlow_DateConfirmed_Yes</bpmn:outgoing> <!-- Proceed to Join -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Path B: Game Inventory Check (Concurrent with Date) -->
+    <bpmn:task id="Task_CheckInventory" name="Check Games Availability">
+      <bpmn:incoming>SequenceFlow_CheckInventory</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideDownload</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gate for Downloading -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MissingGames" name="Missing Games?">
+      <bpmn:incoming>SequenceFlow_DecideDownload</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DownloadYes</bpmn:outgoing> <!-- Download -->
+      <bpmn:outgoing>SequenceFlow_NoDownloadNo</bpmn:outgoing> <!-- No download needed -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for downloading missing games -->
+    <bpmn:task id="Task_DownloadGames" name="Download Missing Games">
+      <bpmn:incoming>SequenceFlow_DownloadYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GamesReady_Join</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join for Preparations (Date + Games) -->
+    <bpmn:parallelGateway id="ParallelGate_JoinPrep" name="All Prep Done?">
+      <bpmn:incoming>SequenceFlow_DateConfirmed_Yes</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_NoDownloadNo</bpmn:outgoing> <!-- Wait, this is outgoing from gateway. Fix below -->
+    </bpmn:parallelGateway>
+
+    <!-- Correcting Parallel Gateway Join Logic for Path B convergence -->
+    <!-- The previous definition of ParallelGate_JoinPrep was incomplete in the draft above. Let's fix it properly here. -->
+    
+  </bpmn:process>
+</bpmn:definitions>

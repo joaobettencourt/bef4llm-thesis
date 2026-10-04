@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RobotBurger_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Burger_Seller">
+    <bpmn:participant id="Participant_BurgerSeller" name="Robotic Burger Seller near University of Vienna" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_ReceiveOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_MenuChoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Robot" name="Robot">
+        <bpmn:flowNodeRef>Task_InitialAsk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P_Gateway_DrinkSideSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P_Gateway_MergeMenuItems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ConvergeBurgerStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareDrink</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepFries</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepWedges</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareBurger</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveOrder" name="Customer places order">
+      <bpmn:outgoing>SF_OrderReceived</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Initial Interaction Task (Robot asks) -->
+    <bpmn:task id="Task_InitialAsk" name="Asks Menu or Just Burger?">
+      <bpmn:incoming>SF_OrderReceived</bpmn:incoming>
+      <bpmn:outgoing>SF_MenuDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway 1 -->
+    <bpmn:exclusiveGateway id="GW_MenuChoice" name="Menu or Just Burger?">
+       <bpmn:incoming>SF_MenuDecision</bpmn:incoming>
+       <bpmn:outgoing>SF_JustBurgerPath</bpmn:outgoing>
+       <bpmn:outgoing>SF_MenupathStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Just Burger -->
+    <bpmn:sequenceFlow id="SF_JustBurgerPath" name="Just Burger" sourceRef="GW_MenuChoice" targetRef="Task_PrepareBurger">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${orderType == 'burger'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2: Menu (Parallel Split) -->
+    <bpmn:parallelGateway id="P_Gateway_DrinkSideSplit" name="Start Drink &amp; Side Prep">
+       <bpmn:incoming>SF_MenupathStart</bpmn:incoming>
+       <bpmn:outgoing>SF_PrepDrinkFlow</bpmn:outgoing>
+       <bpmn:outgoing>SF_SideChoiceFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Drink Prep Task -->
+    <bpmn:task id="Task_PrepareDrink" name="Prepare drink (variable time)">
+      <bpmn:incoming>SF_PrepDrinkFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_DrinkDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Side Choice Logic -->
+    <bpmn:exclusiveGateway id="GW_SideChoice" name="Fries or Wedges?">
+       <bpmn:incoming>SF_SideChoiceFlow</bpmn:incoming>
+       <bpmn:outgoing>SF_FryPath</bpmn:outgoing>
+       <bpmn:outgoing>SF_WedgePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Fries Prep -->
+    <bpmn:task id="Task_PrepFries" name="Prepare fries (variable time)">
+      <bpmn:incoming>SF_FryPath</bpmn:incoming>
+      <bpmn:outgoing>SF_FrySideDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wedges Prep -->
+    <bpmn:task id="Task_PrepWedges" name="Prepare wedges (variable time)">
+       <bpmn:incoming>SF_WedgePath</bpmn:incoming>
+       <bpmn:outgoing>SF_WedgeSideDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Convergence of Menu Items (Drink + Side) -->
+    <bpmn:parallelGateway id="P_Gateway_MergeMenuItems">
+       <bpmn:incoming>SF_DrinkDone</bpmn:incoming>
+       <bpmn:incoming>SF_FrySideDone</bpmn:incoming>
+       <bpmn:incoming>SF_WedgeSideDone</bpmn:incoming>
+       <bpmn:outgoing>SF_MenuReadyForBurger</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Convergence of Menu Path and Just Burger Path before Burger Prep -->
+    <bpmn:exclusiveGateway id="GW_ConvergeBurgerStart" name="Merge Paths">
+       <bpmn:incoming>SF_JustBurgerPath</bpmn:incoming>
+       <bpmn:incoming>SF_MenuReadyForBurger</bpmn:incoming>
+       <bpmn:outgoing>SF_StartPrepBurger</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Burger Prep Task -->
+    <bpmn:task id="Task_PrepareBurger" name="Prepare burger (with status updates)">
+      <bpmn:incoming>SF_StartPrepBurger</bpmn:incoming>
+      <bpmn:outgoing>SF_BurgerReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Delivered" name="Order delivered via conveyor belt">
+       <bpmn:incoming>SF_BurgerReady</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Menu Path Start and Convergence -->
+    <bpmn:sequenceFlow id="SF_MenupathStart" name="Menu Order" sourceRef="GW_MenuChoice" targetRef="P_Gateway_DrinkSideSplit"/>
+    <bpmn:sequenceFlow id="SF_PrepDrinkFlow" sourceRef="P_Gateway_DrinkSideSplit" targetRef="Task_PrepareDrink"/>
+    <bpmn:sequenceFlow id="SF_SideChoiceFlow" name="Ask Side Choice" sourceRef="P_Gateway_DrinkSideSplit" targetRef="GW_SideChoice"/>
+    <bpmn:sequenceFlow id="SF_FryPath" name="Fries" sourceRef="GW_SideChoice" targetRef="Task_PrepFries"/>
+    <bpmn:sequenceFlow id="SF_WedgePath" name="Wedges" sourceRef="GW_SideChoice" targetRef="Task_PrepWedges"/>
+    <bpmn:sequenceFlow id="SF_DrinkDone" sourceRef="Task_PrepareDrink" targetRef="P_Gateway_MergeMenuItems"/>
+    <bpmn:sequenceFlow id="SF_FrySideDone" name="Fries Ready" sourceRef="Task_PrepFries" targetRef="P_Gateway_MergeMenuItems"/>
+    <bpmn:sequenceFlow id="SF_WedgeSideDone" name="Wedges Ready" sourceRef="Task_PrepWedges" targetRef="P_Gateway_MergeMenuItems"/>
+    <bpmn:sequenceFlow id="SF_MenuReadyForBurger" name="All Menu Items Ready" sourceRef="P_Gateway_MergeMenuItems" targetRef="GW_ConvergeBurgerStart"/>
+    <bpmn:sequenceFlow id="SF_StartPrepBurger" name="Prepare Burger Now" sourceRef="GW_ConvergeBurgerStart" targetRef="Task_PrepareBurger"/>
+
+  </bpmn:process>
+</bpmn:definitions>

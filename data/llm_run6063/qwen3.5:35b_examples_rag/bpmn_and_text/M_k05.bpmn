@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HouseBuilding">
+    <bpmn:participant id="Participant_BuildingProcess" name="House Building Process" processRef="Process_Building"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Building" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Collect Requirements">
+      <bpmn:outgoing>SequenceFlow_CollectReq</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send to Architect -->
+    <bpmn:sendTask id="SendRequirements" name="Send Requirements">
+      <bpmn:incoming>SequenceFlow_CollectReq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToArchitect</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Receive Draft -->
+    <bpmn:receiveTask id="ReceiveDraft" name="Receive Architect Draft">
+      <bpmn:incoming>SequenceFlow_SendToArchitect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DraftReceived</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_IsFinal" name="Draft Final?">
+      <bpmn:incoming>SequenceFlow_DraftReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RefineLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedToPlan</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Refinement Loop -->
+    <bpmn:task id="Task_Refine" name="Refine Requirements">
+      <bpmn:incoming>SequenceFlow_RefineLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendAdditionalReqs</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to Send Additional Reqs -->
+    <bpmn:sendTask id="SendAdditionalReqs" name="Send Additional Requirements">
+      <bpmn:incoming>SequenceFlow_SendAdditionalReqs</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackToReceiveDraft</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Loop Back to Receive Draft -->
+    <bpmn:sequenceFlow id="SequenceLoopBackToReceiveDraft" sourceRef="SendAdditionalReqs" targetRef="ReceiveDraft">
+      <bpmn:name>Resend</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DraftReceived" name="" sourceRef="ReceiveDraft" targetRef="Gateway_IsFinal"/>
+    
+    <bpmn:exclusiveGateway default="SequenceFlow_ProceedToPlan" id="Gateway_RefineLoop">
+      <bpmn:incoming>SequenceFlow_DraftReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RefineLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Material List -->
+    <bpmn:task id="Task_CreateMaterialList" name="Create Material List from Plan">
+       <bpmn:incoming>SequenceFlow_ProceedToPlan</bpmn:incoming>
+       <bpmn:outgoing>ParallelSplit_OrderingAndNotifying</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split -->
+    <bpmn:parallelGateway id="ParallelSplit_OrderingAndNotifying">
+      <bpmn:incoming>SequenceFlow_ProceedToPlan</bpmn:incoming>
+      <bpmn:outgoing>OrderMaterialsPath1</bpmn:outgoing>
+      <bpmn:outgoing>NotifyFriendsPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Ordering Tasks -->
+    <bpmn:task id="Task_OrderCategoryA" name="Order Category A">
+       <bpmn:incoming>OrderMaterialsPath1</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_OrderAComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Notify Friends -->
+    <bpmn:sendTask id="SendFriendsMessage" name="Notify Friends to Build">
+      <bpmn:incoming>NotifyFriendsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FriendsNotified</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Second Ordering Task -->
+     <bpmn:task id="Task_OrderCategoryB" name="Order Category B">
+       <bpmn:incoming>OrderMaterialsPath2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_OrderBComplete</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Join Materials -->
+    <bpmn:parallelGateway id="JoinMaterialsOrdered">
+      <bpmn:incoming>SequenceFlow_OrderAComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_OrderBComplete</bpmn:incoming>
+       <bpmn:outgoing>OrderingPathToFinalJoin</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Ordering Paths -->
+    <bpmn:sequenceFlow id="OrderMaterialsPath1" sourceRef="ParallelSplit_OrderingAndNotifying" targetRef="Task_OrderCategoryA"/>
+    
+    <bpmn:sequenceFlow id="OrderMaterialsPath2" sourceRef="ParallelSplit_OrderingAndNotifying" targetRef="Task_OrderCategoryB"/>
+
+     <!-- Join Materials -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedToPlan" name="" sourceRef="Gateway_IsFinal" targetRef="Task_CreateMaterialList">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Ordering Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderAComplete" name="" sourceRef="Task_OrderCategoryA" targetRef="JoinMaterialsOrdered"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_OrderBComplete" name="" sourceRef="Task_OrderCategoryB" targetRef="JoinMaterialsOrdered"/>
+
+     <!-- Notify Friends Path -->
+    <bpmn:sequenceFlow id="NotifyFriendsPath" name="" sourceRef="ParallelSplit_OrderingAndNotifying" targetRef="SendFriendsMessage">
+      <bpmn:name>Start Building</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Join All Prerequisites -->
+    <bpmn:parallelGateway id="JoinAllPrerequisites">
+       <bpmn:incoming>OrderingPathToFinalJoin</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WaitForBuildComplete</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Wait for Build Confirmation -->
+    <bpmn:intermediateCatchEvent id="WaitHouseBuilt" name="Receive House Built Signal">
+       <bpmn:incoming>SequenceFlow_WaitForBuildComplete</bpmn:incoming>
+       <bpmn:outgoing>SendInvitationsPath</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Invitation Flow -->
+    <bpmn:task id="Task_SendInvitations" name="Send Party Invitations">
+      <bpmn:incoming>SequenceFlow_WaitForBuildComplete</bpmn:incoming>
+       <bpmn:outgoing>CreateGuestListPath</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Guest List -->
+    <bpmn:task id="Task_CreateGuestList" name="Create Guest List">
+      <bpmn:incoming>CreateGuestListPath</bpmn:incoming>
+       <bpmn:outgoing>BuySnacksPath</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Buy Snacks -->
+    <bpmn:task id="Task_BuySnacks" name="Buy Party Snacks">
+      <bpmn:incoming>BuySnacksPath</bpmn:incoming>
+       <bpmn:outgoing>EndProcessFlow</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Party Prepared">
+      <bpmn:incoming>EndProcessFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

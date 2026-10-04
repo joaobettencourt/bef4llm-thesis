@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_InvoiceProcess_v2">
+  <bpmn:collaboration id="Collab_InvProc">
+    <bpmn:participant id="Pool_AdminOffice" name="Admin Office (SSP)" processRef="Proc_InvoiceHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_InvoiceHandling" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_AdminOffice">
+      <bpmn:lane id="Lane_1" name="Admin Office">
+        <bpmn:flowNodeRef>StartEvent_ReceiveInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortClient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AttachForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Completeness1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterSLAInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckPriority</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_PriorityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApplyRedStamp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCompliance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Completeness2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Allocated1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendExperienceStaff</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallClientRequestInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPostalMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Wait10Hours</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_InfoObtained</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AllocateToDEO2</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Events --> 
+    <bpmn:startEvent id="StartEvent_ReceiveInvoice" name="Receive Invoice">
+        <bpmn:outgoing>SF_Start_SortClient</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Process Finished (Rejected)">
+      <bpmn:incoming>SF_SendRejectionMessage</bpmn:incoming> 
+        <bpmn:incoming>SF_InfoNotObtained</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:endEvent id="EndEvent_Allocated1" name="Invoice Allocated (Initial)">
+             <bpmn:incoming>SF_AllocateToDEO1_Final</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Allocated2" name="Invoice Allocated (After Info)">
+             <bpmn:incoming>SF_MergeAllocateDEO2_Final</bpmn:outgoing> 
+              <bpmn:incoming>SF_AllocateToDEO1_Final</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Intermediate Timer Event for 10 Hours Wait -->
+     <bpmn:startEvent id="StartEvent_WaitTimer" name="Wait (10 hours)">
+         <bpmn:timerDefinition>
+             <bpmn:timeDuration>P10H</bpmn:timeDuration>
+         </bpmn:timerDefinition>
+        <bpmn:outgoing>SF_TimerToGwInfoObtained</bpmn:outgoing> 
+    </bpmn:startEvent>
+
+     <!-- Tasks --> 
+
+      <bpmn:task id="Task_SortClient" name="Sort Invoice per Client">
+          <bpmn:incoming>SF_Start_SortClient</bpmn:incoming> 
+            <bpmn:outgoing>SF_SortToVendor</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_SortVendor" name="Sort Invoice per Vendor">
+          <bpmn:incoming>SF_SortToVendor</bpmn:incoming> 
+            <bpmn:outgoing>SF_AttachEntryFormFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_AttachForm" name="Attach Invoice Entry Form">
+          <bpmn:incoming>SF_AttachEntryFormFlow</bpmn:incoming> 
+            <bpmn:outgoing>SF_EnterRequiredInfoFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_EnterInfo" name="Enter Required Info on Entry Form">
+          <bpmn:incoming>SF_EnterRequiredInfoFlow</bpmn:incoming> 
+            <bpmn:outgoing>SF_CheckCompleteness1Link</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 1 - Completeness Check --> 
+
+     <bpmn:exclusiveGateway id="Gw_CompletenessCheck1" name="Invoice Complete?">
+        <bpmn:incoming>SF_CheckCompleteness1Link</bpmn:incoming> 
+          <bpmn:outgoing>SF_SendRejectionMessage</bpmn:outgoing>
+           <bpmn:outgoing>SF_EnterSLAInfoFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Tasks - SLA Processing --> 
+
+      <bpmn:task id="Task_EnterSLAInfo" name="Enter Info for SLA">
+        <bpmn:incoming>SF_EnterSLAInfoFlow</bpmn:incoming> 
+          <bpmn:outgoing>SF_CheckPriorityLink</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_CheckPriority" name="Check Priority">
+        <bpmn:incoming>SF_CheckPriorityLink</bpmn:incoming> 
+          <bpmn:outgoing>SF_PriorityGatewayLink</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 2 - Priority Check --> 
+
+     <bpmn:exclusiveGateway id="Gw_PriorityCheck" name="High Priority?">
+        <bpmn:incoming>SF_PriorityGatewayLink</bpmn:incoming> 
+          <bpmn:outgoing>SF_ApplyRedStampFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_CheckComplianceDirect</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task - Red Stamp --> 
+
+      <bpmn:task id="Task_ApplyRedStamp" name="Apply Red Stamp">
+        <bpmn:incoming>SF_ApplyRedStampFlow</bpmn:incoming> 
+          <bpmn:outgoing>SF_CheckComplianceDirect2</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Task - Compliance Check --> 
+
+     <bpmn:task id="Task_CheckCompliance" name="Check Invoice Compliance">
+        <bpmn:incoming>SF_CheckComplianceDirect</bpmn:incoming> 
+          <bpmn:outgoing>SF_CompletenessGateway2Link</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 3 - Completeness Check After Compliance --> 
+
+     <bpmn:exclusiveGateway id="Gw_CompletenessCheck2" name="Invoice Complete?">
+        <bpmn:incoming>SF_CheckComplianceDirect</bpmn:incoming> 
+          <bpmn:outgoing>SF_AllocateToDEO1Flow</bpmn:outgoing>
+           <bpmn:outgoing>SF_SendExperienceStaffLink</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Tasks - Non-Compliance Handling --> 
+
+      <bpmn:task id="Task_AllocateToDEO1" name="Allocate Invoice to DEO">
+        <bpmn:incoming>SF_AllocateToDEO1Flow</bpmn:incoming> 
+          <bpmn:outgoing>SF_MergeAllocateDEO2_FinalLink</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_SendExperienceStaff" name="Send to Experience Staff">
+        <bpmn:incoming>SF_SendExperienceStaffLink</bpmn:incoming> 
+          <bpmn:outgoing>SF_ExperienceProcessCompleteFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_CallClientRequestInfo" name="Call Client Request Info">
+        <bpmn:incoming>SF_SendExperienceStaffLink</bpmn:incoming> 
+          <bpmn:outgoing>SF_ClientContactedFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <bpmn:task id="Task_SendPostalMail" name="Send Postal Mail Requesting Info">
+        <bpmn:incoming>SF_SendExperienceStaffLink</bpmn:incoming> 
+          <bpmn:outgoing>SF_PostalSentFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 4 - Missing Information Obtained --> 
+
+     <bpmn:exclusiveGateway id="Gw_InfoObtained" name="Missing Info Obtained?">
+        <bpmn:incoming>SF_ClientReceiveReminderLink</bpmn:outgoing> 
+          <bpmn:outgoing>SF_AllocateToDEO2Flow</bpmn:outgoing>
+           <bpmn:outgoing>SF_EndProcessRejectedFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Final Allocation Task --> 
+
+      <bpmn:task id="Task_AllocateToDEO2" name="Allocate Invoice to DEO">
+        <bpmn:incoming>SF_MergeAllocateDEO2Link</bpmn:outgoing> 
+          <bpmn:outgoing>SF_EndAllocatedFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Sequence Flows --> 
+
+     <bpmn:sequenceFlow id="SF_Start_SortClient" name="" sourceRef="StartEvent_ReceiveInvoice" targetRef="Task_SortClient"/>
+
+       <bpmn:sequenceFlow id="SF_SortToVendor" name="" sourceRef="Task_SortClient" targetRef="Task_SortVendor">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_AttachEntryFormFlow" name="" sourceRef="Task_SortVendor" targetRef="Task_AttachForm"/>
+
+
+    <!-- Admin Tasks --> 
+      <bpmn:sequenceFlow id="SF_EnterRequiredInfoFlow" name="" sourceRef="Task_AttachForm" targetRef="Task_EnterRequiredInfo">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_CheckCompleteness1Link" name="" sourceRef="Task_EnterRequiredInfo" targetRef="Gw_CompletenessCheck1"/>
+
+
+    <!-- Gateway 1 Flows --> 
+      <bpmn:sequenceFlow id="SF_SendRejectionMessage" name="No - Not Complete" sourceRef="Gw_CompletenessCheck1" targetRef="EndEvent_Rejected">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_EnterSLAInfoFlow" name="Yes - Complete" sourceRef="Gw_CompletenessCheck1" targetRef="Task_EnterSLAInfo"/>
+
+
+    <!-- SLA Processing --> 
+      <bpmn:sequenceFlow id="SF_CheckPriorityLink" name="" sourceRef="Task_EnterSLAInfo" targetRef="Task_CheckPriority">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_PriorityGatewayLink" name="" sourceRef="Task_CheckPriority" targetRef="Gw_PriorityCheck"/>
+
+
+    <!-- Gateway 2 Flows --> 
+      <bpmn:sequenceFlow id="SF_ApplyRedStampFlow" name="Yes - High Priority" sourceRef="Gw_PriorityCheck" targetRef="Task_ApplyRedStamp">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_CheckComplianceDirect" name="No/Other Priority" sourceRef="Gw_PriorityCheck" targetRef="Task_CheckCompliance"/>
+
+
+    <!-- Compliance Check --> 
+      <bpmn:sequenceFlow id="SF_CompletenessGateway2Link" name="" sourceRef="Task_ApplyRedStamp" targetRef="Task_CheckCompliance">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_AllocateToDEO1Flow" name="Yes - Complete" sourceRef="Gw_CompletenessCheck2" targetRef="Task_AllocateToDEO1"/>
+
+
+    <!-- Gateway 3 Flows --> 
+      <bpmn:sequenceFlow id="SF_SendExperienceStaffLink" name="No - Not Complete" sourceRef="Gw_CompletenessCheck2" targetRef="Task_SendExperienceStaff">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_ExperienceProcessCompleteFlow" name="" sourceRef="Task_SendExperienceStaff" targetRef="Gw_InfoObtained"/>
+
+
+    <!-- Non-Compliance Paths --> 
+      <bpmn:sequenceFlow id="SF_ClientContactedFlow" name="" sourceRef="Task_CallClientRequestInfo" targetRef="Gw_InfoObtained">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_PostalSentFlow" name="" sourceRef="Task_SendPostalMail" targetRef="Event_Wait10Hours"/>
+
+
+    <!-- Timer Flow --> 
+      <bpmn:sequenceFlow id="SF_TimerToGwInfoObtained" name="After 10 Hours" sourceRef="StartEvent_WaitTimer" targetRef="Gw_InfoObtained">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_ClientReceiveReminderLink" name="" sourceRef="Task_CallClientRequestInfo" targetRef="Gw_CompletenessCheck2"/>
+
+
+    <!-- Gateway 4 Flows --> 
+      <bpmn:sequenceFlow id="SF_AllocateToDEO2Flow" name="Yes - Info Obtained" sourceRef="Gw_InfoObtained" targetRef="Task_AllocateToDEO2">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_EndProcessRejectedFinal" name="No - Still Missing" sourceRef="Gw_InfoObtained" targetRef="EndEvent_Rejected"/>
+
+
+    <!-- Final Allocation --> 
+      <bpmn:sequenceFlow id="SF_AllocateToDEO1_FinalLink" name="" sourceRef="Task_AllocateToDEO2" targetRef="EndEvent_Allocated2">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_MergeAllocateDEO2FinalLink" name="" sourceRef="Gw_CompletenessCheck2" targetRef="Task_AllocateToDEO1"/>
+
+
+    <!-- End Event Links --> 
+      <bpmn:sequenceFlow id="SF_EndAllocatedFlow" name="" sourceRef="Task_AllocateToDEO2" targetRef="EndEvent_Allocated2">
+        </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SF_MergeAllocateDEO1FinalLink" name="" sourceRef="Gw_CompletenessCheck2" targetRef="Task_AllocateToDEO1"/>
+
+
+    <!-- Timer Event --> 
+      <bpmn:startEvent id="StartEvent_WaitTimer">
+        <bpmn:timerDefinition>
+          <bpmn:timeDuration>P10H</bpmn:timeDuration>
+        </bpmn:timerDefinition>
+    </bpmn:startEvent>
+
+  </bpmn:process>
+
+
+  
+     <!-- Message Flows --> 
+
+      <bpmn:messageFlow id="MF_SendRejectionToClient" name="" sourceRef="Gw_CompletenessCheck1" targetRef="EndEvent_Rejected"/>
+
+</bpmn:definitions>

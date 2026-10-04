@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1xk9m7l" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_5h8j4p2">
+    <bpmn:participant id="Participant_Frontend" name="Kreditvergabe Frontend (Bank)" processRef="Process_Frontend" />
+    <bpmn:participant id="Participant_BankScoring" name="Schufascoring-Prozess bei der Bank" processRef="Process_BankScoring" />
+    <bpmn:participant id="Participant_Schufa" name="Scoringservice (Schufa)" processRef="Process_Schufa" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Message_FrontendToBankRequest" sourceRef="Task_Frontend_RequestScore" targetRef="StartEvent_Bank_Start">
+      <bpmn:sourceRef>Task_Frontend_RequestScore</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_Bank_Start</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_BankToFrontendImmediateResult" sourceRef="Task_Bank_SendFrontendResult" targetRef="EndEvent_Frontend_ResultReceived">
+      <bpmn:sourceRef>Task_Bank_SendFrontendResult</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_Frontend_ResultReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_SchufaToBankImmediate" sourceRef="IntermediateCatchEvent_Bank_ImmediateResult" targetRef="Task_Bank_SendFrontendResult">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_ImmediateResult</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Bank_SendFrontendResult</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Message_SchufaToBankDelay" sourceRef="IntermediateCatchEvent_Bank_DelayedStart" targetRef="ExclusiveGateway_Bank_DelayDecision">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_DelayedStart</bpmn:sourceRef>
+      <bpmn:targetRef>ExclusiveGateway_Bank_DelayDecision</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Frontend Process -->
+  <bpmn:process id="Process_Frontend">
+    <bpmn:startEvent id="StartEvent_Frontend_RequestScore" name="Schufascoring anfordern">
+      <bpmn:outgoing>SequenceFlow_Frontend_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Frontend_ResultReceived" name="Scoringergebnis erhalten">
+      <bpmn:incoming>Message_BankToFrontendImmediateResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartEvent_Frontend_DelayedInfo" name="Hinweis auf Verzögerung">
+      <bpmn:outgoing>SequenceFlow_Frontend_ProcessComplete</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Frontend_Complete" name="Prozess beendet">
+      <bpmn:incoming>SequenceFlow_Frontend_ProcessComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Frontend_RequestScore" name="Schufascoring per Knopfdruck anfordern">
+      <bpmn:incoming>SequenceFlow_Frontend_Start</bpmn:incoming>
+      <bpmn:outgoing>Message_FrontendToBankRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Frontend_Start" sourceRef="StartEvent_Frontend_RequestScore" targetRef="Task_Frontend_RequestScore">
+      <bpmn:sourceRef>StartEvent_Frontend_RequestScore</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Frontend_RequestScore</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Bank Scoring Process -->
+  <bpmn:process id="Process_BankScoring">
+    <bpmn:startEvent id="StartEvent_Bank_Start" name="Schufascoring angefragt">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_Bank_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Bank_Complete" name="Scoringergebnis übermittelt">
+      <bpmn:incoming>SequenceFlow_Bank_FinalResultSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Bank_SendRequestToSchufa" name="Scoringanfrage an Schufa senden">
+      <bpmn:incoming>SequenceFlow_Bank_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bank_WaitForResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway for immediate vs delayed response -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_Bank_ResultWait" name="Ergebnis wartend">
+      <bpmn:incoming>SequenceFlow_Bank_WaitForResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bank_ImmediatePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Bank_DelayedPath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Catch Events for message reception -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_Bank_ImmediateResult" name="Schufascore sofort ermittelt">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_SchufaToBank_Result</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bank_ProcessImmediate</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_Bank_DelayedStart" name="Schufascore verzögert">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SequenceFlow_SchufaToBank_Delay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bank_ProcessDelayed</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Immediate Path -->
+    <bpmn:task id="Task_Bank_SendFrontendResult" name="Scoringergebnis an Frontend weiterleiten">
+      <bpmn:incoming>SequenceFlow_Bank_ProcessImmediate</bpmn:incoming>
+      <bpmn:outgoing>Message_BankToFrontendImmediateResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Delayed Path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Bank_DelayDecision" name="Verzögerung melden?">
+      <bpmn:incoming>SequenceFlow_SchufaToBank_Delay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Bank_NotifyEmployee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Wait for final result after delay notification -->
+    <bpmn:endEvent id="EndEvent_Schufa_Level1Complete" name="Level 2 Scoring abgeschlossen">
+      <bpmn:incoming>SequenceFlow_Bank_WaitFinalResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Bank_SendRequest" sourceRef="StartEvent_Bank_Start" targetRef="Task_Bank_SendRequestToSchufa">
+      <bpmn:sourceRef>StartEvent_Bank_Start</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Bank_SendRequestToSchufa</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Message flow to Schufa -->
+    <bpmn:sequenceFlow id="SequenceFlow_Bank_WaitForResult" sourceRef="Task_Bank_SendRequestToSchufa" targetRef="EventBasedGateway_Bank_ResultWait">
+      <bpmn:sourceRef>Task_Bank_SendRequestToSchufa</bpmn:sourceRef>
+      <bpmn:targetRef>EventBasedGateway_Bank_ResultWait</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Message flow from Schufa -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_Result" sourceRef="IntermediateCatchEvent_Bank_ImmediateResult">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_ImmediateResult</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Message flow from Schufa -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_Delay" sourceRef="IntermediateCatchEvent_Bank_DelayedStart">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_DelayedStart</bpmn:sourceRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Immediate Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_Result" sourceRef="EventBasedGateway_Bank_ResultWait" targetRef="IntermediateCatchEvent_Bank_ImmediateResult">
+      <bpmn:sourceRef>EventBasedGateway_Bank_ResultWait</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateCatchEvent_Bank_ImmediateResult</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Delay Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_Delay" sourceRef="EventBasedGateway_Bank_ResultWait" targetRef="IntermediateCatchEvent_Bank_DelayedStart">
+      <bpmn:sourceRef>EventBasedGateway_Bank_ResultWait</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateCatchEvent_Bank_DelayedStart</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Immediate Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Bank_ProcessImmediate" sourceRef="IntermediateCatchEvent_Bank_ImmediateResult" targetRef="Task_Bank_SendFrontendResult">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_ImmediateResult</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Bank_SendFrontendResult</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Delay Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_Delay" sourceRef="IntermediateCatchEvent_Bank_DelayedStart" targetRef="ExclusiveGateway_Bank_DelayDecision">
+      <bpmn:sourceRef>IntermediateCatchEvent_Bank_DelayedStart</bpmn:sourceRef>
+      <bpmn:targetRef>ExclusiveGateway_Bank_DelayDecision</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for final result after delay notification -->
+    <bpmn:endEvent id="EndEvent_Schufa_Level2Complete" name="Level 2 Scoring abgeschlossen">
+      <bpmn:incoming>SequenceFlow_Bank_WaitFinalResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Final result path -->
+    <bpmn:startEvent id="StartEvent_Schufa_FinalResult" name="Finales Scoringergebnis">
+      <bpmn:messageEventDefinition />
+       <bpmn:outgoing>SequenceFlow_Bank_ProcessFinal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+     <!-- Message flow from Schufa -->
+    <bpmn:sequenceFlow id="SequenceFlow_SchufaToBank_FinalResult" sourceRef="StartEvent_Schufa_FinalResult">
+      <!-- Received message with final result -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:endEvent id="EndEvent_Bank_WaitFinal" name="Warte auf finales Ergebnis">
+       <bpmn:incoming>SequenceFlow_Bank_ProcessFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Schufa System Process -->
+  <bpmn:process id="Process_Schufa">
+    <bpmn:startEvent id="StartEvent_Schufa_RequestReceived" name="Scoringanfrage gestellt">
+      <bpmn:messageEventDefinition />
+       <bpmn:outgoing>SequenceFlow_Schufa_Level1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Schufa_Complete" name="Scoringanfrage bearbeitet">
+      <bpmn:incoming>SequenceFlow_Schufa_FinalResultSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Level 1 Scoring -->
+    <bpmn:task id="Task_Schufa_Level1Scoring" name="Erstes Scoring (Level 1)">
+      <bpmn:incoming>SequenceFlow_Schufa_Level1</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Schufa_CheckResult</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Schufa_ResultAvailable" name="Ergebnis sofort verfügbar?">
+      <bpmn:incoming>SequenceFlow_Schufa_CheckResult</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Schufa_SendImmediate</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_Schufa_DelayPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Immediate Path -->
+    <bpmn:endEvent id="EndEvent_Schufa_Level1Complete" name="Level 1 Scoring abgeschlossen">
+      <bpmn:incoming>SequenceFlow_Schufa_SendImmediate</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Delay Path -->
+    <bpmn:task id="Task_Schufa_Level2Scoring" name="Finales Scoring (Level 2)">
+      <bpmn:incoming>SequenceFlow_Schufa_DelayPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Schufa_SendFinalResult</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Send Delay Notification to Bank -->
+    <bpmn:endEvent id="EndEvent_Schufa_DelaySent" name="Verzögerungsmeldung gesendet">
+      <bpmn:incoming>SequenceFlow_Schufa_SendDelay</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Send Final Result to Bank -->
+    <bpmn:endEvent id="EndEvent_Schufa_FinalSent" name="Finales Ergebnis gesendet">
+      <bpmn:incoming>SequenceFlow_Schufa_SendFinalResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows -->
+    <bpmn:messageFlow id="Message_BankRequestToSchufa" sourceRef="Task_Frontend_RequestScore">
+      <bpmn:sourceRef>Task_Frontend_RequestScore</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Schufa_Level1" sourceRef="StartEvent_Schufa_RequestReceived" targetRef="Task_Schufa_Level1Scoring">
+      <!-- Implicit message received from Bank -->
+    </bpmn:sequenceFlow>
+
+     <!-- Message flow to Bank -->
+    <bpmn:messageFlow id="Message_BankImmediateResult" sourceRef="EndEvent_Schufa_Level1Complete">
+       <bpmn:sourceRef>EndEvent_Schufa_Level1Complete</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+     <!-- Immediate Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Schufa_SendImmediate" sourceRef="ExclusiveGateway_Schufa_ResultAvailable" targetRef="EndEvent_Schufa_Level1Complete">
+      <bpmn:sourceRef>ExclusiveGateway_Schufa_ResultAvailable</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_Schufa_Level1Complete</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Delay Path -->
+    <bpmn:messageFlow id="Message_BankDelayNotification" sourceRef="Task_Schufa_Level2Scoring">
+       <bpmn:sourceRef>Task_Schufa_Level2Scoring</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+     <!-- Delay Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Schufa_DelayPath" sourceRef="ExclusiveGateway_Schufa_ResultAvailable" targetRef="Task_Schufa_Level2Scoring">
+      <bpmn:sourceRef>ExclusiveGateway_Schufa_ResultAvailable</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Schufa_Level2Scoring</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Send Delay Notification to Bank -->
+    <bpmn:messageFlow id="Message_BankDelayInfo" sourceRef="EndEvent_Schufa_DelaySent">
+       <bpmn:sourceRef>EndEvent_Schufa_DelaySent</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+     <!-- Send Final Result to Bank -->
+    <bpmn:endEvent id="EndEvent_Schufa_FinalResult" name="Finales Ergebnis gesendet">
+      <bpmn:incoming>SequenceFlow_Schufa_SendFinalResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Send Final Result to Bank -->
+    <bpmn:messageFlow id="Message_BankFinalResult" sourceRef="EndEvent_Schufa_FinalSent">
+       <bpmn:sourceRef>EndEvent_Schufa_FinalSent</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+     <!-- Final Result Path -->
+    <bpmn:endEvent id="EndEvent_Schufa_CompleteFinal" name="Prozess abgeschlossen">
+       <bpmn:incoming>SequenceFlow_Schufa_FinalResultSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Message flow to Bank -->
+    <bpmn:messageFlow id="Message_BankFinalToBank" sourceRef="EndEvent_Schufa_Complete">
+       <bpmn:sourceRef>EndEvent_Schufa_Complete</bpmn:sourceRef>
+    </bpmn:messageFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="ContractProcess" isExecutable="false">
+    <laneSet>
+      <lane id="Lane_Manufacturing" name="Manufacturing Department">
+        <flowNodeRef>StartEvent_Contract</flowNodeRef>
+        <flowNodeRef>Gateway_QueryShops</flowNodeRef>
+        <flowNodeRef>Task_WebShop1Query</flowNodeRef>
+        <flowNodeRef>Task_WebShop2Query</flowNodeRef>
+        <flowNodeRef>Task_WebShop3Query</flowNodeRef>
+        <flowNodeRef>Gateway_AggregateResults</flowNodeRef>
+        <flowNodeRef>Task_CreateOrderList</flowNodeRef>
+        <flowNodeRef>Gateway_StartBuilding</flowNodeRef>
+        <flowNodeRef>IntermediateEvent_PartsArrive</flowNodeRef>
+        <flowNodeRef>Task_BuildProduct</flowNodeRef>
+        <flowNodeRef>Gateway_CheckStockLevel1</flowNodeRef>
+        <flowNodeRef>Task_ReorderCheapest</flowNodeRef>
+        <flowNodeRef>Gateway_CheckStockLevel2</flowNodeRef>
+        <flowNodeRef>Task_ReorderFastest</flowNodeRef>
+        <flowNodeRef>Gateway_StockZeroCheck</flowNodeRef>
+        <flowNodeRef>Task_ComplainEmail</flowNodeRef>
+        <flowNodeRef>EndEvent_OrderComplete</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Contract" name="Contract order received">
+      <bpmn:outgoing>bpmn:SequenceFlow_QueryShops</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway to query all shops simultaneously -->
+    <bpmn:parallelGateway gatewayDirection="Diverging" id="Gateway_QueryShops">
+      <bpmn:incoming>bpmn:SequenceFlow_QueryShops</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WebShop1Query</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_WebShop2Query</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_WebShop3Query</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Query Web Shop 1 -->
+    <bpmn:serviceTask id="Task_WebShop1Query" name="Query web shop 1">
+      <bpmn:incoming>bpmn:SequenceFlow_WebShop1Query</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Shop1Result</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Query Web Shop 2 -->
+    <bpmn:serviceTask id="Task_WebShop2Query" name="Query web shop 2">
+      <bpmn:incoming>bpmn:SequenceFlow_WebShop2Query</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Shop2Result</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Query Web Shop 3 -->
+    <bpmn:serviceTask id="Task_WebShop3Query" name="Query web shop 3">
+      <bpmn:incoming>bpmn:SequenceFlow_WebShop3Query</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Shop3Result</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway to aggregate results -->
+    <bpmn:parallelGateway gatewayDirection="Converging" id="Gateway_AggregateResults">
+      <bpmn:incoming>bpmn:SequenceFlow_Shop1Result</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_Shop2Result</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_Shop3Result</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CreateOrderList</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Create order list based on cheapest parts -->
+    <bpmn:task id="Task_CreateOrderList" name="Create order list (cheapest)">
+      <bpmn:incoming>bpmn:SequenceFlow_CreateOrderList</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_StartBuildingDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to decide when parts arrive -->
+    <bpmn:exclusiveGateway id="Gateway_StartBuilding">
+      <bpmn:incoming>bpmn:SequenceFlow_CreateOrderList</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WaitForParts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate event for monitoring parts arrival (random timing) -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_PartsArrive" name="Parts arrive in batches">
+      <bpmn:incoming>bpmn:SequenceFlow_WaitForParts</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_StartBuildingTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Build product when parts start arriving -->
+    <bpmn:task id="Task_BuildProduct" name="Start building">
+      <bpmn:incoming>bpmn:SequenceFlow_StartBuildingTask</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckStockLevel1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check stock level - below 5 threshold -->
+    <bpmn:exclusiveGateway id="Gateway_CheckStockLevel1">
+      <bpmn:incoming>bpmn:SequenceFlow_StartBuildingTask</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ReorderCheapestPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_ContinueChecking</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reorder cheapest option -->
+    <bpmn:task id="Task_ReorderCheapest" name="Reorder (cheapest)">
+      <bpmn:incoming>bpmn:SequenceFlow_ReorderCheapestPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckStockLevel2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check stock level - below 3 threshold -->
+    <bpmn:exclusiveGateway id="Gateway_CheckStockLevel2">
+      <bpmn:incoming>bpmn:SequenceFlow_ContinueChecking</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_ReorderCheapestPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ReorderFastestPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckZeroThreshold</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reorder fastest option -->
+    <bpmn:task id="Task_ReorderFastest" name="Reorder (fastest)">
+      <bpmn:incoming>bpmn:SequenceFlow_ReorderFastestPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckZeroThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check if stock is zero -->
+    <bpmn:exclusiveGateway id="Gateway_StockZeroCheck">
+      <bpmn:incoming>bpmn:SequenceFlow_ReorderFastestPath</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_CheckZeroThreshold</bpmn:incoming>
+      <default>bpmn:SequenceFlow_ComplainEmailPath</default>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send complaint email -->
+    <bpmn:task id="Task_ComplainEmail" name="Write complain mail to friends">
+      <bpmn:incoming>bpmn:SequenceFlow_ComplainEmailPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_OrderComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderComplete" name="Order complete">
+      <bpmn:incoming>bpmn:SequenceFlow_ContinueChecking</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_CheckZeroThreshold</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_QueryShops" sourceRef="StartEvent_Contract" targetRef="Gateway_QueryShops"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WebShop1Query" name="" sourceRef="Gateway_QueryShops" targetRef="Task_WebShop1Query"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WebShop2Query" name="" sourceRef="Gateway_QueryShops" targetRef="Task_WebShop2Query"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WebShop3Query" name="" sourceRef="Gateway_QueryShops" targetRef="Task_WebShop3Query"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Shop1Result" name="" sourceRef="Task_WebShop1Query" targetRef="Gateway_AggregateResults"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Shop2Result" name="" sourceRef="Task_WebShop2Query" targetRef="Gateway_AggregateResults"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Shop3Result" name="" sourceRef="Task_WebShop3Query" targetRef="Gateway_AggregateResults"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateOrderList" name="" sourceRef="Gateway_AggregateResults" targetRef="Task_CreateOrderList"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_StartBuildingDecision" name="" sourceRef="Task_CreateOrderList" targetRef="Gateway_StartBuilding"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForParts" name="" sourceRef="Gateway_StartBuilding" targetRef="IntermediateEvent_PartsArrive"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartBuildingTask" name="" sourceRef="IntermediateEvent_PartsArrive" targetRef="Task_BuildProduct"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckStockLevel1" name="" sourceRef="Task_BuildProduct" targetRef="Gateway_CheckStockLevel1"/>
+
+    <!-- Stock below 5 - reorder cheapest -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReorderCheapestPath" name="stock &lt;= 5" sourceRef="Gateway_CheckStockLevel1" targetRef="Task_ReorderCheapest"/>
+    
+    <!-- Continue checking stock levels -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueChecking" name="" sourceRef="Gateway_CheckStockLevel1" targetRef="Gateway_CheckStockLevel2"/>
+
+    <!-- Stock below 3 - reorder fastest -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReorderFastestPath" name="stock &lt;= 3" sourceRef="Gateway_CheckStockLevel2" targetRef="Task_ReorderFastest"/>
+
+    <!-- Check zero threshold -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckZeroThreshold" name="" sourceRef="Gateway_CheckStockLevel2" targetRef="Gateway_StockZeroCheck"/>
+
+    <!-- Stock at 0 - complain email (default path) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ComplainEmailPath" name="stock = 0" sourceRef="Gateway_StockZeroCheck" targetRef="Task_ComplainEmail"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderComplete" name="" sourceRef="Task_ComplainEmail" targetRef="EndEvent_OrderComplete"/>
+    
+  </process>
+</bpmn:definitions>

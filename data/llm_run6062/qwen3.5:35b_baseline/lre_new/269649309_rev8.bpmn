@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_BagProcess_002" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_BagHandling_v2">
+    <bpmn:participant id="Participant_CVS_Operation_v2" name="CVS Bag Handling Process" processRef="Process_Bag_002" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Bag_002" isExecutable="true">
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_RetryCount_v2" name="Retry Count" />
+    <bpmn:dataObjectReference id="Data_LabelInfo_v2" name="Bag Label Information" />
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_BagIdentified_v2" name="Uncollected Bag Identified">
+      <bpmn:outgoing>Flow_01_CheckRetries_v2</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Number of Resolution Retries -->
+    <bpmn:task id="Task_CheckRetryCount_v2" name="Check Number of Resolution Retries">
+      <bpmn:incoming>Flow_01_CheckRetries_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_RetryCount_v2" />
+      <bpmn:outgoing>Flow_02_GatewayDecision_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is retry count > threshold? -->
+    <bpmn:exclusiveGateway id="Gateway_IsRetryExceeded_v2" name="Retries &gt; Threshold?">
+      <bpmn:incoming>Flow_02_GatewayDecision_v2</bpmn:incoming>
+      <bpmn:outgoing>Flow_03_ReturnToProduction_v2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_04_ContactCustomer_v2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Return to Production (Retries Exceeded) -->
+    <bpmn:task id="Task_ReturnToProduction_v2" name="Return Bag to Production Area for Disassemble">
+      <bpmn:incoming>Flow_03_ReturnToProduction_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_LabelInfo_v2" />
+      <bpmn:outgoing>Flow_05_EndDisassembled_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Contact Customer (Retries Not Exceeded) -->
+    <bpmn:task id="Task_ContactCustomer_v2" name="Contact Customer by Phone">
+      <bpmn:incoming>Flow_04_ContactCustomer_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_LabelInfo_v2" />
+      <bpmn:outgoing>Flow_06_GatewayContactResult_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Contact Result -->
+    <bpmn:exclusiveGateway id="Gateway_ContactResult_v2" name="Contact Successful?">
+      <bpmn:incoming>Flow_06_GatewayContactResult_v2</bpmn:incoming>
+      <bpmn:outgoing>Flow_07_CustomerWithdraws_v2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_08_CustomerPromisesPickup_v2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Customer Withdraws Order -->
+    <bpmn:task id="Task_ReturnToProductionWithdraw_v2" name="Return Bag to Production Area for Disassemble">
+      <bpmn:incoming>Flow_07_CustomerWithdraws_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_LabelInfo_v2" />
+      <bpmn:outgoing>Flow_10_EndDisassembled2_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2b: Customer Promises Pickup -->
+    <bpmn:task id="Task_IncreaseRetryCount_v2" name="Increase Retry Count on Bag Label">
+      <bpmn:incoming>Flow_08_CustomerPromisesPickup_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_RetryCount_v2" />
+      <bpmn:outgoing>Flow_12_EndRetryIncreased_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 3: Contact Unsuccessful -->
+    <bpmn:task id="Task_IncreaseRetryCountUnsuccess_v2" name="Increase Retry Count on Bag Label">
+      <bpmn:incoming>Flow_09_CustomerNotReached_v2</bpmn:incoming>
+      <bpmn:dataInputSet ref="Data_RetryCount_v2" />
+      <bpmn:outgoing>Flow_13_EndRetryIncreasedUnsuccess_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Disassembled_v2" name="Bag Disassembled">
+      <bpmn:incoming>Flow_05_EndDisassembled_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Disassembled2_v2" name="Bag Disassembled (Withdraw)">
+      <bpmn:incoming>Flow_10_EndDisassembled2_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_RetryIncreased_v2" name="Retry Count Increased">
+      <bpmn:incoming>Flow_12_EndRetryIncreased_v2</bpmn:incoming>
+      <bpmn:incoming>Flow_13_EndRetryIncreasedUnsuccess_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_01_CheckRetries_v2" name="Bag Identified" sourceRef="Start_BagIdentified_v2" targetRef="Task_CheckRetryCount_v2">
+      <bpmn:name>Bag Identified</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_02_GatewayDecision_v2" name="Check Result" sourceRef="Task_CheckRetryCount_v2" targetRef="Gateway_IsRetryExceeded_v2">
+      <bpmn:name>Check Result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_03_ReturnToProduction_v2" name="Yes (Retries Exceeded)" sourceRef="Gateway_IsRetryExceeded_v2" targetRef="Task_ReturnToProduction_v2">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_04_ContactCustomer_v2" name="No (Retries OK)" sourceRef="Gateway_IsRetryExceeded_v2" targetRef="Task_ContactCustomer_v2">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_05_EndDisassembled_v2" name="Return Complete" sourceRef="Task_ReturnToProduction_v2" targetRef="End_Disassembled_v2">
+      <bpmn:name>Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_06_GatewayContactResult_v2" name="Contact Result" sourceRef="Task_ContactCustomer_v2" targetRef="Gateway_ContactResult_v2">
+      <bpmn:name>Contact</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_07_CustomerWithdraws_v2" name="Yes (Withdraw)" sourceRef="Gateway_ContactResult_v2" targetRef="Task_ReturnToProductionWithdraw_v2">
+      <bpmn:name>Withdraw</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_08_CustomerPromisesPickup_v2" name="Yes (Promise)" sourceRef="Gateway_ContactResult_v2" targetRef="Task_IncreaseRetryCount_v2">
+      <bpmn:name>Promised</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_09_CustomerNotReached_v2" name="No (Unsuccessful)" sourceRef="Gateway_ContactResult_v2" targetRef="Task_IncreaseRetryCountUnsuccess_v2">
+      <bpmn:name>Failed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_10_EndDisassembled2_v2" name="Return Complete (Withdraw)" sourceRef="Task_ReturnToProductionWithdraw_v2" targetRef="End_Disassembled2_v2">
+      <bpmn:name>Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_12_EndRetryIncreased_v2" name="Retry Updated (Promise)" sourceRef="Task_IncreaseRetryCount_v2" targetRef="End_RetryIncreased_v2">
+      <bpmn:name>Updated</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_13_EndRetryIncreasedUnsuccess_v2" name="Retry Updated (Failed)" sourceRef="Task_IncreaseRetryCountUnsuccess_v2" targetRef="End_RetryIncreased_v2">
+      <bpmn:name>Updated</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

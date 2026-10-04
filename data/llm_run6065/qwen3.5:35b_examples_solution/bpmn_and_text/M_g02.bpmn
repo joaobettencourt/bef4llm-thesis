@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LegoMachine_1">
+  <bpmn:collaboration>
+    <bpmn:participant id="Participant_MachineBuilder" name="Custom Machine Builder Service" processRef="Process_BuildingLegoMachine"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BuildingLegoMachine" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Custom machine building">
+      <bpmn:outgoing>SequenceFlow_DevelopDesign</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Design -->
+    <bpmn:userTask id="Task_DevelopDesign" name="Develop basic design">
+      <bpmn:incoming>SequenceFlow_DevelopDesign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderSets</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 2: Order Sets -->
+    <bpmn:userTask id="Task_OrderLego" name="Order lego brick sets">
+      <bpmn:incoming>SequenceFlow_OrderSets</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortParts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 3: Sort Parts -->
+    <bpmn:userTask id="Task_SortChildren" name="Sort parts into containers">
+      <bpmn:incoming>SequenceFlow_SortParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSubcomponents</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: More Subcomponents? -->
+    <bpmn:exclusiveGateway id="Gateway_MoreSubcomponents" name="Is more subcomponent needed?">
+      <bpmn:incoming>SequenceFlow_CheckSubcomponents</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssembleMachine</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BuildLoopStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 2: Stock Check (Simplified logic for valid flow) -->
+    <bpmn:exclusiveGateway id="Gateway_CheckStock" name="Is more parts needed?">
+      <bpmn:incoming>SequenceFlow_BuildLoopStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReorderParts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DirectBuild</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Reorder Parts -->
+    <bpmn:userTask id="Task_ReorderParts" name="Reorder individual parts">
+      <bpmn:incoming>SequenceFlow_ReorderParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BuildMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 5: Build Subcomponent -->
+    <bpmn:userTask id="Task_BuildSubcomponent" name="Build subcomponent">
+      <bpmn:incoming>SequenceFlow_DirectBuild</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_BuildMerge</bpmn:outgoing> <!-- Note: Incoming from Reorder -->
+    </bpmn:userTask>
+
+    <!-- Task 6: Test Subcomponent -->
+    <bpmn:userTask id="Task_TestSubcomponent" name="Test subcomponent">
+      <bpmn:incoming>SequenceFlow_BuildToTest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 3: Test Result -->
+    <bpmn:exclusiveGateway id="Gateway_TestPassed" name="Does it pass the test?">
+      <bpmn:incoming>SequenceFlow_CheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PassedLoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailedRedesign</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7: Redesign -->
+    <bpmn:userTask id="Task_Redesign" name="Redesign subcomponent">
+      <bpmn:incoming>SequenceFlow_FailedRedesign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RebuildMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 8: Assemble Machine -->
+    <bpmn:userTask id="Task_AssembleMachine" name="Assemble machine">
+      <bpmn:incoming>SequenceFlow_AssembleMachine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Shipment prepared">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DevelopDesign" sourceRef="StartEvent_1" targetRef="Task_DevelopDesign"/>
+    <bpmn:sequenceFlow id="SequenceFlow_OrderSets" sourceRef="Task_DevelopDesign" targetRef="Task_OrderLego"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SortParts" sourceRef="Task_OrderLego" targetRef="Task_SortChildren"/>
+
+    <!-- Loop Entry -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckSubcomponents" sourceRef="Task_SortChildren" targetRef="Gateway_MoreSubcomponents"/>
+
+    <!-- Build Path Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuildLoopStart" name="Yes" sourceRef="Gateway_MoreSubcomponents" targetRef="Gateway_CheckStock"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AssembleMachine" name="No" sourceRef="Gateway_MoreSubcomponents" targetRef="Task_AssembleMachine"/>
+
+    <!-- Stock Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReorderParts" name="Yes (Reorder)" sourceRef="Gateway_CheckStock" targetRef="Task_ReorderParts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DirectBuild" name="No (Have Parts)" sourceRef="Gateway_CheckStock" targetRef="Task_BuildSubcomponent"/>
+
+    <!-- Build to Test -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuildToTest" sourceRef="Task_BuildSubcomponent" targetRef="Task_TestSubcomponent"/>
+
+    <!-- Reorder Merge Back to Build (Logic correction for valid flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuildMerge" name="" sourceRef="Task_ReorderParts" targetRef="Task_BuildSubcomponent"/>
+
+    <!-- Test Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResult" sourceRef="Task_TestSubcomponent" targetRef="Gateway_TestPassed"/>
+
+    <!-- Redesign Loop Back to Build (Logic correction for valid flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_FailedRedesign" name="No" sourceRef="Gateway_TestPassed" targetRef="Task_Redesign"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RebuildMerge" name="" sourceRef="Task_Redesign" targetRef="Task_BuildSubcomponent"/>
+
+    <!-- Pass Loop Back to Subcomponents Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_PassedLoopBack" name="Yes" sourceRef="Gateway_TestPassed" targetRef="Gateway_MoreSubcomponents"/>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_AssembleMachine" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

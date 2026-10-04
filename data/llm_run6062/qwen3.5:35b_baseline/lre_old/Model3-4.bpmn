@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ClaimHandling_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ClaimProcess_01">
+    <bpmn:participant id="Participant_Insurer" name="Insurance Company" processRef="Proc_Insurer_01"/>
+    <bpmn:participant id="Participant_Claimant" name="Claimant" processRef="Proc_Claimant_01"/>
+  </bpmn:collaboration>
+
+  <!-- Insurer Process -->
+  <bpmn:process id="Proc_Insurer_01" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_RequestInfo" name="Request Additional Info">
+      <bpmn:outgoing>SequenceFlow_SendQuestionnaire</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SendQuestionnaire" name="Send Questionnaire">
+      <bpmn:incoming>SequenceFlow_SendQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitWaitReceive</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:inclusiveGateway id="InclusiveGateway_WaitOrReceive">
+      <bpmn:incoming>SequenceFlow_SplitWaitReceive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MessagePath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchTimer_5DaysWait" name="Wait up to 5 days">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression" duration="P5D"/>
+      <bpmn:incoming>SequenceFlow_TimerPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinTimerToGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:messageIntermediateCatchEvent id="MessageEvent_ResponseReceived" name="Questionnaire Received">
+      <bpmn:incoming>SequenceFlow_MessagePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinMsgToGateway</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <bpmn:inclusiveGateway id="InclusiveGateway_JoinWaitResponse">
+      <bpmn:incoming>SequenceFlow_JoinTimerToGateway</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_JoinMsgToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckStatus</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckResponse">
+      <bpmn:incoming>SequenceFlow_CheckStatus</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResponseReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoResponsePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="EndEvent_Complete" name="Questionnaire Received">
+      <bpmn:incoming>SequenceFlow_ResponseReceivedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SendReminder" name="Send Reminder">
+      <bpmn:incoming>SequenceFlow_NoResponsePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBackToWait</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_Cancelled" name="Process Cancelled">
+      <bpmn:incoming>SequenceFlow_NoResponsePath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendQuestionnaire" sourceRef="StartEvent_RequestInfo" targetRef="Task_SendQuestionnaire"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SplitWaitReceive" sourceRef="Task_SendQuestionnaire" targetRef="InclusiveGateway_WaitOrReceive"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TimerPath" name="Timer Path" sourceRef="InclusiveGateway_WaitOrReceive" targetRef="IntermediateCatchTimer_5DaysWait"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MessagePath" name="Message Path" sourceRef="InclusiveGateway_WaitOrReceive" targetRef="MessageEvent_ResponseReceived"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_JoinTimerToGateway" sourceRef="IntermediateCatchTimer_5DaysWait" targetRef="InclusiveGateway_JoinWaitResponse"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_JoinMsgToGateway" sourceRef="MessageEvent_ResponseReceived" targetRef="InclusiveGateway_JoinWaitResponse"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckStatus" sourceRef="InclusiveGateway_JoinWaitResponse" targetRef="ExclusiveGateway_CheckResponse"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ResponseReceivedPath" name="Yes - Response Received" sourceRef="ExclusiveGateway_CheckResponse" targetRef="EndEvent_Complete"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoResponsePath" name="No - No Response Yet" sourceRef="ExclusiveGateway_CheckResponse" targetRef="Task_SendReminder"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBackToWait" sourceRef="Task_SendReminder" targetRef="InclusiveGateway_WaitOrReceive"/>
+  </bpmn:process>
+
+  <!-- Claimant Process -->
+  <bpmn:process id="Proc_Claimant_01" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Claimant_Start" name="Claimant Start">
+      <bpmn:outgoing>SequenceFlow_ClaimantReceive</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:messageIntermediateCatchEvent id="MessageEvent_ReceiveQuestionnaire" name="Receive Questionnaire">
+      <bpmn:incoming>SequenceFlow_ClaimantReceive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendResponse</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <bpmn:endEvent id="EndEvent_Claimant_Complete" name="Questionnaire Sent">
+      <bpmn:incoming>SequenceFlow_SendResponse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ClaimantReceive" sourceRef="StartEvent_Claimant_Start" targetRef="MessageEvent_ReceiveQuestionnaire"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendResponse" name="Send Response" sourceRef="MessageEvent_ReceiveQuestionnaire" targetRef="EndEvent_Claimant_Complete"/>
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:messageFlow id="MessageFlow_QuestionnaireSent" sourceRef="Task_SendQuestionnaire" targetRef="MessageEvent_ReceiveQuestionnaire">
+    <bpmn:message ref="Message_Questionnaire"/>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ResponseReceived" sourceRef="MessageEvent_ResponseReceived" targetRef="MessageEvent_SendResponse">
+    <bpmn:message ref="Message_Response"/>
+  </bpmn:messageFlow>
+
+  <!-- Messages -->
+  <bpmn:message id="Message_Questionnaire" name="Questionnaire"/>
+  <bpmn:message id="Message_Response" name="Response"/>
+</bpmn:definitions>

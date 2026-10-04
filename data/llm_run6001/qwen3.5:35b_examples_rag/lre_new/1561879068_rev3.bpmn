@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_CustomerRegistration">
+    <bpmn:participant id="Participant_CustRegService" name="Customer Registration Service" processRef="Process_CustomerRegistration"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CustomerRegistration" isExecutable="true">
+    
+    <!-- Lane Set for organizational structure -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_WebPortal" name="Customer Portal">
+        <bpmn:flowNodeRef>StartEvent_FormSubmission</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_DataProcessing" name="Data Processing Team">
+        <bpmn:flowNodeRef>Task_CheckProductAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCreditRating</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_MergeChecks</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CreditDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInterimRecord</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Provisioning" name="Provisioning Team">
+        <bpmn:flowNodeRef>ParallelGateway_Subprocesses</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeviceProvision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterISPAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_MergeSubs</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service">
+        <bpmn:flowNodeRef>Task_CreateWelcomePackage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendMessage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_SuccessfulRegistration</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_FormSubmission" name="Form Submitted">
+      <bpmn:outgoing>SequenceFlow_ToParallelChecks</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Checks -->
+    <bpmn:parallelGateway id="ParallelGateway_Checks" name="Concurrent Checks">
+      <bpmn:incoming>SequenceFlow_FromStartToChecks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToProductCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToCreditCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Check Product Availability -->
+    <bpmn:userTask id="Task_CheckProductAvailability" name="Check product availability">
+      <bpmn:incoming>SequenceFlow_FromParallelToProduct</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProductToMergeGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Check Credit Rating -->
+    <bpmn:userTask id="Task_CheckCreditRating" name="Check credit rating (Schufa)">
+      <bpmn:incoming>SequenceFlow_FromParallelToCredit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditToMergeGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway to Merge Checks -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeChecks" name="Wait for checks">
+      <bpmn:incoming>SequenceFlow_ProductToMergeGateway</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_CreditToMergeGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecisionGateway</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway for Credit Rating Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CreditDecision" name="Credit rating &gt; 9000?">
+      <bpmn:incoming>SequenceFlow_FromMergeToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnsuccessfulRegistration</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SuccessfulRecordCreation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Unsuccessful Registration -->
+    <bpmn:endEvent id="EndEvent_UnsuccessfulRegistration" name="Unsuccessful Registration">
+      <bpmn:incoming>SequenceFlow_FromDecisionToFail</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Task: Create Interim Customer Record -->
+    <bpmn:userTask id="Task_CreateInterimRecord" name="Create interim customer dataset record">
+      <bpmn:incoming>SequenceFlow_FromDecisionToSuccess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToParallelSubprocesses</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Sub-processes -->
+    <bpmn:parallelGateway id="ParallelGateway_Subprocesses" name="Concurrent Provisioning">
+      <bpmn:incoming>SequenceFlow_FromRecordCreation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDeviceProvision</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToISPRegistration</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Device Provision -->
+    <bpmn:userTask id="Task_DeviceProvision" name="Device provision">
+      <bpmn:incoming>SequenceFlow_FromParallelToDevice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeviceToMergeGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Register Customer Account at ISP Nodes -->
+    <bpmn:userTask id="Task_RegisterISPAccount" name="Register customer account at ISP nodes">
+      <bpmn:incoming>SequenceFlow_FromParallelToISP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ISPtoMergeGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway to merge sub-processes -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeSubs" name="Wait for completion">
+      <bpmn:incoming>SequenceFlow_FromDevice</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_FromISP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToWelcomePackageCreation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Create Welcome Package -->
+    <bpmn:userTask id="Task_CreateWelcomePackage" name="Create welcome package">
+      <bpmn:incoming>SequenceFlow_FromMergeToWelcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WelcomeToSendMessage</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Send Welcome Message -->
+    <bpmn:userTask id="Task_SendMessage" name="Send welcome package to customer">
+      <bpmn:incoming>SequenceFlow_FromCreatePackage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSuccessfulEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Successful Registration -->
+    <bpmn:endEvent id="EndEvent_SuccessfulRegistration" name="Registration Completed">
+      <bpmn:incoming>SequenceFlow_FromWelcomeMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Parallel Checks -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToParallelChecks" sourceRef="StartEvent_FormSubmission" targetRef="ParallelGateway_Checks"/>
+
+    <!-- From Parallel Gateway to Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromStartToChecks" name="Check product availability and credit rating in parallel" sourceRef="ParallelGateway_Checks" targetRef="Task_CheckProductAvailability">
+      <bpmn:description>Concurrent checks</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Parallel Gateway to Credit Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToCreditCheck" name="Check credit rating (Schufa)" sourceRef="ParallelGateway_Checks" targetRef="Task_CheckCreditRating"/>
+
+    <!-- Product check flow - wait for parallel completion before decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromParallelToProduct" sourceRef="ParallelGateway_Checks" targetRef="Task_CheckProductAvailability">
+      <bpmn:description>Check product availability</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Product Check to Merge Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProductToMergeGateway" sourceRef="Task_CheckProductAvailability" targetRef="ParallelGateway_MergeChecks">
+      <bpmn:description>Wait for credit check completion</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Credit Check to Merge Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromParallelToCredit" sourceRef="ParallelGateway_Checks" targetRef="Task_CheckCreditRating"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreditToMergeGateway" name="Check credit rating (Schufa)" sourceRef="Task_CheckCreditRating" targetRef="ParallelGateway_MergeChecks">
+      <bpmn:description>Wait for product check completion</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Merge Checks to Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToDecisionGateway" sourceRef="ParallelGateway_MergeChecks" targetRef="ExclusiveGateway_CreditDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FromMergeToDecision" name="Both checks completed" sourceRef="ParallelGateway_MergeChecks" targetRef="ExclusiveGateway_CreditDecision">
+      <bpmn:description>Wait for product check completion</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Unsuccessful Registration Path (credit &gt; 9000) -->
+    <bpmn:sequenceFlow id="SequenceFlow_UnsuccessfulRegistration" name="Yes - Credit rating too high (&gt;9000)" sourceRef="ExclusiveGateway_CreditDecision" targetRef="EndEvent_UnsuccessfulRegistration">
+      <bpmn:description>Customer registration unsuccessful</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Successful Path (credit &lt;= 9000) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessfulRecordCreation" name="No - Credit rating acceptable (&le;9000)" sourceRef="ExclusiveGateway_CreditDecision" targetRef="Task_CreateInterimRecord">
+      <bpmn:description>Proceed with registration</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Decision to Record Creation -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromDecisionToSuccess" sourceRef="ExclusiveGateway_CreditDecision" targetRef="Task_CreateInterimRecord"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToParallelSubprocesses" name="Start parallel sub-processes" sourceRef="Task_CreateInterimRecord" targetRef="ParallelGateway_Subprocesses">
+      <bpmn:description>Device provision and ISP registration in parallel</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From Record Creation to Parallel Sub-processes -->
+    <bpmn:sequenceFlow id="SequenceFlow_FromRecordCreation" sourceRef="Task_CreateInterimRecord" targetRef="ParallelGateway_Subprocesses"/>
+
+    <!-- Device Provision Path -->
+    <bpmn:sequenceFlow id="SequenceFlowToDeviceProvision" name="Device provision" sourceRef="ParallelGateway_Subprocesses" targetRef="Task_DeviceProvision"/>
+
+    <!-- ISP Account Registration Path -->
+    <bpmn:sequenceFlow id="SequenceFlowToAccountRegistration" name="Register customer account at ISP nodes" sourceRef="ParallelGateway_Subprocesses" targetRef="Task_RegisterISPAccount"/>
+
+    <!-- From Device Provision to Merge Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlowToDeviceMerge" sourceRef="Task_DeviceProvision" targetRef="ParallelGateway_MergeSubs">
+      <bpmn:description>Device provision completed</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- From ISP Registration to Merge Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlowToISPMerge" sourceRef="Task_RegisterISPAccount" targetRef="ParallelGateway_MergeSubs">
+      <bpmn:description>ISP registration completed</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Welcome Package Creation -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToWelcomePackageCreation" name="Both sub-processes completed" sourceRef="ParallelGateway_MergeSubs" targetRef="Task_CreateWelcomePackage"/>
+
+    <!-- From Create to Send Message -->
+    <bpmn:sequenceFlow id="SequenceFlow_WelcomeToSendMessage" sourceRef="Task_CreateWelcomePackage" targetRef="Task_SendMessage">
+      <bpmn:description>Welcome package created</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Successful End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSuccessfulEndEvent" name="Registration completed successfully" sourceRef="Task_SendMessage" targetRef="EndEvent_SuccessfulRegistration"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

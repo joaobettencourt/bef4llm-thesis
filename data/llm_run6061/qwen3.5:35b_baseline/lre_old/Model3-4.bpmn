@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ClaimProcess_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_QuestionnaireReturned" name="Questionnaire Returned"/>
+
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_ClaimHandler" name="Claims Department" processRef="Process_ClaimHandling_v2"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ClaimHandling_v2" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Handler" name="Claims Handler">
+        <bpmn:flowNodeRef>StartEvent_NewClaim</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendQuestionnaire</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchMessage_WaitResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryTimer_5Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClaimClosed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NewClaim" name="New Claim Received">
+      <bpmn:outgoing>SequenceFlow_SendQuestionnaire</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send Questionnaire -->
+    <bpmn:task id="Task_SendQuestionnaire" name="Send Questionnaire to Claimant">
+      <bpmn:incoming>SequenceFlow_SendQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Message Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchMessage_WaitResponse" name="Wait for Response">
+      <bpmn:messageRef>Message_QuestionnaireReturned</bpmn:messageRef>
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueProcess</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Boundary Timer Event (Attached to Wait Response) -->
+    <bpmn:boundaryEvent id="BoundaryTimer_5Days" name="Timeout 5 Days">
+      <bpmn:attachedToRef>IntermediateCatchMessage_WaitResponse</bpmn:attachedToRef>
+      <bpmn:timerDefinition>
+        <bpmn:timeDuration>P5D</bpmn:timeDuration>
+      </bpmn:timerDefinition>
+      <bpmn:outgoing>SequenceFlow_SendReminder</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task 2: Send Reminder -->
+    <bpmn:task id="Task_SendReminder" name="Send Reminder to Claimant">
+      <bpmn:incoming>SequenceFlow_SendReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_WaitResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ClaimClosed" name="Claim Closed">
+      <bpmn:incoming>SequenceFlow_ContinueProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendQuestionnaire" sourceRef="StartEvent_NewClaim" targetRef="Task_SendQuestionnaire"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse" name="Wait for Response" sourceRef="Task_SendQuestionnaire" targetRef="IntermediateCatchMessage_WaitResponse"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueProcess" sourceRef="IntermediateCatchMessage_WaitResponse" targetRef="EndEvent_ClaimClosed"/>
+
+    <bpmn:sequenceFlow id="SequenceLoop_WaitResponse" name="Retry Wait" sourceRef="Task_SendReminder" targetRef="IntermediateCatchMessage_WaitResponse"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

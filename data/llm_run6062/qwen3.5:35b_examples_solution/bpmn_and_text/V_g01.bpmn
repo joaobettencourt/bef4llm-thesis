@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RoboticBurgerSeller" targetNamespace="http://bpmnio.com">
+  <bpmn:collaboration id="Collab_BurgerProcess">
+    <bpmn:participant id="Participant_RobotSystem" name="Robotic Burger Seller System" processRef="Proc_OrderProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OrderProcessing" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Order Received">
+      <bpmn:outgoing>SequenceFlow_StartToAsk</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Ask Menu Choice -->
+    <bpmn:serviceTask id="Task_AskMenuChoice" name="Robot asks order choice">
+      <bpmn:incoming>SequenceFlow_StartToAsk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Menu Decision -->
+    <bpmn:exclusiveGateway id="Gateway_MenuChoice" name="Menu or Burger Only?">
+      <bpmn:incoming>SequenceFlow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesToParallel</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway (Menu Path) -->
+    <bpmn:parallelGateway id="Gateway_MenuSplit" name="">
+      <bpmn:incoming>SequenceFlow_YesToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DrinkPrep</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SideAsk</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare Drink -->
+    <bpmn:serviceTask id="Task_PrepareDrink" name="Prepare drink">
+      <bpmn:incoming>SequenceFlow_DrinkPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConverge1</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Ask Sides -->
+    <bpmn:userTask id="Task_AskSides" name="Ask fries or wedges">
+      <bpmn:incoming>SequenceFlow_SideAsk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSideDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Side Decision -->
+    <bpmn:exclusiveGateway id="Gateway_SideChoice" name="Fries or Wedges?">
+      <bpmn:incoming>SequenceFlow_ToSideDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FriesPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Make Fries -->
+    <bpmn:serviceTask id="Task_MakeFries" name="Prepare fries">
+      <bpmn:incoming>SequenceFlow_FriesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConverge2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Make Wedges -->
+    <bpmn:serviceTask id="Task_MakeWedges" name="Prepare wedges">
+      <bpmn:incoming>SequenceFlow_WedgesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConverge2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Converging Side Prep -->
+    <bpmn:exclusiveGateway id="Gateway_SideMerge" name="">
+      <bpmn:incoming>SequenceFlow_FriesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConverge2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway (Merge) -->
+    <bpmn:parallelGateway id="Gateway_MergeAll" name="">
+      <bpmn:incoming>SequenceFlow_DrinkToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SideToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToBurgerPrep</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Prepare Burger -->
+    <bpmn:serviceTask id="Task_PrepareBurger" name="Prepare burger">
+      <bpmn:incoming>SequenceFlow_ToBurgerPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDelivery</bpmn:outgoing>
+
+      <!-- Boundary Event for Status Updates -->
+      <bpmn:boundaryEvent id="Boundary_StatusUpdate" name="Status Update">
+        <bpmn:attachedToRef>Task_PrepareBurger</bpmn:attachedToRef>
+        <bpmn:timerDefinition xsi:type="bpmn:TimeCycleExpression">${PT30S}</bpmn:timerDefinition>
+      </bpmn:boundaryEvent>
+
+    </bpmn:serviceTask>
+
+    <!-- Task: Send Status Update -->
+    <bpmn:userTask id="Task_SendStatus" name="Send status update">
+       <bpmn:incoming>SequenceFlow_UpdateTrigger</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ContinueBurger</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Delivery" name="Order Delivered">
+      <bpmn:incoming>SequenceFlow_ToDelivery</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAsk" sourceRef="StartEvent_1" targetRef="Task_AskMenuChoice"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToDecision" sourceRef="Task_AskMenuChoice" targetRef="Gateway_MenuChoice"/>
+
+    <!-- Menu Yes Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesToParallel" name="Menu Order" sourceRef="Gateway_MenuChoice" targetRef="Gateway_MenuSplit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${menuOrder}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Menu Split Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_DrinkPrep" sourceRef="Gateway_MenuSplit" targetRef="Task_PrepareDrink"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SideAsk" name="While drink..." sourceRef="Gateway_MenuSplit" targetRef="Task_AskSides"/>
+
+    <!-- Side Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSideDecision" sourceRef="Task_AskSides" targetRef="Gateway_SideChoice"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FriesPath" name="Fries" sourceRef="Gateway_SideChoice" targetRef="Task_MakeFries">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${sideType == 'fries'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Wedges Path -->
+    <bpmn:exclusiveGateway id="Gateway_SideChoice2" name="">
+      <bpmn:incoming>SequenceFlow_ToSideDecision</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_WedgesPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <bpmn:sequenceFlow id="SequenceFlow_WedgesPath" name="Wedges" sourceRef="Gateway_SideChoice2" targetRef="Task_MakeWedges">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${sideType == 'wedges'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Convergence -->
+     <bpmn:parallelGateway id="Gateway_MergeAll" name="">
+      <bpmn:incoming>SequenceFlow_DrinkToMerge</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ToBurgerPrep</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Simplified convergence for valid XML structure -->
+      <bpmn:sequenceFlow id="SequenceFlow_DrinkToMerge" sourceRef="Task_PrepareDrink" targetRef="Gateway_MergeAll"/>
+       <bpmn:sequenceFlow id="SequenceFlow_SideToMerge" name="" sourceRef="Gateway_SideChoice2" targetRef="Gateway_MergeAll"> <!-- Simplified -->
+      </bpmn:sequenceFlow>
+
+    <!-- Burger Prep Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_ToBurgerPrep" sourceRef="Gateway_MergeAll" targetRef="Task_PrepareBurger"/>
+
+    <!-- Status Update Loop (Simplified) -->
+       <bpmn:boundaryEvent id="Boundary_StatusUpdate">
+        <bpmn:timerDefinition xsi:type="bpmn:TimeCycleExpression">${PT30S}</bpmn:timerDefinition>
+      </bpmn:boundaryEvent>
+
+    <!-- Delivery Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_ToDelivery" sourceRef="Task_PrepareBurger" targetRef="EndEvent_Delivery"/>
+
+  </bpmn:process>
+</bpmn:definitions>

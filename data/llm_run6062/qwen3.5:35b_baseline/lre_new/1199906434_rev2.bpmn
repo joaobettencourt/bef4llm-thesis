@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ResolveIssue_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_SupportProcess">
+    <bpmn:participant id="Participant_MainSupport" name="Technical Support Process" processRef="Process_ResolvingError" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ResolvingError" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_DropOffTech" name="Drop-off Tech">
+        <bpmn:flowNodeRef>Seller_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckTypos</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Technician" name="Technician">
+        <bpmn:flowNodeRef>Gateway_IsTypo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCustomerCorrection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CanCorrect</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ScourSources</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Seller_StartEvent" name="Notify of Data Validation Error">
+      <bpmn:outgoing>Seller_Flow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Drop-off Tech -->
+    <bpmn:task id="Task_CheckTypos" name="Check for typos">
+      <bpmn:incoming>Seller_Flow_01</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_TypoDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Typo? -->
+    <bpmn:exclusiveGateway id="Gateway_IsTypo" name="Is it a typo?">
+      <bpmn:incoming>Seller_Flow_TypoDecision</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ResolvedIfTypo</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_NextCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Technician -->
+    <bpmn:task id="Task_CheckCustomerCorrection" name="Check if customer can correct">
+      <bpmn:incoming>Seller_Flow_NextCheck</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_CustomerDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Can Customer Fix? -->
+    <bpmn:exclusiveGateway id="Gateway_CanCorrect" name="Can customer correct?">
+      <bpmn:incoming>Seller_Flow_CustomerDecision</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ResolvedIfCustomer</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_ScourSourcesPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Scour Sources -->
+    <bpmn:task id="Task_ScourSources" name="Scour public sources">
+      <bpmn:incoming>Seller_Flow_ScourSourcesPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ScourDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_IssueResolved" name="Issue Resolved">
+      <bpmn:incoming>Seller_Flow_ResolvedIfTypo</bpmn:incoming>
+      <bpmn:incoming>Seller_Flow_ResolvedIfCustomer</bpmn:incoming>
+      <bpmn:incoming>Seller_Flow_ScourDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seller_Flow_01" sourceRef="Seller_StartEvent" targetRef="Task_CheckTypos">
+      <bpmn:name>Notify</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_TypoDecision" name="Check Typos Result" sourceRef="Task_CheckTypos" targetRef="Gateway_IsTypo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_ResolvedIfTypo" name="Yes (Is typo)" sourceRef="Gateway_IsTypo" targetRef="EndEvent_IssueResolved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isTypo == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_NextCheck" name="No (Not a typo)" sourceRef="Gateway_IsTypo" targetRef="Task_CheckCustomerCorrection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isTypo == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_CustomerDecision" name="Check Correction Result" sourceRef="Task_CheckCustomerCorrection" targetRef="Gateway_CanCorrect">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_ResolvedIfCustomer" name="Yes (Can fix)" sourceRef="Gateway_CanCorrect" targetRef="EndEvent_IssueResolved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${canCorrect == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_ScourSourcesPath" name="No (Cannot fix)" sourceRef="Gateway_CanCorrect" targetRef="Task_ScourSources">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${canCorrect == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seller_Flow_ScourDone" name="Scour Done" sourceRef="Task_ScourSources" targetRef="EndEvent_IssueResolved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

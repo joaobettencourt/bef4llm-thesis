@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OEE_Monitoring" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_OEE_Process">
+    <bpmn:participant name="OEE Monitoring System" processRef="Process_OEE_Calculation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OEE_Calculation" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="Lane_Set_Monitoring">
+      <bpmn:lane name="Monitoring System">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceCalcOEE</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckThreshold</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StopMachine</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceSendEmail</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Machine Connected">
+      <bpmn:outgoing>SeqFlow_Start_Collect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Collect Data -->
+    <bpmn:task id="Task_CollectData" name="Collect Machine Info">
+      <bpmn:incoming>SeqLoop_OK</bpmn:incoming>
+      <bpmn:incoming>SeqFlow_Restart_Loop</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_Calc_OEE</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Disconnect -->
+    <bpmn:boundaryEvent id="Boundary_Disconnect" name="Machine Disconnected">
+      <bpmn:interrupting>true</bpmn:interrupting>
+      <bpmn:messageRef>Message_MachineDisconnected</bpmn:messageRef>
+    </bpmn:boundaryEvent>
+
+    <!-- Service Task: Calculate OEE -->
+    <bpmn:serviceTask id="ServiceCalcOEE" name="Calculate Overall Equipment Efficiency">
+      <bpmn:incoming>SeqFlow_Calc_OEE</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_Gateway_Check</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gw_CheckThreshold" name="OEE &lt; Threshold?">
+      <bpmn:incoming>SeqFlow_Gateway_Check</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_Yes_LowOEE</bpmn:outgoing>
+      <bpmn:outgoing>SeqLoop_OK</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Stop Machine -->
+    <bpmn:task id="Task_StopMachine" name="Stop Machine">
+      <bpmn:incoming>SeqFlow_Yes_LowOEE</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SendEmail</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Service Task: Send Email -->
+    <bpmn:serviceTask id="ServiceSendEmail" name="Send Email to Engineer">
+      <bpmn:incoming>SeqFlow_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>SeqWait_RestartSignal</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Intermediate Catch Event for Restart -->
+    <bpmn:startEvent id="CatchEvent_RestartSignal" name="Machine Restarted">
+      <bpmn:messageRef>Message_MachineRestarted</bpmn:messageRef>
+      <bpmn:outgoing>SeqFlow_Restart_Loop</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event for Disconnect -->
+    <bpmn:endEvent id="End_Event_Disconnected" name="Process Stopped (Disconnected)">
+      <bpmn:incoming>Boundary_Disconnect_Flow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Collect Data -->
+    <bpmn:sequenceFlow id="SeqFlow_Start_Collect" name="Start Monitoring">
+      <bpmn:sourceRef>StartEvent_1</bpmn:sourceRef>
+      <bpmn:targetRef>Task_CollectData</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Collect Data to Calc OEE -->
+    <bpmn:sequenceFlow id="SeqFlow_Calc_OEE">
+      <bpmn:sourceRef>Task_CollectData</bpmn:sourceRef>
+      <bpmn:targetRef>ServiceCalcOEE</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Calc OEE to Gateway -->
+    <bpmn:sequenceFlow id="SeqFlow_Gateway_Check">
+      <bpmn:sourceRef>ServiceCalcOEE</bpmn:sourceRef>
+      <bpmn:targetRef>Gw_CheckThreshold</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway Yes (Low OEE) -->
+    <bpmn:sequenceFlow id="SeqFlow_Yes_LowOEE" name="Below Threshold">
+      <bpmn:sourceRef>Gw_CheckThreshold</bpmn:sourceRef>
+      <bpmn:targetRef>Task_StopMachine</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway No (OK) -->
+    <bpmn:sequenceFlow id="SeqLoop_OK" name="Normal Operation">
+      <bpmn:sourceRef>Gw_CheckThreshold</bpmn:sourceRef>
+      <bpmn:targetRef>Task_CollectData</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Stop Machine to Send Email -->
+    <bpmn:sequenceFlow id="SeqFlow_SendEmail">
+      <bpmn:sourceRef>Task_StopMachine</bpmn:sourceRef>
+      <bpmn:targetRef>ServiceSendEmail</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Email to Restart Signal -->
+    <bpmn:sequenceFlow id="SeqWait_RestartSignal">
+      <bpmn:sourceRef>ServiceSendEmail</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_RestartSignal</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Restart Signal to Loop Back -->
+    <bpmn:sequenceFlow id="SeqFlow_Restart_Loop" name="Resume Monitoring">
+      <bpmn:sourceRef>CatchEvent_RestartSignal</bpmn:sourceRef>
+      <bpmn:targetRef>Task_CollectData</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Boundary Event Flow to End -->
+    <bpmn:sequenceFlow id="Boundary_Disconnect_Flow">
+      <bpmn:sourceRef>Boundary_Disconnect</bpmn:sourceRef>
+      <bpmn:targetRef>End_Event_Disconnected</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Global Message Definitions -->
+  <bpmn:message id="Message_MachineDisconnected" name="Machine Disconnected"/>
+  <bpmn:message id="Message_MachineRestarted" name="Machine Restarted"/>
+
+</bpmn:definitions>

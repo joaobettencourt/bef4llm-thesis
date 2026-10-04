@@ -1,0 +1,2174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SchufaProcess">
+    <bpmn:participant id="Participant_Bank" name="Bank (Kreditvergabe)" processRef="Process_BankScoring" />
+    <bpmn:participant id="Participant_Schufa" name="Schufasystem" processRef="Process_SchufaLogic" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="Task_SendRequest" targetRef="Event_ReceiveReq" />
+    <bpmn:messageFlow id="MessageFlow_ResultImmediate" sourceRef="Task_SendResultL1" targetRef="End_CatchResponse" />
+    <bpmn:messageFlow id="MessageFlow_DelayNotif" sourceRef="Task_SendDelayNotification" targetRef="Event_ReceiveDelayedStart" />
+    <bpmn:messageFlow id="MessageFlow_FinalResult" sourceRef="Task_SendFinalResult" targetRef="End_CatchFinalResponse" />
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_BankScoring" name="Schufascoring-Prozess bei der Bank">
+    <bpmn:startEvent id="StartButtonRequest" name="Score-Anfrage starten">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SendRequest" name="Schufa-Scoringanfrage senden">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToWaitResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="StartButtonRequest" targetRef="Task_SendRequest">
+      <bpmn:name>Schufa-Scoringanfrage senden</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for Response (Level 1 or Delay Notification) -->
+    <bpmn:intermediateCatchEvent id="End_CatchResponse" name="Warte auf Antwort">
+      <bpmn:incoming>SequenceFlow_TaskToWaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResponseToGateway</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToWaitResponse" sourceRef="Task_SendRequest" targetRef="End_CatchResponse">
+      <bpmn:name>Schufa-Scoringanfrage senden</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway to distinguish Immediate Result vs Delay Notification -->
+    <bpmn:exclusiveGateway id="Gateway_ResultType" name="Ergebnisart">
+      <bpmn:incoming>SequenceFlow_ResponseToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ImmediateResultPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DelayedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResponseToGateway" sourceRef="End_CatchResponse" targetRef="Gateway_ResultType">
+      <bpmn:name>Schufa-Scoringanfrage senden</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 1: Immediate Result -->
+    <bpmn:task id="Task_DisplayResultL1" name="Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_ImmediateResultPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndSuccess</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Delay Notification -->
+    <bpmn:task id="Task_NotifyDelay" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_DelayedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitFinalResult</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Wait for Final Result -->
+    <bpmn:intermediateCatchEvent id="End_CatchDelayedStart" name="Warte auf finales Ergebnis">
+      <bpmn:incoming>SequenceFlow_WaitFinalResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalToDisplay</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Final Result Display -->
+    <bpmn:endEvent id="End_Success" name="Scoring abgeschlossen">
+      <bpmn:incoming>SequenceFlow_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_DelayedSuccess_Final" name="Scoring abgeschlossen (verzögert)">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_ImmediateResultPath" name="Sofortiges Ergebnis" sourceRef="Gateway_ResultType" targetRef="Task_DisplayResultL1">
+      <bpmn:name>Sofortiges Ergebnis</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Path 2: Delay Notification -->
+    <bpmn:task id="Task_NotifyDelay" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_DelayedPath</bpmn:outgoing /> 
+       <!-- Fix below in final block -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen</bpmn:name>
+    </bpmn:endEvent>
+
+     <!-- Fixing the flow for delayed path end event -->
+    <bpmn:task id="Task_DisplayResultL1_Delayed" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_FinallyReceived</bpmn:outgoing /> 
+       <!-- Wait, incoming -->
+    </bpmn:endEvent>
+
+     <bpmn:sequenceFlow id="SequenceFlow_FinalToDisplay" sourceRef="Task_DisplayResultL1_Delayed" targetRef="End_DelayedSuccess_Final">
+      <bpmn:name>Finales Ergebnis im Frontend anzeigen

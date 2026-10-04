@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1sepa_mandat" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SEPA_Process">
+    <bpmn:participant id="Participant_SEPA_Mandat" name="SEPA Mandat Processing Process" processRef="Process_1sepa_mandat"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1sepa_mandat" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_SEPA_Process">
+      <bpmn:lane id="Lane_Customer_Service" name="Kundenservice">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_Person_Search</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System_Automation" name="Systemautomatisierung">
+        <bpmn:flowNodeRef>ServiceTask_IBAN_Check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_Country_Detect</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Manual_Processing" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserTask_Manual_Check_Missing_Data</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_Create_Letter_Requesting_Sig</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Data_Validation" name="Datenvalidierung">
+        <bpmn:flowNodeRef>UserTask_Clerk_Check_Bank_Connection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_New_Mandat_Create</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneset>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Eingang SEPA-Mandat Daten">
+      <bpmn:outgoing>SequenceFlow_IBAN_Check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IBAN Check -->
+    <bpmn:userTask id="ServiceTask_IBAN_Check" name="IBAN Vorhanden prüfen">
+      <bpmn:incoming>SequenceFlow_IBAN_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Country_Detect</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Country Detection -->
+    <bpmn:serviceTask id="ServiceTask_Country_Detect" name="Land aus IBAN ermitteln">
+      <bpmn:incoming>SequenceFlow_Country_Detect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Person_Search</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Person Search -->
+    <bpmn:userTask id="UserTask_Person_Search" name="Person im System suchen">
+      <bpmn:incoming>SequenceFlow_Person_Search</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Info_Complete_Check</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Info Completeness Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Info_Complete" name="Alle Informationen vorhanden?">
+      <bpmn:incoming>SequenceFlow_Info_Complete_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Signature_Present_Check</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Signature Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Signature_Present" name="Unterschrift vorhanden?">
+      <bpmn:incoming>SequenceFlow_Signature_Present_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Manual_Data_Check</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Check Missing Data -->
+    <bpmn:userTask id="UserTask_Manual_Check_Missing_Data" name="Manuelle Prüfung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_Manual_Data_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Valid_From_Bank_Check</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Create Letter Requesting Sig -->
+    <bpmn:serviceTask id="ServiceTask_Create_Letter_Requesting_Sig" name="Brief zur Unterschriftserstellung erstellen">
+      <bpmn:incoming>SequenceFlow_Manual_Data_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Wait_Feedback</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Feedback -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_Wait_Feedback" name="Warte 28 Tage auf Rückmeldung">
+      <bpmn:incoming>SequenceFlow_Wait_Feedback</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Valid_From_Bank_Check</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Valid From Date & Bank Connection Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Valid_From_Bank_Check" name="Gültig von Datum vorhanden?">
+      <bpmn:incoming>SequenceFlow_Manual_Data_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Wait_Feedback</bpmn:outgoing> <!-- Simplified flow for XML structure -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Bank Connection Check (Manual/System) -->
+    <bpmn:userTask id="UserTask_Clerk_Check_Bank_Connection" name="Bankverbindung prüfen">
+      <bpmn:incoming>SequenceFlow_Valid_From_Bank_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Active_Mandat_Check</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Active Mandate Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Active_Mandat_Exists" name="Aktives SEPA-Mandat vorhanden?">
+      <bpmn:incoming>SequenceFlow_Active_Mandat_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_New_Mandat_Create</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- New Mandate Creation -->
+    <bpmn:userTask id="UserTask_New_Mandat_Create" name="Neues SEPA-Mandat anlegen">
+      <bpmn:incoming>SequenceFlow_Active_Mandat_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Outstanding_Claims_Check</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Outstanding Claims Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Outstanding_Claims" name="Offene Forderungen prüfen">
+      <bpmn:incoming>SequenceFlow_New_Mandat_Create</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Manual_Review_High_Value</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Review High Value -->
+    <bpmn:userTask id="UserTask_Manual_Review_High_Value" name="Manuelle Überprüfung bei &gt; 5.000 €">
+      <bpmn:incoming>SequenceFlow_Outstanding_Claims</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Process_Completed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SEPA_Completed" name="SEPA-Mandat abgeschlossen">
+      <bpmn:incoming>SequenceFlow_Manual_Review_High_Value</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_IBAN_Check" sourceRef="StartEvent_01" targetRef="ServiceTask_IBAN_Check"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Country_Detect" sourceRef="ServiceTask_IBAN_Check" targetRef="ServiceTask_Country_Detect"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Person_Search" sourceRef="ServiceTask_Country_Detect" targetRef="UserTask_Person_Search"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Info_Complete_Check" sourceRef="UserTask_Person_Search" targetRef="ExclusiveGateway_Info_Complete"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Signature_Present_Check" name="Unterschrift prüfen" sourceRef="ExclusiveGateway_Info_Complete" targetRef="ExclusiveGateway_Signature_Present"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Manual_Data_Check" name="Ja - Manuell prüfen" sourceRef="ExclusiveGateway_Signature_Present" targetRef="UserTask_Manual_Check_Missing_Data"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Wait_Feedback" name="Nein - Brief erstellen &amp; Warten" sourceRef="ExclusiveGateway_Signature_Present" targetRef="ServiceTask_Create_Letter_Requesting_Sig"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Valid_From_Bank_Check" name="Ja - Gültiges Datum vorhanden" sourceRef="UserTask_Manual_Check_Missing_Data" targetRef="ExclusiveGateway_Valid_From_Bank_Check"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Active_Mandat_Check" sourceRef="ServiceTask_Create_Letter_Requesting_Sig" targetRef="IntermediateCatchEvent_Wait_Feedback"/>
+    <bpmn:sequenceFlow id="SequenceFlow_New_Mandat_Create" name="Neues Mandat anlegen" sourceRef="ExclusiveGateway_Valid_From_Bank_Check" targetRef="UserTask_Clerk_Check_Bank_Connection"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Outstanding_Claims" sourceRef="IntermediateCatchEvent_Wait_Feedback" targetRef="ExclusiveGateway_Active_Mandat_Exists"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Manual_Review_High_Value" name="Ja - Manuell prüfen &gt; 5.000 €" sourceRef="UserTask_Clerk_Check_Bank_Connection" targetRef="ExclusiveGateway_Outstanding_Claims"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Process_Completed" name="SEPA-Mandat abgeschlossen" sourceRef="ExclusiveGateway_Active_Mandat_Exists" targetRef="EndEvent_SEPA_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

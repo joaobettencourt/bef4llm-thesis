@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/DD/20100524/DC http://www.omg.org/spec/DD/20100524/DI http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+             id="definitions" targetNamespace="http://www.example.com">
+  <process id="storage_management_process" isExecutable="true">
+    <startEvent id="start_event">
+      <outgoing>read_order</outgoing>
+    </startEvent>
+    <sequenceFlow id="read_order" sourceRef="start_event" targetRef="read_order_task"/>
+    <serviceTask id="read_order_task">
+      <incoming>read_order</incoming>
+      <outgoing>check_product_in_stock</outgoing>
+    </serviceTask>
+    <sequenceFlow id="check_product_in_stock" sourceRef="read_order_task" targetRef="is_product_in_stock_gateway"/>
+    <exclusiveGateway id="is_product_in_stock_gateway">
+      <incoming>check_product_in_stock</incoming>
+      <outgoing>in_stock</outgoing>
+      <outgoing>not_in_stock</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="in_stock" name="${product.inStock == true}" sourceRef="is_product_in_stock_gateway" targetRef="withdraw_product_from_warehouse_task">
+    </sequenceFlow>
+    <manualTask id="withdraw_product_from_warehouse_task">
+      <incoming>in_stock</incoming>
+      <outgoing>check_order_ready_for_shipment</outgoing>
+    </manualTask>
+    <sequenceFlow id="check_order_ready_for_shipment" sourceRef="withdraw_product_from_warehouse_task" targetRef="is_order_ready_for_shipment_gateway"/>
+    <sequenceFlow id="not_in_stock" name="${product.inStock == false}" sourceRef="is_product_in_stock_gateway" targetRef="reorder_from_wholesaler_task">
+    </sequenceFlow>
+    <serviceTask id="reorder_from_wholesaler_task">
+      <incoming>not_in_stock</incoming>
+      <outgoing>wait_for_product_arrival</outgoing>
+    </serviceTask>
+    <sequenceFlow id="wait_for_product_arrival" sourceRef="reorder_from_wholesaler_task" targetRef="waiting_until_arrives_gateway"/>
+    <serviceTask id="waiting_until_arrives_gateway">
+      <incoming>wait_for_product_arrival</incoming>
+      <outgoing>check_arrival_time</outgoing>
+    </serviceTask>
+    <sequenceFlow id="check_arrival_time" sourceRef="waiting_until_arrives_gateway" targetRef="arrived_after_ten_days_gateway"/>
+    <exclusiveGateway id="arrived_after_ten_days_gateway">
+      <incoming>check_arrival_time</incoming>
+      <outgoing>demanding_delivery_delay_penalty</outgoing>
+      <outgoing>register_in_stock_management_system_flow</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="demanding_delivery_delay_penalty" name="${waitingTime > 10}" sourceRef="arrived_after_ten_days_gateway" targetRef="demand_delivery_delay_penalty_task">
+    </sequenceFlow>
+    <serviceTask id="demand_delivery_delay_penalty_task">
+      <incoming>demanding_delivery_delay_penalty</incoming>
+      <outgoing>register_in_stock_management_system_flow_2</outgoing>
+    </serviceTask>
+    <sequenceFlow id="register_in_stock_management_system_flow" sourceRef="arrived_after_ten_days_gateway" targetRef="register_in_stock_management_system_task"/>
+    <manualTask id="register_in_stock_management_system_task">
+      <incoming>register_in_stock_management_system_flow</incoming>
+      <outgoing>check_order_ready_for_shipment_2</outgoing>
+    </manualTask>
+    <sequenceFlow id="check_order_ready_for_shipment_2" sourceRef="register_in_stock_management_system_task" targetRef="is_order_ready_for_shipment_gateway"/>
+    <exclusiveGateway id="is_order_ready_for_shipment_gateway">
+      <incoming>check_order_ready_for_shipment</incoming>
+      <incoming>check_order_ready_for_shipment_2</incoming>
+      <outgoing>order_ready</outgoing>
+      <outgoing>order_not_ready</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="order_ready" name="${order.readyForShipment == true}" sourceRef="is_order_ready_for_shipment_gateway" targetRef="request_courier_and_pack_products_gateway">
+    </sequenceFlow>
+    <parallelGateway id="request_courier_and_pack_products_gateway">
+      <incoming>order_ready</incoming>
+      <outgoing>request_courier</outgoing>
+      <outgoing>pack_products</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="request_courier" sourceRef="request_courier_and_pack_products_gateway" targetRef="request_courier_task"/>
+    <manualTask id="request_courier_task">
+      <incoming>request_courier</incoming>
+      <outgoing>ship_order_flow</outgoing>
+    </manualTask>
+    <sequenceFlow id="pack_products" sourceRef="request_courier_and_pack_products_gateway" targetRef="pack_products_task"/>
+    <manualTask id="pack_products_task">
+      <incoming>pack_products</incoming>
+      <outgoing>ship_order_flow_2</outgoing>
+    </manualTask>
+    <parallelGateway id="ship_order">
+      <incoming>request_courier_task</incoming>
+      <incoming>pack_products_task</incoming>
+      <outgoing>ship_order_flow</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="ship_order_flow" sourceRef="ship_order" targetRef="end_event"/>
+    <endEvent id="end_event">
+      <incoming>ship_order_flow</incoming>
+    </endEvent>
+    <sequenceFlow id="order_not_ready" name="${order.readyForShipment == false}" sourceRef="is_order_ready_for_shipment_gateway" targetRef="select_next_product_gateway">
+    </sequenceFlow>
+  </process>
+</definitions>

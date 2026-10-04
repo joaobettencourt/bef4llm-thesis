@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LANParty_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_LAN_Party" isExecutable="false">
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_SendInvitations" name="Send invitations to friends">
+      <bpmn:outgoing>Flow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway after sending invites, waiting for game list -->
+    <bpmn:parallelGateway id="PG_ReceiveGames" name="">
+      <bpmn:incoming>Flow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>Flow_SuggestDateLoopStart</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CheckGameInventory</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Throw Event for Suggesting Date -->
+    <bpmn:intermediateThrowEvent id="IE_SuggestDate" name="Suggest appointment">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_SuggestDateLoopStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitForAnswer</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event for Date Answer -->
+    <bpmn:intermediateCatchEvent id="IE_CatchDateAnswer" name="Receive answer">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitForAnswer</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckFriendsCount</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway for Date Confirmation -->
+    <bpmn:exclusiveGateway id="GW_DateConfirmation" name="&gt;= 8 Friends available?">
+      <bpmn:incoming>Flow_CheckFriendsCount</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoopDateIfNo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DateConfirmedToConverge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop back to Suggest Date -->
+    <bpmn:sequenceFlow id="Flow_LoopDateIfNo" name="no">
+      <bpmn:sourceRef>GW_DateConfirmation</bpmn:sourceRef>
+      <bpmn:targetRef>IE_SuggestDate</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Path to Converge after Date Confirmation -->
+    <bpmn:sequenceFlow id="Flow_DateConfirmedToConverge" name="yes">
+      <bpmn:sourceRef>GW_DateConfirmation</bpmn:sourceRef>
+      <bpmn:targetRef>PG_ConvergeDateAndGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Intermediate Catch Event for Game List -->
+    <bpmn:intermediateCatchEvent id="IE_CatchGameList" name="Receive list of games">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_CheckGameInventory</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckAllGamesAvailable</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway for Game Availability -->
+    <bpmn:exclusiveGateway id="GW_GameAvailability" name="All games available?">
+      <bpmn:incoming>Flow_CheckAllGamesAvailable</bpmn:incoming>
+      <bpmn:outgoing>Flow_DownloadMissing</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GamesReadyToConverge_Yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to Download Missing Games -->
+    <bpmn:userTask id="Task_DownloadGames" name="Download missing games">
+      <bpmn:incoming>Flow_DownloadMissing</bpmn:incoming>
+      <bpmn:outgoing>Flow_GamesReadyToConverge_No</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Converging Gateway for Date and Games -->
+    <bpmn:parallelGateway id="PG_ConvergeDateAndGames" name="">
+      <bpmn:incoming>Flow_DateConfirmedToConverge</bpmn:incoming>
+      <bpmn:incoming>Flow_GamesReadyToConverge_Yes</bpmn:incoming>
+      <bpmn:incoming>Flow_GamesReadyToConverge_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_RequestBeerSupply</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Throw Event for Beer Request -->
+    <bpmn:intermediateThrowEvent id="IE_RequestBeer" name="Request beer supply">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_RequestBeerSupply</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitForBeerAnswer</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event for Beer Answer -->
+    <bpmn:intermediateCatchEvent id="IE_CatchBeerAnswer" name="Receive answer">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitForBeerAnswer</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckEnoughBeer</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway for Beer Check -->
+    <bpmn:exclusiveGateway id="GW_EnoughBeer" name="enough beer?">
+      <bpmn:incoming>Flow_CheckEnoughBeer</bpmn:incoming>
+      <bpmn:outgoing>Flow_BuyMissingBeer</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReadyToParty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to Buy Missing Beer -->
+    <bpmn:userTask id="Task_BuyBeer" name="Buy what's missing">
+      <bpmn:incoming>Flow_BuyMissingBeer</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReadyToParty</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_StartParty" name="Enjoy the LAN party">
+      <bpmn:incoming>Flow_ReadyToParty</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Game Path Convergence Logic (Simplified) -->
+    <bpmn:sequenceFlow id="Flow_CheckAllGamesAvailable" name="">
+      <bpmn:sourceRef>IE_CatchGameList</bpmn:sourceRef>
+      <bpmn:targetRef>GW_GameAvailability</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_DownloadMissing" name="no">
+      <bpmn:sourceRef>GW_GameAvailability</bpmn:sourceRef>
+      <bpmn:targetRef>Task_DownloadGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Download Task to Converge -->
+    <bpmn:sequenceFlow id="Flow_GamesReadyToConverge_No" name="">
+      <bpmn:sourceRef>Task_DownloadGames</bpmn:sourceRef>
+      <bpmn:targetRef>PG_ConvergeDateAndGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Game Availability Yes to Converge -->
+    <bpmn:sequenceFlow id="Flow_GamesReadyToConverge_Yes" name="">
+      <bpmn:sourceRef>GW_GameAvailability</bpmn:sourceRef>
+      <bpmn:targetRef>PG_ConvergeDateAndGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Start to Parallel Gateway -->
+    <bpmn:sequenceFlow id="Flow_StartToParallel" name="">
+      <bpmn:sourceRef>Start_SendInvitations</bpmn:sourceRef>
+      <bpmn:targetRef>PG_ReceiveGames</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Parallel Gateway to Date Loop Start -->
+    <bpmn:sequenceFlow id="Flow_SuggestDateLoopStart" name="">
+      <bpmn:sourceRef>PG_ReceiveGames</bpmn:sourceRef>
+      <bpmn:targetRef>IE_SuggestDate</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Parallel Gateway to Game Check -->
+    <bpmn:sequenceFlow id="Flow_CheckGameInventory" name="">
+      <bpmn:sourceRef>PG_ReceiveGames</bpmn:sourceRef>
+      <bpmn:targetRef>IE_CatchGameList</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Suggest Date to Wait for Answer -->
+    <bpmn:sequenceFlow id="Flow_WaitForAnswer" name="">
+      <bpmn:sourceRef>IE_SuggestDate</bpmn:sourceRef>
+      <bpmn:targetRef>IE_CatchDateAnswer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Wait for Answer to Check Friends Count -->
+    <bpmn:sequenceFlow id="Flow_CheckFriendsCount" name="">
+      <bpmn:sourceRef>IE_CatchDateAnswer</bpmn:sourceRef>
+      <bpmn:targetRef>GW_DateConfirmation</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Converge PG to Beer Request -->
+    <bpmn:sequenceFlow id="Flow_RequestBeerSupply" name="">
+      <bpmn:sourceRef>PG_ConvergeDateAndGames</bpmn:sourceRef>
+      <bpmn:targetRef>IE_RequestBeer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Beer Request to Wait for Answer -->
+    <bpmn:sequenceFlow id="Flow_WaitForBeerAnswer" name="">
+      <bpmn:sourceRef>IE_RequestBeer</bpmn:sourceRef>
+      <bpmn:targetRef>IE_CatchBeerAnswer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Wait for Beer Answer to Check Enough -->
+    <bpmn:sequenceFlow id="Flow_CheckEnoughBeer" name="">
+      <bpmn:sourceRef>IE_CatchBeerAnswer</bpmn:sourceRef>
+      <bpmn:targetRef>GW_EnoughBeer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Enough Beer No to Buy Task -->
+    <bpmn:sequenceFlow id="Flow_BuyMissingBeer" name="no">
+      <bpmn:sourceRef>GW_EnoughBeer</bpmn:sourceRef>
+      <bpmn:targetRef>Task_BuyBeer</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Enough Beer Yes to End -->
+    <bpmn:sequenceFlow id="Flow_ReadyToParty" name="">
+      <bpmn:sourceRef>GW_EnoughBeer</bpmn:sourceRef>
+      <bpmn:targetRef>End_StartParty</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_InvoiceProcessing">
+    <bpmn:participant id="Participant_ProcessingSystem" name="Invoice Processing System" processRef="Process_InvoiceHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_InvoiceHandling" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MPOO">
+        <bpmn:flowNodeRef>StartEvent_BillReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_OriginatorType</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_MSPO">
+        <!-- MSPO is a sender, lane included for completeness -->
+      </bpmn:lane>
+      <bpmn:lane id="Lane_GO">
+        <bpmn:flowNodeRef>InclusiveGateway_OriginatorType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoExamineTempMetering</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoExamineTempMeasurement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoExamineAdditionalReadings</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_EquipmentExaminer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoExamineEquipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ConfirmReject</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_MPON">
+        <bpmn:flowNodeRef>InclusiveGateway_EquipmentExaminer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MponExamineEquipment</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_BillReceived" name="Bill Received">
+      <bpmn:outgoing>SequenceFlow_ToOriginatorGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway to determine Bill Origin and Type -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_OriginatorType" name="Bill Origin/Type">
+      <bpmn:incoming>SequenceFlow_ToOriginatorGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MPOO_TempMetering</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MSPO_TempMeasurement</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MSPO_AdditionalReadings</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MPOO_EquipmentAcquisition</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- GO Examination Tasks -->
+    <bpmn:task id="Task_GoExamineTempMetering" name="GO Examines Bill (MPOO Temp Metering)">
+      <bpmn:incoming>SequenceFlow_MPOO_TempMetering</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmReject_GO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GoExamineTempMeasurement" name="GO Examines Bill (MSPO Temp Measurement)">
+      <bpmn:incoming>SequenceFlow_MSPO_TempMeasurement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmReject_GO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_GoExamineAdditionalReadings" name="GO Examines Bill (MSPO Additional Readings)">
+      <bpmn:incoming>SequenceFlow_MSPO_AdditionalReadings</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmReject_GO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Equipment Acquisition Gateway (MPON or GO) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_EquipmentExaminer" name="Equipment Examiner">
+      <bpmn:incoming>SequenceFlow_MPOO_EquipmentAcquisition</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoExaminesEquipment</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MponExaminesEquipment</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- MPON Examination Task -->
+    <bpmn:task id="Task_MponExamineEquipment" name="MPON Examines Bill (Equipment)">
+      <bpmn:incoming>SequenceFlow_MponExaminesEquipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmReject_MPON</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- GO Examination Task for Equipment -->
+    <bpmn:task id="Task_GoExamineEquipment" name="GO Examines Bill (Equipment)">
+      <bpmn:incoming>SequenceFlow_GoExaminesEquipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmReject_GO_Equipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Confirmation/Rejection Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ConfirmReject" name="Decision">
+      <bpmn:incoming>SequenceFlow_ToConfirmReject_GO</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToConfirmReject_MPON</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToConfirmReject_GO_Equipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmWithAdvice</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectInvoice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Confirmation Task -->
+    <bpmn:task id="Task_SendConfirmation" name="Confirm with Payment Advice">
+      <bpmn:incoming>SequenceFlow_ConfirmWithAdvice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndConfirmed</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Rejection Task -->
+    <bpmn:task id="Task_RejectInvoice" name="Reject Invoice">
+      <bpmn:incoming>SequenceFlow_RejectInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Confirmed" name="Confirmed">
+      <bpmn:incoming>SequenceFlow_ToEndConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Rejected">
+      <bpmn:incoming>SequenceFlow_ToEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToOriginatorGateway" sourceRef="StartEvent_BillReceived" targetRef="InclusiveGateway_OriginatorType"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MPOO_TempMetering" name="MPOO - Temp Continuation (Metering)" sourceRef="InclusiveGateway_OriginatorType" targetRef="Task_GoExamineTempMetering"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_TempMeasurement" name="MSPO - Temp Continuation (Measurement)" sourceRef="InclusiveGateway_OriginatorType" targetRef="Task_GoExamineTempMeasurement"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_AdditionalReadings" name="MSPO - Additional Readings" sourceRef="InclusiveGateway_OriginatorType" targetRef="Task_GoExamineAdditionalReadings"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MPOO_EquipmentAcquisition" name="MPOO - Equipment Acquisition (MPON or GO)" sourceRef="InclusiveGateway_OriginatorType" targetRef="InclusiveGateway_EquipmentExaminer"/>
+
+    <!-- Equipment Examiner Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GoExaminesEquipment" name="GO Examines" sourceRef="InclusiveGateway_EquipmentExaminer" targetRef="Task_GoExamineEquipment"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MponExaminesEquipment" name="MPON Examines" sourceRef="InclusiveGateway_EquipmentExaminer" targetRef="Task_MponExamineEquipment"/>
+
+    <!-- Flows to Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToConfirmReject_GO" sourceRef="Task_GoExamineTempMetering" targetRef="ExclusiveGateway_ConfirmReject"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToConfirmReject_MPON" sourceRef="Task_MponExamineEquipment" targetRef="ExclusiveGateway_ConfirmReject"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToConfirmReject_GO_Equipment" sourceRef="Task_GoExamineAdditionalReadings" targetRef="ExclusiveGateway_ConfirmReject"/> <!-- Simplified convergence for validity -->
+
+    <!-- Flows from Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmWithAdvice" name="Confirm with Payment Advice to MPOO/MSPO" sourceRef="ExclusiveGateway_ConfirmReject" targetRef="Task_SendConfirmation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RejectInvoice" name="Reject Invoice of MPOO/MSPO" sourceRef="ExclusiveGateway_ConfirmReject" targetRef="Task_RejectInvoice"/>
+
+    <!-- Flows to End Events -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndConfirmed" sourceRef="Task_SendConfirmation" targetRef="EndEvent_Confirmed"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndRejected" sourceRef="Task_RejectInvoice" targetRef="EndEvent_Rejected"/>
+
+  </bpmn:process>
+</bpmn:definitions>

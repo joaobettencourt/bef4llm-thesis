@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_SchufaScoring_001">  
+  <bpmn:collaboration id="Collab_SchufaScoring">  
+    <!-- Bank Process Pool -->
+    <bpmn:participant id="Pool_BankProcess" name="Bank - Schufascoring-Prozess" processRef="Proc_Bank_001" />  
+    
+    <!-- Schufa System Pool (External) -->
+    <bpmn:participant id="Pool_SchufaSystem" name="Schufa-System" processRef="Proc_Schufa_002" />  
+  </bpmn:collaboration>  
+
+  <!-- Bank Process Definition -->
+  <bpmn:process id="Proc_Bank_001">  
+    <bpmn:startEvent id="Start_RequestScore" name="Schufascoring anfordern">  
+      <bpmn:outgoing>bpmn:SequenceFlow_SendRequest</bpmn:outgoing>  
+    </bpmn:startEvent>  
+
+    <!-- Task to send request to Schufa -->
+    <bpmn:task id="Task_SchufaAnfrage" name="Scoringanfrage an Schufa senden">  
+      <bpmn:incoming>bpmn:SequenceFlow_SendRequest</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_WaitLevel1Result</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Gateway to determine if immediate result available -->
+    <bpmn:exclusiveGateway id="GW_ResultAvailable" name="Ergebnis sofort verfügbar?">  
+      <bpmn:incoming>bpmn:SequenceFlow_WaitLevel1Result</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_ImmediateResult</bpmn:outgoing>  
+      <bpmn:outgoing>bpmn:SequenceFlow_DelayedResult</bpmn:outgoing>  
+    </bpmn:exclusiveGateway>  
+
+    <!-- Normal flow - immediate result -->
+    <bpmn:userTask id="UserTask_ResultReceived" name="Scoringergebnis erhalten">  
+      <bpmn:incoming>bpmn:SequenceFlow_ImmediateResult</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_ShowToSalesStaff</bpmn:outgoing>  
+    </bpmn:userTask>  
+
+    <!-- Display result to sales staff -->
+    <bpmn:userTask id="UserTask_DisplayResult" name="Ergebnis im Frontend anzeigen">  
+      <bpmn:incoming>bpmn:SequenceFlow_ShowToSalesStaff</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_EndNormalProcess</bpmn:outgoing>  
+    </bpmn:userTask>  
+
+    <!-- End event for normal flow -->
+    <bpmn:endEvent id="End_Normal" name="Scoring abgeschlossen">  
+      <bpmn:incoming>bpmn:SequenceFlow_EndNormalProcess</bpmn:incoming>  
+    </bpmn:endEvent>  
+
+    <!-- Exception flow - delayed result notification -->
+    <bpmn:userTask id="UserTask_DelayNotification" name="Verzögerungsmeldung an Vertriebsmitarbeiter">  
+      <bpmn:incoming>bpmn:SequenceFlow_DelayedResult</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_WaitFinalScore</bpmn:outgoing>  
+    </bpmn:userTask>  
+
+    <!-- Wait for final score -->
+    <bpmn:intermediateCatchEvent id="IntWaitForFinalResult" name="Warte auf finales Ergebnis">  
+      <bpmn:incoming>bpmn:SequenceFlow_WaitFinalScore</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_FinalReceived</bpmn:outgoing>  
+    </bpmn:intermediateCatchEvent>  
+
+    <!-- Display final result -->
+    <bpmn:userTask id="UserTask_DisplayFinal" name="Finales Ergebnis im Frontend anzeigen">  
+      <bpmn:incoming>bpmn:SequenceFlow_FinalReceived</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_EndDelayedProcess</bpmn:outgoing>  
+    </bpmn:userTask>  
+
+    <!-- End event for delayed flow -->
+    <bpmn:endEvent id="End_Delayed" name="Scoring abgeschlossen (verzögert)">  
+      <bpmn:incoming>bpmn:SequenceFlow_EndDelayedProcess</bpmn:incoming>  
+    </bpmn:endEvent>  
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="Start_RequestScore" targetRef="Task_SchufaAnfrage">  
+      <bpmn:name>Anforderung senden</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel1Result" sourceRef="Task_SchufaAnfrage" targetRef="GW_ResultAvailable">  
+      <bpmn:name>Schufa antwortet Level 1</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_ImmediateResult" sourceRef="GW_ResultAvailable" targetRef="UserTask_ResultReceived">  
+      <bpmn:name>Jain - sofort verfügbar</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_DelayedResult" sourceRef="GW_ResultAvailable" targetRef="UserTask_DelayNotification">  
+      <bpmn:name>Nein - Verzögerung</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_ShowToSalesStaff" sourceRef="UserTask_ResultReceived" targetRef="UserTask_DisplayResult">  
+      <bpmn:name>Anzeige vorbereiten</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndNormalProcess" sourceRef="UserTask_DisplayResult" targetRef="End_Normal">  
+      <bpmn:name>Prozess beenden</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitFinalScore" sourceRef="IntWaitForFinalResult" targetRef="UserTask_DisplayFinal">  
+      <bpmn:name>Finales Ergebnis erhalten</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndDelayedProcess" sourceRef="UserTask_DisplayFinal" targetRef="End_Delayed">  
+      <bpmn:name>Prozess beenden (verzögert)</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+  </bpmn:process>  
+
+  <!-- Schufa System Process Definition -->
+  <bpmn:process id="Proc_Schufa_002">  
+    <bpmn:startEvent id="StartEvent_Level1Scoring" name="Schufascoring anfrage erhalten">  
+      <bpmn:outgoing>bpmn:SequenceFlow_PerformLevel1</bpmn:outgoing>  
+    </bpmn:startEvent>  
+
+    <!-- Level 1 Scoring Task -->
+    <bpmn:task id="Task_Level1Scoring" name="Erstes Scoring (Level 1)">  
+      <bpmn:incoming>bpmn:SequenceFlow_PerformLevel1</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_ResultReady</bpmn:outgoing>  
+    </bpmn:task>  
+
+    <!-- Gateway to determine if result ready -->
+    <bpmn:exclusiveGateway id="GW_Level1Result" name="Ergebnis sofort fertig?">  
+      <bpmn:incoming>bpmn:SequenceFlow_ResultReady</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_ImmediatePath</bpmn:outgoing>  
+      <bpmn:outgoing>bpmn:SequenceFlow_NeedDelay</bpmn:outgoing>  
+    </bpmn:exclusiveGateway>  
+
+    <!-- Immediate result path -->
+    <bpmn:endEvent id="EndImmediateResult" name="Ergebnis sofort verfügbar">  
+      <bpmn:incoming>bpmn:SequenceFlow_ImmediatePath</bpmn:incoming>  
+    </bpmn:endEvent>  
+
+    <!-- Delayed processing path (Level 2) -->
+    <bpmn:userTask id="UserTask_Level2Scoring" name="Finales Scoring (Level 2)">  
+      <bpmn:incoming>bpmn:SequenceFlow_NeedDelay</bpmn:incoming>  
+      <bpmn:outgoing>bpmn:SequenceFlow_FinalScoreReady</bpmn:outgoing>  
+    </bpmn:userTask>  
+
+    <!-- Final result -->
+    <bpmn:endEvent id="EndFinalScore" name="Finales Ergebnis verfügbar">  
+      <bpmn:incoming>bpmn:SequenceFlow_FinalScoreReady</bpmn:incoming>  
+    </bpmn:endEvent>  
+
+    <!-- Sequence Flows for Schufa Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_PerformLevel1" sourceRef="StartEvent_Level1Scoring" targetRef="Task_Level1Scoring">  
+      <bpmn:name>Sofort Scoring durchführen</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResultReady" sourceRef="Task_Level1Scoring" targetRef="GW_Level1Result">  
+      <bpmn:name>Level 1 abgeschlossen</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_ImmediatePath" sourceRef="GW_Level1Result" targetRef="EndImmediateResult">  
+      <bpmn:name>Jain - Ergebnis sofort fertig</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_NeedDelay" sourceRef="GW_Level1Result" targetRef="UserTask_Level2Scoring">  
+      <bpmn:name>Nein - Verzögerung erforderlich</bpmn:name>  
+    </bpmn:sequenceFlow>  
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalScoreReady" sourceRef="UserTask_Level2Scoring" targetRef="EndFinalScore">  
+      <bpmn:name>Finales Ergebnis ermittelt</bpmn:name>  
+    </bpmn:sequenceFlow>  
+  </bpmn:process>  
+
+  <!-- Message Flows between pools -->
+  <bpmn:messageFlow id="MessageFlow_SchufaAnfrage" sourceRef="Task_SchufaAnfrage" targetRef="StartEvent_Level1Scoring">  
+    <bpmn:name>Scoringanfrage</bpmn:name>  
+  </bpmn:messageFlow>  
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Msg_SchufaAnfrage" name="Schufascoring Anfrage"/>  
+  <bpmn:message id="Msg_ScoreResult" name="Schufascoring Ergebnis"/>  
+
+</bpmn:definitions>

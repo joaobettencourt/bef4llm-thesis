@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_CreditScoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestInitiated" name="Credit Scoring Request Initiated">
+      <bpmn:outgoing>SequenceFlow_StartToRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send request to agency -->
+    <bpmn:serviceTask id="ServiceTask_SendScoringRequest" name="Send Scoring Request to Agency">
+      <bpmn:incoming>SequenceFlow_StartToRequest</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_RequestSent</bpmn:outgoing />
+    </bpmn:serviceTask>
+
+    <!-- Wait for Response -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_WaitResponse" name="Wait for Agency Response">
+      <bpmn:messageEventDefinition messageRef="Message_ScoringResult" />
+      <bpmn:incoming>SequenceFlow_RequestSent</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_ResponseReceived</bpmn:outgoing />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision on Response Type -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckResponseType" name="Response Type?">
+      <bpmn:incoming>SequenceFlow_ResponseReceived</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_QuickResultPath</bpmn:outgoing />
+      <bpmn:outgoing>SequenceFlow_DelayedPath</bpmn:outgoing />
+    </bpmn:exclusiveGateway>
+
+    <!-- Quick Result Path -->
+    <bpmn:userTask id="UserTask_DisplayQuickResult" name="Display Scoring Result (Level 1)">
+      <bpmn:incoming>SequenceFlow_QuickResultPath</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_ResultToClerk</bpmn:outgoing />
+    </bpmn:userTask>
+
+    <!-- Delayed Path -->
+    <bpmn:userTask id="UserTask_DisplayDelayInfo" name="Display Delay Notification">
+      <bpmn:incoming>SequenceFlow_DelayedPath</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_WaitLevel2Result</bpmn:outgoing />
+    </bpmn:userTask>
+
+    <!-- Wait for Level 2 Result -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_WaitLevel2" name="Wait for Scoring Result (Level 2)">
+      <bpmn:messageEventDefinition messageRef="Message_ScoringResultL2" />
+      <bpmn:incoming>SequenceFlow_WaitLevel2Result</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_Level2Received</bpmn:outgoing />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Display Level 2 Result -->
+    <bpmn:userTask id="UserTask_DisplayLevel2Result" name="Display Scoring Result (Level 2)">
+      <bpmn:incoming>SequenceFlow_Level2Received</bpmn:incoming />
+      <bpmn:outgoing>SequenceFlow_ResultToClerkL2</bpmn:outgoing />
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Scoring Completed">
+      <bpmn:incoming>SequenceFlow_ResultToClerk</bpmn:incoming />
+      <bpmn:incoming>SequenceFlow_ResultToClerkL2</bpmn:incoming />
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToRequest" sourceRef="StartEvent_RequestInitiated" targetRef="ServiceTask_SendScoringRequest">
+      <bpmn:name>Clerk initiates request</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RequestSent" sourceRef="ServiceTask_SendScoringRequest" targetRef="IntermediateCatch_WaitResponse">
+      <bpmn:name>Request sent to Agency</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResponseReceived" sourceRef="IntermediateCatch_WaitResponse" targetRef="ExclusiveGateway_CheckResponseType">
+      <bpmn:name>Agency responds</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Quick Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_QuickResultPath" sourceRef="ExclusiveGateway_CheckResponseType" targetRef="UserTask_DisplayQuickResult">
+      <bpmn:name>Level 1 Result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Delayed Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DelayedPath" sourceRef="ExclusiveGateway_CheckResponseType" targetRef="UserTask_DisplayDelayInfo">
+      <bpmn:name>Level 2 Required</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Level 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel2Result" sourceRef="UserTask_DisplayDelayInfo" targetRef="IntermediateCatch_WaitLevel2">
+      <bpmn:name>Clerk checks later</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Level 2 Result -->
+    <bpmn:sequenceFlow id="SequenceFlow_Level2Received" sourceRef="IntermediateCatch_WaitLevel2" targetRef="UserTask_DisplayLevel2Result">
+      <bpmn:name>Level 2 Result Arrives</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Finalize -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResultToClerk" sourceRef="UserTask_DisplayQuickResult" targetRef="EndEvent_ProcessComplete">
+      <bpmn:name>Show result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResultToClerkL2" sourceRef="UserTask_DisplayLevel2Result" targetRef="EndEvent_ProcessComplete">
+      <bpmn:name>Show result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Messages -->
+  <bpmn:message id="Message_ScoringResult" name="Scoring Result (Level 1)" />
+  <bpmn:message id="Message_ScoringResultL2" name="Scoring Result (Level 2)" />
+</bpmn:definitions>

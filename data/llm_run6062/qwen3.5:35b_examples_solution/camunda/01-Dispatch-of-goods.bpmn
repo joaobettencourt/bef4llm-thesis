@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_DispatchGoods_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_DispatchGoods">
+    <bpmn:participant id="Participant_HardwareShop" name="Dispatch of goods Computer Hardware Shop" processRef="Process_Dispatch_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Dispatch_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretary" name="Secretary">
+        <bpmn:flowNodeRef>StartEvent_ShipeGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClariyShipmentMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_NormalShippingPath</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergeAfterInsuranceAndLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Get3OffersFromLogisticsCompanies</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectLogisticCompanyAndPlaceOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Logistics" name="Logistics">
+        <bpmn:flowNodeRef>Task_InsureParcel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>ParallelGateway_StartWarehousingTasks</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CheckAllReadyForPickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ShipmentPrepared</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ShipeGoods" name="Ship goods">
+      <bpmn:outgoing>SequenceFlow_StartToParallelGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway to split into Secretary and Warehouse paths -->
+    <bpmn:parallelGateway id="ParallelGateway_StartWarehousingTasks" name="">
+      <bpmn:incoming>SequenceFlow_StartToParallelGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSecretaryPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToWarehousePackagingTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Secretary Lane Tasks -->
+    <bpmn:task id="Task_ClariyShipmentMethod" name="Clarify shipment method">
+      <bpmn:incoming>SequenceFlow_ToSecretaryPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpecialHandlingDecisionGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway for Special Handling -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DecisionSpecialHandling" name="Special handling?">
+      <bpmn:incoming>SequenceFlow_SpecialHandlingDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NormalShippingPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SpecialShippingPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Normal Shipping Path (Small amounts) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_NormalShippingPath" name="">
+      <bpmn:incoming>SequenceFlow_NormalShippingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WritePackageLabelTask</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Insurance Task (Logistics Lane) -->
+    <bpmn:task id="Task_InsureParcel" name="Insure parcel">
+      <bpmn:incoming>SequenceFlow_InsuranceDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterInsuranceAndLabel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Label Writing Task (Secretary Lane) -->
+    <bpmn:task id="Task_WritePackageLabel" name="Write package label">
+      <bpmn:incoming>SequenceFlow_NormalShippingPathToLabel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterInsuranceAndLabel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge after insurance and label -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeAfterInsuranceAndLabel" name="">
+      <bpmn:incoming>SequenceFlow_InsureParcelTask</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WritePackageLabelTaskToMerge</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Special Shipping Path (Large amounts) -->
+    <bpmn:task id="Task_Get3OffersFromLogisticsCompanies" name="Get 3 offers from logistic companies">
+      <bpmn:incoming>SequenceFlow_SpecialShippingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectLogisticCompanyAndPlaceOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Select Logistic Company Task -->
+    <bpmn:task id="Task_SelectLogisticCompanyAndPlaceOrder" name="Select logistic company and place order">
+      <bpmn:incoming>SequenceFlow_Get3OffersFromLogisticsCompanies</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeAfterSpecialShippingToFinalGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Warehouse Lane Tasks -->
+    <bpmn:task id="Task_PackageGoods" name="Package goods">
+      <bpmn:incoming>SequenceFlow_ToWarehousePackagingTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WarehouseToFinalGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Gateway to check if everything is ready -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckAllReadyForPickup" name="">
+      <bpmn:incoming>SequenceFlow_WarehouseToFinalGateway</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_NormalShippingPathFinalTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_PrepareForPickup" name="Prepare for picking up goods">
+      <bpmn:incoming>SequenceFlow_CheckAllReadyForPickup</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ShipmentPrepared" name="Shipment prepared">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallelGateway" sourceRef="StartEvent_ShipeGoods" targetRef="ParallelGateway_StartWarehousingTasks">
+      <bpmn:name>Main Process</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Secretary Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSecretaryPath" sourceRef="ParallelGateway_StartWarehousingTasks" targetRef="Task_ClariyShipmentMethod">
+      <bpmn:name>To Secretary</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Special Handling Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialHandlingDecisionGateway" sourceRef="Task_ClariyShipmentMethod" targetRef="ExclusiveGateway_DecisionSpecialHandling">
+      <bpmn:name>To Decision</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Normal Shipping Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NormalShippingPath" sourceRef="ExclusiveGateway_DecisionSpecialHandling" targetRef="InclusiveGateway_NormalShippingPath">
+      <bpmn:name>No (Small amounts)</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Special Shipping Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialShippingPath" sourceRef="ExclusiveGateway_DecisionSpecialHandling" targetRef="Task_Get3OffersFromLogisticsCompanies">
+      <bpmn:name>Yes (Large amounts)</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Decision -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_NormalShippingPathToLabel" name="">
+      <bpmn:incoming>SequenceFlow_NormalShippingPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InsuranceDecisionTask</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Insurance Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsuranceDecision" sourceRef="InclusiveGateway_NormalShippingPathToLabel" targetRef="Task_InsureParcel">
+      <bpmn:name>If insurance necessary</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Label Writing -->
+    <bpmn:sequenceFlow id="SequenceFlow_WritePackageLabelTask" sourceRef="InclusiveGateway_NormalShippingPathToLabel" targetRef="Task_WritePackageLabel">
+      <bpmn:name>Always</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after insurance and label -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeAfterInsuranceAndLabelFinal" name="">
+      <bpmn:incoming>SequenceFlow_InsureParcelTaskToMerge</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_WritePackageLabelTaskToMerge2</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Merge to final gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_NormalShippingPathFinalTask" sourceRef="InclusiveGateway_MergeAfterInsuranceAndLabelFinal" targetRef="ExclusiveGateway_CheckAllReadyForPickup">
+      <bpmn:name>To Final Gateway</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Special Shipping Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialShippingPathToOffers" sourceRef="Task_Get3OffersFromLogisticsCompanies" targetRef="Task_SelectLogisticCompanyAndPlaceOrder">
+      <bpmn:name>To Select Company</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after special shipping -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MergeAfterSpecialShipping" name="">
+      <bpmn:incoming>SequenceFlow_SelectLogisticCompanyAndPlaceOrderTask</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_NormalShippingPathFinalTaskFromMerge</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Warehouse Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToWarehousePackagingTask" sourceRef="ParallelGateway_StartWarehousingTasks" targetRef="Task_PackageGoods">
+      <bpmn:name>To Warehouse</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckAllReadyForPickupFinal" name="">
+      <bpmn:incoming>SequenceFlow_WarehouseToFinalGatewayTask</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_NormalShippingPathFinalTaskFromMerge2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Final Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAllReadyForPickup" sourceRef="ExclusiveGateway_CheckAllReadyForPickupFinal" targetRef="Task_PrepareForPickup">
+      <bpmn:name>To Prepare</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" sourceRef="Task_PrepareForPickup" targetRef="EndEvent_ShipmentPrepared">
+      <bpmn:name>To End</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

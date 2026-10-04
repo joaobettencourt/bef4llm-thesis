@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CreditScoring" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:message id="Message_ScoringRequest" name="Credit Scoring Request"/>
+  <bpmn:message id="Message_ImmediateResult" name="Instant Result"/>
+  <bpmn:message id="Message_DelayNotification" name="Delay Notification"/>
+  <bpmn:message id="Message_FinalResult" name="Final Scoring Result"/>
+
+  <bpmn:collaboration id="Collab_CreditScoring">
+    <bpmn:participant id="Participant_Bank" name="Banking System (Frontend)" processRef="Process_Bank_01" />
+    <bpmn:participant id="Participant_Agency" name="Credit Protection Agency (Schufa)" processRef="Process_Agency_01" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MsgFlow_Request" sourceRef="Task_Bank_SendRequest" targetRef="StartEvent_Agency"/>
+    <bpmn:messageFlow id="MsgFlow_ResultInstant" sourceRef="EndEvent_Agency_Immediate" targetRef="IntermediateCatch_InstantResult"/>
+    <bpmn:messageFlow id="MsgFlow_DelayNotif" sourceRef="Task_Agency_SendDelay" targetRef="IntermediateCatch_DelayNotification"/>
+    <bpmn:messageFlow id="MsgFlow_FinalResult" sourceRef="EndEvent_Agency_Final" targetRef="IntermediateCatch_FinalResult"/>
+
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_Bank_01" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Bank" name="Customer Request Received">
+      <bpmn:outgoing>Flow_Start_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Bank_SendRequest" name="Send Scoring Request to Agency">
+      <bpmn:incoming>Flow_Start_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_Split_WaitResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for waiting on different message types -->
+    <bpmn:parallelGateway id="Gateway_Bank_Parallel" name="Wait For Response">
+      <bpmn:incoming>Flow_Split_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_Path_Immediate</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Path_Delayed</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Immediate Result -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_InstantResult" name="Receive Instant Result">
+      <bpmn:messageRef ref="Message_ImmediateResult"/>
+      <bpmn:incoming>Flow_Path_Immediate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Display_Result1</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_Bank_ShowResult" name="Display Result to Clerk">
+      <bpmn:incoming>Flow_Display_Result1</bpmn:incoming>
+      <bpmn:outgoing>Flow_End_Immediate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Delayed Scoring -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_DelayNotification" name="Receive Delay Notification">
+      <bpmn:messageRef ref="Message_DelayNotification"/>
+      <bpmn:incoming>Flow_Path_Delayed</bpmn:incoming>
+      <bpmn:outgoing>Flow_ShowInfoMsg</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_Bank_InfoMessage" name="Display Message (Check Later)">
+      <bpmn:incoming>Flow_ShowInfoMsg</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitFinalResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Final Result in Delayed Path -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_FinalResult" name="Receive Final Scoring Result">
+      <bpmn:messageRef ref="Message_FinalResult"/>
+      <bpmn:incoming>Flow_WaitFinalResult</bpmn:incoming>
+      <bpmn:outgoing>Flow_Display_Result2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Bank_Immediate" name="Scoring Complete">
+      <bpmn:incoming>Flow_End_Immediate</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Bank_Delayed" name="Final Result Received">
+      <bpmn:incoming>Flow_Display_Result2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_SendRequest" sourceRef="StartEvent_Bank" targetRef="Task_Bank_SendRequest"/>
+    <bpmn:sequenceFlow id="Flow_Split_WaitResponse" sourceRef="Task_Bank_SendRequest" targetRef="Gateway_Bank_Parallel"/>
+
+    <!-- Path 1 Flows -->
+    <bpmn:sequenceFlow id="Flow_Path_Immediate" name="Instant Result Expected" sourceRef="Gateway_Bank_Parallel" targetRef="IntermediateCatch_InstantResult"/>
+    <bpmn:sequenceFlow id="Flow_Display_Result1" sourceRef="IntermediateCatch_InstantResult" targetRef="Task_Bank_ShowResult"/>
+    <bpmn:sequenceFlow id="Flow_End_Immediate" name="Success" sourceRef="Task_Bank_ShowResult" targetRef="EndEvent_Bank_Immediate"/>
+
+    <!-- Path 2 Flows -->
+    <bpmn:sequenceFlow id="Flow_Path_Delayed" name="Delay Expected" sourceRef="Gateway_Bank_Parallel" targetRef="IntermediateCatch_DelayNotification"/>
+    <bpmn:sequenceFlow id="Flow_ShowInfoMsg" sourceRef="IntermediateCatch_DelayNotification" targetRef="Task_Bank_InfoMessage"/>
+    <bpmn:sequenceFlow id="Flow_WaitFinalResult" name="Wait for Final Result" sourceRef="Task_Bank_InfoMessage" targetRef="IntermediateCatch_FinalResult"/>
+    <bpmn:sequenceFlow id="Flow_Display_Result2" sourceRef="IntermediateCatch_FinalResult" targetRef="EndEvent_Bank_Delayed"/>
+
+  </bpmn:process>
+
+  <!-- Agency Process -->
+  <bpmn:process id="Process_Agency_01" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Agency" name="Receive Scoring Request">
+      <bpmn:messageRef ref="Message_ScoringRequest"/>
+      <bpmn:outgoing>Flow_Start_Level1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for Level 1 Scoring -->
+    <bpmn:task id="Task_Agency_Level1" name="Perform Quick Scoring (Level 1)">
+      <bpmn:incoming>Flow_Start_Level1</bpmn:incoming>
+      <bpmn:outgoing>Gateway_Decision_Immediate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Immediate vs Delayed -->
+    <bpmn:exclusiveGateway id="Gateway_Agency_Decomposition" name="Result Available Immediately?">
+      <bpmn:incoming>Flow_Decision_Immediate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Path_Yes_Result</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Path_No_Delay</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Immediate Result -->
+    <bpmn:endEvent id="EndEvent_Agency_Immediate" name="Result Sent">
+       <bpmn:incoming>Flow_SendInstantMsg</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:messageTask id="MessageTask_Agency_SendInstant" name="Send Instant Result Message">
+      <bpmn:incoming>Flow_Path_Yes_Result</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendInstantMsg</bpmn:outgoing>
+    </bpmn:messageTask>
+
+    <!-- Path 2: Delayed Scoring -->
+    <bpmn:endEvent id="EndEvent_Agency_Final" name="Final Result Sent">
+      <bpmn:incoming>Flow_SendFinalMsg</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:messageTask id="MessageTask_Agency_SendDelay" name="Send Delay Notification Message">
+       <bpmn:incoming>Flow_Path_No_Delay</bpmn:incoming>
+      <bpmn:outgoing>Flow_Start_Level2</bpmn:outgoing>
+    </bpmn:messageTask>
+
+    <!-- Task for Level 2 Scoring -->
+    <bpmn:task id="Task_Agency_Level2" name="Perform Detailed Scoring (Level 2)">
+      <bpmn:incoming>Flow_Start_Level2</bpmn:incoming>
+      <bpmn:outgoing>Gateway_SendFinalMsg</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway for Final Send -->
+    <bpmn:exclusiveGateway id="Gateway_Agency_FinalSend" name="Scoring Complete?">
+       <bpmn:incoming>Flow_Start_Level2</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendFinalMsg</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_Level1" sourceRef="StartEvent_Agency" targetRef="Task_Agency_Level1"/>
+
+    <!-- Immediate Path -->
+    <bpmn:sequenceFlow id="Flow_Path_Yes_Result" name="Yes, Ready Now" sourceRef="Gateway_Agency_Decomposition" targetRef="MessageTask_Agency_SendInstant"/>
+    <bpmn:sequenceFlow id="Flow_Decision_Immediate" sourceRef="Task_Agency_Level1" targetRef="Gateway_Agency_Decomposition"/>
+    <bpmn:sequenceFlow id="Flow_SendInstantMsg" sourceRef="MessageTask_Agency_SendInstant" targetRef="EndEvent_Agency_Immediate"/>
+
+    <!-- Delayed Path -->
+    <bpmn:sequenceFlow id="Flow_Path_No_Delay" name="No, Needs Time" sourceRef="Gateway_Agency_Decomposition" targetRef="MessageTask_Agency_SendDelay"/>
+    <bpmn:sequenceFlow id="Flow_Start_Level2" sourceRef="MessageTask_Agency_SendDelay" targetRef="Task_Agency_Level2"/>
+
+     <!-- Final Send -->
+    <bpmn:sequenceFlow id="Gateway_Decision_Immediate" name="" sourceRef="Task_Agency_Level1" targetRef="Gateway_Agency_Decomposition"/>
+    <bpmn:sequenceFlow id="Flow_SendFinalMsg" sourceRef="Gateway_Agency_FinalSend" targetRef="EndEvent_Agency_Final"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

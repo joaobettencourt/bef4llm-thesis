@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_WarrantProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_WarrantRequest">
+    <bpmn:participant id="Participant_BackOffice" name="Client Service Back Office - Small Claims Registry Operations" processRef="Process_WarrantProc"/>
+    <bpmn:messageFlow id="MessageFlow_PoliceReport" sourceRef="Event_ReportReceived" targetRef="Task_RetrieveSCTFileAfterReport">
+      <bpmn:sourceRef>ExternalPoliceSystem</bpmn:sourceRef>
+      <bpmn:targetRef>Participant_BackOffice</bpmn:targetRef>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_WarrantProc" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_BackOffice" name="Client Service Back Office">
+        <bpmn:flowNodeRef>StartEvent_RequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RetrieveSCTTFile</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PoliceForwarded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitingForReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RetrieveSCTFileAfterReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AttachNewDocument</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StoreExpandedFile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event - Party sends warrant possession request -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Warrant Possession Request Received">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Back Office receives request and retrieves SCTT file -->
+    <bpmn:task id="Task_RetrieveSCTTFile" name="Retrieve SCTT File">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Check if warrant forwarded to Police -->
+    <bpmn:exclusiveGateway id="Gateway_PoliceForwarded" name="Warrant Forwarded">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_RequestReceived" targetRef="Task_RetrieveSCTTFile"/>
+
+    <!-- Task - Forward to Queensland Police (external) -->
+    <bpmn:task id="Task_ForwardToPolice" name="Forward SCT Warrant Possession">
+      <bpmn:name>Send to Queensland Police</bpmn:name>
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitingForReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event - Waiting for Police Report -->
+    <bpmn:startEvent id="StartEvent_ReportReceived" name="Police Report Received">
+      <bpmn:name></bpmn:name>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Retrieve respective SCT file after report -->
+    <bpmn:task id="Task_RetrieveSCTFileAfterReport" name="Retrieve Respective SCT File">
+      <bpmn:name>SCT Retrieval After Report</bpmn:name>
+      <bpmn:incoming>SequenceFlow_4</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_5</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Attach new SCT document -->
+    <bpmn:task id="Task_AttachNewDocument" name="Attach New SCT Document">
+      <bpmn:name>SCT Attachment</bpmn:name>
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_6</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Store expanded SCT physical file -->
+    <bpmn:task id="Task_StoreExpandedFile" name="Store Expanded SCT Physical File">
+      <bpmn:name>SCT Storage</bpmn:name>
+      <bpmn:incoming>SequenceFlow_6</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event - MC internal staff receives file (out of scope) -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="File Transferred to Internal Staff">
+      <bpmn:name>SCT File Out</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_2" sourceRef="Task_RetrieveSCTTFile" targetRef="Gateway_PoliceForwarded"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_3" name="Warrant Forwarded to Police" sourceRef="Gateway_PoliceForwarded" targetRef="Task_ForwardToPolice"/>
+
+    <!-- Intermediate Event for waiting period -->
+    <bpmn:startEvent id="StartEvent_WaitingForReport" name="Awaiting Police Report">
+      <bpmn:name>Wait Period</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow 4 - Report received triggers retrieval -->
+    <bpmn:sequenceFlow id="SequenceFlow_4" sourceRef="StartEvent_WaitingForReport" targetRef="Task_RetrieveSCTFileAfterReport"/>
+
+    <!-- Sequence Flow 5 - Attach document after file retrieved -->
+    <bpmn:sequenceFlow id="SequenceFlow_5" name="Attach New SCT Document" sourceRef="Task_RetrieveSCTFileAfterReport" targetRef="Task_AttachNewDocument"/>
+
+    <!-- Sequence Flow 6 - Store expanded file -->
+    <bpmn:sequenceFlow id="SequenceFlow_6" name="Store Expanded File" sourceRef="Task_AttachNewDocument" targetRef="Task_StoreExpandedFile"/>
+
+    <!-- Final sequence flow to end event -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_StoreExpandedFile" targetRef="EndEvent_ProcessComplete"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

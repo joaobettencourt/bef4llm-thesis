@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_FarmingBot_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_BotSystem_01">
+    <bpmn:participant id="Participant_BotSys_01" name="Farming Bot System" processRef="Process_FarmBot_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_FarmBot_01" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CreateBot_01" name="Player Request Custom Bot">
+      <bpmn:outgoing>SequenceFlow_IdentifyResources</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Identify Resources -->
+    <bpmn:task id="Task_IdentifyRes_01" name="Identify Desired Resources">
+      <bpmn:incoming>SequenceFlow_IdentifyResources</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckDependencies</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Dependencies & Urgency -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Dependencies_01" name="Tools Required?">
+      <bpmn:incoming>SequenceFlow_CheckDependencies</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateTool</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartGathering</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Tool (if needed) -->
+    <bpmn:task id="Task_CraftTool_01" name="Craft Required Tools">
+      <bpmn:incoming>SequenceFlow_CreateTool</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartGathering</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Resource Gathering -->
+    <bpmn:parallelGateway id="ParallelGateway_Gather_01" name="Start Farming">
+      <bpmn:incoming>SequenceFlow_StartGathering</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UrgentRes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StdRes</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Gather Resources -->
+    <bpmn:task id="Task_GatherUrgent_01" name="Gather Urgent Resource">
+      <bpmn:incoming>SequenceFlow_UrgentRes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeResources</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Gather Standard Resources -->
+    <bpmn:task id="Task_GatherStd_01" name="Gather Other Materials">
+      <bpmn:incoming>SequenceFlow_StdRes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeResources2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gathering -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_GatherEnd_01" name="All Resources Ready?">
+      <bpmn:incoming>SequenceFlow_MergeResources</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_MergeResources2</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartFarmingSubProcess</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Subprocess for Farming -->
+    <bpmn:subProcess id="SubProcess_FarmExecution_01" name="Bot Farming Execution">
+      <bpmn:startEvent id="StartEvent_SubFarming_01">
+        <bpmn:outgoing>SequenceFlow_MainFarmLoop</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <!-- Main Farming Task -->
+      <bpmn:task id="Task_FarmMain_01" name="Execute Farming Loop">
+        <bpmn:incoming>SequenceFlow_MainFarmLoop</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_CheckMilestones</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Milestone Notification -->
+      <bpmn:intermediateCatchEvent id="IntermediateEvent_Milestone_01" name="Check Milestones">
+        <bpmn:incoming>SequenceFlow_CheckMilestones</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_SendNotification</bpmn:outgoing>
+      </bpmn:intermediateCatchEvent>
+
+      <!-- Notification Task -->
+      <bpmn:task id="Task_Notify_01" name="Notify Milestone Reached">
+        <bpmn:incoming>SequenceFlow_SendNotification</bpmn:outgoing>
+        <bpmn:outgoing>SequenceLoopBackFarm</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Sequence Flow for loop -->
+      <bpmn:sequenceFlow id="SequenceLoopBackFarm" sourceRef="Task_Notify_01" targetRef="Task_FarmMain_01"/>
+
+    </bpmn:subProcess>
+
+    <!-- Boundary Event on Subprocess for Disaster (Error) -->
+    <bpmn:errorBoundaryEvent id="BoundaryEvent_Disaster_01">
+      <bpmn:messageEventDefinition /> 
+        <bpmn:outgoing>SequenceFlow_RecoverBot</bpmn:outgoing>
+    </bpmn:errorBoundaryEvent>
+
+    <!-- Recovery Task -->
+    <bpmn:task id="Task_Recovery_01" name="Recover from Disaster">
+      <bpmn:incoming>SequenceFlow_RecoverBot</bpmn:outgoing> 
+        <bpmn:outgoing>SequenceFlow_ResubmitFarm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to re-enter Subprocess -->
+      <bpmn:sequenceFlow id="SequenceFlow_RecoverBot" sourceRef="BoundaryEvent_Disaster_01" targetRef="Task_Recovery_01"/>
+       <bpmn:sequenceFlow id="SequenceFlow_ResubmitFarm" sourceRef="Task_Recovery_01" targetRef="StartEvent_SubFarming_01"/>
+
+    <!-- Update Logic (Signal Start Event inside Process) -->
+     <bpmn:startEvent id="StartEvent_UpdateReq_01">
+      <bpmn:signalEventDefinition /> 
+        <bpmn:outgoing>SequenceFlow_ProcessUpdate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Update Task -->
+    <bpmn:task id="Task_UpdateList_01" name="Update Material List">
+      <bpmn:incoming>SequenceFlow_ProcessUpdate</bpmn:outgoing> 
+        <bpmn:outgoing>SequenceFlow_MergeUpdate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Update back into Farming Flow (Simplified for XML) -->
+      <bpmn:inclusiveGateway id="InclusiveGateway_UpdateMerge_01">
+        <bpmn:incoming>SequenceFlow_MergeUpdate</bpmn:outgoing> 
+          <bpmn:outgoing>SequenceLoopBackFarm2</bpmn:outgoing> <!-- Re-join farming loop -->
+      </bpmn:inclusiveGateway>
+
+    <!-- Sequence Flow for Update Trigger (Non-interrupting logic) -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProcessUpdate" sourceRef="StartEvent_UpdateReq_01" targetRef="Task_UpdateList_01"/>
+       <bpmn:sequenceFlow id="SequenceFlow_MergeUpdate" sourceRef="Task_UpdateList_01" targetRef="InclusiveGateway_UpdateMerge_01"/>
+
+    <!-- End of Subprocess -->
+      <bpmn:endEvent id="EndEvent_SubFarmingDone_01">
+        <bpmn:incoming>SequenceFlow_MainFarmLoop</bpmn:outgoing> 
+          <!-- Note: In real model, this would be after loop completion logic. Simplified here for valid XML structure -->
+      </bpmn:endEvent>
+
+    </bpmn:subProcess>
+
+     <!-- Sequence Flow from Main Process to Subprocess Start (Simplified) -->
+       <bpmn:sequenceFlow id="SequenceFlow_StartFarmingSubProcess" sourceRef="InclusiveGateway_GatherEnd_01" targetRef="StartEvent_SubFarming_01"/>
+
+
+    <!-- Post-Farming Logic -->
+     <bpmn:endEvent id="EndEvent_FarmFinished_01">
+      <bpmn:incoming>SequenceFlow_MainFarmLoop</bpmn:outgoing> 
+        <!-- Note: Simplified flow for valid XML structure, normally SubProcess ends here -->
+    </bpmn:endEvent>
+
+     <!-- Gateway to choose Brag/Send (Inclusive) -->
+      <bpmn:inclusiveGateway id="ExclusiveGateway_PostFarm_01" name="Send Materials &amp; Brag">
+        <bpmn:incoming>SequenceFlow_MainFarmLoop</bpmn:outgoing> 
+          <!-- Note: Simplified flow for valid XML structure, normally SubProcess ends here -->
+           <bpmn:outgoing>SequenceFlow_SendMat</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_BragFriends</bpmn:outgoing>
+      </bpmn:inclusiveGateway>
+
+     <!-- Task Send Materials -->
+    <bpmn:task id="Task_SendMaterials_01" name="Send Materials to Friends">
+      <bpmn:incoming>SequenceFlow_SendMat</bpmn:outgoing> 
+        <bpmn:outgoing>SequenceFlow_MergeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task Brag -->
+    <bpmn:task id="Task_BragFriends_01" name="Brag to Friends">
+      <bpmn:incoming>SequenceFlow_BragFriends</bpmn:outgoing> 
+        <bpmn:outgoing>SequenceFlow_MergeEnd2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Merge End -->
+    <bpmn:endEvent id="EndEvent_Final_01" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_MergeEnd</bpmn:outgoing> 
+        <bpmn:incoming>SequenceFlow_MergeEnd2</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows for Post-Farming -->
+       <bpmn:sequenceFlow id="SequenceFlow_SendMat" sourceRef="ExclusiveGateway_PostFarm_01" targetRef="Task_SendMaterials_01"/>
+        <bpmn:sequenceFlow id="SequenceFlow_BragFriends" sourceRef="ExclusiveGateway_PostFarm_01" targetRef="Task_BragFriends_01"/>
+         <bpmn:sequenceFlow id="SequenceFlow_MergeEnd" sourceRef="Task_SendMaterials_01" targetRef="EndEvent_Final_01"/>
+          <bpmn:sequenceFlow id="SequenceFlow_MergeEnd2" sourceRef="Task_BragFriends_01" targetRef="EndEvent_Final_01"/>
+
+    <!-- Sequence Flows for Main Process -->
+      <bpmn:sequenceFlow id="SequenceFlow_IdentifyResources" sourceRef="StartEvent_CreateBot_01" targetRef="Task_IdentifyRes_01"/>
+       <bpmn:sequenceFlow id="SequenceFlow_CheckDependencies" sourceRef="Task_IdentifyRes_01" targetRef="ExclusiveGateway_Dependencies_01"/>
+        <bpmn:sequenceFlow id="SequenceFlow_CreateTool" name="Yes - Tools Needed" sourceRef="ExclusiveGateway_Dependencies_01" targetRef="Task_CraftTool_01"/>
+         <bpmn:sequenceFlow id="SequenceFlow_StartGathering" name="No - Start Gathering" sourceRef="ExclusiveGateway_Dependencies_01" targetRef="ParallelGateway_Gather_01"/>
+
+          <!-- Parallel Split -->
+           <bpmn:sequenceFlow id="SequenceFlow_UrgentRes" sourceRef="ParallelGateway_Gather_01" targetRef="Task_GatherUrgent_01"/>
+            <bpmn:sequenceFlow id="SequenceFlow_StdRes" name="Up to 9 other resources in parallel" sourceRef="ParallelGateway_Gather_01" targetRef="Task_GatherStd_01"/>
+
+             <!-- Merge Gathering -->
+              <bpmn:sequenceFlow id="SequenceFlow_MergeResources" sourceRef="Task_GatherUrgent_01" targetRef="InclusiveGateway_GatherEnd_01"/>
+               <bpmn:sequenceFlow id="SequenceFlow_MergeRes2" sourceRef="Task_GatherStd_01" targetRef="InclusiveGateway_GatherEnd_01"/>
+
+                <!-- Farming Loop Logic (Simplified for XML) -->
+                 <bpmn:sequenceFlow id="SequenceFlow_MainFarmLoop" name="Farming in Progress..." sourceRef="StartEvent_SubFarming_01" targetRef="Task_FarmMain_01"/>
+                  <bpmn:sequenceFlow id="SequenceFlow_CheckMilestones" sourceRef="Task_FarmMain_01" targetRef="IntermediateEvent_Milestone_01"/>
+
+    <!-- Boundary Event Attachment -->
+      <bpmn:errorBoundaryEvent id="BoundaryEvent_Disaster_02">
+        <bpmn:attachedToRef>SubProcess_FarmExecution_01</bpmn:attachedToRef>
+         <bpmn:messageEventDefinition /> 
+          <bpmn:outgoing>SequenceFlow_RecoverBot</bpmn:outgoing>
+      </bpmn:errorBoundaryEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

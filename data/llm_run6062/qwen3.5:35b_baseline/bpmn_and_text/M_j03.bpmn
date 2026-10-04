@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Contract_Manufacturing">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_ContractProject" name="Contract Manufacturing Process" processRef="Process_Contract_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Contract_001" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ProjectInitiated" name="Contract Project Initiated">
+      <bpmn:outgoing>SequenceFlow_QueryShops</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Query Shops -->
+    <bpmn:task id="Task_QueryWebShops" name="Query Web Shops for Parts, Price &amp; Delivery">
+      <bpmn:incoming>SequenceFlow_QueryShops</bpmn:outgoing></bpmn:querywebshopsupplement>supplierid="Gateway_CheckSingleShop" name="One Shop Sufficient?">
+        <bpmn:name>Inventory Available?</bpmn:name>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Split Orders (if needed) -->
+    <bpmn:task id="Task_SplitOrders" name="Create List of Parts to Order from Several Shops">
+      <bpmn:incoming>SequenceFlow_OrderFromMultiple</bpmn:outgoing></bpmn:splitordersupplement>supplierid="Gateway_MergeOrders"/>
+
+    <!-- Task: Place Single Shop Orders -->
+    <bpmn:task id="Task_PlaceOrderSingle" name="Place Order (Cheapest)">
+      <bpmn:name>Place Single Shop Order</bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderSingleShop</bpmn:outgoing></bpmn:singleordersupplement>supplierid="Task_PlaceMultipleOrders" name="Place Split Orders">
+        <bpmn:name>Place Multiple Orders (Cheapest)</bpmn:name>
+    </bpmn:task>
+
+    <!-- Task: Receive Parts -->
+    <bpmn:task id="Task_ReceiveParts" name="Receive Parts Arrival (Batch)">
+      <bpmn:incoming>SequenceFlow_OrderSingleShop</bpmn:outgoing></bpmn:singleordersupplement>supplierid="Gateway_CheckStockLevel">
+        <bpmn:name>Is Stock Zero?</bpmn:name>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Complaint -->
+    <bpmn:task id="Task_SendComplaintEmail" name="Write Mail to Friends Complaining about Webshops">
+      <bpmn:incoming>SequenceFlow_Complain</bpmn:outgoing></bpmn:complaintsupplement>supplierid="Gateway_CheckStockLow3" name="Is Stock &lt; 3?">
+        <bpmn:name>Reorder Fastest Part</bpmn:name>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Reorder Cheapest -->
+    <bpmn:task id="Task_ReorderCheapest" name="Reorder (Cheapest)">
+      <bpmn:incoming>SequenceFlow_RerouteLow5</bpmn:outgoing></bpmn:reordersupplement>supplierid="Gateway_CheckStockLow3">
+        <bpmn:name>Is Stock &lt; 3?</bpmn:name>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Reorder Fastest -->
+    <bpmn:task id="Task_ReorderFastest" name="Reorder (Fastest)">
+      <bpmn:incoming>SequenceFlow_RerouteLow3</bpmn:outgoing></bpmn:reordersupplement>supplierid="Gateway_CheckStockLow5">
+        <bpmn:name>Is Stock &lt; 5?</bpmn:name>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProjectComplete" name="Project Complete / Parts Delivered">
+      <bpmn:incoming>SequenceFlow_BuildingDone</bpmn:outgoing></bpmn:endeventupplement>supplierid="Process_Contract_001"/>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_QueryShops" sourceRef="StartEvent_ProjectInitiated" targetRef="Task_QueryWebShops"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AnalyzeAvailability" name="Analyze Availability" sourceRef="Task_QueryWebShops" targetRef="Gateway_CheckSingleShop"/>
+
+    <!-- Decision Logic for Single vs Multiple Shop -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderFromMultiple" name="No (Split)" sourceRef="Gateway_CheckSingleShop" targetRef="Task_SplitOrders"/>
+    <bpmn:sequenceFlow id="SequenceFlow_OrderSingleShop" name="Yes" sourceRef="Gateway_CheckSingleShop" targetRef="Task_PlaceOrderSingle"/>
+
+    <!-- Merge Orders Logic -->
+    <bpmn:exclusiveGateway id="Gateway_MergeOrders">
+      <bpmn:name>Merge Order Flows</bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderFromMultiple</bpmn:outgoing></bpmn:mergeordersupplement>supplierid="Task_PlaceOrderSingle" name="Place Single Shop Order"/>
+    </bpmn:task>
+
+    <!-- Task: Place Multiple Orders -->
+    <bpmn:task id="Task_PlaceMultipleOrders">
+      <bpmn:name>Place Split Orders</bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderFromMultiple</bpmn:outgoing></bpmn:splitordersupplement>supplierid="Gateway_MergeOrders"/>
+
+    <!-- Flow to Receive Parts -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReceiveParts" sourceRef="Task_PlaceOrderSingle" targetRef="Task_StartBuilding">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to Receive Parts (from multiple) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReceivePartsMultiple" sourceRef="Task_PlaceMultipleOrders" targetRef="Gateway_MergeOrders"/>
+
+  </bpmn:process>
+</bpmn:definitions>

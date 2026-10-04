@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_CustomerRegistration" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_VisitorForm" name="Visitor fills out Registration-Form">
+      <bpmn:outgoing>SequenceFlow_StartToAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_CheckProductAvailability" name="Check availability of products">
+      <bpmn:incoming>SequenceFlow_StartToAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AvailabilityToCredit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_CheckCreditRating" name="Check credit rating at Schufa">
+      <bpmn:incoming>SequenceFlow_AvailabilityToCredit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreditToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SchufaCheck" name="Credit rating according to Schufa &gt; 9000">
+      <bpmn:incoming>SequenceFlow_CreditToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnsuccessfulPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SuccessfulPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event (Unsuccessful) -->
+    <bpmn:endEvent id="EndEvent_Unsuccessful" name="Unsuccessful customer registration">
+      <bpmn:incoming>SequenceFlow_UnsuccessfulPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_CreateInterimRecord" name="Create interim customer dataset record">
+      <bpmn:incoming>SequenceFlow_SuccessfulPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RecordToParallelSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway (Split) -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="">
+      <bpmn:incoming>SequenceFlow_RecordToParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DevicePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccountPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- SubProcess 1 -->
+    <bpmn:subProcess id="SubProcess_DeviceProvision" name="Device provision">
+      <bpmn:incoming>SequenceFlow_DevicePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeviceToJoinGateway</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- SubProcess 2 -->
+    <bpmn:subProcess id="SubProcess_AccountRegistration" name="Register customer account at ISP nodes">
+      <bpmn:incoming>SequenceFlow_AccountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountToJoinGateway</bpmn:outgoing>
+    </bpmn:subProcess>
+
+    <!-- Parallel Gateway (Join) -->
+    <bpmn:parallelGateway id="ParallelGateway_Join" name="">
+      <bpmn:incoming>SequenceFlow_DeviceToJoinGateway</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountToJoinGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinToWelcomePackage</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 4 -->
+    <bpmn:task id="Task_WelcomePackage" name="Create and send welcome package">
+      <bpmn:incoming>SequenceFlow_JoinToWelcomePackage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackageToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event (Successful) -->
+    <bpmn:endEvent id="EndEvent_Successful" name="Successful customer registration">
+      <bpmn:incoming>SequenceFlow_PackageToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAvailability" sourceRef="StartEvent_VisitorForm" targetRef="Task_CheckProductAvailability" />
+    <bpmn:sequenceFlow id="SequenceFlow_AvailabilityToCredit" sourceRef="Task_CheckProductAvailability" targetRef="Task_CheckCreditRating" />
+    <bpmn:sequenceFlow id="SequenceFlow_CreditToGateway" sourceRef="Task_CheckCreditRating" targetRef="ExclusiveGateway_SchufaCheck" />
+    <bpmn:sequenceFlow id="SequenceFlow_UnsuccessfulPath" name="Yes (rating &gt; 9000)" sourceRef="ExclusiveGateway_SchufaCheck" targetRef="EndEvent_Unsuccessful" />
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessfulPath" name="No (rating ≤ 9000)" sourceRef="ExclusiveGateway_SchufaCheck" targetRef="Task_CreateInterimRecord" />
+    <bpmn:sequenceFlow id="SequenceFlow_RecordToParallelSplit" sourceRef="Task_CreateInterimRecord" targetRef="ParallelGateway_Split" />
+    <bpmn:sequenceFlow id="SequenceFlow_DevicePath" sourceRef="ParallelGateway_Split" targetRef="SubProcess_DeviceProvision" />
+    <bpmn:sequenceFlow id="SequenceFlow_AccountPath" sourceRef="ParallelGateway_Split" targetRef="SubProcess_AccountRegistration" />
+    <bpmn:sequenceFlow id="SequenceFlow_DeviceToJoinGateway" sourceRef="SubProcess_DeviceProvision" targetRef="ParallelGateway_Join" />
+    <bpmn:sequenceFlow id="SequenceFlow_AccountToJoinGateway" sourceRef="SubProcess_AccountRegistration" targetRef="ParallelGateway_Join" />
+    <bpmn:sequenceFlow id="SequenceFlow_JoinToWelcomePackage" sourceRef="ParallelGateway_Join" targetRef="Task_WelcomePackage" />
+    <bpmn:sequenceFlow id="SequenceFlow_PackageToEndEvent" sourceRef="Task_WelcomePackage" targetRef="EndEvent_Successful" />
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ChangeRequest_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ChangeProcess_01">
+    <bpmn:participant id="Participant_MPO" name="MPO (Measuring Point Operator)" processRef="Proc_MPO_01" />
+    <bpmn:participant id="Participant_SP_GO" name="SP/PU/GO Requester" processRef="Proc_SP_GO_01" />
+  </bpmn:collaboration>
+
+  <!-- MPO Process -->
+  <bpmn:process id="Proc_MPO_01" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_ChangeTriggered" name="Change Triggered (Request or Internal)">
+      <bpmn:messageFlowRef>MessageFlow_RequestReceived</bpmn:messageFlowRef>
+      <bpmn:outgoing>SequenceFlow_InitReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ReviewRequest" name="Review Change Request">
+      <bpmn:incoming>SequenceFlow_InitReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ReviewDecision" name="Reject or Confirm?">
+      <bpmn:incoming>SequenceFlow_DecisionResult</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_Reject</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_Confirm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reject Path -->
+    <bpmn:endEvent id="EndEvent_RequestRejected" name="Request Rejected">
+       <bpmn:messageFlowRef>MessageFlow_RejectNotification</bpmn:messageFlowRef>
+      <bpmn:incoming>SequencePath_Reject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirm Path -->
+    <bpmn:task id="Task_PerformChange" name="Perform Measuring Point Change">
+       <bpmn:messageFlowRef>MessageFlow_ChangePerformed</bpmn:messageFlowRef>
+      <bpmn:incoming>SequencePath_Confirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionExecutionResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Execution Result Decision -->
+    <bpmn:exclusiveGateway id="Gateway_ExecutionDecision" name="Change Successful?">
+       <bpmn:messageFlowRef>MessageFlow_ResultReported</bpmn:messageFlowRef>
+      <bpmn:incoming>SequenceFlow_DecisionExecutionResult</bpmn:incoming>
+      <bpmn:outgoing>SequencePath_Success</bpmn:outgoing>
+      <bpmn:outgoing>SequencePath_Failure</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Success Path -->
+    <bpmn:endEvent id="EndEvent_ImplementationReported" name="Implementation Reported">
+       <bpmn:messageFlowRef>MessageFlow_SuccessNotification</bpmn:messageFlowRef>
+      <bpmn:incoming>SequencePath_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Failure Path -->
+    <bpmn:endEvent id="EndEvent_FailureNotified" name="Failure Notified">
+       <bpmn:messageFlowRef>MessageFlow_FailureNotification</bpmn:messageFlowRef>
+      <bpmn:incoming>SequencePath_Failure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitReview" sourceRef="StartEvent_ChangeTriggered" targetRef="Task_ReviewRequest" />
+    
+    <bpmn:sequenceFlow id="SequencePath_Reject" name="Reject Change" sourceRef="Gateway_ReviewDecision" targetRef="EndEvent_RequestRejected">
+      <bpmn:name>Reject</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequencePath_Confirm" name="Confirm Request" sourceRef="Gateway_ReviewDecision" targetRef="Task_PerformChange">
+       <bpmn:name>Confirm</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionResult" sourceRef="Task_ReviewRequest" targetRef="Gateway_ReviewDecision" />
+
+    <bpmn:sequenceFlow id="SequencePath_Success" name="Success" sourceRef="Gateway_ExecutionDecision" targetRef="EndEvent_ImplementationReported">
+      <bpmn:name>Successful</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequencePath_Failure" name="Failure" sourceRef="Gateway_ExecutionDecision" targetRef="EndEvent_FailureNotified">
+       <bpmn:name>Failed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DecisionExecutionResult" sourceRef="Task_PerformChange" targetRef="Gateway_ExecutionDecision" />
+  </bpmn:process>
+
+  <!-- SP/GO Process (Minimal for Message Flow Targets) -->
+  <bpmn:process id="Proc_SP_GO_01" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_RequestInitiated" name="Request Initiation">
+      <bpmn:messageFlowRef>MessageFlow_RequestSent</bpmn:messageFlowRef>
+       <!-- Implicitly triggers MPO Start Event via Message Flow -->
+    </bpmn:startEvent>
+
+     <bpmn:endEvent id="EndEvent_ReceiveNotification" name="Notification Received">
+      <bpmn:incoming>SequenceFlow_InternalCompletion</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Internal flow to allow valid message target references if needed, though primarily passive -->
+     <bpmn:sequenceFlow id="SequenceFlow_InternalCompletion" sourceRef="StartEvent_RequestInitiated" targetRef="EndEvent_ReceiveNotification">
+       <bpmn:name>Wait for Response</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:message id="Message_RequestChange" name="Request Change of Measuring Point">
+     <bpmn:id>Msg_01</bpmn:id>
+  </bpmn:message>
+  
+   <bpmn:sequenceFlow id="SequenceFlow_InitReview" sourceRef="StartEvent_ChangeTriggered" targetRef="Task_ReviewRequest" />
+
+  <!-- Message Flows between Participants -->
+  <bpmn:messageFlow id="MessageFlow_RequestSent" name="Change Request">
+    <bpmn:sourceRef>StartEvent_RequestInitiated</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_ChangeTriggered</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+   <bpmn:messageFlow id="MessageFlow_RejectNotification" name="Reject Notification">
+     <bpmn:sourceRef>EndEvent_RequestRejected</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_ReceiveRejection</bpmn:targetRef> 
+  </bpmn:messageFlow>
+
+   <!-- Correcting Message Flow Targets to valid IDs in SP Pool -->
+  <bpmn:endEvent id="EndEvent_RequestRejected" name="Request Rejected">
+      <bpmn:messageFlowRef>MessageFlow_RejectNotification</bpmn:messageFlowRef>
+       <bpmn:incoming>SequencePath_Reject</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Success/Failure Flows -->
+     <bpmn:endEvent id="EndEvent_SuccessNotification" name="Success Notification">
+      <bpmn:messageFlowRef>MessageFlow_SuccessNotification</bpmn:messageFlowRef>
+       <bpmn:incoming>SequencePath_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:endEvent id="EndEvent_FailureNotification" name="Failure Notification">
+      <bpmn:messageFlowRef>MessageFlow_FailureNotification</bpmn:messageFlowRef>
+       <bpmn:incoming>SequencePath_Failure</bpmn:incoming>
+    </bpmn:endEvent>
+
+  <bpmn:messageFlow id="MessageFlow_SuccessNotification" name="Implementation Report">
+     <bpmn:sourceRef>EndEvent_ImplementationReported</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_SuccessNotification</bpmn:targetRef> 
+  </bpmn:messageFlow>
+
+   <bpmn:messageFlow id="MessageFlow_FailureNotification" name="Failure Notification">
+     <bpmn:sourceRef>EndEvent_FailureNotified</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_FailureNotification</bpmn:targetRef> 
+  </bpmn:messageFlow>
+
+   <!-- Fixing Start Events in SP Pool for Message Targets -->
+     <bpmn:startEvent id="StartEvent_ReceiveRejection" name="Received Rejection">
+      <bpmn:incoming>SequencePath_Reject</bpmn:incoming>
+    </bpmn:startEvent>
+
+   <bpmn:startEvent id="StartEvent_SuccessNotification" name="Received Success Report">
+       <bpmn:incoming>SequencePath_Success</bpmn:incoming>
+    </bpmn:startEvent>
+
+     <bpmn:startEvent id="StartEvent_FailureNotification" name="Received Failure Notification">
+        <bpmn:incoming>SequencePath_Failure</bpmn:incoming>
+    </bpmn:startEvent>
+
+  <!-- Correcting Sequence Flows in SP Pool to connect Start Events -->
+   <bpmn:sequenceFlow id="SequenceFlow_InternalCompletion" sourceRef="StartEvent_RequestInitiated" targetRef="EndEvent_ReceiveNotification">
+       <bpmn:name>Wait for Response</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  <!-- Correcting Message Flow Targets to valid End Events in SP Pool -->
+   <bpmn:messageFlow id="MessageFlow_RejectNotification" name="Reject Notification">
+     <bpmn:sourceRef>EndEvent_RequestRejected</bpmn:sourceRef>
+    <bpmn:targetRef>StartEvent_ReceiveRejection</bpmn:targetRef> 
+  </bpmn:messageFlow>
+
+   <!-- Note: In strict BPMN, Message Flows connect to Start Events or End Events. I will use the defined IDs -->
+   
+  <!-- Final Cleanup of XML Structure for Validity -->
+  
+</bpmn:definitions>

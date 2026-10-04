@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReportProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseReview_001">
+    <bpmn:participant id="Participant_LoanSystem_001" name="Employee Expense Report Process" processRef="Process_ExpenseReport_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseReport_001" isExecutable="false">
+    <!-- Lane Set for organizational structure -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_EmployeeService_001" name="Employee Service Department">
+        <bpmn:flowNodeRef>StartEvent_ExpenseReceived_001</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAccountExistence_001</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AccountManagement_002" name="Account Management">
+        <bpmn:flowNodeRef>InclusiveGateway_HasAccount_001</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateEmployeeAccount_001</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FinanceReview_003" name="Finance Review">
+        <bpmn:flowNodeRef>InclusiveGateway_AccountCheckTimeout_001</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewExpenseReport_001</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ExpenseReceived_001" name="Employee files expense report">
+      <bpmn:outgoing>SequenceFlow_StartToCheckAccount_001</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check if employee has account -->
+    <bpmn:task id="Task_CheckAccountExistence_001" name="Check if employee has an account">
+      <bpmn:incoming>SequenceFlow_StartToCheckAccount_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountExistsGateway_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway 1: Has account decision -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_HasAccount_001">
+      <bpmn:incoming>SequenceFlow_AccountExistsGateway_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoAccountCreateTask_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HasAccountReviewTask_001</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Timer Intermediate Catch Event for 28 days timeout -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_AccountCheckTimeout_001" name="28 days">
+      <bpmn:incoming>SequenceFlow_StartToCheckAccount_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimeoutResubmitEmail_001</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_AccountTimeout_001">
+        <bpmn:timeDuration xsi:type="bpmn:tTimeDate" value="P28D"/>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 2: Create employee account -->
+    <bpmn:task id="Task_CreateEmployeeAccount_001" name="Create new employee account">
+      <bpmn:incoming>SequenceFlow_NoAccountCreateTask_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreatedToReview_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Review expense report -->
+    <bpmn:task id="Task_ReviewExpenseReport_001" name="Review the expense report">
+      <bpmn:incoming>SequenceFlow_HasAccountReviewTask_001</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_AccountCreatedToReview_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReviewAmountGateway_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway 2: Account check timeout -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_AccountCheckTimeout_001">
+      <bpmn:incoming>SequenceFlow_TimeoutResubmitEmail_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessStopped_001</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Exclusive Gateway 3: Amount > 200 decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountCheck_001">
+      <bpmn:incoming>SequenceFlow_ReviewAmountGateway_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LowAmountReimburse_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HighAmountSupervisorApproval_001</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Ask supervisor for approval -->
+    <bpmn:task id="Task_AskSupervisorApproval_001" name="Ask supervisor for approval">
+      <bpmn:incoming>SequenceFlow_HighAmountSupervisorApproval_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorRequestGateway_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Complex Gateway for supervisor response handling -->
+    <bpmn:complexGateway id="ComplexGateway_SupervisorResponse_001">
+      <bpmn:incoming>SequenceFlow_SupervisorRequestGateway_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalWithin7DaysPath_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectionWithin7DaysPath_001</bpmn:outgoing>
+    </bpmn:complexGateway>
+
+    <!-- Timer for 7 days approval window (approval path) -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_ApprovalWithin7Days_001" name="7 days">
+      <bpmn:incoming>SequenceFlow_ApprovalWithin7DaysPath_001</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Approval7Days_001">
+        <bpmn:timeDuration xsi:type="bpmn:tTimeDate" value="P7D"/>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message Event for supervisor approval -->
+    <bpmn:messageIntermediateThrowEvent id="MessageSupervisorApproval_001">
+      <bpmn:incoming>SequenceFlow_ApprovalWithin7DaysPath_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorApprovedDeposit_001</bpmn:outgoing>
+    </bpmn:messageIntermediateThrowEvent>
+
+    <!-- Message Event for supervisor rejection -->
+    <bpmn:messageIntermediateCatchEvent id="MessageSupervisorRejection_001">
+      <bpmn:incoming>SequenceFlow_RejectionWithin7DaysPath_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendRejectionNotification_001</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Task 5: Send approval in progress email (timeout path) -->
+    <bpmn:task id="Task_SendApprovalInProgressEmail_001" name="Send employee 'approval in progress' email">
+      <bpmn:incoming>SequenceFlow_TimeoutApprovalInProgressEmail_001</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackToSupervisorRequest_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Deposit reimbursement (low amount) -->
+    <bpmn:task id="Task_DepositReimbursementLowAmount_001" name="Deposit reimbursement to employee's bank account">
+      <bpmn:incoming>SequenceFlow_LowAmountReimburse_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DepositToEndEvent_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 7: Deposit reimbursement (approved) -->
+    <bpmn:task id="Task_DepositReimbursementApproved_001" name="Deposit approved reimbursement to employee's bank account">
+      <bpmn:incoming>SequenceFlow_SupervisorApprovedDeposit_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DepositToEndEvent_002</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 8: Send rejection notification to employee -->
+    <bpmn:task id="Task_SendRejectionNotification_001" name="Send employee email that request has been rejected">
+      <bpmn:incoming>SequenceFlow_SendRejectionNotification_001</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectionToEndEvent_001</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Process stopped, resubmit email sent (timeout) -->
+    <bpmn:endEvent id="EndEvent_ProcessStoppedResubmitEmail_001" name="Process stopped and send employee 'resubmit' email">
+      <bpmn:incoming>SequenceFlow_EndProcessStopped_001</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Reimbursement deposited (low amount) -->
+    <bpmn:endEvent id="EndEvent_ReimbursedLowAmount_001" name="Reimbursement processed">
+      <bpmn:incoming>SequenceFlow_DepositToEndEvent_001</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- End Event 3: Reimbursement deposited (approved) -->
+    <bpmn:endEvent id="EndEvent_ReimbursedApproved_002" name="Reimbursement processed">
+      <bpmn:incoming>SequenceFlow_DepositToEndEvent_002</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- End Event 4: Request rejected -->
+    <bpmn:endEvent id="EndEvent_RequestRejected_001" name="Request rejected">
+      <bpmn:incoming>SequenceFlow_RejectionToEndEvent_001</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

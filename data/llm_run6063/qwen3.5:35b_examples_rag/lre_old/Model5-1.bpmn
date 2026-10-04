@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_LoanApproval_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LoanProcess">
+    <bpmn:participant id="Participant_Bank" name="Bank Loan Department"/>
+    <bpmn:participant id="Participant_Customer" name="Customer"/>
+    <bpmn:messageFlow id="MessageFlow_RequestLoan" sourceRef="StartEvent_1" targetRef="Participant_Customer">
+      <bpmn:name>Request for loan</bpmn:name>
+    </bpmn:messageFlow>
+    <bpmn:messageFlow id="MessageFlow_FeedbackApproved" sourceRef="EndEvent_Approved" targetRef="Participant_Customer"/>
+    <bpmn:messageFlow id="MessageFlow_FeedbackDenied" sourceRef="EndEvent_Denied" targetRef="Participant_Customer"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LoanApproval">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Loan Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_RiskAssessment</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Risk Assessment Web Service -->
+    <bpmntask id="Task_AssessRisk" name="Invoke Risk Assessment">
+        <bmptype>bpmn:WebServiceTask</bmptype>
+      <bpmnincoming>SequenceFlow_RiskAssessment</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_Decision1</bpmnoutgoing>
+    </bpmntask>
+
+    <!-- First Gateway - Check Amount and Risk -->
+    <bpmn:exclusiveGateway id="Gateway_AmountRisk" name="$10k or High Risk?">
+        <bmptype>bpmn:ExclusiveGateway</bmptype>
+      <bpmnincoming>SequenceFlow_Decision1</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_ApproveDirectly</bpmnoutgoing>
+      <bpmnoutgoing>SequenceFlow_NeedApproval</bpmnoutgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Direct Approval Path -->
+    <bpmntask id="Task_DirectApprove" name="Auto-approve Loan">
+        <bmptype>bpmn:ServiceTask</bmptype>
+      <bpmnincoming>SequenceFlow_ApproveDirectly</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_SendApprovedFeedback</bpmnoutgoing>
+    </bpmntask>
+
+    <!-- Approval Request Path -->
+    <bpmn:exclusiveGateway id="Gateway_NeedApproval" name="Send to Approver">
+        <bmptype>bpmn:ExclusiveGateway</bmptype>
+      <bpmnincoming>SequenceFlow_NeedApproval</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_InvokeApprover</bpmnoutgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Approver Web Service -->
+    <bpmntask id="Task_ApprovalService" name="Invoke Approval Service">
+        <bmptype>bpmn:WebServiceTask</bmptype>
+      <bpmnincoming>SequenceFlow_InvokeApprover</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_Decision2</bpmnoutgoing>
+    </bpmntask>
+
+    <!-- Second Gateway - Approval Decision -->
+    <bpmn:exclusiveGateway id="Gateway_ApprovalDecision" name="Approved?">
+        <bmptype>bpmn:ExclusiveGateway</bmptype>
+      <bpmnincoming>SequenceFlow_Decision2</bpmnincoming>
+      <bpmnoutgoing>SequenceFlow_SendDeniedFeedback</bpmnoutgoing>
+      <bpmnoutgoing>SequenceFlow_SendApprovedFeedbackFromApproval</bpmnoutgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Approved -->
+    <bpmn:endEvent id="EndEvent_Approved" name="Loan Approved">
+        <bmptype>bpmn:MessageEndEvent</bmptype>
+      <bpmnincoming>SequenceFlow_SendApprovedFeedbackFromApproval</bpmnincoming>
+      <bpmnincoming>SequenceFlow_SendApprovedFeedback</bpmnincoming>
+    </bpmn:endEvent>
+
+    <!-- End Event - Denied -->
+    <bpmn:endEvent id="EndEvent_Denied" name="Loan Denied">
+        <bmptype>bpmn:MessageEndEvent</bmptype>
+      <bpmnincoming>SequenceFlow_SendDeniedFeedback</bpmnincoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RiskAssessment" sourceRef="StartEvent_1" targetRef="Task_AssessRisk">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Decision1" name="Small &amp; Low Risk?&#xa;No → Need Approval" sourceRef="Task_AssessRisk" targetRef="Gateway_AmountRisk">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApproveDirectly" name="Yes → Auto-approve" sourceRef="Gateway_AmountRisk" targetRef="Task_DirectApprove">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NeedApproval" name="No → Need Approval" sourceRef="Gateway_AmountRisk" targetRef="Gateway_NeedApproval">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_InvokeApprover" name="Send to Approver Service" sourceRef="Gateway_NeedApproval" targetRef="Task_ApprovalService">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Decision2" name="Approver Decision Result" sourceRef="Task_ApprovalService" targetRef="Gateway_ApprovalDecision">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendApprovedFeedbackFromApproval" name="Credit = accepted&#xa;→ Send Feedback" sourceRef="Gateway_ApprovalDecision" targetRef="EndEvent_Approved">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendDeniedFeedback" name="Credit = rejected&#xa;→ Send Feedback" sourceRef="Gateway_ApprovalDecision" targetRef="EndEvent_Denied">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendApprovedFeedback" name="Auto-approved&#xa;→ Send Feedback" sourceRef="Task_DirectApprove" targetRef="EndEvent_Approved">
+      <bmptype>bpmn:Message</bmptype>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

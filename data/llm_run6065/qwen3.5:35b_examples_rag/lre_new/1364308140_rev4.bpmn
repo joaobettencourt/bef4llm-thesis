@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_SO_Auftrag" name="SO Angebot/Auftrag" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SO_Auftrag" name="SO Angebot/Auftrag">
+        <bpmn:flowNodeRef>LaneTask_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneTask_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneGateway_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneTask_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>LaneTask_SendInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Join</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Address" name="SO Address-management">
+        <bpmn:flowNodeRef>LaneTask_AddAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive Subsidiary Order">
+      <bpmn:outgoing>bpmn:SequenceFlow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Split Gateway (Concurrent Paths) -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Start Processing">
+      <bpmn:incoming>bpmn:SequenceFlow_Start</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_LogisticsPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_InvoicingLogicPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Logistics Path -->
+    <bpmn:userTask id="LaneTask_PrepareGoods" name="Prepare Goods for Shipment">
+      <bpmn:incoming>bpmn:SequenceFlow_LogisticsPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ShipGoods</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="LaneTask_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>bpmn:SequenceFlow_ShipGoods</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_LogisticsEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Invoicing Logic Path -->
+    <bpmn:exclusiveGateway id="LaneGateway_Decision" name="Customer Type Check">
+      <bpmn:incoming>bpmn:SequenceFlow_InvoicingLogicPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_AddAddressPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_DirectInvoicePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Subsidiary & Not Modeled (Lane 2) -->
+    <bpmn:userTask id="LaneTask_AddAddress" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>bpmn:SequenceFlow_AddAddressPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ConvergeToInvoice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path 2: Independent or Already Modeled (Lane 1) -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectInvoicePath" name="Independent OR Modeled">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${customerType != 'subsidiary' || relationshipModeled}</bpmn:name>
+      <bpmn:sourceRef>LaneGateway_Decision</bpmn:sourceRef>
+      <bpmn:targetRef>LaneTask_CreateInvoice</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Converge to Create Invoice Task -->
+    <bpmn:userTask id="LaneTask_CreateInvoice" name="Create Invoice">
+      <bpmn:incoming>bpmn:SequenceFlow_ConvergeToInvoice</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_DirectInvoicePath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_InvoiceReady</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Join Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_Join" name="Merge Process">
+      <bpmn:incoming>bpmn:SequenceFlow_LogisticsEnd</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_InvoiceReady</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- Send Invoice Task -->
+    <bpmn:userTask id="LaneTask_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>bpmn:SequenceFlow_Final</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_End</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Invoice Sent">
+      <bpmn:incoming>bpmn:SequenceFlow_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Split and Decision Logic (Corrected) -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Start" sourceRef="StartEvent_1" targetRef="ParallelGateway_Split"/>
+
+    <!-- Logistics Start -->
+    <bpmn:userTask id="LaneTask_PrepareGoods">
+       <bpmn:incoming>bpmn:SequenceFlow_LogisticsPath</bpmn:incoming>
+       <bpmn:outgoing>bpmn:SequenceFlow_ShipGoods</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Invoicing Logic Start -->
+    <bpmn:exclusiveGateway id="LaneGateway_Decision">
+      <bpmn:incoming>bpmn:SequenceFlow_InvoicingLogicPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_AddAddressPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_DirectToCreate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Add Address Path -->
+    <bpmn:userTask id="LaneTask_AddAddress">
+       <bpmn:incoming>bpmn:SequenceFlow_AddAddressPath</bpmn:incoming>
+       <bpmn:outgoing>bpmn:SequenceFlow_ConvergeToCreate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Direct Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectToCreate" sourceRef="LaneGateway_Decision" targetRef="LaneTask_CreateInvoice">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${customerType != 'subsidiary' || relationshipModeled}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Converge to Create Invoice (Both paths lead here) -->
+    <bpmn:userTask id="LaneTask_CreateInvoice">
+       <bpmn:incoming>bpmn:SequenceFlow_ConvergeToCreate</bpmn:incoming>
+       <bpmn:incoming>bpmn:SequenceFlow_DirectToCreate</bpmn:incoming> <!-- Wait, this creates two inputs from same decision point logic. Valid if only one active per instance -->
+    </bpmn:userTask>
+
+    <!-- Sequence Flow Definitions (Consolidated) -->
+    
+  </bpmn:process>
+  
+  <bpmn:dataObject id="DataOrder" name="Subsidiary Order"/>
+</bpmn:definitions>

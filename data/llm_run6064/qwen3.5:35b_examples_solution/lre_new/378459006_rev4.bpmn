@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_WeeklyPaymentProcess_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_PaymentOffice_Process_v2">
+    <bpmn:participant id="Participant_SSP_Organization_v2" name="SSP Organization" processRef="Process_WeeklyPayments_01_v2" />
+    <bpmn:participant id="Participant_Client_Engagement_v2" name="Client Engagement" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_WeeklyPayments_01_v2" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice_v2" name="Payment Office">
+        <bpmn:flowNodeRef>StartEvent_WeeklyTrigger_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenerateReport_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayVendor_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DistributeReports_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AccountsReceivable_v2" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>Task_GenerateMonthlyInvoice_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ChargeClientFee_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ARComplete_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_RegistryOffice_v2" name="Registry Office">
+        <bpmn:flowNodeRef>Task_SelectPaidInvoices_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ArchiveDecision_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveByVendor_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrackPayment_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveByData_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_RegistryComplete1_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_RegistryComplete2_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Client_v2" name="Client">
+        <!-- Client lane for message flow target -->
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Payment Office Lane Elements -->
+    <bpmn:startEvent id="StartEvent_WeeklyTrigger_v2" name="At the end of every week">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SF_StartToReport_v2</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GenerateReport_v2" name="Generate Payment Report">
+      <bpmn:incoming>SF_StartToReport_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_ReportToPayVendor_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SF_StartToReport_v2" sourceRef="StartEvent_WeeklyTrigger_v2" targetRef="Task_GenerateReport_v2" />
+
+    <bpmn:task id="Task_PayVendor_v2" name="Pay the Vendor">
+      <bpmn:incoming>SF_ReportToPayVendor_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_VendorPaymentGateway_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SF_ReportToPayVendor_v2" sourceRef="Task_GenerateReport_v2" targetRef="Task_PayVendor_v2" />
+
+    <!-- Parallel Gateway for Distribution -->
+    <bpmn:parallelGateway id="Gateway_DistributeReports_v2">
+      <bpmn:incoming>SF_VendorPaymentGateway_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_SendToClients_v2</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendToARDept_v2</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendToRegistry_v2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Client Notification Path -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete_v2">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>SF_ClientNotificationDone_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SF_VendorPaymentGateway_v2" sourceRef="Task_PayVendor_v2" targetRef="Gateway_DistributeReports_v2" />
+
+    <!-- Accounts Receivable Department Path -->
+    <bpmn:task id="Task_GenerateMonthlyInvoice_v2" name="Generate Monthly Invoice for Clients">
+      <bpmn:incoming>SF_SendToARDept_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_InvoiceToChargeFee_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SF_SendToARDept_v2" sourceRef="Gateway_DistributeReports_v2" targetRef="Task_GenerateMonthlyInvoice_v2" />
+
+    <!-- Charge Client Fee -->
+    <bpmn:task id="Task_ChargeClientFee_v2" name="Charge $35 per Invoice">
+      <bpmn:incoming>SF_InvoiceToChargeFee_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_FeeChargedComplete_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Client Notification -->
+    <bpmn:messageFlow id="MessageFlow_ClientNotification_v2" name="Payment Invoice">
+      <bpmn:sourceRef>EndEvent_ProcessComplete_v2</bpmn:sourceRef>
+      <bpmn:targetRef>Participant_Client_Engagement_v2</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Registry Office Path -->
+    <bpmn:task id="Task_SelectPaidInvoices_v2" name="Select Paper-Based Paid Invoices">
+      <bpmn:incoming>SF_SendToRegistry_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_InvoiceSelectionGateway_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Archive Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ArchiveDecision_v2">
+      <bpmn:incoming>SF_InvoiceSelectionGateway_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_ArchiveByVendorPath_v2</bpmn:outgoing>
+      <bpmn:outgoing>SF_TrackPaymentPath_v2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Archive by Vendor -->
+    <bpmn:task id="Task_ArchiveByVendor_v2" name="Archive Invoices per Vendor">
+      <bpmn:incoming>SF_ArchiveByVendorPath_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_VendorToDataArchive_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Track Payment -->
+    <bpmn:task id="Task_TrackPayment_v2" name="Track Down the Payment">
+      <bpmn:incoming>SF_TrackPaymentPath_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_PaymentTrackedComplete_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Archive by Data -->
+    <bpmn:task id="Task_ArchiveByData_v2" name="Archive Invoices per Payment Data">
+      <bpmn:incoming>SF_VendorToDataArchive_v2</bpmn:incoming>
+      <bpmn:outgoing>SF_DataArchiveComplete_v2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_RegistryComplete1_v2">
+      <bpmn:incoming>SF_PaymentTrackedComplete_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_RegistryComplete2_v2">
+      <bpmn:incoming>SF_DataArchiveComplete_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for AR -->
+    <bpmn:endEvent id="EndEvent_ARComplete_v2">
+      <bpmn:incoming>SF_FeeChargedComplete_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Registry -->
+    <bpmn:sequenceFlow id="SF_InvoiceSelectionGateway_v2" sourceRef="Task_SelectPaidInvoices_v2" targetRef="Gateway_ArchiveDecision_v2">
+      <bpmn:name>Select Paid Invoices</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_TrackPaymentPath_v2" sourceRef="Gateway_ArchiveDecision_v2" targetRef="Task_TrackPayment_v2">
+      <bpmn:name>Track Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_PaymentTrackedComplete_v2" sourceRef="Task_TrackPayment_v2" targetRef="EndEvent_RegistryComplete1_v2">
+      <bpmn:name>Paid Invoices Tracked</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_ArchiveByVendorPath_v2" sourceRef="Gateway_ArchiveDecision_v2" targetRef="Task_ArchiveByVendor_v2">
+      <bpmn:name>Archive by Vendor</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_VendorToDataArchive_v2" sourceRef="Task_ArchiveByVendor_v2" targetRef="Task_ArchiveByData_v2">
+      <bpmn:name>To Data Archive</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_DataArchiveComplete_v2" sourceRef="Task_ArchiveByData_v2" targetRef="EndEvent_RegistryComplete2_v2">
+      <bpmn:name>Data Archived Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flows for AR Department -->
+    <bpmn:sequenceFlow id="SF_InvoiceToChargeFee_v2" sourceRef="Task_GenerateMonthlyInvoice_v2" targetRef="Task_ChargeClientFee_v2">
+      <bpmn:name>To Charge Fee</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_FeeChargedComplete_v2" sourceRef="Task_ChargeClientFee_v2" targetRef="EndEvent_ARComplete_v2">
+      <bpmn:name>Fees Charged Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

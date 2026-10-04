@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Unbedenklichkeitsbescheinigung Prozess" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_001">
+      <bpmn:lane id="Lane_SystemProcessing" name="System Processing">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InitProcess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PersonExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CheckRole</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IsEmployer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SendTask_CreateLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CheckInsuranceTimes</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Administrative" name="Administrative Staff">
+        <bpmn:flowNodeRef>UserTask_HandoverCaseWorker</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_EvaluationResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Anfrage Unbedenklichkeitsbescheinigung">
+      <bpmn:outgoing>SequenceFlow_InitProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Initialize Process -->
+    <bpmn:task id="Task_InitProcess" name="Prozess initialisieren (Zähler auf 0)">
+      <bpmn:incoming>SequenceFlow_InitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPersonExists</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Person Exists? -->
+    <bpmn:exclusiveGateway id="Gateway_PersonExists" name="Ist Absender im System vorhanden?">
+      <bpmn:incoming>SequenceFlow_CheckPersonExists</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueProcess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandoverCaseWorker</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Check Role (Employer) -->
+    <bpmn:serviceTask id="ServiceTask_CheckRole" name="Prüfe Absender Rolle">
+      <bpmn:incoming>SequenceFlow_ContinueProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IsEmployerCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Is Employer? -->
+    <bpmn:exclusiveGateway id="Gateway_IsEmployer" name="Ist Absender Arbeitgeber?">
+      <bpmn:incoming>SequenceFlow_IsEmployerCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateLetter</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckInsuranceTimes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Create Letter -->
+    <bpmn:sendTask id="SendTask_CreateLetter" name="Anschreiben erstellen">
+      <bpmn:incoming>SequenceFlow_CreateLetter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndAwaitingInfo</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Task: Check Insurance Times -->
+    <bpmn:serviceTask id="ServiceTask_CheckInsuranceTimes" name="Prüfe Versicherungszeiten & Nachweise">
+      <bpmn:incoming>SequenceFlow_CheckInsuranceTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckOpenClaims</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Check Open Claims -->
+    <bpmn:serviceTask id="ServiceTask_CheckOpenClaims" name="Prüfe offene Forderungen">
+      <bpmn:incoming>SequenceFlow_CheckOpenClaims</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EvaluationResult</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Evaluation Result -->
+    <bpmn:exclusiveGateway id="Gateway_EvaluationResult" name="Erfüllung der Voraussetzungen?">
+      <bpmn:incoming>SequenceFlow_EvaluationResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IssueFullCert</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IssueNoteCert</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandoverCaseWorkerFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Issue Full Cert -->
+    <bpmn:task id="Task_IssueFullCert" name="Bescheinigung ausstellen (Vollständig)">
+      <bpmn:incoming>SequenceFlow_IssueFullCert</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogHistory</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Issue Note Cert -->
+    <bpmn:task id="Task_IssueNoteCert" name="Bescheinigung ausstellen (Hinweis)">
+      <bpmn:incoming>SequenceFlow_IssueNoteCert</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogHistoryFinal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Log History -->
+    <bpmn:serviceTask id="ServiceTask_LogHistory" name="Eintrag in Kontakthistorie">
+      <bpmn:incoming>SequenceFlow_LogHistory</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_LogHistoryFinal</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Handover Case Worker -->
+    <bpmn:userTask id="UserTask_HandoverCaseWorker" name="Fall an Sachbearbeiter übergeben">
+      <bpmn:incoming>SequenceFlow_HandoverCaseWorker</bpmn:incoming> 
+      <bpmn:incoming>SequenceFlow_HandoverCaseWorkerFinal</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_EndHandover</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_AwaitingInfo" name="Anfrage ausstehend">
+      <bpmn:incoming>SequenceFlow_EndAwaitingInfo</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_ProcessCompleted" name="Bescheinigung bearbeitet">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_HandoverDone" name="Fall übergeben">
+      <bpmn:incoming>SequenceFlow_EndHandover</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitProcess" sourceRef="StartEvent_1" targetRef="Task_InitProcess"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPersonExists" name="Ja - Person vorhanden" sourceRef="Gateway_PersonExists" targetRef="ServiceTask_CheckRole">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${personInSystem == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverCaseWorker" name="Nein - Person fehlt" sourceRef="Gateway_PersonExists" targetRef="UserTask_HandoverCaseWorker">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${personInSystem == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueProcess" sourceRef="Task_InitProcess" targetRef="Gateway_PersonExists"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_IsEmployerCheck" sourceRef="ServiceTask_CheckRole" targetRef="Gateway_IsEmployer"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateLetter" name="Nein - Keine Arbeitgeberrolle" sourceRef="Gateway_IsEmployer" targetRef="SendTask_CreateLetter">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${roleIsEmployer == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsuranceTimes" name="Ja - Arbeitgeberrolle vorhanden" sourceRef="Gateway_IsEmployer" targetRef="ServiceTask_CheckInsuranceTimes">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${roleIsEmployer == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndAwaitingInfo" sourceRef="SendTask_CreateLetter" targetRef="End_AwaitingInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckOpenClaims" sourceRef="ServiceTask_CheckInsuranceTimes" targetRef="ServiceTask_CheckOpenClaims"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EvaluationResult" name="Ergebnis der Prüfung" sourceRef="ServiceTask_CheckOpenClaims" targetRef="Gateway_EvaluationResult">
+      <!-- Logic handled by gateway conditions -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_IssueFullCert" name="Vollständige Unbedenklichkeit" sourceRef="Gateway_EvaluationResult" targetRef="Task_IssueFullCert"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LogHistory" sourceRef="Task_IssueFullCert" targetRef="ServiceTask_LogHistory"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="Bescheinigung bearbeitet" sourceRef="ServiceTask_LogHistory" targetRef="End_ProcessCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

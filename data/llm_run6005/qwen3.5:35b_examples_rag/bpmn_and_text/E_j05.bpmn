@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_AustriaVisa_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_VisaProcess_01">
+    <bpmn:participant id="Participant_GovAustria" name="Work and Live in Austria Process" processRef="Process_AustriaVisa_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AustriaVisa_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:laneSetRef>LaneSet_Visa_Processing</bpmn:laneSetRef>
+      <bpmn:laneSet id="LaneSet_Visa_Processing">
+        <bpmn:lane id="Lane_Applicant" name="Applicant/Foreign National"/>
+        <bpmn:lane id="Lane_ImmigrationOffice" name="Austrian Immigration Office"/>
+        <bpmn:lane id="Lane_RepresentationOffice" name="Austrian Representation Office"/>
+      </bpmn:laneSet>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CheckRequirements" name="Check Requirements">
+      <bpmn:outgoing>SequenceFlow_StartToAccommodation</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Accommodation and Bank Account -->
+    <bpmn:parallelGateway id="Parallel_GovPrep" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_StartToAccommodation</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccommodationTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Accommodation Task -->
+    <bpmn:task id="Task_OrganizeAccommodation" name="Organize Accommodation">
+      <bpmn:incoming>SequenceFlow_AccommodationTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccomplishedDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Bank Account Task -->
+    <bpmn:parallelGateway id="Parallel_GovPrep_Converging" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_AccomplishedDone</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_BankAccountTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Bank Account Task -->
+    <bpmn:task id="Task_OpenBankAccount" name="Open Bank Account (Negotiation)">
+      <bpmn:incoming>SequenceFlow_BankAccountTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccomplishedDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Visa Preparation Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_VisaPrepStart" sourceRef="Parallel_GovPrep_Converging" targetRef="Task_PrepareVisaDocuments"/>
+
+    <!-- Visa Document Preparation -->
+    <bpmn:task id="Task_PrepareVisaDocuments" name="Prepare Visa Documents (Form, Passport, Photo)">
+      <bpmn:incoming>SequenceFlow_VisaPrepStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SubmitApplication</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Submit Application -->
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitApplication" sourceRef="Task_PrepareVisaDocuments" targetRef="XORGateway_VisaTypeCheck"/>
+
+    <!-- Visa Type Check Gateway Outgoing -->
+    <bpmn:exclusiveGateway id="XORGateway_VisaTypeCheck" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_SubmitApplication</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TypeAVisaPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Category A Visa Path -->
+    <bpmn:task id="Task_CategoryAVisaProcessing" name="Process Category A/C Visa">
+      <bpmn:incoming>SequenceFlow_TypeAVisaPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_VisaApplicationReviewStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Submit to Representation Office -->
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitToOffice" sourceRef="Task_CategoryAVisaProcessing" targetRef="XORGateway_TerritorialCompetence"/>
+
+    <!-- Territorial Competence Check -->
+    <bpmn:exclusiveGateway id="XORGateway_TerritorialCompetence" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_SubmitToOffice</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MainDestinationCheckPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Main Destination Check -->
+    <bpmn:task id="Task_DetermineMainTravelDestination" name="Determine Main Travel Destination">
+      <bpmn:incoming>SequenceFlow_MainDestinationCheckPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CompetenceAssignedPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Competence Assigned -->
+    <bpmn:sequenceFlow id="SequenceFlow_CompetenceAssignedPath" sourceRef="Task_DetermineMainTravelDestination" targetRef="XORGateway_RWRCardCheck"/>
+
+    <!-- RWR Card Check -->
+    <bpmn:exclusiveGateway id="XORGateway_RWRCardCheck" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_CompetenceAssignedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProcessRWRPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Process RWR Card -->
+    <bpmn:task id="Task_ProcessRotWeissRotCard" name="Process Rot-Weiss-Rot Card">
+      <bpmn:incoming>SequenceFlow_CompetenceAssignedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RWRCompletePath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- RWR Complete -->
+    <bpmn:sequenceFlow id="SequenceFlow_RWRCompletePath" sourceRef="Task_ProcessRotWeissRotCard" targetRef="XORGateway_FinalDecision"/>
+
+    <!-- Final Decision Gateway -->
+    <bpmn:exclusiveGateway id="XORGateway_FinalDecision" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_RWRCompletePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_VisaIssuanceStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Visa Issuance -->
+    <bpmn:task id="Task_IssueVisa" name="Issue Visa">
+      <bpmn:incoming>SequenceFlow_FinalDecisionOKPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_VisaCompleteFinal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalDecisionOKPath" sourceRef="XORGateway_FinalDecision" targetRef="Task_IssueVisa"/>
+
+    <!-- Visa Complete to End Event -->
+    <bpmn:endEvent id="EndEvent_VisaIssued" name="Visa Issued">
+      <bpmn:incoming>SequenceFlow_VisaCompleteFinal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Accommodation and Bank Account -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAccommodation" sourceRef="StartEvent_CheckRequirements" targetRef="Parallel_GovPrep"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_GO_MSP_SP">
+    <bpmn:participant id="Pool_GO" name="GO" processRef="Process_GO"/>
+    <bpmn:participant id="Pool_MSP" name="MSP" processRef="Process_MSP"/>
+    <bpmn:participant id="Pool_SP" name="SP" processRef="Process_SP"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="ThrowEvent_GO_SendRequest" targetRef="CatchEvent_MSP_ReceiveRequest"/>
+    <bpmn:messageFlow id="MessageFlow_Failure" sourceRef="ThrowEvent_MSP_InformFailure" targetRef="CatchEvent_GO_Notification"/>
+    <bpmn:messageFlow id="MessageFlow_Response" sourceRef="ThrowEvent_MSP_TransmitValues" targetRef="CatchEvent_GO_ReceiveResponse"/>
+    <bpmn:messageFlow id="MessageFlow_ChangedToMSP" sourceRef="ThrowEvent_GO_SendChanged" targetRef="CatchEvent_MSP_Acknowledge"/>
+    <bpmn:messageFlow id="MessageFlow_ReadingsToSP" sourceRef="ThrowEvent_GO_TransmitReadings" targetRef="CatchEvent_SP_ReceiveReadings"/>
+
+  </bpmn:collaboration>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" name="GO Process">
+    <bpmn:startEvent id="StartEvent_GO_Initiation">
+      <bpmn:outgoing>SequenceFlow_GO_StartToSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:parallelGateway id="ParallelGateway_GO_Split" name="Request &amp; Wait"/>
+    
+    <!-- Branch 1: Send Request -->
+    <bpmn:task id="Task_GO_RequestMeasurements">
+      <bpmn:incoming>SequenceFlow_GO_StartToSplit</bpmn:outgoing> 
+      <bpmn:outgoing>SequenceFlow_GO_TaskToSendMsg</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for Message Flow -->
+    <bpmn:messageEvent id="ThrowEvent_GO_SendRequest" name="Send Request">
+       <bpmn:incoming>SequenceFlow_GO_TaskToSendMsg</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_GO_ThrowToMergeSent</bpmn:outgoing> 
+    </bpmn:messageEvent>
+
+    <!-- Branch 2: Wait for Response/Failure -->
+    <bpmn:startEvent id="StartEvent_GO_WaitForResponse" name="Wait">
+       <bpmn:incoming/> <!-- Implicitly connected to Split in valid model logic, simplified here as Catch Event flow start -->
+       <bpmn:messageEvent id="CatchEvent_GO_ReceiveResponse" name="Received Response"> 
+           <bpmn:outgoing>SequenceFlow_GO_CatchToProcess</bpmn:outgoing>
+        </bpmn:messageEvent>
+    </bpmn:startEvent>
+
+     <!-- Intermediate Catch Event for Notification (Failure) -->
+     <bpmn:messageEvent id="CatchEvent_GO_Notification" name="Received Failure"> 
+         <bpmn:incoming/> <!-- Linked via message flow in collaboration -->
+         <bpmn:outgoing>SequenceFlow_GO_CatchToProcess</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+     <bpmn:endEvent id="EndEvent_GO_RequestSent">
+       <bpmn:incoming>SequenceFlow_GO_ThrowToEndSent</bpmn:outgoing> 
+    </bpmn:endEvent>
+
+    <!-- Process Values -->
+    <bpmn:task id="Task_GO_ProcessValues" name="Process Measured Values">
+      <bpmn:incoming>SequenceFlow_GO_CatchToProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_TaskToSendChanged</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Send Changed to MSP -->
+    <bpmn:messageEvent id="ThrowEvent_GO_SendChanged" name="Send Changed Values"> 
+        <bpmn:incoming>SequenceFlow_GO_TaskToSendChanged</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_GO_ThrowToTransmitReadings</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+     <!-- Transmit Readings to SP -->
+    <bpmn:messageEvent id="ThrowEvent_GO_TransmitReadings" name="Transmit Readings"> 
+        <bpmn:incoming>SequenceFlow_GO_ThrowToTransmitReadings</bpmn:outgoing>
+        <bpmn:outgoing/> <!-- End of flow -->
+    </bpmn:messageEvent>
+
+     <bpmn:endEvent id="EndEvent_GO_Complete">
+       <bpmn:incoming>SequenceFlow_GO_ThrowToTransmitReadings</bpmn:outgoing> 
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- MSP Process -->
+  <bpmn:process id="Process_MSP" name="MSP Process">
+     <bpmn:startEvent id="StartEvent_MSP_ReceiveRequest" name="Wait Request"> 
+        <bpmn:messageEvent id="CatchEvent_MSP_ReceiveRequest" name="Received Request"> 
+           <bpmn:incoming/> <!-- Linked via message flow in collaboration -->
+           <bpmn:outgoing>SequenceFlow_MSP_CatchToCheck</bpmn:outgoing>
+        </bpmn:messageEvent>
+     </bpmn:startEvent>
+
+     <bpmn:task id="Task_MSP_CheckRequest" name="Check Request">
+       <bpmn:incoming>SequenceFlow_MSP_CatchToCheck</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_MSP_TaskToGateway</bpmn:outgoing>
+     </bpmn:task>
+
+     <bpmn:exclusiveGateway id="Gateway_MSP_DenyOrMeasure" name="Deny?">
+        <bpmn:incoming>SequenceFlow_MSP_TaskToGateway</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_MSP_GatewayToInformFailure</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_MSP_GatewayToMeasure</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+     <!-- Path 1: Deny -->
+     <bpmn:messageEvent id="ThrowEvent_MSP_InformFailure" name="Inform Failure"> 
+        <bpmn:incoming>SequenceFlow_MSP_GatewayToInformFailure</bpmn:incoming>
+        <bpmn:outgoing/> <!-- End of this branch -->
+    </bpmn:messageEvent>
+
+     <bpmn:endEvent id="EndEvent_MSP_Denied">
+       <bpmn:incoming>SequenceFlow_MSP_TaskToEndDenied</bpmn:incoming> 
+    </bpmn:endEvent>
+
+     <!-- Path 2: Measure -->
+     <bpmn:task id="Task_MSP_PerformMeasurement" name="Perform Measurement">
+        <bpmn:incoming>SequenceFlow_MSP_GatewayToMeasure</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_MSP_TaskToTransmitValues</bpmn:outgoing>
+     </bpmn:task>
+
+     <!-- Intermediate Throw Event for Message Flow -->
+    <bpmn:messageEvent id="ThrowEvent_MSP_TransmitValues" name="Transmit Values"> 
+        <bpmn:incoming>SequenceFlow_MSP_TaskToTransmitValues</bpmn:incoming>
+        <bpmn:outgoing/> <!-- End of this branch -->
+    </bpmn:messageEvent>
+
+     <bpmn:endEvent id="EndEvent_MSP_Complete">
+       <bpmn:incoming>SequenceFlow_MSP_TaskToEndComplete</bpmn:incoming> 
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- SP Process -->
+  <bpmn:process id="Process_SP" name="SP Process">
+     <bpmn:startEvent id="StartEvent_SP_ReceiveReadings" name="Wait Readings"> 
+        <bpmn:messageEvent id="CatchEvent_SP_ReceiveReadings" name="Received Readings">
+           <bpmn:incoming/> <!-- Linked via message flow in collaboration -->
+           <bpmn:outgoing>SequenceFlow_SP_CatchToEnd</bpmn:outgoing> 
+        </bpmn:messageEvent>
+     </bpmn:startEvent>
+
+     <bpmn:endEvent id="EndEvent_SP_Complete">
+       <bpmn:incoming>SequenceFlow_SP_CatchToEnd</bpmn:incoming>
+     </bpmn:endEvent>
+  </bpmn:process>
+
+  <!-- Sequence Flows for GO Process -->
+  <bpmn:sequenceFlow id="SequenceFlow_GO_StartToSplit" sourceRef="StartEvent_GO_Initiation" targetRef="ParallelGateway_GO_Split"/>
+  <bpmn:sequenceFlow id="SequenceFlow_GO_TaskToSendMsg" sourceRef="Task_GO_RequestMeasurements" targetRef="ThrowEvent_GO_SendRequest"/>
+  <bpmn:sequenceFlow id="SequenceFlow_GO_ThrowToMergeSent" sourceRef="ThrowEvent_GO_SendRequest" targetRef="ParallelGateway_GO_Merge"> 
+    <!-- Note: In valid XML without DI layouting info, Parallel Gateway Merge must be defined -->
+  </bpmn:sequenceFlow>
+
+  <bpmn:parallelGateway id="ParallelGateway_GO_Merge"/> 
+
+  <bpmn:sequenceFlow id="SequenceFlow_GO_CatchToProcess" sourceRef="CatchEvent_GO_ReceiveResponse" targetRef="Task_GO_ProcessValues"/>
+  
+  <!-- Note: CatchEvent_GO_Notification also connects to Process Values -->
+  <bpmn:sequenceFlow id="SequenceFlow_GO_FailToProcess" sourceRef="CatchEvent_GO_Notification" targetRef="Task_GO_ProcessValues"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_GO_TaskToSendChanged" sourceRef="Task_GO_ProcessValues" targetRef="ThrowEvent_GO_SendChanged"/>
+  
+  <!-- Note: ThrowEvent_GO_TransmitReadings connects to End -->
+  <bpmn:sequenceFlow id="SequenceFlow_GO_ThrowToTransmitReadings" sourceRef="ThrowEvent_GO_SendChanged" targetRef="ThrowEvent_GO_TransmitReadings"/>
+
+</bpmn:definitions>

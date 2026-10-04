@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_MPOO" name="MPOO" processRef="Process_MPOO"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+  </bpmn:collaboration>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO" isExecutable="false">
+    <bpmn:startEvent id="StartMPOO_01" name="Deregister at GO">
+      <bpmn:outgoing>SequenceFlow_Start_Deregister</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_MPOO_SendRequest" name="Send deregistration request to GO">
+      <bpmn:incoming>SequenceFlow_Start_Deregister</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Request_ToGO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Optional confirmation of continuation -->
+    <bpmn:intermediateCatchEvent id="IntermediateMPOO_01" name="Await GO decision">
+      <bpmn:incoming>SequenceFlow_GO_Decision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MPOO_ConfirmationDecision</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MPOO_ContinueConfirm" name="Confirm continuation of operations">
+      <bpmn:incoming>SequenceFlow_MPOO_ConfirmationDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Confirm_ToGO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End events for different paths -->
+    <bpmn:endEvent id="EndMPOO_01" name="Deregistration rejected">
+      <bpmn:incoming>SequenceFlow_Reject_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndMPOO_02" name="Assignment completed">
+      <bpmn:incoming>SequenceFlow_AssignmentComplete</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartGO_01" name="Receive deregistration request">
+      <bpmn:outgoing>SequenceFlow_Start_Verify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate catch event for message -->
+    <bpmn:intermediateCatchEvent id="IntermediateGO_01" name="Receive deregistration request">
+      <bpmn:incoming>SequenceFlow_Start_Verify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Verify_Deregister</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to verify deregistration -->
+    <bpmn:task id="Task_GO_Verify" name="Verify deregistration">
+      <bpmn:incoming>SequenceFlow_Start_Verify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_Decision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGO_01" name="Reject or Confirm?">
+      <bpmn:incoming>SequenceFlow_Verify_Deregister</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Reject_Path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Confirm_Path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reject path -->
+    <bpmn:endEvent id="EndGO_01" name="Deregistration rejected">
+      <bpmn:incoming>SequenceFlow_Reject_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirm path - prepare readmission -->
+    <bpmn:task id="Task_GO_PrepareReadmission" name="Prepare readmission of measuring point">
+      <bpmn:incoming>SequenceFlow_Confirm_Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObligationCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Optional obligation to continue operations -->
+    <bpmn:exclusiveGateway id="ExclusiveGO_02" name="Oblige continuation?">
+      <bpmn:incoming>SequenceFlow_ObligationCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoObligation</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesObligation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- If obligation, wait for MPOO confirmation -->
+    <bpmn:intermediateCatchEvent id="IntermediateGO_02" name="Await MPOO continuation confirmation">
+      <bpmn:incoming>SequenceFlow_YesObligation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmReceived_Equipment</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Equipment acquisition/changes -->
+    <bpmn:task id="Task_GO_Equipment" name="Perform equipment acquisition and/or changes">
+      <bpmn:incoming>SequenceFlow_NoObligation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssignGO_MPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Assign GO as MPO -->
+    <bpmn:task id="Task_GO_Assign" name="Assign GO as MPO">
+      <bpmn:incoming>SequenceFlow_ConfirmReceived_Equipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformMPOO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform MPOO about assignment -->
+    <bpmn:task id="Task_GO_InformMPOO" name="Inform MPOO of end/beginning of assignment">
+      <bpmn:incoming>SequenceFlow_AssignGO_MPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformMSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform MSPO -->
+    <bpmn:task id="Task_GO_InformMSPO" name="Inform MSPO of assignment">
+      <bpmn:incoming>SequenceFlow_InformMPOO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformSP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform SP -->
+    <bpmn:task id="Task_GO_InformSP" name="Inform SP of assignment">
+      <bpmn:incoming>SequenceFlow_InformMSPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_End_Complete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End event -->
+    <bpmn:endEvent id="EndGO_02" name="Assignment completed">
+      <bpmn:incoming>SequenceFlow_AssignmentComplete</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:message id="Message_DeregisterRequest" name="Deregistration Request"/>
+  <bpmn:messageFlow id="MessageFlow_01" sourceRef="Task_MPOO_SendRequest" targetRef="IntermediateGO_01">
+    <bpmn:sourceRef>Task_MPOO_SendRequest</bpmn:sourceRef>
+    <bpmn:targetRef>IntermediateGO_01</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_Start_Deregister" sourceRef="StartMPOO_01" targetRef="Task_MPOO_SendRequest"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Request_ToGO" name="Send request to GO" sourceRef="Task_MPOO_SendRequest" targetRef="IntermediateMPOO_01">
+    <bpmn:conditionExpression>Receive decision from GO</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- MPOO confirmation path -->
+  <bpmn:sequenceFlow id="SequenceFlow_MPOO_ConfirmationDecision" sourceRef="IntermediateMPOO_01" targetRef="Task_MPOO_ContinueConfirm">
+    <bpmn:conditionExpression>Obligation to continue</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- GO decision paths -->
+  <bpmn:sequenceFlow id="SequenceFlow_Start_Verify" sourceRef="StartGO_01" targetRef="Task_GO_Verify"/>
+  <bpmn:sequenceFlow id="SequenceFlow_Gateway_Decision" name="Reject or Confirm?" sourceRef="ExclusiveGO_01" targetRef="Task_GO_PrepareReadmission">
+    <bpmn:conditionExpression>Confirm</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Reject path -->
+  <bpmn:sequenceFlow id="SequenceFlow_Reject_Path" name="Reject" sourceRef="ExclusiveGO_01" targetRef="EndGO_01">
+    <bpmn:conditionExpression>Reject</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Obligation check -->
+  <bpmn:sequenceFlow id="SequenceFlow_ObligationCheck" sourceRef="Task_GO_PrepareReadmission" targetRef="ExclusiveGO_02"/>
+  <bpmn:sequenceFlow id="SequenceFlow_NoObligation" name="No obligation to continue" sourceRef="ExclusiveGO_02" targetRef="Task_GO_Equipment">
+    <bpmn:conditionExpression>No</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Yes obligation path -->
+  <bpmn:sequenceFlow id="SequenceFlow_YesObligation" name="Obliged to continue" sourceRef="ExclusiveGO_02" targetRef="IntermediateGO_02">
+    <bpmn:conditionExpression>Yes</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Equipment and assignment -->
+  <bpmn:sequenceFlow id="SequenceFlow_ConfirmReceived_Equipment" sourceRef="Task_GO_Assign" targetRef="Task_GO_InformMPOO"/>
+  <bpmn:sequenceFlow id="SequenceFlow_GoToEquipment" name="After confirmation received" sourceRef="IntermediateGO_02" targetRef="Task_GO_Equipment">
+    <bpmn:conditionExpression>Confirmation received</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Assignment and notifications -->
+  <bpmn:sequenceFlow id="SequenceFlow_AssignGO_MPO" sourceRef="Task_GO_Equipment" targetRef="Task_GO_Assign"/>
+  <bpmn:sequenceFlow id="SequenceFlow_InformMPOO" sourceRef="Task_GO_Assign" targetRef="Task_GO_InformMPOO"/>
+  <bpmn:sequenceFlow id="SequenceFlow_InformMSPO" sourceRef="Task_GO_InformMPOO" targetRef="Task_GO_InformMSPO"/>
+  <bpmn:sequenceFlow id="SequenceFlow_InformSP" sourceRef="Task_GO_InformMSPO" targetRef="Task_GO_InformSP"/>
+
+</definitions>

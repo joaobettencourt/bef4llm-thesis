@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_3a7d9e2b" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Firmenfragebogen">
+    <bpmn:participant id="Participant_Process" name="Firmenfragebogen Bearbeitung" processRef="Process_1a2b3c4d" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1a2b3c4d" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_Main">
+      <bpmn:lane id="Lane_Systemautomatisierung" name="Systemautomatisierung">
+        <bpmn:flowNodeRef>Start_FragebogenEingang</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ErfassungVerarbeitung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_AutomatischePartnersuche</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PartnerGefunden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PruefungUnternehmensdaten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UmlageZeitenVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_NeueUmlagezeitenAnlegen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PruefungKontaktdaten</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ManuelleBearbeitung" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserManuell_PartnerPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserManuell_BearbeitungsProblem</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_FragebogenEingang" name="Fragenbogen Eingang">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Flow_Erfassen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:serviceTask id="Task_ErfassungVerarbeitung" name="Erfassung und Systemverarbeitung">
+      <bpmn:incoming>Flow_Erfassen</bpmn:incoming>
+      <bpmn:outgoing>Flow_SuchePartner</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 2 -->
+    <bpmn:serviceTask id="Service_AutomatischePartnersuche" name="Automatische Partnersuche">
+      <bpmn:incoming>Flow_SuchePartner</bpmn:incoming>
+      <bpmn:outgoing>Flow_PartnerCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gateway_PartnerGefunden" name="Partner eindeutig gefunden?">
+      <bpmn:incoming>Flow_PartnerCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_PruefungDatenJa</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 (Manual Partner) -->
+    <bpmn:userTask id="UserManuell_PartnerPruefung" name="Manuelle Partnersuche">
+      <bpmn:incoming>Flow_PartnerCheckNein</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManuelMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_MergePartner" name="Weiterverarbeitung">
+       <bpmn:incoming>Flow_PruefungDatenJa</bpmn:incoming>
+       <bpmn:incoming>Flow_ManuelMerge</bpmn:incoming>
+       <bpmn:outgoing>Flow_DatenPruefenStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 -->
+    <bpmn:serviceTask id="Task_PruefungUnternehmensdaten" name="Prüfung Unternehmensdaten">
+      <bpmn:incoming>Flow_DatenPruefenStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_UmlageCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gateway_UmlageZeitenVorhanden" name="Umlagezeiten vorhanden?">
+      <bpmn:incoming>Flow_UmlageCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_KontaktPruefenJa</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5 (Create Levy) -->
+    <bpmn:serviceTask id="Service_NeueUmlagezeitenAnlegen" name="Neue Umlagezeiten anlegen">
+      <bpmn:incoming>Flow_UmlageCheckNein</bpmn:incoming>
+      <bpmn:outgoing>Flow_KontaktPruefenJa</bpmn:outgoing> <!-- Merge to Contact Check -->
+    </bpmn:serviceTask>
+
+    <!-- Task 6 (Contact Data) -->
+    <bpmn:serviceTask id="Task_PruefungKontaktdaten" name="Prüfung Kontaktdaten">
+      <bpmn:incoming>Flow_KontaktPruefenJa</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event (Success) -->
+    <bpmn:endEvent id="End_ErfolgreichPruefung" name="Daten erfolgreich geprüft">
+       <bpmn:incoming>Flow_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Exception Handling / Manual Task for Problems -->
+    <bpmn:userTask id="UserManuell_BearbeitungsProblem" name="Mitarbeiter Bearbeitung">
+      <bpmn:incoming>Flow_ErrorPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndIssue</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event (Issue) -->
+    <bpmn:endEvent id="End_ManuelleUebergabe" name="Bearbeitung erforderlich">
+       <bpmn:incoming>Flow_EndIssue</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Logic -->
+    
+    <bpmn:sequenceFlow id="Flow_Erfassen" sourceRef="Start_FragebogenEingang" targetRef="Task_ErfassungVerarbeitung">
+      <bpmn:name>Eingang</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_SuchePartner" sourceRef="Task_ErfassungVerarbeitung" targetRef="Service_AutomatischePartnersuche">
+       <bpmn:name>Start Suche</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_PartnerCheck" name="Suche Ergebnis" sourceRef="Service_AutomatischePartnersuche" targetRef="Gateway_PartnerGefunden">
+       <!-- Logic handled by Gateway -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_PruefungDatenJa" name="Ja - Weiterverarbeitung" sourceRef="Gateway_PartnerGefunden" targetRef="Gateway_MergePartner">
+      <bpmn:name>Match Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Manual Partner Path -->
+    <bpmn:sequenceFlow id="Flow_PartnerCheckNein" name="Manuell Weiterleiten" sourceRef="Gateway_PartnerGefunden" targetRef="UserManuell_PartnerPruefung">
+       <bpmn:name>No Match</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after Partner Check -->
+    <bpmn:sequenceFlow id="Flow_ManuelMerge" name="Manuell OK" sourceRef="UserManuell_PartnerPruefung" targetRef="Gateway_MergePartner">
+      <!-- Merge back to main flow -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_DatenPruefenStart" sourceRef="Gateway_MergePartner" targetRef="Task_PruefungUnternehmensdaten">
+       <bpmn:name>Zu Datenprüfung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Logic for Reporting Period / Levy Times -->
+    <bpmn:sequenceFlow id="Flow_UmlageCheck" sourceRef="Task_PruefungUnternehmensdaten" targetRef="Gateway_UmlageZeitenVorhanden">
+       <bpmn:name>Meldezeitraum prüfen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision on Levy Times -->
+    <bpmn:sequenceFlow id="Flow_KontaktPruefenJa" name="Ja - Vorhanden / Nach Anlegen" sourceRef="Gateway_UmlageZeitenVorhanden" targetRef="Task_PruefungKontaktdaten">
+       <bpmn:name>Umlagen vorhanden</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision on Levy Times (No) -->
+    <bpmn:sequenceFlow id="Flow_UmlageCheckNein" name="Nein - Neu anlegen" sourceRef="Gateway_UmlageZeitenVorhanden" targetRef="Service_NeueUmlagezeitenAnlegen">
+       <bpmn:name>Keine Umlagen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Success Flow -->
+    <bpmn:sequenceFlow id="Flow_EndSuccess" sourceRef="Task_PruefungKontaktdaten" targetRef="End_ErfolgreichPruefung">
+       <bpmn:name>Ablauf abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Exception Flow (Simplified representation of boundary events) -->
+    <bpmn:sequenceFlow id="Flow_ErrorPath" sourceRef="Task_PruefungUnternehmensdaten" targetRef="UserManuell_BearbeitungsProblem">
+       <bpmn:name>Fehlerfall</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- End of Exception Flow -->
+    <bpmn:sequenceFlow id="Flow_EndIssue" sourceRef="UserManuell_BearbeitungsProblem" targetRef="End_ManuelleUebergabe">
+       <bpmn:name>Bearbeitet</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

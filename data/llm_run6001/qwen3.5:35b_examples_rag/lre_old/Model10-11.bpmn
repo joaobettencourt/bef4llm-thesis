@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+    <bpmn:participant id="Participant_MSP" name="MSP" processRef="Process_MSP"/>
+    <bpmn:participant id="Participant_SP" name="SP" processRef="Process_SP"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_1" sourceRef="Task_GO_RequestMeasurements" targetRef="StartEvent_MSP_CheckRequest"/>
+    <bpmn:messageFlow id="MessageFlow_2" sourceRef="Task_MSP_SendFailure" targetRef="CatchEvent_GO_NotificationFailure"/>
+    <bpmn:messageFlow id="MessageFlow_3" sourceRef="Task_MSP_TransmitValues" targetRef="StartEvent_GO_ProcessMeasurements"/>
+    <bpmn:messageFlow id="MessageFlow_4" sourceRef="Task_GO_SendChangedValues" targetRef="CatchEvent_MSP_ChangedValues"/>
+    <bpmn:messageFlow id="MessageFlow_5" sourceRef="Task_GO_TransmitReadingsToSP" targetRef="StartEvent_SP_AcceptReadings"/>
+  </bpmn:collaboration>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_GO_RequestMeasurements" name="Request Measurements">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GO_RequestMeasurements" name="GO requests measurements of MSP">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for notification or measurement values -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_GO_NotificationFailure" name="Receive Failure Notification">
+      <bpmn:incoming>MessageFlow_2</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_FailurePath</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:startEvent id="StartEvent_GO_ProcessMeasurements" name="Receive Measured Values">
+      <bpmn:incoming>MessageFlow_3</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_ProcessValues</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GO_ProcessMeasurements" name="GO processes measured values">
+      <bpmn:incoming>SequenceFlow_ProcessValues</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_SendChanged</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for changed values from MSP -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_MSP_ChangedValues" name="Receive Changed Values">
+      <bpmn:incoming>MessageFlow_4</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_SendToSP</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send changed values to MSP -->
+    <bpmn:task id="Task_GO_SendChangedValues" name="GO sends changed values to MSP">
+      <bpmn:incoming>SequenceFlow_SendChanged</bpmn:incoaming>
+      <bpmn:outgoing>MessageFlow_4</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Transmit readings to SP -->
+    <bpmn:task id="Task_GO_TransmitReadingsToSP" name="GO transmits readings to SP">
+      <bpmn:incoming>SequenceFlow_SendToSP</bpmn:incoaming>
+      <bpmn:outgoing>MessageFlow_5</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_GO_Complete" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_EndComplete</bpmn:incoaming>
+    </bpmn:endEvent>
+
+    <!-- Gateway for decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_1" name="Process Complete?">
+      <bpmn:incoming>SequenceFlow_FailurePath</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_EndComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_GO_RequestMeasurements" targetRef="Task_GO_RequestMeasurements"/>
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Request Measurements Sent" sourceRef="Task_GO_RequestMeasurements" targetRef="CatchEvent_GO_NotificationFailure">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Process values path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessValues" sourceRef="StartEvent_GO_ProcessMeasurements" targetRef="Task_GO_ProcessMeasurements"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendChanged" name="Send Changed Values" sourceRef="Task_GO_ProcessMeasurements" targetRef="Task_GO_SendChangedValues"/>
+
+    <!-- Send to SP path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToSP" sourceRef="CatchEvent_MSP_ChangedValues" targetRef="Task_GO_TransmitReadingsToSP"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FailurePath" name="Failure Path" sourceRef="CatchEvent_GO_NotificationFailure" targetRef="ExclusiveGateway_1"/>
+
+  </bpmn:process>
+
+  <!-- MSP Process -->
+  <bpmn:process id="Process_MSP" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_MSP_CheckRequest" name="Receive Request from GO">
+      <bpmn:incoming>MessageFlow_1</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_CheckRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check request -->
+    <bpmn:task id="Task_MSP_CheckRequest" name="MSP checks received request">
+      <bpmn:incoming>MessageFlow_1</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_DenialDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision point -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MSP" name="Deny Request?">
+      <bpmn:incoming>SequenceFlow_DenialDecision</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_DenyPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PerformMeasurement</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Deny path -->
+    <bpmn:task id="Task_MSP_SendFailure" name="MSP informs GO about failure of reading">
+      <bpmn:incoming>SequenceFlow_DenyPath</bpmn:incoaming>
+      <bpmn:outgoing>MessageFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Perform measurement path -->
+    <bpmn:task id="Task_MSP_TransmitValues" name="MSP transmits measured values to GO">
+      <bpmn:incoming>SequenceFlow_PerformMeasurement</bpmn:incoaming>
+      <bpmn:outgoing>MessageFlow_3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Receive changed values -->
+    <bpmn:intermediateCatchEvent id="IntermediateThrowingEvent_MSP_ChangedValues" name="Receive Changed Values">
+      <bpmn:incoming>MessageFlow_4</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_EndMSP</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_MSP_Complete" name="Process Complete">
+      <bpmn:incoming>MessageFlow_4</bpmn:incoaming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRequest" sourceRef="StartEvent_MSP_CheckRequest" targetRef="Task_MSP_CheckRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DenialDecision" name="Check Request Complete" sourceRef="Task_MSP_CheckRequest" targetRef="ExclusiveGateway_MSP"/>
+
+    <!-- Deny path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DenyPath" name="Deny" sourceRef="ExclusiveGateway_MSP" targetRef="Task_MSP_SendFailure">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${denyRequest}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Perform measurement path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PerformMeasurement" name="Perform Measurement" sourceRef="ExclusiveGateway_MSP" targetRef="Task_MSP_TransmitValues">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${!denyRequest}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- SP Process (receives readings from GO) -->
+  <bpmn:process id="Process_SP" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_SP_AcceptReadings" name="Receive Readings from GO">
+      <bpmn:incoming>MessageFlow_5</bpmn:incoaming>
+      <bpmn:outgoing>SequenceFlow_ProcessSP</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SP_Complete" name="Readings Received">
+      <bpmn:incoming>MessageFlow_5</bpmn:incoaming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

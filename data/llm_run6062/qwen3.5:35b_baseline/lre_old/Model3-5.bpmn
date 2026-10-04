@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_MailProcessing_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="CollabMailProcess_1">
+    <bpmn:participant id="Participant_MailUnit" name="Mail Processing Unit" processRef="Proc_MailProcessing_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_MailProcessing_01" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailClerk" name="Mail Clerk">
+        <bpmn:flowNodeRef>StartEvent_DailyCollection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectDailyMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortUnopenedMail</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry">
+        <bpmn:flowNodeRef>Task_DistributeMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpenAndSortMail</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AssistantRegistryManager" name="Assistant Registry Manager">
+        <bpmn:flowNodeRef>InclusiveGateway_QualityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CaptureMatterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PutReceiptInEnvelope</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Cashier" name="Cashier">
+        <bpmn:flowNodeRef>Task_ApplyFees</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintPhysicalFile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DailyCollection" name="Daily Mail Collection">
+      <bpmn:outgoing>SequenceFlow_CollectMail</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks in Mail Clerk Lane -->
+    <bpmn:task id="Task_CollectDailyMail" name="Collect mail daily">
+      <bpmn:incoming>SequenceFlow_CollectMail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SortUnopened</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SortUnopenedMail" name="Sort unopened mail into business areas">
+      <bpmn:incoming>SequenceFlow_SortUnopened</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DistributeToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Tasks in Registry Lane -->
+    <bpmn:task id="Task_DistributeMail" name="Distribute mail">
+      <bpmn:incoming>SequenceFlow_DistributeToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OpenAndSort</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="DataObject_IncomingRegister" name="Incoming Mail Register">
+      <bpmn:name>Incoming Mail Register</bpmn:name>
+    </bpmn:dataObject>
+
+    <bpmn:task id="Task_OpenAndSortMail" name="Open and sort mail into groups for distribution">
+      <bpmn:incoming>SequenceFlow_OpenAndSort</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterInManualRegister</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Association to Data Object -->
+    <bpmn:association id="Assoc_Registration" sourceRef="Task_OpenAndSortMail" targetRef="DataObject_IncomingRegister">
+      <di:bpmnAssociation />
+    </bpmn:association>
+
+    <!-- Sequence Flow for Registration -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterInManualRegister" name="Register in manual incoming Mail Register" sourceRef="Task_OpenAndSortMail" targetRef="DataObject_IncomingRegister">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway for Quality Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_QualityCheck" name="Quality check compliant?">
+      <bpmn:incoming>SequenceFlow_RegisterToQC</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompliantPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotCompliantPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Tasks in Assistant Registry Manager Lane -->
+    <bpmn:dataObject id="DataObject_RequisitionList" name="Requisition List">
+      <bpmn:name>List of requisition explaining rejection reason</bpmn:name>
+    </bpmn:dataObject>
+
+    <bpmn:task id="Task_QualityCheck" name="Perform quality check">
+      <bpmn:incoming>SequenceFlow_RegisterToQC</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QualityCheckToDecider</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Association to Data Object -->
+    <bpmn:association id="Assoc_RejectionList" sourceRef="Task_CompileRejectionList" targetRef="DataObject_RequisitionList">
+      <di:bpmnAssociation />
+    </bpmn:association>
+
+    <bpmn:endEvent id="EndEvent_RejectedMail" name="Mail Rejected - Sent Back to Party">
+       <bpmn:incoming>SequenceFlow_SendBackToParty</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Approval Path -->
+    <bpmn:dataObject id="DataObject_PartyDetails" name="Party Details">
+      <bpmn:name>Party Details</bpmn:name>
+    </bpmn:dataObject>
+
+    <bpmn:task id="Task_CaptureMatterDetails" name="Capture matter details (types of action)">
+      <bpmn:incoming>SequenceFlow_CompliantPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProvideToCashier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Tasks in Cashier Lane -->
+    <bpmn:dataObject id="DataObject_PhysicalFile" name="Physical Court File">
+      <bpmn:name>Physical Court File</bpmn:name>
+    </bpmn:dataObject>
+
+    <bpmn:task id="Task_ApplyFees" name="Take applicable fees attached to mail">
+      <bpmn:incoming>SequenceFlow_ProvideToCashier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CapturePartyDetails</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Association for Party Details -->
+    <bpmn:association id="Assoc_PartyDetails" sourceRef="Task_ApplyFees" targetRef="DataObject_PartyDetails">
+      <di:bpmnAssociation />
+    </bpmn:association>
+
+    <bpmn:dataObject id="DataObject_ReceiptEnvelope" name="Receipt and Copied Documents Envelope">
+      <bpmn:name>Envelop with receipt and copied documents</bpmn:name>
+    </bpmn:dataObject>
+
+    <!-- Association for Physical File -->
+    <bpmn:association id="Assoc_PhysicalFile" sourceRef="Task_PrintPhysicalFile" targetRef="DataObject_PhysicalFile">
+      <di:bpmnAssociation />
+    </bpmn:association>
+
+    <bpmn:task id="Task_CompileRejectionList" name="Compile list of requisitions for rejection">
+      <bpmn:incoming>SequenceFlow_NotCompliantPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendBackToParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Association for Envelope -->
+    <bpmn:association id="Assoc_ReceiptEnvelope" sourceRef="Task_PutReceiptInEnvelope" targetRef="DataObject_ReceiptEnvelope">
+      <di:bpmnAssociation />
+    </bpmn:association>
+
+    <bpmn:endEvent id="EndEvent_ProcessedMail" name="Posted to Party - Process Complete">
+       <bpmn:incoming>SequenceFlow_PostToParty</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CollectMail" sourceRef="StartEvent_DailyCollection" targetRef="Task_CollectDailyMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SortUnopened" name="Sort unopened mail into business areas" sourceRef="Task_CollectDailyMail" targetRef="Task_SortUnopenedMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeToRegistry" name="Distribute mail to Registry" sourceRef="Task_SortUnopenedMail" targetRef="Task_DistributeMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OpenAndSort" name="Open and sort into groups for distribution" sourceRef="Task_DistributeMail" targetRef="Task_OpenAndSortMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway Decision Flows -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ComplianceDecision" name="Quality check compliant?">
+       <bpmn:incoming>SequenceFlow_QualityCheckToDecider</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompliantPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotCompliantPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_QualityCheckToDecider" sourceRef="Task_QualityCheck" targetRef="ExclusiveGateway_ComplianceDecision">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Rejection Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotCompliantPath" name="Not compliant - compile rejection list and send back to party" sourceRef="ExclusiveGateway_ComplianceDecision" targetRef="Task_CompileRejectionList">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Approval Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_CompliantPath" name="Compliant - capture matter details and provide to Cashier" sourceRef="ExclusiveGateway_ComplianceDecision" targetRef="Task_CaptureMatterDetails">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Post-Approval Flows -->
+    <bpmn:parallelGateway id="ParallelGateway_FinalizeProcess" name="Finalize Process">
+       <bpmn:incoming>SequenceFlow_PrintPhysicalFile</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PostToParty</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProvideToCashier" name="Provide matter details to Cashier for fees" sourceRef="Task_CaptureMatterDetails" targetRef="Task_ApplyFees">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CapturePartyDetails" name="Capture Party Details and print Physical Court File" sourceRef="Task_ApplyFees" targetRef="Task_PrintPhysicalFile">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <!-- Finalization Flows -->
+    <bpmn:parallelGateway id="ParallelGateway_PostToParty" name="Post to Party">
+       <bpmn:incoming>SequenceFlow_PutReceiptInEnvelope</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrintPhysicalFile" sourceRef="Task_PrintPhysicalFile" targetRef="ParallelGateway_FinalizeProcess">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_PutReceiptInEnvelope" name="Put receipt and copied documents into envelope">
+       <bpmn:incoming>SequenceFlow_PrintPhysicalFile</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PostToParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendBackToParty" name="Send back to party - Process Complete" sourceRef="Task_CompileRejectionList" targetRef="EndEvent_RejectedMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PostToParty" name="Post to party - Process Complete" sourceRef="ParallelGateway_FinalizeProcess" targetRef="EndEvent_ProcessedMail">
+      <di:bpmnEdge />
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

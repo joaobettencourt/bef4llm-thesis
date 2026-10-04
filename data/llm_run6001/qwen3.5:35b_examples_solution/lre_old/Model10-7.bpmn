@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MSPN_GO">
+    <bpmn:participant id="Participant_MSPN" name="MSPN" processRef="Process_MSPN"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+    <bpmn:messageFlow id="MessageFlow_Registration" sourceRef="IntermediateThrowEvent_SendReg" targetRef="StartMessageEvent_Examine"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MSPN" isExecutable="false">
+    <bpmn:startEvent id="Start_NoneRegister" name="Measurement Registration Requested">
+      <bpmn:outgoing>SFlow_Register_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Registration" name="Register measurement at GO">
+      <bpmn:incoming>SFlow_Register_Start</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToThrowMessage</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_MSPN_Complete" name="Registration Complete">
+      <bpmn:incoming>SFlow_ReceiveConfirmation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendReg" name="Send Registration Message">
+      <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendToGO</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SFlow_Register_Start" sourceRef="Start_NoneRegister" targetRef="Task_Registration"/>
+    <bpmn:sequenceFlow id="SFlow_ToThrowMessage" sourceRef="Task_Registration" targetRef="IntermediateThrowEvent_SendReg"/>
+  </bpmn:process>
+
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartMessage_Examine" name="Receive Registration Message">
+      <bpmn:outgoing>SFlow_Examine_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_Rejected" name="Application Rejected"/>
+
+    <bpmn:endEvent id="End_Complete_GO" name="Assignment Complete">
+      <bpmn:incoming>SFlow_SP_Informed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Examine" name="Examine application of MSPN">
+      <bpmn:incoming>SFlow_Examine_Start</bpmn:incoming>
+      <bpmn:outgoing>SFlow_Gateway_Decision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_RejectConfirm" name="Reject or Confirm?">
+      <bpmn:incoming>SFlow_Gateway_Decision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_Path_Reject</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_Path_Confirm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Reject" name="Reject application of MSPN">
+      <bpmn:incoming>SFlow_Path_Reject</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ToRejectedEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SFlow_Examine_Start" sourceRef="StartMessage_Examine" targetRef="Task_Examine"/>
+    <bpmn:sequenceFlow id="SFlow_Gateway_Decision" sourceRef="Task_Examine" targetRef="Gateway_RejectConfirm"/>
+
+    <!-- Reject Path -->
+    <bpmn:sequenceFlow id="SFlow_Path_Reject" name="Reject Application" sourceRef="Gateway_RejectConfirm" targetRef="Task_Reject">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejectApplication}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SFlow_ToRejectedEnd" sourceRef="Task_Reject" targetRef="End_Rejected"/>
+
+    <!-- Confirm Path -->
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_AssignMSPN" name="Assign MSPN">
+      <bpmn:incoming>SFlow_Path_Confirm</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InformMSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SFlow_Path_Confirm" name="Confirm Application" sourceRef="Gateway_RejectConfirm" targetRef="Task_AssignMSPN">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${confirmApplication}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Inform MSPO -->
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_InformMSPO" name="Inform MSPO about assignment of MSPN">
+      <bpmn:incoming>SFlow_InformMSPO</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InformMPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform MPO -->
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_InformMPO" name="Inform MPO about assignment of MSPN">
+      <bpmn:incoming>SFlow_InformMPO</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InformSP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform SP -->
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_InformSP" name="Inform SP about assignment of MSPN">
+      <bpmn:incoming>SFlow_InformSP</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SP_Informed</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for Confirm Path -->
+    <bpmn:endEvent id="End_MSPN_Exit" name="Process Exit">
+       <bpmn:incoming>SFlow_ToThrowMessage</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SFlow_InformMSPO" sourceRef="Task_AssignMSPN" targetRef="Task_InformMSPO"/>
+    <bpmn:sequenceFlow id="SFlow_InformMPO" sourceRef="Task_InformMSPO" targetRef="Task_InformMPO"/>
+    <bpmn:sequenceFlow id="SFlow_InformSP" sourceRef="Task_InformMPO" targetRef="Task_InformSP"/>
+    <bpmn:sequenceFlow id="SFlow_SP_Informed" sourceRef="Task_InformSP" targetRef="End_Complete_GO"/>
+
+  </bpmn:process>
+</bpmn:definitions>

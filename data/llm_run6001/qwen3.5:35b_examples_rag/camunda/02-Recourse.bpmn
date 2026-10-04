@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collaboration_RecourseProcess">
+    <participant id="Participant_Clerk" name="Clerk - Recourse Process" processRef="Process_Recourse"/>
+  </collaboration>
+
+  <process id="Process_Recourse" isExecutable="false">
+    
+    <!-- LaneSet Configuration -->
+    <laneSet>
+      <lane id="Lane_Clerk" name="Clerk">
+        <flowNodeRef>StartEvent_SubrogCheck</flowNodeRef>
+        <flowNodeRef>Task_CheckSubrogationPossibility</flowNodeRef>
+        <flowNodeRef>Gateway_EligibleRecourse</flowNodeRef>
+        <flowNodeRef>Parallel_Gateway_RequestReminder</flowNodeRef>
+        <flowNodeRef>Task_SendPaymentRequest</flowNodeRef>
+        <flowNodeRef>Task_MakeReminder</flowNodeRef>
+        <flowNodeRef>Gateway_ReceiveMoneyOrDeadline</flowNodeRef>
+        <flowNodeRef>Task_CloseCaseNoRecourse</flowNodeRef>
+        <flowNodeRef>Task_BookPaymentAndClose</flowNodeRef>
+        <flowNodeRef>Exclusive_Gateway_DisagreeValidity</flowRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_SubrogCheck" name="Receive Information">
+      <outgoing>Sequence_CheckSubrogationPossibility</outgoing>
+    </startEvent>
+
+    <!-- Task: Check if subrogation possible -->
+    <task id="Task_CheckSubrogationPossibility" name="Check Subrogation Possibility">
+      <incoming>Sequence_CheckSubrogationPossibility</incoming>
+      <outgoing>Seq_Flow_EligibleRecourseOut</outgoing>
+    </task>
+
+    <!-- Gateway: Is recourse possible? -->
+    <exclusiveGateway id="Gateway_EligibleRecourse" name="Recourse&#10;Possible?">
+      <incoming>Sequence_CheckSubrogationPossibility_Validated</incoming>
+      <outgoing>Seq_Flow_NoRecourseOut</outgoing>
+      <outgoing>Seq_Flow_YesRecourseOut</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence: Task to Gateway -->
+    <sequenceFlow id="Sequence_CheckSubrogationPossibility" sourceRef="StartEvent_SubrogCheck" targetRef="Task_CheckSubrogationPossibility">
+      <bpmn:name>Information&#10;Received</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Task to Gateway -->
+    <sequenceFlow id="Sequence_CheckSubrogationPossibility_Validated" sourceRef="Task_CheckSubrogationPossibility" targetRef="Gateway_EligibleRecourse">
+      <bpmn:name>Vet&#10>Status</bpmn:name>
+    </sequenceFlow>
+
+    <!-- No Recourse Path -->
+    <task id="Task_CloseCaseNoRecourse" name="Close Case (Not Possible)">
+      <incoming>Sequence_NoRecourseOut</incoming>
+      <outgoing>Seq_Flow_EndClosed1</outgoing>
+    </task>
+
+    <sequenceFlow id="Sequence_NoRecourseOut" sourceRef="Gateway_EligibleRecourse" targetRef="Task_CloseCaseNoRecourse">
+      <bpmn:name>No&#10;Possibility</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Yes Recourse Path - Parallel Split -->
+    <parallelGateway id="Parallel_Gateway_RequestReminder" name="Send Request&#10;&amp;&#10;Make Reminder">
+      <incoming>Sequence_YesRecourseOut</incoming>
+      <outgoing>Seq_Flow_SendRequestOut</outgoing>
+      <outgoing>Seq_Flow_MakeReminderOut</outgoing>
+    </parallelGateway>
+
+    <!-- Sequence: Eligible -> Parallel Start -->
+    <sequenceFlow id="Sequence_YesRecourseOut" sourceRef="Gateway_EligibleRecourse" targetRef="Parallel_Gateway_RequestReminder">
+      <bpmn:name>Possibility&#10;Exists</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Send Payment Request -->
+    <task id="Task_SendPaymentRequest" name="Send Payment Request to Insurant">
+       <incoming>Sequence_SendRequestOut</incoming>
+      <outgoing>Seq_Flow_WaitForMoneyIn</outgoing> 
+     </task>
+
+    <!-- Task: Make Reminder -->
+    <task id="Task_MakeReminder" name="Make Reminder for Insurant">
+       <incoming>Sequence_MakeReminderOut</incoming>
+      <outgoing>Seq_Flow_WaitForDeadlineIn</outgoing> 
+     </task>
+
+    <!-- Sequence: Parallel Start to Send Request -->
+    <sequenceFlow id="Sequence_SendRequestOut" sourceRef="Parallel_Gateway_RequestReminder" targetRef="Task_SendPaymentRequest">
+      <bpmn:name>>Send&#10;Request</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Sequence: Parallel Start to Make Reminder -->
+    <sequenceFlow id="Sequence_MakeReminderOut" sourceRef="Parallel_Gateway_RequestReminder" targetRef="Task_MakeReminder">
+       <bpmn:name>>Make&#10;Reminder</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Gateway: Wait for Money or Deadline -->
+    <exclusiveGateway id="Gateway_ReceiveMoneyOrDeadline" name="Received&#10;Money? /&#10;Disagreement">
+      <incoming>Sequence_WaitForMoneyIn</incoming>
+      <outgoing>Seq_Flow_MoneyReceivedOut</outgoing>
+      <outgoing>Seq_Flow_DisagreeNoMoneyOrDeadlineOut</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence: Send Request to Gateway -->
+    <sequenceFlow id="Sequence_WaitForMoneyIn" sourceRef="Task_SendPaymentRequest" targetRef="Gateway_ReceiveMoneyOrDeadline">
+      <bpmn:name>>Wait&#10;for Response</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Sequence: Make Reminder to Gateway -->
+    <sequenceFlow id="Sequence_WaitForDeadlineIn" sourceRef="Task_MakeReminder" targetRef="Gateway_ReceiveMoneyOrDeadline">
+      <bpmn:name>>Wait&#10;for Response</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Money Received Path -->
+    <task id="Task_BookPaymentAndClose" name="Make Booking &amp; Close Case">
+       <incoming>Sequence_MoneyReceivedOut</incoming>
+      <outgoing>Seq_Flow_EndClosed2</outgoing> 
+     </task>
+
+    <sequenceFlow id="Sequence_MoneyReceivedOut" sourceRef="Gateway_ReceiveMoneyOrDeadline" targetRef="Task_BookPaymentAndClose">
+       <bpmn:name>If&#10;Money Received</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Disagreement / Deadline Path -->
+    <task id="Task_CheckReasoning" name="Check Reasoning of Insurant">
+      <incoming>Sequence_DisagreeNoMoneyOrDeadlineOut</incoming>
+      <outgoing>Seq_Flow_ValidDisagreeIn</outgoing> 
+     </task>
+
+    <!-- Gateway: Is disagreement valid? -->
+    <exclusiveGateway id="Exclusive_Gateway_DisagreeValidity" name="Reasoning&#10;Valid?">
+       <incoming>Sequence_ValidDisagreeIn</incoming>
+      <outgoing>Seq_Flow_ClosedRightOut</outgoing>
+      <outgoing>Seq_Flow_ForwardToCollectionAgencyWrongOut</outgoing> 
+     </exclusiveGateway>
+
+    <!-- Sequence: Disagreement to Check Reasoning -->
+    <sequenceFlow id="Sequence_DisagreeNoMoneyOrDeadlineOut" sourceRef="Gateway_ReceiveMoneyOrDeadline" targetRef="Task_CheckReasoning">
+       <bpmn:name>If&#10;Disagree / No Money</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Sequence: Check Reasoning to Gateway -->
+    <sequenceFlow id="Sequence_ValidDisagreeIn" sourceRef="Task_CheckReasoning" targetRef="Exclusive_Gateway_DisagreeValidity">
+       <bpmn:name>Vet&#10>Status</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Valid Disagreement Path -->
+    <task id="Task_CloseCaseRight" name="Close Case (Insurant Right)">
+      <incoming>Sequence_ClosedRightOut</incoming>
+      <outgoing>Seq_Flow_EndClosed3</outgoing> 
+     </task>
+
+    <sequenceFlow id="Sequence_ClosedRightOut" sourceRef="Exclusive_Gateway_DisagreeValidity" targetRef="Task_CloseCaseRight">
+       <bpmn:name>If&#10;Valid</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- Invalid Disagreement Path -->
+    <task id="Task_ForwardToCollectionAgencyWrong" name="Forward to Collection Agency (Insurant Wrong)">
+      <incoming>Sequence_ForwardToCollectionAgencyOut</incoming>
+      <outgoing>Seq_Flow_EndClosed4</outgoing> 
+     </task>
+
+    <sequenceFlow id="Sequence_ForwardToCollectionAgencyOut" sourceRef="Exclusive_Gateway_DisagreeValidity" targetRef="Task_ForwardToCollectionAgencyWrong">
+       <bpmn:name>If&#10;Invalid</bpmn:name> 
+     </sequenceFlow>
+
+    <!-- End Events -->
+    <endEvent id="End_ClosedNoRecourse" name="Case Closed">
+       <incoming>Sequence_EndClosed1</incoming>
+    </endEvent>
+
+    <sequenceFlow id="Sequence_EndClosed1" sourceRef="Task_CloseCaseNoRecourse" targetRef="End_ClosedNoRecourse"/>
+
+    <!-- End Event for Money Received -->
+    <endEvent id="End_MoneyReceived" name="Payment Booked">
+       <incoming>Sequence_EndClosed2</incoming>
+    </endEvent>
+
+    <sequenceFlow id="Sequence_EndClosed2" sourceRef="Task_BookPaymentAndClose" targetRef="End_MoneyReceived"/>
+
+    <!-- End Event for Valid Disagreement -->
+    <endEvent id="End_ClosedRight" name="Case Closed">
+       <incoming>Sequence_EndClosed3</incoming>
+    </endEvent>
+
+    <sequenceFlow id="Sequence_EndClosed3" sourceRef="Task_CloseCaseRight" targetRef="End_ClosedRight"/>
+
+    <!-- End Event for Invalid Disagreement -->
+    <endEvent id="End_ForwardToCollectionAgencyWrong" name="Forwarded to Collection Agency">
+       <incoming>Sequence_EndClosed4</incoming>
+    </endEvent>
+
+    <sequenceFlow id="Sequence_EndClosed4" sourceRef="Task_ForwardToCollectionAgencyWrong" targetRef="End_ForwardToCollectionAgencyWrong"/>
+
+  </process>
+</bpmn:definitions>

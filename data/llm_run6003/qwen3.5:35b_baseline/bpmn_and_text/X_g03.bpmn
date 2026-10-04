@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ViennaRunApp" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant name="Runner App Process" processRef="Process_RunParticipation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_RunParticipation">
+    
+    <!-- Lane for the Runner -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Participant (Runner)">
+        <bpmn:flowNodeRef>StartEvent_ViennaRun</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectStartingBlock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RunMeasureTime</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TimeCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrainRecheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetStartingNumber</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CommuteCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoFromHome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LeaveWork</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RaceStartSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_RunDrink</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ActualRun</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DrinkWhileRunning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RaceEndMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ResultReceived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ViennaRun" name="Register for Run">
+      <bpmn:outgoing>SequenceFlow_SelectBlock</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Starting Block -->
+    <bpmn:task id="Task_SelectStartingBlock" name="Select Starting Block">
+      <bpmn:incoming>SequenceFlow_SelectBlock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RunMeasureTime</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Run & Measure Time (Qualification) -->
+    <bpmn:task id="Task_RunMeasureTime" name="Run 5km and Measure Time">
+      <bpmn:incoming>SequenceFlow_RunMeasureTime</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimeCheckResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Time Check (< 25 mins) -->
+    <bpmn:exclusiveGateway id="Gateway_TimeCheck" name="Is time &lt; 25 min?">
+      <bpmn:incoming>SequenceFlow_TimeCheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PassQualification</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailQualification</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow: Pass -->
+    <bpmn:sequenceFlow id="SequenceFlow_PassQualification" name="Yes (&lt;25 min)" sourceRef="Gateway_TimeCheck" targetRef="Task_GetStartingNumber"/>
+
+    <!-- Sequence Flow: Fail (Loop) -->
+    <bpmn:sequenceFlow id="SequenceFlow_FailQualification" name="No (&gt;25 min)" sourceRef="Gateway_TimeCheck" targetRef="Task_TrainRecheck"/>
+
+    <!-- Task: Train and Re-check -->
+    <bpmn:task id="Task_TrainRecheck" name="Train and Check Goal">
+       <bpmn:incoming>SequenceFlow_FailQualification</bpmn:incoming>
+       <bpmn:outgoing>SequenceLoop_BackToMeasure</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to Measure -->
+    <bpmn:sequenceFlow id="SequenceLoop_BackToMeasure" name="Retrain &amp; Re-measure" sourceRef="Task_TrainRecheck" targetRef="Task_RunMeasureTime"/>
+
+    <!-- Task: Get Starting Number -->
+    <bpmn:task id="Task_GetStartingNumber" name="Get Starting Number">
+       <bpmn:incoming>SequenceFlow_PassQualification</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_DetermineCommute</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Determine Commute Method -->
+    <bpmn:task id="Task_CheckWorkSchedule" name="Check Work Schedule vs Start Time">
+       <bpmn:incoming>SequenceFlow_DetermineCommute</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_CommuteDecision</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway: Commute Decision (> 1 hour buffer?) -->
+    <bpmn:exclusiveGateway id="Gateway_CommuteCheck" name="Buffer &gt; 1 hr?">
+      <bpmn:incoming>SequenceFlow_CommuteDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoHome</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LeaveWork</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow: Go Home -->
+    <bpmn:sequenceFlow id="SequenceFlow_GoHome" name="Yes (&gt;1 hr)" sourceRef="Gateway_CommuteCheck" targetRef="Task_GoFromHome"/>
+
+     <!-- Sequence Flow: Leave Work -->
+    <bpmn:sequenceFlow id="SequenceFlow_LeaveWork" name="No (&lt;1 hr)" sourceRef="Gateway_CommuteCheck" targetRef="Task_LeaveWork"/>
+
+     <!-- Task: Go From Home -->
+    <bpmn:task id="Task_GoFromHome" name="Go to Event from Home">
+       <bpmn:incoming>SequenceFlow_GoHome</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ToRaceStart</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Leave Work -->
+    <bpmn:task id="Task_LeaveWork" name="Leave Directly from Work">
+       <bpmn:incoming>SequenceFlow_LeaveWork</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ToRaceStartFromWork</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Merge to Race Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRaceStart" sourceRef="Task_GoFromHome" targetRef="Gateway_RaceStartSplit"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToRaceStartFromWork" name="" sourceRef="Task_LeaveWork" targetRef="Gateway_RaceStartSplit"/>
+
+     <!-- Gateway to Race Start (Merge) -->
+    <bpmn:exclusiveGateway id="Gateway_RaceStartSplit">
+       <bpmn:incoming>SequenceFlow_ToRaceStart</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_ToRaceStartFromWork</bpmn:incoming>
+       <bpmn:outgoing>ParallelGateway_RunDrink</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Parallel Gateway for Race Phase (Run & Drink) -->
+    <bpmn:parallelGateway id="ParallelGateway_RunDrink" name="Race Start">
+       <bpmn:incoming>SequenceFlow_RaceStart</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_ActualRunTask</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_DrinkTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Task: Actual Run -->
+    <bpmn:task id="Task_ActualRun" name="Night Run (5km)">
+        <bpmn:incoming>SequenceFlow_ActualRunTask</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_RaceEndMergeIn</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Drink While Running -->
+    <bpmn:task id="Task_DrinkWhileRunning" name="Drink During Run">
+       <bpmn:incoming>SequenceFlow_DrinkTask</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RaceEndMergeIn2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flows for Parallel -->
+    <bpmn:sequenceFlow id="SequenceFlow_ActualRunTask" sourceRef="ParallelGateway_RunDrink" targetRef="Task_ActualRun"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DrinkTask" sourceRef="ParallelGateway_RunDrink" targetRef="Task_DrinkWhileRunning"/>
+
+     <!-- Merge after Race -->
+    <bpmn:exclusiveGateway id="Gateway_RaceEndMerge">
+       <bpmn:incoming>SequenceFlow_RaceEndMergeIn</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_RaceEndMergeIn2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_FinalTimeReceived</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_RaceEndMergeIn" sourceRef="Task_ActualRun" targetRef="Gateway_RaceEndMerge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DrinkToFinish" name="" sourceRef="Task_DrinkWhileRunning" targetRef="Gateway_RaceEndMerge"/>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ResultReceived" name="Receive Final Time">
+       <bpmn:incoming>SequenceFlow_FinalTimeReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Initial Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectBlock" sourceRef="StartEvent_ViennaRun" targetRef="Task_SelectStartingBlock"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RunMeasureTime" name="" sourceRef="Task_SelectStartingBlock" targetRef="Task_RunMeasureTime"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TimeCheckResult" name="" sourceRef="Gateway_TimeCheck" targetRef="Task_RunMeasureTime"> <!-- Logic correction in flow definition -->
+       <!-- Note: Target is Task_RunMeasureTime for loop back, but incoming from Gateway. Wait, logic check below -->
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

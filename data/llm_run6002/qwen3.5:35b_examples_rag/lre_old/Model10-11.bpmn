@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_MeasurementProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Pool_GO"/>
+    <bpmn:participant id="Participant_MSP" name="MSP" processRef="Pool_MSP"/>
+    <bpmn:participant id="Participant_SP" name="SP" processRef="Pool_SP"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_GO_to_MSP_Request" sourceRef="Task_GO_SendRequest" targetRef="StartEvent_MSP_ReceiveRequest"/>
+    <bpmn:messageFlow id="MessageFlow_MSP_to_GO_Denial" sourceRef="IntermediateThrowEvent_MSP_Deny" targetRef="CatchEvent_GO_ResponseDenial"/>
+    <bpmn:messageFlow id="MessageFlow_MSP_to_GO_Values" sourceRef="Task_MSP_TransmitMeasurements" targetRef="StartEvent_GO_ProcessMeasuredValues"/>
+    <bpmn:messageFlow id="MessageFlow_GO_to_MSP_Changed" sourceRef="IntermediateThrowEvent_GO_SendChanged" targetRef="CatchEvent_MSP_ReceiveChanged"/>
+    <bpmn:messageFlow id="MessageFlow_GO_to_SP_Readings" sourceRef="Task_GO_TransmitToSP" targetRef="StartEvent_SP_FinalReadingsReceived"/>
+
+  </bpmn:collaboration>
+
+  <!-- GO Process -->
+  <bpmn:process id="Pool_GO" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_GO_RequestMeasurements" name="Request Measurements of MSP">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GO_SendRequest" name="Send Request to MSP">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Response Handling -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_GO_Response" name="Response Received?">
+      <bpmn:incoming>SequenceFlow_03_DENIAL_PATH</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04_END_DENIED</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Denial Path -->
+    <bpmn:endEvent id="EndEvent_GO_Denied" name="Request Denied">
+      <bpmn:incoming>SequenceFlow_04_END_DENIED</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Values Processing Flow (Triggered by Message) -->
+    <bpmn:startMessageEvent id="StartEvent_GO_ProcessMeasuredValues" name="Measurements Received">
+      <bpmn:outgoing>SequenceFlow_05_PROCESS</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:task id="Task_GO_ProcessMeasuredValues" name="Process Measured Values">
+      <bpmn:incoming>SequenceFlow_05_PROCESS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06_SEND_CHANGED</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Changed Values to MSP -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_GO_SendChanged" name="Send Changed Values">
+      <bpmn:incoming>SequenceFlow_06_SEND_CHANGED</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07_TRANSMIT_TO_SP</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Transmit to SP -->
+    <bpmn:endEvent id="EndEvent_GO_Complete" name="Readings Sent">
+      <bpmn:incoming>SequenceFlow_07_TRANSMIT_TO_SP</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_GO_RequestMeasurements" targetRef="Task_GO_SendRequest"/>
+    
+  </bpmn:process>
+
+  <!-- MSP Process -->
+  <bpmn:process id="Pool_MSP" isExecutable="false">
+    <bpmn:startMessageEvent id="StartEvent_MSP_ReceiveRequest" name="Request Received from GO">
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:task id="Task_MSP_CheckRequest" name="Check Requested Measurements">
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11_DECISION</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MSP_DenialDecision" name="Deny Request?">
+      <bpmn:incoming>SequenceFlow_11_DECISION</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_12_DENY_PATH</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_13_MEASURE_PATH</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Deny Path -->
+    <bpmn:endEvent id="EndEvent_MSP_Denied" name="Request Denied">
+      <bpmn:incoming>SequenceFlow_12_DENY_PATH</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Measure Path -->
+    <bpmn:startMessageEvent id="StartEvent_MSP_PerformMeasurement" name="Perform Measurements">
+      <bpmn:incoming>SequenceFlow_13_MEASURE_PATH</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_14_TRANSMIT_RESULTS</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <!-- Transmit Results to GO -->
+    <bpmn:endEvent id="EndEvent_MSP_TransmitResults" name="Values Sent">
+      <bpmn:incoming>SequenceFlow_14_TRANSMIT_RESULTS</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Wait for Changed Values (Parallel/Implicit) -->
+    <bpmn:startMessageEvent id="StartEvent_MSP_ReceiveChanged" name="Received Changed Values">
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_15_END</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="StartEvent_MSP_ReceiveRequest" targetRef="Task_MSP_CheckRequest"/>
+    
+  </bpmn:process>
+
+  <!-- SP Process -->
+  <bpmn:process id="Pool_SP" isExecutable="false">
+    <bpmn:startMessageEvent id="StartEvent_SP_FinalReadingsReceived" name="Final Readings Received from GO">
+      <bpmn:outgoing>SequenceFlow_20</bpmn:outgoing>
+    </bpmn:startMessageEvent>
+
+    <bpmn:endEvent id="EndEvent_SP_Complete" name="Process Complete"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Schadensabwicklung">
+    <bpmn:participant id="Participant_Versicherer" name="Versicherungsgesellschaft - Schadensbearbeitung" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Kundenzentrum" name="Kundenzentrum">
+        <bpmn:flowNodeRef>StartEvent_Schadensmeldung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Gültigkeitsprüfung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_ValiditätCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Fachabteilung" name="Fachabteilung / Versicherungsmanagement">
+        <bpmn:flowNodeRef>Task_VorläufigeAnnahme</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_StartBearbeitung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_JoinBearbeitung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SchadensstatistikErfassen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UrsacheUntersuchen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MehrInfoBenötigt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformationenEinholen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_RechtlichePrüfung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RechtsauskunftAnfordern</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Lane for Statistics Management -->
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Schadensmeldung" name="Schadensmeldung eingereicht">
+      <bpmn:outgoing>SequenceFlow_Eingangsprüfung</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Kundenzentrum Tasks -->
+    <bpmn:task id="Task_Gültigkeitsprüfung" name="Schadensmeldung auf Gültigkeit prüfen">
+      <bpmn:incoming>SequenceFlow_Eingangsprüfung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValiditätCheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway for Validity -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_ValiditätCheck" name="Schaden gültig?">
+      <bpmn:incoming>SequenceFlow_ValiditätCheckDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NichtGültig_Infomieren</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Gültig_BearbeitungStarten</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="EndEvent_Rejektiert" name="Schaden nicht gültig">
+      <bpmn:incoming>SequenceFlow_NichtGültig_Infomieren</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Task for Informing Customer (Rejection) -->
+    <bpmn:task id="Task_KundeInformierenNichtGueltig" name="Kunden über Ungültigkeit informieren">
+      <bpmn:incoming>SequenceFlow_NichtGültig_Infomieren</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejektiertEnde</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Rejection Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NichtGültig_Infomieren" name="Nein (nicht gültig)" sourceRef="InclusiveGateway_ValiditätCheck" targetRef="Task_KundeInformierenNichtGueltig">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Rejection End -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejektiertEnde" sourceRef="Task_KundeInformierenNichtGueltig" targetRef="EndEvent_Rejektiert">
+      <bpmn:name>Ablauf</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Valid Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Gültig_BearbeitungStarten" name="Ja (gültig)" sourceRef="InclusiveGateway_ValiditätCheck" targetRef="Task_VorläufigeAnnahme">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task for Preliminary Acceptance -->
+    <bpmn:task id="Task_VorläufigeAnnahme" name="Vorläufige Annahme &amp; Weiterleitung">
+      <bpmn:incoming>SequenceFlow_Gültig_BearbeitungStarten</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartParallelBearbeitung</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Start of Processing -->
+    <bpmn:parallelGateway id="ParallelGateway_StartBearbeitung" name="Start Bearbeitung">
+      <bpmn:incoming>SequenceFlow_StartParallelBearbeitung</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StatistikErfassen</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FachlichePruefungStarten</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task for Initial Statistics Registration -->
+    <bpmn:task id="Task_SchadensstatistikErfassen" name="Fall in Schadensstatistik erfassen">
+      <bpmn:incoming>SequenceFlow_StatistikErfassen</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WartePruefungEnde</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Investigation (Deep Validation) -->
+    <bpmn:task id="Task_UrsacheUntersuchen" name="Schadensursache untersuchen">
+      <bpmn:incoming>SequenceFlow_FachlichePruefungStarten</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MehrInfoBenötigtCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Additional Info -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_MehrInfoBenötigt" name="Zusätzliche Infos nötig?">
+      <bpmn:incoming>SequenceFlow_MehrInfoBenötigtCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InfosEinholenJa</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RechtlichePruefungStarten</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Requesting Additional Info -->
+    <bpmn:task id="Task_InformationenEinholen" name="Zusätzliche Informationen einholen">
+      <bpmn:incoming>SequenceFlow_InfosEinholenJa</bpmn:outgoing>
+      <bpmn:outgoing>SequenceLoop_ZurueckPrüfung</bpmn:outgoing> <!-- Loop back to investigation start or continue -->
+    </bpmn:task>
+
+    <!-- Sequence Flow for Additional Info Requested -->
+    <bpmn:sequenceFlow id="SequenceFlow_InfosEinholenJa" name="Ja (benötigt)" sourceRef="InclusiveGateway_MehrInfoBenötigt" targetRef="Task_InformationenEinholen">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back Flow -->
+    <bpmn:sequenceFlow id="SequenceLoop_ZurueckPrüfung" sourceRef="Task_InformationenEinholen" targetRef="InclusiveGateway_MehrInfoBenötigt">
+      <bpmn:name>Aktualisiert</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for No Additional Info Needed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RechtlichePruefungStarten" name="Nein (keine Infos nötig)" sourceRef="InclusiveGateway_MehrInfoBenötigt" targetRef="InclusiveGateway_RechtlichePrüfung">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway for Legal Assessment -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_RechtlichePrüfung" name="Rechtsauskunft nötig?">
+      <bpmn:incoming>SequenceFlow_FachlichePruefungStarten</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RechtsauskunftJa</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RechtlichFertig</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Requesting Legal Opinion -->
+    <bpmn:task id="Task_RechtsauskunftAnfordern" name="Rechtsauskunft an Versicherer einholen">
+      <bpmn:incoming>SequenceFlow_RechtsauskunftJa</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RechtlichFertig</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Legal Opinion Needed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RechtsauskunftJa" name="Ja (erforderlich)" sourceRef="InclusiveGateway_RechtlichePrüfung" targetRef="Task_RechtsauskunftAnfordern">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Legal Opinion Not Needed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RechtlichFertig" name="Nein (nicht erforderlich)" sourceRef="InclusiveGateway_RechtlichePrüfung" targetRef="Task_RechtsauskunftAnfordern">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Join Gateway -->
+    <bpmn:parallelGateway id="InclusiveGateway_JoinBearbeitung" name="Prüfung abgeschlossen">
+      <bpmn:incoming>SequenceFlow_WartePruefungEnde</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StatistikAktualisieren</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow from Investigation to Join (via Legal Check) -->
+    <bpmn:sequenceFlow id="SequenceFlow_FertigPruefung" sourceRef="Task_RechtsauskunftAnfordern" targetRef="InclusiveGateway_JoinBearbeitung">
+      <bpmn:name>Prüfung fertig</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Initial Registration to Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_StatistikErfassen" sourceRef="ParallelGateway_StartBearbeitung" targetRef="Task_SchadensstatistikErfassen">
+      <bpmn:name>Erfassung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Registration to Join -->
+    <bpmn:sequenceFlow id="SequenceFlow_WartePruefungEnde" sourceRef="Task_SchadensstatistikErfassen" targetRef="InclusiveGateway_JoinBearbeitung">
+      <bpmn:name>Warten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task for Updating Statistics -->
+    <bpmn:task id="Task_StatistikAktualisieren" name="Schadensstatistik aktualisieren">
+      <bpmn:incoming>SequenceFlow_StatistikAktualisieren</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_KundeInformierenStatus</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow for Update -->
+    <bpmn:sequenceFlow id="SequenceFlow_StatistikAktualisieren" sourceRef="InclusiveGateway_JoinBearbeitung" targetRef="Task_StatistikAktualisieren">
+      <bpmn:name>Aktualisierung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task for Final Notification -->
+    <bpmn:task id="Task_KundeInformierenStatus" name="Bearbeitungsstand mitteilen &amp; Entscheidung">
+      <bpmn:incoming>SequenceFlow_KundeInformierenStatus</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ErfolgreichEnde</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow for Final Notification -->
+    <bpmn:sequenceFlow id="SequenceFlow_KundeInformierenStatus" sourceRef="Task_StatistikAktualisieren" targetRef="Task_KundeInformierenStatus">
+      <bpmn:name>Status mitteilen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event for Success -->
+    <bpmn:endEvent id="EndEvent_ErfolgreichAbgeschlossen" name="Entscheidung mitgeteilt">
+      <bpmn:incoming>SequenceFlow_ErfolgreichEnde</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow for Success End -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErfolgreichEnde" sourceRef="Task_KundeInformierenStatus" targetRef="EndEvent_ErfolgreichAbgeschlossen">
+      <bpmn:name>Ablauf</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

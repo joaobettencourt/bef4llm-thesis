@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SOProcess">
+    <bpmn:participant id="Participant_SOProcess" name="SO Process" processRef="Process_SOOrderProcessing" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SOOrderProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_AngebotAuftrag" name="SO Angebot/Auftrag">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ConcurrentStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_InvoicePrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AddressManagement" name="SO Address-management">
+        <bpmn:flowNodeRef>Gateway_CheckSubsidiary</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddParentCompanyAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ERP" name="ERP System">
+        <bpmn:flowNodeRef>DataStoreReference_ErpSystem</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_1" name="Receive Subsidiary Order">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:parallelGateway id="Gateway_ConcurrentStart">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareGoods</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ShipGoods</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:userTask id="Task_PrepareGoods" name="Prepare Goods for Shipment">
+      <bpmn:incoming>SequenceFlow_PrepareGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsPreparedToMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>SequenceFlow_ShipGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsShippedToMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:parallelGateway id="ParallelGateway_InvoicePrep">
+      <bpmn:incoming>SequenceFlow_StartToInvoicePreparation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSubsidiaryStatus</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:userTask id="Task_AddParentCompanyAddress" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>SequenceFlow_NeedToAddParentAddress</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressAddedToMergeInvoice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_CheckSubsidiary" name="Customer Subsidiary &amp; Relationship Modeled?">
+      <bpmn:incoming>SequenceFlow_CheckSubsidiaryStatus</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NeedToAddParentAddress</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DirectInvoiceCreation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_CreateInvoice" name="Create Invoice">
+      <bpmn:incoming>SequenceFlow_AddressAddedToMergeInvoice</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_DirectInvoiceCreation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvoiceCreatedToSend</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>SequenceFlow_InvoiceCreatedToSend</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SentToEndEvent</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="Invoice Sent">
+      <bpmn:incoming>SequenceFlow_SentToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:dataStoreReference id="DataStoreReference_ErpSystem" name="ERP System"/>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_1" targetRef="Gateway_ConcurrentStart" />
+    
+    <bpmn:parallelGateway id="MergeGoodsAndInvoice">
+      <bpmn:incoming>SequenceFlow_GoodsPreparedToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_GoodsShippedToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartToInvoicePreparation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareGoods" sourceRef="Gateway_ConcurrentStart" targetRef="Task_PrepareGoods" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ShipGoods" name="" sourceRef="Gateway_ConcurrentStart" targetRef="Task_ShipGoods" />
+
+    <bpmn:parallelGateway id="MergeInvoicePreparation">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSubsidiaryStatus</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsPreparedToMerge" sourceRef="Task_PrepareGoods" targetRef="MergeGoodsAndInvoice" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsShippedToMerge" name="" sourceRef="Task_ShipGoods" targetRef="MergeGoodsAndInvoice" />
+
+    <bpmn:parallelGateway id="StartParallelInvoicing">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSubsidiaryStatus</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToInvoicePreparation" sourceRef="StartParallelInvoicing" targetRef="MergeGoodsAndInvoice" />
+
+    <bpmn:exclusiveGateway id="FinalMergeBeforeCreate">
+      <bpmn:incoming>SequenceFlow_AddressAddedToMergeInvoice</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_DirectInvoiceCreation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InvoiceCreatedToSend</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckSubsidiaryStatus" sourceRef="MergeGoodsAndInvoice" targetRef="Gateway_CheckSubsidiary" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NeedToAddParentAddress" name="No - Add Parent Address" sourceRef="Gateway_CheckSubsidiary" targetRef="Task_AddParentCompanyAddress" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddressAddedToMergeInvoice" sourceRef="Task_AddParentCompanyAddress" targetRef="FinalMergeBeforeCreate" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DirectInvoiceCreation" name="Yes - Direct Creation" sourceRef="Gateway_CheckSubsidiary" targetRef="FinalMergeBeforeCreate" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_InvoiceCreatedToSend" sourceRef="Task_CreateInvoice" targetRef="Task_SendInvoice" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SentToEndEvent" name="" sourceRef="Task_SendInvoice" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+</bpmn:definitions>

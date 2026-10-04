@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1kp8vzq7xw3f2r5y4h6t9u1l">
+    <bpmn:participant id="Participant_0pymj5d" name="Recourse Clerk" processRef="Process_1cqwerym"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1cqwerym" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_recourse_detected" name="probable recourse detected">
+      <bpmn:outgoing>SequenceFlow_start_to_check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to check case -->
+    <bpmn:userTask id="UserTask_check_case" name="check case">
+      <bpmn:incoming>SequenceFlow_start_to_check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_check_to_gateway_recourse</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow from Start to Check Case -->
+    <bpmn:sequenceFlow id="SequenceFlow_start_to_check" sourceRef="StartEvent_recourse_detected" targetRef="UserTask_check_case"/>
+
+    <!-- Exclusive Gateway - Is recourse possible? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_recourse_possible">
+      <bpmn:name>recourse possible?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_check_to_gateway_recourse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_yes_path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_no_path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow to Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_check_to_gateway_recourse" sourceRef="UserTask_check_case" targetRef="ExclusiveGateway_recourse_possible"/>
+
+    <!-- Path if recourse not possible - Close case -->
+    <bpmn:userTask id="UserTask_close_no_recourse">
+      <bpmn:name>close case</bpmn:name>
+      <bpmn:incoming>SequenceFlow_no_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_end_closed_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for no path -->
+    <bpmn:sequenceFlow id="SequenceFlow_no_path" name="no" sourceRef="ExclusiveGateway_recourse_possible" targetRef="UserTask_close_no_recourse"/>
+
+    <!-- End Event - Case Closed (recourse not possible) -->
+    <bpmn:endEvent id="EndEvent_case_closed_1">
+      <bpmn:name>case closed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_end_closed_1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_end_closed_1" sourceRef="UserTask_close_no_recourse" targetRef="EndEvent_case_closed_1"/>
+
+    <!-- Path if recourse possible - Send payment request and reminder -->
+    <bpmn:userTask id="UserTask_send_payment_request">
+      <bpmn:name>send request for payment</bpmn:name>
+      <bpmn:incoming>SequenceFlow_yes_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_reminder</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for yes path -->
+    <bpmn:sequenceFlow id="SequenceFlow_yes_path" name="yes" sourceRef="ExclusiveGateway_recourse_possible" targetRef="UserTask_send_payment_request"/>
+
+    <!-- Task - Make reminder -->
+    <bpmn:userTask id="UserTask_make_reminder">
+      <bpmn:name>make reminder</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_reminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_event_gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Reminder -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_reminder" sourceRef="UserTask_send_payment_request" targetRef="UserTask_make_reminder"/>
+
+    <!-- Event-Based Gateway for multiple possible outcomes -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_outcomes">
+      <bpmn:name>Waiting for outcome</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_event_gateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_money_received_path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_disagreement_path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_deadline_reached_path</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Sequence Flow to Event-Based Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_event_gateway" sourceRef="UserTask_make_reminder" targetRef="EventBasedGateway_outcomes"/>
+
+    <!-- Path 1 - Money Received (Message Event) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchMoneyReceived">
+      <bpmn:name>money received</bpmn:name>
+      <bpmn:incoming>SequenceFlow_money_received_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_booking</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow for money received -->
+    <bpmn:sequenceFlow id="SequenceFlow_money_received_path" sourceRef="EventBasedGateway_outcomes" targetRef="IntermediateCatchMoneyReceived"/>
+
+    <!-- Task - Make booking when money received -->
+    <bpmn:userTask id="UserTask_make_booking">
+      <bpmn:name>make booking</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_booking</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_close_after_payment</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Booking -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_booking" sourceRef="IntermediateCatchMoneyReceived" targetRef="UserTask_make_booking"/>
+
+    <!-- Task - Close case after payment received -->
+    <bpmn:userTask id="UserTask_close_after_payment">
+      <bpmn:name>close case</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_close_after_payment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_end_closed_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Close After Payment -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_close_after_payment" sourceRef="UserTask_make_booking" targetRef="UserTask_close_after_payment"/>
+
+    <!-- End Event - Case Closed (payment received) -->
+    <bpmn:endEvent id="EndEvent_case_closed_2">
+      <bpmn:name>case closed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_end_closed_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_end_closed_2" sourceRef="UserTask_close_after_payment" targetRef="EndEvent_case_closed_2"/>
+
+    <!-- Path 2 - Disagreement Letter Received (Message Event) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchDisagreement">
+      <bpmn:name>disagreement letter received</bpmn:name>
+      <bpmn:incoming>SequenceFlow_disagreement_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_check_reasoning</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow for disagreement -->
+    <bpmn:sequenceFlow id="SequenceFlow_disagreement_path" sourceRef="EventBasedGateway_outcomes" targetRef="IntermediateCatchDisagreement"/>
+
+    <!-- Task - Check reasoning of disagreement -->
+    <bpmn:userTask id="UserTask_check_reasoning">
+      <bpmn:name>check reasoning</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_check_reasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_disagreement_gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Check Reasoning -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_check_reasoning" sourceRef="IntermediateCatchDisagreement" targetRef="UserTask_check_reasoning"/>
+
+    <!-- Exclusive Gateway - Is reasoning OK? (insurant right?) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_disagreement_ok">
+      <bpmn:name>OK?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_disagreement_gateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_reasoning_right_path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_reasoning_wrong_path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow to Disagreement Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_disagreement_gateway" sourceRef="UserTask_check_reasoning" targetRef="ExclusiveGateway_disagreement_ok"/>
+
+    <!-- Path if insurant right - Close case -->
+    <bpmn:userTask id="UserTask_close_after_right">
+      <bpmn:name>close case</bpmn:name>
+      <bpmn:incoming>SequenceFlow_reasoning_right_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_end_closed_3</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for reasoning right -->
+    <bpmn:sequenceFlow id="SequenceFlow_reasoning_right_path" name="yes" sourceRef="ExclusiveGateway_disagreement_ok" targetRef="UserTask_close_after_right"/>
+
+    <!-- End Event - Case Closed (insurant right) -->
+    <bpmn:endEvent id="EndEvent_case_closed_3">
+      <bpmn:name>case closed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_end_closed_3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_end_closed_3" sourceRef="UserTask_close_after_right" targetRef="EndEvent_case_closed_3"/>
+
+    <!-- Path if insurant wrong - Forward to collection agency -->
+    <bpmn:userTask id="UserTask_forward_collection_wrong">
+      <bpmn:name>forward case to collection agency</bpmn:name>
+      <bpmn:incoming>SequenceFlow_reasoning_wrong_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_end_open_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow for reasoning wrong -->
+    <bpmn:sequenceFlow id="SequenceFlow_reasoning_wrong_path" name="no" sourceRef="ExclusiveGateway_disagreement_ok" targetRef="UserTask_forward_collection_wrong"/>
+
+    <!-- End Event - Case Open (forwarded to collection) -->
+    <bpmn:endEvent id="EndEvent_case_open_1">
+      <bpmn:name>case open</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_end_open_1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_end_open_1" sourceRef="UserTask_forward_collection_wrong" targetRef="EndEvent_case_open_1"/>
+
+    <!-- Path 3 - Deadline Reached (Timer Event) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchDeadlineReached">
+      <bpmn:name>deadline reached</bpmn:name>
+      <bpmn:incoming>SequenceFlow_deadline_reached_path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_collection_timer</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow for deadline reached -->
+    <bpmn:sequenceFlow id="SequenceFlow_deadline_reached_path" sourceRef="EventBasedGateway_outcomes" targetRef="IntermediateCatchDeadlineReached"/>
+
+    <!-- Task - Forward to collection agency (deadline) -->
+    <bpmn:userTask id="UserTask_forward_collection_timer">
+      <bpmn:name>forward case to collection agency</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_collection_timer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_to_end_open_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Collection Agency (timer) -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_collection_timer" sourceRef="IntermediateCatchDeadlineReached" targetRef="UserTask_forward_collection_timer"/>
+
+    <!-- End Event - Case Open (deadline reached, forwarded to collection) -->
+    <bpmn:endEvent id="EndEvent_case_open_2">
+      <bpmn:name>case open</bpmn:name>
+      <bpmn:incoming>SequenceFlow_to_end_open_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_to_end_open_2" sourceRef="UserTask_forward_collection_timer" targetRef="EndEvent_case_open_2"/>
+
+  </bpmn:process>
+</bpmn:definitions>

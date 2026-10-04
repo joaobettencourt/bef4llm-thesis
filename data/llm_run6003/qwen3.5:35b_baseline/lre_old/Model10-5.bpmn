@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MPOO_MPON">
+    <bpmn:participant id="Participant_MPON" name="MPON (Requester)" processRef="Process_MPON_1" />
+    <bpmn:participant id="Participant_MPOO" name="MPOO (Responder)" processRef="Process_MPOO_2" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_RequestBid" sourceRef="Task_MPON_RequestBid" targetRef="StartEvent_MPOO_BidReceived" messageRef="Message_DeviceTakeoverBidRequest" />
+    <bpmn:messageFlow id="MessageFlow_TenderSent" sourceRef="Task_MPOO_SendTender" targetRef="IntermediateCatchEvent_MPON_ReceiveTender" messageRef="Message_EquipmentTakeoverTender" />
+    <bpmn:messageFlow id="MessageFlow_OrderPlaced" sourceRef="Task_MPON_PlaceOrder" targetRef="IntermediateCatchEvent_MPOO_OrderReceived" messageRef="Message_DeviceOrderPlacement" />
+    <bpmn:messageFlow id="MessageFlow_ConfirmationSent" sourceRef="Task_MPOO_SendMasterData" targetRef="EndEvent_MPON_Confirmed" messageRef="Message_MasterDataConfirmation" />
+
+  </bpmn:collaboration>
+
+  <!-- MPON Process -->
+  <bpmn:process id="Process_MPON_1" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_MPON_RequestBid" name="Request Device Takeover Bid">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_MPON_RequestBid" name="Request Device Takeover Bid">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendBidRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_MPON_ReceiveTender" name="Wait for Tender">
+      <bpmn:incoming>MessageFlow_TenderSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToOrderPlacement</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MPON_PlaceOrder" name="Place Order at MPOO">
+      <bpmn:incoming>SequenceFlow_ToOrderPlacement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendOrderToMPOO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_MPON_Confirmed" name="Order Confirmed">
+      <bpmn:incoming>MessageFlow_ConfirmationSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="StartEvent_MPON_RequestBid" targetRef="Task_MPON_RequestBid" />
+    <bpmn:sequenceFlow id="SequenceFlow_SendBidRequest" name="Send Request" sourceRef="Task_MPON_RequestBid" targetRef="IntermediateCatchEvent_MPON_ReceiveTender" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToOrderPlacement" sourceRef="IntermediateCatchEvent_MPON_ReceiveTender" targetRef="Task_MPON_PlaceOrder" />
+
+  </bpmn:process>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO_2" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_MPOO_BidReceived" name="Receive Bid Request">
+      <bpmn:incoming>MessageFlow_RequestBid</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartToTaskMPOO</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_MPOO_SendTender" name="Send Equipment Takeover Tender">
+      <bpmn:incoming>SequenceFlow_StartToTaskMPOO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_MPOO_OrderReceived" name="Wait for Order">
+      <bpmn:incoming>MessageFlow_OrderPlaced</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToConfirmation</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_MPOO_ConfirmAndSendMasterData" name="Confirm Order and Send Master Data">
+      <bpmn:incoming>SequenceFlow_ToConfirmation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessMPOO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_MPOO_Done" name="Order Process Complete">
+      <bpmn:incoming>SequenceFlow_EndProcessMPOO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTaskMPOO" sourceRef="StartEvent_MPOO_BidReceived" targetRef="Task_MPOO_SendTender" />
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForOrder" name="Wait for Order" sourceRef="Task_MPOO_SendTender" targetRef="IntermediateCatchEvent_MPOO_OrderReceived" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToConfirmation" sourceRef="IntermediateCatchEvent_MPOO_OrderReceived" targetRef="Task_MPOO_ConfirmAndSendMasterData" />
+
+  </bpmn:process>
+
+  <!-- Messages -->
+  <bpmn:message id="Message_DeviceTakeoverBidRequest" name="Device Takeover Bid Request">
+    <bpmn:name>MPON Requests Device</bpmn:name>
+  </bpmn:message>
+
+  <bpmn:message id="Message_EquipmentTakeoverTender" name="Equipment Takeover Tender">
+    <bpmn:name>MPOO Sends Tender</bpmn:name>
+  </bpmn:message>
+
+  <bpmn:message id="Message_DeviceOrderPlacement" name="Device Order Placement">
+    <bpmn:name>MPON Places Order</bpmn:name>
+  </bpmn:message>
+
+  <bpmn:message id="Message_MasterDataConfirmation" name="Master Data Confirmation">
+    <bpmn:name>MPOO Confirms and Sends Master Data</bpmn:name>
+  </bpmn:message>
+
+</bpmn:definitions>

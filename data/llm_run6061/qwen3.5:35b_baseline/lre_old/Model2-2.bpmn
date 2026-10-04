@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_PowerSwitchProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_SwitchOverProcess">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Service Department (Shared)" processRef="Proc_CustomerService"/>
+    <bpmn:participant id="Participant_GridOperator" name="Grid Operator" processRef="Proc_GridOperator"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Proc_CustomerService" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesDistribution" name="Sales &amp; Distribution (Shared)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CustomerDataEntry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_DataCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectErrors</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CustomerExists?</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ContractCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeResolveIssues</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- End Events -->
+      <bpmn:lane id="Lane_Admin" name="Administration">
+        <bpmn:flowNodeRef>EndEvent_CustomerWithdrawal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendConfirmationDocument</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Switch-over Request Initiated">
+      <bpmn:outgoing>SequenceFlow_CustomerDataTransmit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Customer Data Entry -->
+    <bpmn:task id="Task_CustomerDataEntry" name="Enter Customer Data into CRM">
+      <bpmn:incoming>SequenceFlow_CustomerDataTransmit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCheckRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Data Completeness Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DataCheck" name="Data Complete &amp; Plausible?">
+      <bpmn:incoming>SequenceFlow_DataCheckRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CorrectErrorsPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CompareDBPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Correct Errors -->
+    <bpmn:task id="Task_CorrectErrors" name="Correct Data Based on Error List">
+      <bpmn:incoming>SequenceFlow_CorrectErrorsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCheckRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Customer Exists Check -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_CustomerExists?" name="Customer in Database?">
+      <bpmn:incoming>SequenceFlow_CompareDBPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NewCustomerCreation</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Create New Customer Object -->
+    <bpmn:task id="Task_CreateNewCustomer" name="Create New Customer Object">
+      <bpmn:incoming>SequenceFlow_NewCustomerCreation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractPreparationPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Prepare Contract Documents -->
+    <bpmn:task id="Task_PrepareContract" name="Prepare Switch-over Contract Documents">
+      <bpmn:incoming>SequenceFlow_ContractPreparationPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AutomatedCheckRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Contract Generation Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ContractCheck" name="Contract Generated Successfully?">
+      <bpmn:incoming>SequenceFlow_AutomatedCheckRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeResolvePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendConfirmationAndGridRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Analyze and Resolve Issues -->
+    <bpmn:task id="Task_AnalyzeResolveIssues" name="Analyze &amp; Resolve Contract Generation Issues">
+      <bpmn:incoming>SequenceFlow_AnalyzeResolvePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractPreparationPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Confirmation Document -->
+    <bpmn:task id="Task_SendConfirmationDocument" name="Send Switch-over Confirmation to Customer">
+      <bpmn:incoming>SequenceFlow_SendConfirmationAndGridRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CustomerDecisionPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Customer Decision (7-day window) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerDecision" name="Customer Confirms Within 7 Days?">
+      <bpmn:incoming>SequenceFlow_CustomerDecisionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessEndWithdrawal</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmationAccepted</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_CustomerWithdrawal" name="Process Ended (Customer Withdrawal)">
+      <bpmn:incoming>SequenceFlow_ProcessEndWithdrawal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Data Objects -->
+    <bpmn:dataObject id="Data_CustomerObject" name="Customer Object"/>
+    
+    <bpmn:dataObject id="Data_ContractDocuments" name="Contract Documents"/>
+
+  </bpmn:process>
+
+  <!-- Grid Operator Process -->
+  <bpmn:process id="Proc_GridOperator" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_GridRequestReceived" name="Switch-over Request Received from CIS">
+      <bpmn:outgoing>SequenceFlow_SupplierConcurrenceCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: Supplier Concurrence Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SupplierConcurrence" name="Supplier Concurrence Possible?">
+      <bpmn:incoming>SequenceFlow_SupplierConcurrenceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConflictResolutionPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoObjectionsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 1: Conflict Resolution -->
+    <bpmn:task id="Task_ConflictResolution" name="Inform Suppliers &amp; Resolve Conflict">
+      <bpmn:incoming>SequenceFlow_ConflictResolutionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TerminationAgreement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Terminate Old Supplier Agreement -->
+    <bpmn:task id="Task_TerminateOldSupplier" name="Terminate Sales Agreement with Customer">
+      <bpmn:incoming>SequenceFlow_ConflictResolutionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoObjectionsResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Transmit Meter Data -->
+    <bpmn:task id="Task_TransmitMeterData" name="Transmit Power Meter Data">
+      <bpmn:incoming>SequenceFlow_NoObjectionsResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalBillingComputation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Compute Final Billing -->
+    <bpmn:task id="Task_ComputeFinalBilling" name="Compute &amp; Send Final Billing to Old Supplier">
+      <bpmn:incoming>SequenceFlow_FinalBillingComputation</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_GridOperatorComplete" name="Process Complete (Grid Operator)">
+      <bpmn:incoming>SequenceFlow_FinalBillingComputation</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_CustomerDataTransmit" sourceRef="StartEvent_1" targetRef="Task_CustomerDataEntry"/>
+  <bpmn:sequenceFlow id="SequenceFlow_DataCheckRequest" name="Complete &amp; Plausible?" sourceRef="Task_CustomerDataEntry" targetRef="ExclusiveGateway_DataCheck"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CorrectErrorsPath" name="No - Errors Found" sourceRef="ExclusiveGateway_DataCheck" targetRef="Task_CorrectErrors"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CompareDBPath" name="Yes - Compare with DB" sourceRef="ExclusiveGateway_DataCheck" targetRef="InclusiveGateway_CustomerExists?"/>
+  <bpmn:sequenceFlow id="SequenceFlow_NewCustomerCreation" name="New Customer Created" sourceRef="InclusiveGateway_CustomerExists?" targetRef="Task_CreateNewCustomer"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ContractPreparationPath" name="Prepare Contract Documents" sourceRef="Task_CreateNewCustomer" targetRef="Task_PrepareContract"/>
+  <bpmn:sequenceFlow id="SequenceFlow_AutomatedCheckRequest" name="Automated CIS Check" sourceRef="Task_PrepareContract" targetRef="ExclusiveGateway_ContractCheck"/>
+  <bpmn:sequenceFlow id="SequenceFlow_AnalyzeResolvePath" name="No - Issues Found" sourceRef="ExclusiveGateway_ContractCheck" targetRef="Task_AnalyzeResolveIssues"/>
+  <bpmn:sequenceFlow id="SequenceFlow_SendConfirmationAndGridRequest" name="Yes - Send Confirmation &amp; Grid Request" sourceRef="ExclusiveGateway_ContractCheck" targetRef="Task_SendConfirmationDocument"/>
+  <bpmn:sequenceFlow id="SequenceFlow_CustomerDecisionPath" name="Customer Decision (7-day window)" sourceRef="Task_SendConfirmationDocument" targetRef="ExclusiveGateway_CustomerDecision"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ProcessEndWithdrawal" name="Withdraw Contract" sourceRef="ExclusiveGateway_CustomerDecision" targetRef="EndEvent_CustomerWithdrawal"/>
+
+  <!-- Grid Operator Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_SupplierConcurrenceCheck" sourceRef="StartEvent_GridRequestReceived" targetRef="ExclusiveGateway_SupplierConcurrence"/>
+  <bpmn:sequenceFlow id="SequenceFlow_ConflictResolutionPath" name="Yes - Concurrence Possible" sourceRef="ExclusiveGateway_SupplierConcurrence" targetRef="Task_ConflictResolution"/>
+  <bpmn:sequenceFlow id="SequenceFlow_NoObjectionsPath" name="No Objections (No Concurrence)" sourceRef="ExclusiveGateway_SupplierConcurrence" targetRef="EndEvent_GridOperatorComplete"/>
+
+</bpmn:definitions>

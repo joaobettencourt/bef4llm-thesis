@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_CreditScoring_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collab_CreditScoring">
+    <!-- Three participants for the credit scoring process -->
+    
+    <bpmn:participant id="Pool_BankFrontend" name="Bank Frontend (Clerk)" />
+    
+    <bpmn:participant id="Pool_BankingSystem" name="Banking System Process" 
+                      processRef="Proc_BankingProcess">
+      <!-- Lane for banking system operations -->
+      <bpmn:laneSet>
+        <bpmn:lane id="Lane_Operations" name="Operations">
+          <bpmn:flowNodeRef>T_RequestScoring</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>G_ImmediateResult</bpmn:flowNodeRef>
+        </bpmn:lane>
+      </bpmn:laneSet>
+    </bpmn:participant>
+
+    <bpmn:participant id="Pool_ScoringAgency" name="Credit Scoring Agency (Schufa)" 
+                      processRef="Proc_AgencyProcess">
+      <!-- Lane for agency operations -->
+      <bpmn:laneSet>
+        <bpmn:lane id="Lane_ScoringOperations" name="Scoring Operations">
+          <bpmn:flowNodeRef>T_ComputeLevel1</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>G_ScoreAvailable</bpmn:flowNodeRef>
+        </bpmn:lane>
+      </bpmn:laneSet>
+    </bpmn:participant>
+
+    <!-- Message flows between participants -->
+    <bpmn:messageFlow id="Msg_RequestScoring" 
+                      sourceRef="T_RequestScoring" targetRef="StartEvent_AgencyRequest">
+      <bpmn:name>Credit Scoring Request</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_ResultImmediate" 
+                      sourceRef="Task_ScoreResultReady" targetRef="T_DisplayResult">
+      <bpmn:name>Scoring Result (Level 1)</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_DelayNotification" 
+                      sourceRef="Task_ReportDelay" targetRef="T_ShowDelayMessage">
+      <bpmn:name>Credit Scoring Delay</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_ResultDelayed" 
+                      sourceRef="Task_ScoreResultReady2" targetRef="T_DisplayFinalResult">
+      <bpmn:name>Scoring Result (Level 2)</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- Banking System Process -->
+  <bpmn:process id="Proc_BankingProcess" isExecutable="false">
+    
+    <!-- Start Event - Clerk initiates credit scoring request -->
+    <bpmn:startEvent id="StartRequestScoring" name="Clerk Requests Scoring">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Seq_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Banking system sends request to agency -->
+    <bpmn:task id="T_RequestScoring" name="Send Scoring Request">
+      <bpmn:description>Banking system requests credit score from Schufa</bpmn:description>
+      <bpmn:incoming>Seq_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>Seq_TaskToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway - Wait for either immediate result or delay notification -->
+    <bpmn:eventBasedGateway id="G_ImmediateResult" name="Wait For Response">
+      <bpmn:incoming>Seq_TaskToGateway</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitForDelay</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Catch Event - Wait for delay notification -->
+    <bpmn:intermediateCatchEvent id="E_CatchDelay" name="Receive Delay Notification">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_WaitForDelay</bpmn:incoming>
+      <bpmn:outgoing>Seq_DelayToTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task - Display delay message to clerk -->
+    <bpmn:task id="T_ShowDelayMessage" name="Show Delay Message">
+      <bpmn:description>Inform clerk that scoring will take longer</bpmn:description>
+      <bpmn:incoming>Seq_DelayToTask</bpmn:incoming>
+    </bpmn:endEvent id="EndWaitingForResult" name="Await Final Result">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing></bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Intermediate Catch Event - Wait for immediate result -->
+    <bpmn:intermediateCatchEvent id="E_CatchResult" name="Receive Scoring Result">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_WaitForResult</bpmn:incoming>
+      <bpmn:outgoing>Seq_ResultToTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task - Display result to clerk -->
+    <bpmn:endEvent id="EndResultDisplayed" name="Scoring Complete">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_ResultToTask</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Agency Process (Schufa) -->
+  <bpmn:process id="Proc_AgencyProcess" isExecutable="false">
+    
+    <!-- Start Event - Receive scoring request from banking system -->
+    <bpmn:startEvent id="StartAgencyRequest" name="Receive Scoring Request">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Seq_StartToLevel1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Perform Level 1 scoring (quick) -->
+    <bpmn:task id="T_ComputeLevel1" name="Compute Credit Score (Level 1)">
+      <bpmn:description>Perform quick credit score calculation</bpmn:description>
+      <bpmn:incoming>Seq_StartToLevel1</bpmn:incoming>
+    </bpmn:endEvent id="EndResultSent" name="Scoring Result Sent">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing></bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FindJob_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_FindJob">
+    <bpmn:participant name="Find a Job Process" processRef="Process_FindJob"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_FindJob">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Applicant (You)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReportApplications</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InterviewNegotiated</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProbationPhase</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RateCompany</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="System / Company">
+        <bpmn:flowNodeRef>Gateway_OffersReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompanyConfirmRate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NegotiateInterview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HiredProbation</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Report Applications">
+      <bpmn:outgoing>SequenceFlow_ReportToSystem</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Applicant Task -->
+    <bpmn:task id="Task_ReportApplications" name="Regularly Report Job Applications">
+      <bpmn:incoming>SequenceFlow_LoopBackOffers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReportToSystem</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- System Gateway (Decision Point) -->
+    <bpmn:exclusiveGateway id="Gateway_OffersReceived" name="Offers Available?">
+      <bpmn:incoming>SequenceFlow_ReportToSystem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessOffers</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- System Task -->
+    <bpmn:task id="Task_CompanyConfirmRate" name="Company Confirms & Rates Application">
+      <bpmn:incoming>SequenceFlow_SystemProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmToApplicant</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows from Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReportToSystem" sourceRef="StartEvent_1" targetRef="Gateway_OffersReceived"/>
+    
+    <!-- Parallel Logic for Offers and Confirmations (Simplified to Sequential Flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessOffers" name="Send New Job Offers" sourceRef="Gateway_OffersReceived" targetRef="Task_CompanyConfirmRate"/>
+
+    <!-- Applicant Decision Point -->
+    <bpmn:exclusiveGateway id="Gateway_InterviewNegotiated" name="Interview Negotiable?">
+      <bpmn:incoming>SequenceFlow_ConfirmToApplicant</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NegotiateYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProceedDirectly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Applicant Task -->
+    <bpmn:task id="Task_RateCompany" name="Rate Company">
+       <bpmn:incoming>SequenceFlow_CompleteProbation</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_SubmitRating</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- System Task -->
+    <bpmn:task id="Task_NegotiateInterview" name="Negotiate Job Interview">
+      <bpmn:incoming>SequenceFlow_NegotiateYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InterviewResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for Negotiation -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmToApplicant" sourceRef="Task_CompanyConfirmRate" targetRef="Gateway_InterviewNegotiated"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NegotiateYes" name="Interview Required" sourceRef="Gateway_InterviewNegotiated" targetRef="Task_NegotiateInterview"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedDirectly" name="No Interview Needed" sourceRef="Gateway_InterviewNegotiated" targetRef="Gateway_HiredProbation"/>
+
+    <!-- System Task -->
+    <bpmn:task id="Task_ProbationPhase" name="Enter Probation Phase">
+      <bpmn:incoming>SequenceFlow_InterviewResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteProbation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- System Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_HiredProbation" name="Hired for Probation?">
+      <bpmn:incoming>SequenceFlow_InterviewResult</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ProceedDirectly</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HiredYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows for Hiring -->
+    <bpmn:sequenceFlow id="SequenceFlow_InterviewResult" sourceRef="Task_NegotiateInterview" targetRef="Gateway_HiredProbation"/>
+    <bpmn:sequenceFlow id="SequenceFlow_HiredYes" name="Hired" sourceRef="Gateway_HiredProbation" targetRef="Task_ProbationPhase"/>
+
+    <!-- Post Probation Logic -->
+    
+    <!-- System Event -->
+    <bpmn:endEvent id="EndEvent_CompanyRate" name="Company Rates You">
+       <bpmn:incoming>SequenceFlow_SystemRatesBack</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Rating & End Conditions -->
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteProbation" sourceRef="Task_ProbationPhase" targetRef="Gateway_RatingCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitRating" name="Rate Company" sourceRef="Task_RateCompany" targetRef="Timer_ReviewVisibility"/>
+
+    <!-- Final Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_RatingCheck" name="Permanent Job & Rating Good?">
+      <bpmn:incoming>SequenceFlow_CompleteProbation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceLoopBackOffers</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Success" name="Job Permanent">
+       <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <!-- Loop Back Flow (No Reporting) -->
+    <bpmn:sequenceFlow id="SequenceLoopBackOffers" sourceRef="Gateway_RatingCheck" targetRef="Gateway_OffersReceived"/>
+    
+    <!-- End Process Sequence -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="Permanent & Good Rating" sourceRef="Gateway_RatingCheck" targetRef="EndEvent_Success"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CreditProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_ProcessOrder" name="Credit company&#10;" processRef="Proc_PurchaseOrders" />
+    <bpmn:participant id="Participant_Customer" name="Customer" />
+    
+    <!-- Message flows for email notifications -->
+    <bpmn:messageFlow id="MsgEmailAccepted" sourceRef="End_Accepted" targetRef="Participant_Customer">
+      <bpmn:name>Email sent - Credit accepted</bpmn:name>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MsgEmailRejected" sourceRef="End_Rejected" targetRef="Participant_Customer">
+      <bpmn:name>Email sent - Credit rejected</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_PurchaseOrders" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="Receive credit information">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Flow_Start_Collect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Sales" name="Credit Department">
+        <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AmountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssessRisk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_RiskAssessment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AmountOrHighRisk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RequestApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ApprovalResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Collect Credit Information -->
+    <bpmn:task id="Task_CollectInfo" name="Collect credit information">
+      <bpmn:incoming>Flow_Start_Collect</bpmn:incoming>
+      <bpmn:outgoing>Flow_AmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if amount > 1M$ -->
+    <bpmn:exclusiveGateway id="Gw_AmountCheck" name="Amount &gt; 1M$?">
+      <bpmn:incoming>Flow_AmountCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_OverOneMillion</bpmn:outgoing>
+      <bpmn:outgoing>Seq_UnderOrEqual</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 2: Risk Assessment -->
+    <bpmn:task id="Task_AssessRisk" name="Assess risk of credit">
+      <bpmn:incoming>Seq_UnderOrEqual</bpmn:incoming>
+      <bpmn:outgoing>Flow_RiskCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Risk Level Check -->
+    <bpmn:exclusiveGateway id="Gw_RiskAssessment" name="Risk level?">
+      <bpmn:incoming>Flow_RiskCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_HighRisk</bpmn:outgoing>
+      <bpmn:outgoing>Seq_LowRisk</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 4: Approval Required (Amount > 1M$ OR High Risk) -->
+    <bpmn:exclusiveGateway id="Gw_AmountOrHighRisk" name="Approval needed?">
+      <bpmn:incoming>Seq_OverOneMillion</bpmn:incoming>
+      <bpmn:incoming>Seq_HighRisk</bpmn:incoming>
+      <bpmn:outgoing>Flow_RequestApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Request Approval -->
+    <bpmn:task id="Task_RequestApproval" name="Request approval">
+      <bpmn:incoming>Flow_RequestApproval</bpmn:incoming>
+      <bpmn:outgoing>Seq_ApprovalResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 5: Approval Result -->
+    <bpmn:exclusiveGateway id="Gw_ApprovalResult" name="Approval result?">
+      <bpmn:incoming>Seq_ApprovalResult</bpmn:incoming>
+      <bpmn:outgoing>Seq_AcceptedFromApproval</bpmn:outgoing>
+      <bpmn:outgoing>Seq_RejectedFromApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Credit Accepted -->
+    <bpmn:endEvent id="End_Accepted" name="Credit accepted">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_LowRisk</bpmn:incoming>
+      <bpmn:incoming>Seq_AcceptedFromApproval</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Credit Rejected -->
+    <bpmn:endEvent id="End_Rejected" name="Credit rejected">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_RejectedFromApproval</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Collect Info -->
+    <bpmn:sequenceFlow id="Flow_Start_Collect" sourceRef="Start_1" targetRef="Task_CollectInfo">
+      <bpmn:name>Receive information</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Collect to Amount Check -->
+    <bpmn:sequenceFlow id="Flow_AmountCheck" sourceRef="Task_CollectInfo" targetRef="Gw_AmountCheck">
+      <bpmn:name>Amount check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount > 1M$ -->
+    <bpmn:sequenceFlow id="Seq_OverOneMillion" sourceRef="Gw_AmountCheck" targetRef="Gw_AmountOrHighRisk">
+      <bpmn:name>&gt; 1M$</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount <= 1M$ -->
+    <bpmn:sequenceFlow id="Seq_UnderOrEqual" sourceRef="Gw_AmountCheck" targetRef="Task_AssessRisk">
+      <bpmn:name>&lt;= 1M$</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Risk Assessment Flow -->
+    <bpmn:sequenceFlow id="Flow_RiskCheck" sourceRef="Task_AssessRisk" targetRef="Gw_RiskAssessment">
+      <bpmn:name>Risk assessment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- High Risk -->
+    <bpmn:sequenceFlow id="Seq_HighRisk" sourceRef="Gw_RiskAssessment" targetRef="Gw_AmountOrHighRisk">
+      <bpmn:name>Risk = high</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Risk -->
+    <bpmn:sequenceFlow id="Seq_LowRisk" sourceRef="Gw_RiskAssessment" targetRef="End_Accepted">
+      <bpmn:name>Risk = low</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Request Approval -->
+    <bpmn:sequenceFlow id="Flow_RequestApproval" sourceRef="Gw_AmountOrHighRisk" targetRef="Task_RequestApproval">
+      <bpmn:name>Request approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Approval Result -->
+    <bpmn:sequenceFlow id="Seq_ApprovalResult" sourceRef="Task_RequestApproval" targetRef="Gw_ApprovalResult">
+      <bpmn:name>Get approval result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Accepted from Approval -->
+    <bpmn:sequenceFlow id="Seq_AcceptedFromApproval" sourceRef="Gw_ApprovalResult" targetRef="End_Accepted">
+      <bpmn:name>Credit accepted</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejected from Approval -->
+    <bpmn:sequenceFlow id="Seq_RejectedFromApproval" sourceRef="Gw_ApprovalResult" targetRef="End_Rejected">
+      <bpmn:name>Credit rejected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CarService_01" targetNamespace="http://bpmnio.com">
+  <bpmn:collaboration id="Collab_CarService_01">
+    <bpmn:participant id="Participant_System_01" name="Car Service System" processRef="Process_CarService_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CarService_01" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_AdminSystem_01" name="Admin System"/>
+      <bpmn:lane id="Lane_Owner_01" name="Car Owner"/>
+      <bpmn:lane id="Lane_Mechanic_01" name="Mechanic"/>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_TimerServiceDue_01">
+      <bpmn:name>Service Due Check</bpmn:name>
+      <bpmn:outgoing>Flow_StartToCheckReg_01</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task -->
+    <bpmn:serviceTask id="Service_CheckRegistration_01" name="Check if car is registered">
+      <bpmn:incoming>Flow_StartToCheckReg_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_RegDecision_01</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway -->
+    <bpmn:xorGateway id="Gw_IsRegistered_01" name="Car Registered?">
+      <bpmn:incoming>Flow_RegDecision_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifyPath_01</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- End Event (Not Registered) -->
+    <bpmn:endEvent id="End_NotEligible_01" name="Process Ended">
+      <bpmn:incoming>Flow_EndUnregPath_01</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow (No) -->
+    <bpmn:sequenceFlow id="Flow_EndUnregPath_01" sourceRef="Gw_IsRegistered_01" targetRef="End_NotEligible_01">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow (Yes) -->
+    <bpmn:sequenceFlow id="Flow_NotifyPath_01" sourceRef="Gw_IsRegistered_01" targetRef="Task_NotifyOwner_01">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_NotifyOwner_01" name="Notify Car Owner of Service Needed">
+      <bpmn:incoming>Flow_NotifyPath_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitForAttendanceCheck_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event (Timer) -->
+    <bpmn:intermediateCatchEvent id="Int_Catch30Days_01" name="Wait for Attendance Check">
+      <bpmn:incoming>Flow_WaitForAttendanceCheck_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_AttendanceDecision_01</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway -->
+    <bpmn:xorGateway id="Gw_AttendedService_01" name="Attended Service?">
+      <bpmn:incoming>Flow_AttendanceDecision_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendFinePath_01</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_SendFine_01" name="Send Fine to Owner">
+      <bpmn:incoming>Flow_SendFinePath_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndFined_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Fined_01" name="Process Ended (Fined)">
+      <bpmn:incoming>Flow_EndFined_01</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow (No) -->
+    <bpmn:sequenceFlow id="Flow_SendFinePath_01" sourceRef="Gw_AttendedService_01" targetRef="Task_SendFine_01">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow (Yes) -->
+    <bpmn:sequenceFlow id="Flow_GoToMechanic_01" sourceRef="Gw_AttendedService_01" targetRef="Task_EnterProblems_01">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_EnterProblems_01" name="Enter Problems of Car">
+      <bpmn:incoming>Flow_GoToMechanic_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_SplitRepairStatus_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway -->
+    <bpmn:parallelGateway id="Gw_SplitRepairStatus_01" name="Start Repair &amp; Updates">
+      <bpmn:incoming>Flow_SplitRepairStatus_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendUpdatesPath_01</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_SendEmailUpdates_01" name="Send Status Updates via Email">
+      <bpmn:incoming>Flow_SendUpdatesPath_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeRepairStatus_Email_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_RepairCar_01" name="Repair Car">
+      <bpmn:incoming>Flow_SplitRepairStatus_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeRepairStatus_Car_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="Gw_MergeRepairStatus_01" name="Wait for Completion">
+      <bpmn:incoming>Flow_MergeRepairStatus_Email_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_SelectPaymentMethod_01</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Sequence Flow for Repair Task to Merge -->
+    <bpmn:sequenceFlow id="Flow_MergeRepairStatus_Car_01" sourceRef="Task_RepairCar_01" targetRef="Gw_MergeRepairStatus_01"/>
+
+    <!-- Sequence Flow for Email Updates to Merge -->
+    <bpmn:sequenceFlow id="Flow_MergeRepairStatus_Email_01" sourceRef="Task_SendEmailUpdates_01" targetRef="Gw_MergeRepairStatus_01"/>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_SelectPaymentMethod_01" name="Select Payment Method">
+      <bpmn:incoming>Flow_SelectPaymentMethod_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_PayViaApp_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task -->
+    <bpmn:serviceTask id="Service_AppPayment_01" name="Pay through App">
+      <bpmn:incoming>Flow_PayViaApp_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConfirmSuccessPickerl_01</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_ConfirmSuccessPickerl_01" name="Confirm Repair &amp; Grant Pickerl">
+      <bpmn:incoming>Flow_ConfirmSuccessPickerl_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_EnterNextServiceDate_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task -->
+    <bpmn:userTask id="Task_EnterNextServiceDate_01" name="Enter Time for Next Service">
+      <bpmn:incoming>Flow_ConfirmSuccessPickerl_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndSuccessPath_01</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- End Event -->
+    <bpmn:endEvent id="End_SuccessfulService_01" name="Process Completed">
+      <bpmn:incoming>Flow_EndSuccessPath_01</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Connecting the rest) -->
+    <bpmn:sequenceFlow id="Flow_StartToCheckReg_01" sourceRef="Start_TimerServiceDue_01" targetRef="Service_CheckRegistration_01"/>
+    <bpmn:sequenceFlow id="Flow_RegDecision_01" sourceRef="Service_CheckRegistration_01" targetRef="Gw_IsRegistered_01"/>
+    <bpmn:sequenceFlow id="Flow_WaitForAttendanceCheck_01" sourceRef="Task_NotifyOwner_01" targetRef="Int_Catch30Days_01"/>
+    <bpmn:sequenceFlow id="Flow_AttendanceDecision_01" sourceRef="Int_Catch30Days_01" targetRef="Gw_AttendedService_01"/>
+    <bpmn:sequenceFlow id="Flow_EndFined_01" sourceRef="Task_SendFine_01" targetRef="End_Fined_01"/>
+    <bpmn:sequenceFlow id="Flow_SplitRepairStatus_01" sourceRef="Task_EnterProblems_01" targetRef="Gw_SplitRepairStatus_01"/>
+    <bpmn:sequenceFlow id="Flow_SendUpdatesPath_01" sourceRef="Gw_SplitRepairStatus_01" targetRef="Task_SendEmailUpdates_01"/>
+
+  </bpmn:process>
+</bpmn:definitions>

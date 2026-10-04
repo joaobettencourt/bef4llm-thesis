@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_CS" name="Customer Service (TELECO)" processRef="Process_CS"/>
+    <bpmn:participant id="Participant_RP" name="Resource Provisioning" processRef="Process_RP"/>
+    <bpmn:participant id="Participant_BC" name="Billing &amp; Collections" processRef="Process_BC"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_CS_SM_SendReport" sourceRef="Task_CS_CreateDetailedProblemReport" targetRef="StartRP_1"/>
+    <bpmn:messageFlow id="MessageFlow_RP_SM_Status" sourceRef="EndRP_StatusSent" targetRef="EventCS_ReceiptStatus"/>
+    <bpmn:messageFlow id="MessageFlow_CS_RP_RequestRestore" sourceRef="Task_CS_CreateRestorationRequest" targetRef="StartRP_RestoreWait"/>
+    <bpmn:messageFlow id="MessageFlow_RP_SM_TroubleShooting" sourceRef="EndRP_SendTroubleReport" targetRef="EventCS_ReceiptTroubleReport"/>
+    <bpmn:messageFlow id="MessageFlow_CS_BC_Rebate" sourceRef="Task_CS_ReportSLAViolation" targetRef="StartBC_1"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CS">
+    <bpmn:startEvent id="StartCS_DegradationPerceived" name="Service Degradation Perceived">
+      <bpmn:outgoing>SequenceFlow_CS_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_EnterProblemReport" name="Enter Problem Report into System T">
+      <bpmn:incoming>SequenceFlow_CS_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SLACheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_CS_Significance" name="Customer Significance Check">
+      <bpmn:incoming>SequenceFlow_SLACheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PremiumPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Premium Path (Link to extra process) -->
+    <bpmn:endEvent id="EndCS_Premium" name="Premium Fix Process Link">
+      <bpmn:incoming>SequenceFlow_PremiumPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_CS_DetermineSignificance" name="Determine Customer Significance">
+      <bpmn:outgoing>SequenceFlow_RePrioritizeCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Re-prioritization Check -->
+    <bpmn:exclusiveGateway id="Gateway_CS_Priority" name="Affects Counter Measures?">
+      <bpmn:incoming>SequenceFlow_RePrioritizeCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesReprioritize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Re-prioritization Task -->
+    <bpmn:task id="Task_CS_RePrioritize" name="Re-prioritize Counter Measures">
+      <bpmn:incoming>SequenceFlow_YesReprioritize</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeReportPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Continue Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoEffect" name="No Effect on Measures" sourceRef="Gateway_CS_Priority" targetRef="Task_CS_CreateDetailedProblemReport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[significanceDoesNotAffect]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Paths -->
+    <bpmn:exclusiveGateway id="Gateway_CS_MergeReport" name="Merge Report Path">
+      <bpmn:incoming>SequenceFlow_YesReprioritize</bpmn:outgoing> 
+      <bpmn:incoming>SequenceFlow_NoEffect</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <!-- Detailed Problem Report Creation -->
+    <bpmn:task id="Task_CS_CreateDetailedProblemReport" name="Create Detailed Problem Report">
+      <bpmn:incoming>SequenceFlow_MergeReportPath</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_CS_SM_SendReport</bpmn:outgoing> <!-- Note: In process, this is outgoing to message flow -->
+    </bpmn:task>
+
+    <!-- Receive Status from Service Management (via Message Flow) -->
+    <bpmn:messageEvent id="EventCS_ReceiptStatus" name="Receive Detailed Problem Report">
+      <bpmn:incoming>MessageFlow_RP_SM_Status</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalStatusPrep</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+    <!-- Prepare Final Status -->
+    <bpmn:task id="Task_CS_PrepareFinalStatus" name="Prepare Final Status Report">
+      <bpmn:incoming>MessageFlow_RP_SM_Status</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_DecisionCounterMeasures</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_CS_CounterMeasureDecision" name="Counter Measures Required?">
+      <bpmn:incoming>SequenceFlow_FinalStatusPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoProblemPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No Problem Path -->
+    <bpmn:task id="Task_CS_SendServicePerformance" name="Send Actual Service Performance">
+      <bpmn:incoming>SequenceFlow_NoProblemPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConcurrentStart1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Minor Corrective Actions Path -->
+    <bpmn:exclusiveGateway id="Gateway_CS_MinorActions" name="Minor Corrective Actions?">
+      <bpmn:incoming>SequenceFlow_FinalStatusPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSMCorrectivePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Minor Corrective Actions Task -->
+    <bpmn:task id="Task_CS_MinorActions" name="Undertake Corrective Actions">
+      <bpmn:incoming>SequenceFlow_MSMCorrectivePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateResolutionReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Automatic Restoration Path -->
+    <bpmn:exclusiveGateway id="Gateway_CS_AutoRestoration" name="Automatic Restoration Required?">
+      <bpmn:incoming>SequenceFlow_FinalStatusPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestAutoRestore</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Request for Restoration -->
+    <bpmn:task id="Task_CS_CreateRestorationRequest" name="Create Request for Automatic Resource Restoration">
+      <bpmn:incoming>SequenceFlow_RequestAutoRestore</bpmn:outgoing> 
+      <bpmn:outgoing>MessageFlow_CS_RP_RequestRestore</bpmn:outgoing> <!-- Out to Message Flow -->
+    </bpmn:task>
+
+    <!-- Create Resolution Report (from Minor Actions or Restoration) -->
+    <bpmn:task id="Task_CS_CreateResolutionReport" name="Create Problem Resolution Report">
+      <bpmn:incoming>SequenceFlow_CreateResolutionReport</bpmn:incoming> 
+      <bpmn:outgoing>MessageFlow_SendToCust_1</bpmn:outgoing> <!-- Out to Message Flow -->
+    </bpmn:task>
+
+    <!-- Report SLA Violation Rebate (Concurrent) -->
+    <bpmn:startEvent id="StartCS_Concurrent" name="Trigger Concurrent Activities">
+      <bpmn:incoming>SequenceFlow_NoProblemPath</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_ReportSLAViolation" name="Report SLA Violation Rebate">
+      <bpmn:incoming>SequenceFlow_ConcurrentStart1</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Message to Billing & Collections -->
+    <bpmn:messageEvent id="MessageSend_CS_BC" name="Report SLA Violation Rebate">
+      <bpmn:incoming>SequenceFlow_SendToBilling</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:messageEvent>
+
+    <!-- Create Customer Report (Concurrent) -->
+    <bpmn:startEvent id="StartCS_ReportCreation" name="Create Customer Report">
+      <bpmn:outgoing>SequenceFlow_CreateCustomerReport</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_CreateCustomerReport" name="Create Customer Report">
+      <bpmn:incoming>SequenceFlow_ConcurrentStart1</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Send Report to Customer (Concurrent) -->
+    <bpmn:messageEvent id="MessageSend_CS_Cust" name="Send Report to Customer">
+      <bpmn:incoming>SequenceFlow_SendToCust</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:messageEvent>
+
+    <!-- End Event CS -->
+    <bpmn:endEvent id="EndCS_Final" name="Process Ends">
+      <bpmn:incoming>SequenceFlow_ConcurrentStart2</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Resource Provisioning Process -->
+  <bpmn:process id="Process_RP">
+    
+    <bpmn:startEvent id="StartRP_1" name="Receive Detailed Problem Report">
+      <bpmn:outgoing>SequenceFlow_RP_CheckProblems</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check for Problems -->
+    <bpmn:exclusiveGateway id="Gateway_RP_ProblemDetected" name="Problem Detected?">
+      <bpmn:incoming>SequenceFlow_RP_CheckProblems</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:exclusiveGateway>
+
+    <!-- No Problem Path -->
+    <bpmn:task id="Task_RP_NormalNotification" name="Create Normal Service Execution Notification">
+      <bpmn:incoming>SequenceFlow_NoProblemPathRP</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Problem Path Analysis -->
+    <bpmn:task id="Task_RP_Analyze" name="Analyze Detected Problems">
+      <bpmn:incoming>SequenceFlow_ProblemDetectedPathRP</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Create Trouble Report (Problem Path) -->
+    <bpmn:task id="Task_RP_CreateTroubleReport" name="Create Trouble Report">
+      <bpmn:incoming>SequenceFlow_ProblemDetectedPathRP</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Merge Paths (Normal vs Trouble) -->
+    <bpmn:exclusiveGateway id="Gateway_RP_Merge" name="Merge Status Path">
+      <bpmn:incoming>SequenceFlow_NormalNotificationRP</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Status Report to SM (End of Analysis Phase) -->
+    <bpmn:endEvent id="EndRP_StatusSent" name="Status Sent">
+      <bpmn:incoming>SequenceFlow_SendToSM</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:endEvent>
+
+    <!-- Wait for Restoration Request (Timer) -->
+    <bpmn:startEvent id="StartRP_RestoreWait" name="Receive Restoration Request">
+      <bpmn:outgoing>SequenceFlow_TrackErrors</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:startEvent>
+
+    <!-- Boundary Timer (2 Days) -->
+    <bpmn:boundaryTimer id="BoundaryRP_2Days" attachedToRef="StartRP_RestoreWait">
+      <bpmn:timerDuration xsi:type="tTimeDate"><![CDATA[PT48H]]></bpmn:timerDuration>
+    </bpmn:boundaryTimer>
+
+    <!-- Track Errors -->
+    <bpmn:task id="Task_RP_TrackErrors" name="Track All Possible Errors">
+      <bpmn:incoming>SequenceFlow_WaitForRestorationRequest</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Corrective Actions -->
+    <bpmn:task id="Task_RP_UndertakeCorrective" name="Undertake Necessary Corrective Actions">
+      <bpmn:incoming>SequenceFlow_TrackErrors</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Create Trouble-Shooting Report -->
+    <bpmn:task id="Task_RP_CreateTroubleShooting" name="Create Trouble-Shooting Report">
+      <bpmn:incoming>SequenceFlow_CorrectiveActionsRP</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <!-- Send Trouble-Shooting Report to SM (End of Restoration Phase) -->
+    <bpmn:endEvent id="EndRP_SendTroubleReport" name="Send Trouble-Shooting Report">
+      <bpmn:incoming>SequenceFlow_SendToSM2</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Billing & Collections Process -->
+  <bpmn:process id="Process_BC">
+    
+    <bpmn:startEvent id="StartBC_1" name="Receive SLA Violation Rebate Report">
+      <bpmn:outgoing>SequenceFlow_BillingAdjustment</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_BC_AdjustBilling" name="Adjust Billing for SLA Violation">
+      <bpmn:incoming>SequenceFlow_BillingAdjustment</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndBC_1" name="Billing Adjusted">
+      <bpmn:incoming>SequenceFlow_EndBC</bpmn:outgoing> 
+       <!-- Logic adjustment for concurrent start based on description "After sending, this process path... ends. For the case that automatic..." -->
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Message Flows (Re-verified) -->
+  <bpmn:messageFlow id="MessageFlow_CS_SM_SendReport" sourceRef="Task_CS_CreateDetailedProblemReport" targetRef="StartRP_1"/>
+  <bpmn:messageFlow id="MessageFlow_RP_SM_Status" sourceRef="EndRP_StatusSent" targetRef="EventCS_ReceiptStatus"/>
+  <bpmn:messageFlow id="MessageFlow_CS_RP_RequestRestore" sourceRef="Task_CS_CreateRestorationRequest" targetRef="StartRP_RestoreWait"/>
+  <bpmn:messageFlow id="MessageFlow_RP_SM_TroubleShooting" sourceRef="EndRP_SendTroubleReport" targetRef="EventCS_ReceiptTroubleReport"/>
+  <bpmn:messageFlow id="MessageFlow_CS_BC_Rebate" sourceRef="Task_CS_ReportSLAViolation" targetRef="StartBC_1"/>
+
+</bpmn:definitions>

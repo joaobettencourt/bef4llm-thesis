@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderFulfillment_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Pool_InternalCompany" name="Internal Company Process" processRef="Process_Int_001"/>
+    <bpmn:participant id="Pool_CourierService" name="Courier Service Process" processRef="Process_Cou_001"/>
+  </bpmn:collaboration>
+
+  <!-- Internal Company Process -->
+  <bpmn:process id="Process_Int_001" isExecutable="false">
+    <bpmn:startEvent id="Start_OrderReceived" name="Order Received">
+      <bpmn:outgoing>Seq_CheckStock</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ReviewCheck" name="Review Order &amp; Check Stock">
+      <bpmn:incoming>Seq_CheckStock</bpmn:incoming>
+      <bpmn:outgoing>Seq_AvailabilityDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gw_AllItemsAvailable" name="All Items Available?">
+      <bpmn:incoming>Seq_AvailabilityDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_PackageGoods</bpmn:outgoing>
+      <bpmn:outgoing>Seq_IsDiscontinuedCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_CancelledOrder" name="Order Cancelled">
+      <bpmn:incoming>Seq_OrderCancelledEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_NotifyUnavailable" name="Notify Customer (Discontinued)">
+      <bpmn:incoming>Seq_DiscontinuedYes</bpmn:incoming>
+      <bpmn:outgoing>Seq_OrderCancelledEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gw_IsDiscontinuedItem" name="Is Item Discontinued?">
+      <bpmn:incoming>Seq_IsDiscontinuedCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_DiscontinuedYesFlow</bpmn:outgoing>
+      <bpmn:outgoing>Seq_OrderMissingWait</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_OrderMissing" name="Inform Delay &amp; Order Missing Products">
+      <bpmn:incoming>Seq_OrderMissingFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitTimerStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:startEvent id="Start_Timer" name="Wait Delivery (x Days)">
+       <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">PT24H</bpmn:timerDefinition> 
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="Int_Waiting" name="Wait x Days">
+      <bpmn:incoming>Seq_WaitTimerStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_LoopBackToCheckStock</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Discontinued Flow -->
+    <bpmn:sequenceFlow id="Seq_DiscontinuedYesFlow" name="Yes (Discontinued)" sourceRef="Gw_IsDiscontinuedItem" targetRef="Task_NotifyUnavailable"/>
+    <bpmn:sequenceFlow id="Seq_OrderMissingWait" name="No (Just Missing)" sourceRef="Gw_IsDiscontinuedItem" targetRef="Task_OrderMissing"/>
+
+    <!-- Packaging Flow -->
+    <bpmn:task id="Task_PackageGoods" name="Recollect &amp; Prepare Package">
+      <bpmn:incoming>Seq_PackageFlow</bpmn:incoming>
+      <bpmn:outgoing>Msg_FlowToCourier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckStock" sourceRef="Start_OrderReceived" targetRef="Task_ReviewCheck"/>
+    <bpmn:sequenceFlow id="Seq_AvailabilityDecision" sourceRef="Task_ReviewCheck" targetRef="Gw_AllItemsAvailable"/>
+    <bpmn:sequenceFlow id="Seq_IsDiscontinuedCheck" name="No (Missing)" sourceRef="Gw_AllItemsAvailable" targetRef="Gw_IsDiscontinuedItem"/>
+    <bpmn:sequenceFlow id="Seq_PackageGoods" name="Yes (All OK)" sourceRef="Gw_AllItemsAvailable" targetRef="Task_PackageGoods"/>
+
+  </bpmn:process>
+
+  <!-- Courier Service Process -->
+  <bpmn:process id="Process_Cou_001" isExecutable="false">
+    <bpmn:startEvent id="Start_MsgPackageReady" name="Receive Package Ready Notification">
+      <bpmn:messageRef>Msg_PackageReady</bpmn:messageRef>
+      <bpmn:outgoing>Seq_CheckResources</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Message Flow Definition -->
+    <bpmn:message id="Msg_PackageReady" name="Package Ready Notification"/>
+
+    <bpmn:exclusiveGateway id="Gw_ResourcesAvailable" name="Enough Human Resources?">
+      <bpmn:incoming>Seq_CheckResources</bpmn:incoming>
+      <bpmn:outgoing>Seq_NotifyDelayWaitFlow</bpmn:outgoing>
+      <bpmn:outgoing>Seq_RoutePlanningFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_NotifyClient" name="Inform Client of Potential Delay">
+       <bpmn:incoming>Seq_NotifyDelayWaitFlow</bpmn:incoming>
+       <bpmn:outgoing>Seq_WaitResourcesLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to check resources again -->
+    <bpmn:intermediateCatchEvent id="Int_WaitForResources" name="Wait for Human Resources">
+       <bpmn:incoming>Seq_WaitResourcesLoop</bpmn:incoming>
+       <bpmn:outgoing>Seq_CheckResourcesAgain</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Route Planning & Pickup -->
+    <bpmn:serviceTask id="Service_RoutePlanning" name="Centralized Service Decides Best Route">
+      <bpmn:incoming>Seq_RoutePlanningFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_PickupPackage</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:task id="Task_DriverPickup" name="Driver Picks Up Package">
+       <bpmn:incoming>Seq_PickupPackage</bpmn:incoming>
+       <bpmn:outgoing>Seq_DeliveryFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Delivery & Update -->
+    <bpmn:task id="Task_UpdateSystem" name="Deliver Package &amp; Update System">
+      <bpmn:incoming>Seq_DeliveryFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_FinalEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_DeliveryComplete" name="Delivery Complete">
+       <bpmn:incoming>Seq_FinalEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckResources" sourceRef="Start_MsgPackageReady" targetRef="Gw_ResourcesAvailable"/>
+    <bpmn:sequenceFlow id="Seq_NotifyDelayWaitFlow" name="No (Not Enough Resources)" sourceRef="Gw_ResourcesAvailable" targetRef="Task_NotifyClient"/>
+    <bpmn:sequenceFlow id="Seq_WaitResourcesLoop" sourceRef="Task_NotifyClient" targetRef="Int_WaitForResources"/>
+    <bpmn:sequenceFlow id="Seq_CheckResourcesAgain" sourceRef="Int_WaitForResources" targetRef="Gw_ResourcesAvailable"/>
+    <bpmn:sequenceFlow id="Seq_RoutePlanningFlow" name="Yes (Enough Resources)" sourceRef="Gw_ResourcesAvailable" targetRef="Service_RoutePlanning"/>
+    <bpmn:sequenceFlow id="Seq_PickupPackage" sourceRef="Service_RoutePlanning" targetRef="Task_DriverPickup"/>
+    <bpmn:sequenceFlow id="Seq_DeliveryFlow" sourceRef="Task_DriverPickup" targetRef="Task_UpdateSystem"/>
+    <bpmn:sequenceFlow id="Seq_FinalEndEvent" sourceRef="Task_UpdateSystem" targetRef="End_DeliveryComplete"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

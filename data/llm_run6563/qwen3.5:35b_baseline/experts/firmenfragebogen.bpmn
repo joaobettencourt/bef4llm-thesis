@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Firmenfragebogen Prozess" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Systemautomatisierung" name="Systemautomatisierung">
+        <bpmn:flowNodeRef>StartEvent_Fragenbogen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ErfassenVerarbeiten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_PartnerSuche</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_DatenCheckMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UnternehmensdatenPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_DataOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_PeriodCheckMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MeldezeitraumPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_UmlageVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BestehendeUmlagenPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NeueUmlagenAnlegen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KontaktdatenPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ContactOK</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeiter">
+        <bpmn:flowNodeRef>Task_ManuellePartnerPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EskalationMitarbeiter</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Fragenbogen" name="Firmenfragebogen eingegangen">
+      <bpmn:outgoing>SequenceFlow_Erfassen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_ErfassenVerarbeiten" name="Erfassen und im System verarbeiten">
+      <bpmn:incoming>SequenceFlow_Erfassen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartnerSucheStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_PartnerSuche" name="Partner gefunden?">
+      <bpmn:incoming>SequenceFlow_PartnerSucheStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AutoMatchFound</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualCheckRequired</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Path 1 (Yes) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AutoMatchFound" sourceRef="InclusiveGateway_PartnerSuche" targetRef="InclusiveGateway_DatenCheckMerge">
+      <bpmn:name>Automatische Zuordnung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2 (No/Ambiguous) -->
+    <bpmn:task id="Task_ManuellePartnerPruefung" name="Manuelle Partnerprüfung">
+      <bpmn:incoming>SequenceFlow_ManualCheckRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Point -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_DatenCheckMerge" name="Datenprüfung starten">
+      <bpmn:incoming>SequenceFlow_AutoMatchFound</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ManualToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DatenPruefungStart</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_UnternehmensdatenPruefen" name="Unternehmensdaten prüfen (Betriebsnummer, U1, Insolvenz)">
+      <bpmn:incoming>SequenceFlow_DatenPruefungStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCheckResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DataOK" name="Datenprüfung OK?">
+      <bpmn:incoming>SequenceFlow_DataCheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PeriodStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for Error Handling -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorData" sourceRef="ExclusiveGateway_DataOK" targetRef="Task_EskalationMitarbeiter">
+      <bpmn:name>Fehler</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_MeldezeitraumPruefen" name="Meldezeitraum kontrollieren &amp; Umlagezeiten verwalten">
+      <bpmn:incoming>SequenceFlow_PeriodStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UmlageCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision 2 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_UmlageVorhanden" name="Umlagezeiten vorhanden?">
+      <bpmn:incoming>SequenceFlow_UmlageCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExistingTimes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NewTimes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3a -->
+    <bpmn:task id="Task_BestehendeUmlagenPruefen" name="Bestehende Zeiten überprüfen">
+      <bpmn:incoming>SequenceFlow_ExistingTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PeriodMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3b -->
+    <bpmn:task id="Task_NeueUmlagenAnlegen" name="Neue Umlagezeiten anlegen">
+      <bpmn:incoming>SequenceFlow_NewTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PeriodMerge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Period -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_PeriodCheckMerge" name="Meldezeitraum abgeschlossen">
+      <bpmn:incoming>SequenceFlow_PeriodMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PeriodMerge2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_KontaktStart</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task 4 -->
+    <bpmn:task id="Task_KontaktdatenPruefen" name="Kontaktdaten prüfen (Telefon, Fax, Adresse)">
+      <bpmn:incoming>SequenceFlow_KontaktStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContactResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision 3 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ContactOK" name="Kontaktdaten OK?">
+      <bpmn:incoming>SequenceFlow_ContactResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessEnd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow for Error Handling -->
+    <bpmn:sequenceFlow id="SequenceFlow_ErrorContact" sourceRef="ExclusiveGateway_ContactOK" targetRef="Task_EskalationMitarbeiter">
+      <bpmn:name>Fehler</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Escalation -->
+    <bpmn:task id="Task_EskalationMitarbeiter" name="An Mitarbeiter übergeben">
+       <bpmn:incoming>SequenceFlow_ErrorData</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ErrorContact</bpmn:incoming>
+    </bpmn:task>
+
+     <!-- End Event Success -->
+    <bpmn:endEvent id="EndEvent_Success" name="Daten vollständig geprüft">
+       <bpmn:incoming>SequenceFlow_SuccessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+      <!-- Sequence Flows for Start and Initial Flow -->
+     <bpmn:sequenceFlow id="SequenceFlow_Erfassen" sourceRef="StartEvent_Fragenbogen" targetRef="Task_ErfassenVerarbeiten">
+        <bpmn:name>Fragebogen eingegangen</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PartnerSucheStart" sourceRef="Task_ErfassenVerarbeiten" targetRef="InclusiveGateway_PartnerSuche">
+        <bpmn:name>Automatische Suche starten</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_ManualCheckRequired" sourceRef="InclusiveGateway_PartnerSuche" targetRef="Task_ManuellePartnerPruefung">
+        <bpmn:name>Fehler bei Zuordnung</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_ManualToMerge" sourceRef="Task_ManuellePartnerPruefung" targetRef="InclusiveGateway_DatenCheckMerge">
+        <bpmn:name>Manuell geprüft</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DatenPruefungStart" sourceRef="InclusiveGateway_DatenCheckMerge" targetRef="Task_UnternehmensdatenPruefen">
+        <bpmn:name>Daten prüfen</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_DataCheckResult" sourceRef="Task_UnternehmensdatenPruefen" targetRef="ExclusiveGateway_DataOK">
+        <bpmn:name>Ergebnis</bpmn:name>
+      </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_PeriodStart" sourceRef="ExclusiveGateway_DataOK" targetRef="Task_MeldezeitraumPruefen">
+        <bpmn:name>Daten OK</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_UmlageCheck" sourceRef="Task_MeldezeitraumPruefen" targetRef="ExclusiveGateway_UmlageVorhanden">
+        <bpmn:name>Zur Umlageprüfung</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_ExistingTimes" sourceRef="ExclusiveGateway_UmlageVorhanden" targetRef="Task_BestehendeUmlagenPruefen">
+        <bpmn:name>Vorhanden</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_NewTimes" sourceRef="ExclusiveGateway_UmlageVorhanden" targetRef="Task_NeueUmlagenAnlegen">
+        <bpmn:name>Nicht vorhanden</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_PeriodMerge" sourceRef="Task_BestehendeUmlagenPruefen" targetRef="InclusiveGateway_PeriodCheckMerge">
+        <bpmn:name>Bestehend geprüft</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_PeriodMerge2" sourceRef="Task_NeueUmlagenAnlegen" targetRef="InclusiveGateway_PeriodCheckMerge">
+        <bpmn:name>Angelegt</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_KontaktStart" sourceRef="InclusiveGateway_PeriodCheckMerge" targetRef="Task_KontaktdatenPruefen">
+        <bpmn:name>Kontrolle abgeschlossen</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_ContactResult" sourceRef="Task_KontaktdatenPruefen" targetRef="ExclusiveGateway_ContactOK">
+        <bpmn:name>Kontakt geprüft</bpmn:name>
+      </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SequenceFlow_SuccessEnd" sourceRef="ExclusiveGateway_ContactOK" targetRef="EndEvent_Success">
+         <bpmn:name>Erfolgreich</bpmn:name>
+      </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

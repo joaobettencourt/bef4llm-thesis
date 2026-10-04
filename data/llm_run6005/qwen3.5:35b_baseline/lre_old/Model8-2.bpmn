@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RecruitmentProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_HR_Process">
+    <bpmn:participant name="HR Department Process" processRef="Proc_RecruitJob"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Msg_ApprovalDecision" name="Approval Decision Response"/>
+
+  <bpmn:process id="Proc_RecruitJob" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_VacancyReported" name="Vacancy Reported">
+      <bpmn:outgoing>Seq_CreateDescription</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Create Job Description -->
+    <bpmn:task id="Task_CreateJobDesc" name="Create Job Description">
+      <bpmn:incoming>Seq_RefineLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckClarity</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Description Clear? (Exclusive) -->
+    <bpmn:exclusiveGateway id="Gateway_IsClear" name="Description clear?">
+      <bpmn:incoming>Seq_CheckClarity</bpmn:incoming>
+      <bpmn:outgoing>Seq_AskDeptAgain</bpmn:outgoing>
+      <bpmn:outgoing>Seq_SubmitForApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Ask Department (Loop for confusion) -->
+    <bpmn:task id="Task_AskDept" name="Ask Department Again">
+      <bpmn:incoming>Seq_AskDeptAgain</bpmn:incoming>
+      <bpmn:outgoing>Seq_RefineLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Submit for Approval -->
+    <bpmn:task id="Task_SubmitApproval" name="Submit Job Description">
+      <bpmn:incoming>Seq_SubmitForApproval</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: Wait for Decision -->
+    <bpmn:intermediateCatchEvent id="Event_WaitDecision">
+      <bpmn:messageRef>Msg_ApprovalDecision</bpmn:messageRef>
+      <bpmn:incoming>Seq_WaitDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_DecisionGatewayIn</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 2: Decision Result (Approved vs Rejected) -->
+    <bpmn:exclusiveGateway id="Gateway_Decided" name="Decision?">
+      <bpmn:incoming>Seq_DecisionGatewayIn</bpmn:incoming>
+      <bpmn:outgoing>Seq_CorrectDesc</bpmn:outgoing>
+      <bpmn:outgoing>Seq_PostJobFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Correct Description (Loop for rejection) -->
+    <bpmn:task id="Task_CorrectDesc" name="Correct Job Description">
+      <bpmn:incoming>Seq_CorrectDesc</bpmn:incoming>
+      <bpmn:outgoing>Seq_SubmitAgainLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Post Job (Final Step) -->
+    <bpmn:task id="Task_PostJob" name="Post the Job">
+      <bpmn:incoming>Seq_PostJobFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_FinalizeProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_JobPosted" name="Job Posted">
+      <bpmn:incoming>Seq_FinalizeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Create -->
+    <bpmn:sequenceFlow id="Seq_CreateDescription" sourceRef="Start_VacancyReported" targetRef="Task_CreateJobDesc"/>
+
+    <!-- Create to Check Clarity Gateway -->
+    <bpmn:sequenceFlow id="Seq_CheckClarity" name="Check clarity" sourceRef="Task_CreateJobDesc" targetRef="Gateway_IsClear"/>
+
+    <!-- Clear? No -> Ask Dept -->
+    <bpmn:sequenceFlow id="Seq_AskDeptAgain" name="No, confusion exists" sourceRef="Gateway_IsClear" targetRef="Task_AskDept">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${descriptionNotClear}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Ask Dept back to Create (Loop) -->
+    <bpmn:sequenceFlow id="Seq_RefineLoop" name="Clarify and Refine" sourceRef="Task_AskDept" targetRef="Task_CreateJobDesc"/>
+
+    <!-- Clear? Yes -> Submit Task -->
+    <bpmn:sequenceFlow id="Seq_SubmitForApproval" name="Yes, submit now" sourceRef="Gateway_IsClear" targetRef="Task_SubmitApproval">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${descriptionIsClear}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Submit to Wait Event -->
+    <bpmn:sequenceFlow id="Seq_WaitDecision" sourceRef="Task_SubmitApproval" targetRef="Event_WaitDecision"/>
+
+    <!-- Wait Event to Decision Gateway -->
+    <bpmn:sequenceFlow id="Seq_DecisionGatewayIn" name="Received Response" sourceRef="Event_WaitDecision" targetRef="Gateway_Decided"/>
+
+    <!-- Rejected -> Correct Task (Note: Need specific flow ID for gateway outgoing) -->
+    <bpmn:sequenceFlow id="Seq_CorrectDesc" name="Rejected, needs correction" sourceRef="Gateway_Decided" targetRef="Task_CorrectDesc">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${decision == 'rejected'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Correct Task back to Submit (Loop) -->
+    <bpmn:sequenceFlow id="Seq_SubmitAgainLoop" name="Resubmit for approval" sourceRef="Task_CorrectDesc" targetRef="Task_SubmitApproval"/>
+
+    <!-- Approved -> Post Job -->
+    <bpmn:sequenceFlow id="Seq_PostJobFlow" name="Approved, post now" sourceRef="Gateway_Decided" targetRef="Task_PostJob">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${decision == 'approved'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Post Job to End -->
+    <bpmn:sequenceFlow id="Seq_FinalizeProcess" sourceRef="Task_PostJob" targetRef="End_JobPosted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

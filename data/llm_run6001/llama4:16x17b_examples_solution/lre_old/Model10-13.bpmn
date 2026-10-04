@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+             id="definition" targetNamespace="http://www.example.com">
+
+   <collaboration id="Collaboration_1">
+     <participant id="Participant_INQ" name="INQ" processRef="Process_INQ"/>
+     <participant id="Participant_IP" name="IP" processRef="Process_IP"/>
+     <messageFlow id="MessageFlow_Request" sourceRef="IntermediateThrowEvent_Request" targetRef="StartEvent_CheckRequest"/>
+     <messageFlow id="MessageFlow_Response_Data" sourceRef="Task_SendData" targetRef="StartEvent_ReceiveResponse"/>
+     <messageFlow id="MessageFlow_Response_Rejected" sourceRef="Task_RejectRequest" targetRef="StartEvent_ReceiveResponse"/>
+   </collaboration>
+
+   <process id="Process_INQ" isExecutable="true">
+     <startEvent id="StartEvent_1">
+       <outgoing>SequenceFlow_SendRequest</outgoing>
+     </startEvent>
+
+     <sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_1" targetRef="Task_SendRequest"/>
+
+     <task id="Task_SendRequest" name="Send Request to IP">
+       <incoming>SequenceFlow_SendRequest</incoming>
+       <outgoing>SequenceFlow_RequestSent</outgoing>
+     </task>
+
+     <sequenceFlow id="SequenceFlow_RequestSent" sourceRef="Task_SendRequest" targetRef="IntermediateThrowEvent_Request"/>
+
+     <intermediateThrowEvent id="IntermediateThrowEvent_Request">
+       <incoming>SequenceFlow_RequestSent</incoming>
+       <outgoing>MessageFlow_Request</outgoing>
+     </intermediateThrowEvent>
+
+     <startEvent id="StartEvent_ReceiveResponse">
+       <incoming>MessageFlow_Response_Data</incoming>
+       <incoming>MessageFlow_Response_Rejected</incoming>
+       <outgoing>SequenceFlow_ProcessResponse</outgoing>
+     </startEvent>
+
+     <sequenceFlow id="SequenceFlow_ProcessResponse" sourceRef="StartEvent_ReceiveResponse" targetRef="ExclusiveGateway_ProcessResponse"/>
+
+     <exclusiveGateway id="ExclusiveGateway_ProcessResponse">
+       <incoming>SequenceFlow_ProcessResponse</incoming>
+       <outgoing>SequenceFlow_DataReceived</outgoing>
+       <outgoing>SequenceFlow_RequestRejected</outgoing>
+     </exclusiveGateway>
+
+     <sequenceFlow id="SequenceFlow_DataReceived" sourceRef="ExclusiveGateway_ProcessResponse" targetRef="EndEvent_DataReceived">
+       <conditionExpression xsi:type="tFormalExpression">${response == 'data'}</conditionExpression>
+     </sequenceFlow>
+
+     <endEvent id="EndEvent_DataReceived">
+       <incoming>SequenceFlow_DataReceived</incoming>
+     </endEvent>
+
+     <sequenceFlow id="SequenceFlow_RequestRejected" sourceRef="ExclusiveGateway_ProcessResponse" targetRef="EndEvent_RequestRejected">
+       <conditionExpression xsi:type="tFormalExpression">${response == 'rejected'}</conditionExpression>
+     </sequenceFlow>
+
+     <endEvent id="EndEvent_RequestRejected">
+       <incoming>SequenceFlow_RequestRejected</incoming>
+     </endEvent>
+   </process>
+
+   <process id="Process_IP" isExecutable="true">
+     <startEvent id="StartEvent_CheckRequest">
+       <incoming>MessageFlow_Request</incoming>
+       <outgoing>SequenceFlow_StartCheck</outgoing>
+     </startEvent>
+
+     <sequenceFlow id="SequenceFlow_StartCheck" sourceRef="StartEvent_CheckRequest" targetRef="Task_CheckRequest"/>
+
+     <task id="Task_CheckRequest" name="Check Request">
+       <incoming>SequenceFlow_StartCheck</incoming>
+       <outgoing>SequenceFlow_CheckComplete</outgoing>
+     </task>
+
+     <sequenceFlow id="SequenceFlow_CheckComplete" sourceRef="Task_CheckRequest" targetRef="ExclusiveGateway_Decision"/>
+
+     <exclusiveGateway id="ExclusiveGateway_Decision">
+       <incoming>SequenceFlow_CheckComplete</incoming>
+       <outgoing>SequenceFlow_SendData</outgoing>
+       <outgoing>SequenceFlow_RejectRequest</outgoing>
+     </exclusiveGateway>
+
+     <sequenceFlow id="SequenceFlow_SendData" sourceRef="ExclusiveGateway_Decision" targetRef="Task_SendData">
+       <conditionExpression xsi:type="tFormalExpression">${checkResult == 'valid'}</conditionExpression>
+     </sequenceFlow>
+
+     <task id="Task_SendData" name="Send Data to INQ">
+       <incoming>SequenceFlow_SendData</incoming>
+       <outgoing>MessageFlow_Response_Data</outgoing>
+     </task>
+
+     <sequenceFlow id="SequenceFlow_RejectRequest" sourceRef="ExclusiveGateway_Decision" targetRef="Task_RejectRequest">
+       <conditionExpression xsi:type="tFormalExpression">${checkResult == 'invalid'}</conditionExpression>
+     </sequenceFlow>
+
+     <task id="Task_RejectRequest" name="Reject Request to INQ">
+       <incoming>SequenceFlow_RejectRequest</incoming>
+       <outgoing>MessageFlow_Response_Rejected</outgoing>
+     </task>
+   </process>
+</definitions>

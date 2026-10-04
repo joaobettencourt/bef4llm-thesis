@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_HealthProgram" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HealthPromotion">
+    <bpmn:participant id="Participant_Gesundheitsprogramm" name="Betriebliche Gesundheitsförderung" processRef="Process_HP01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_HP01" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_HP">
+      <bpmn:lane id="Lane_Participant" name="Teilnehmer">
+        <bpmn:flowNodeRef>StartEvent_ProgrammStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SetupSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GesundheitsCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AppEinweisung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_TrainingStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_NutritionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Nahrungsberatung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Phase1End</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_GroupSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrainingPhase2_Unabhaengig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrainingPhase2_Gefuehrt</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Coach" name="Gesundheitscoaches">
+        <bpmn:flowNodeRef>Task_PlanErstellung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_NutritionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ZwischenCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_GroupAssignment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergePhase2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AbschlussCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ProgrammStart" name="Programmstart">
+      <bpmn:outgoing>SequenceFlow_SetupSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Setup Phase Parallel Split -->
+    <bpmn:parallelGateway id="ParallelGateway_SetupSplit">
+      <bpmn:incoming>SequenceFlow_SetupSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HealthCheckStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AppInstructionStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Health Check Task -->
+    <bpmn:task id="Task_GesundheitsCheck" name="Gesundheits-Check (Blutdruck, WAI etc.)">
+      <bpmn:incoming>SequenceFlow_HealthCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- App Instruction Task -->
+    <bpmn:task id="Task_AppEinweisung" name="App &amp; Wearable Einweisung">
+      <bpmn:incoming>SequenceFlow_AppInstructionStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InstructionComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Setup & Start Planning/Training -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_TrainingStart">
+      <bpmn:incoming>SequenceFlow_CheckComplete</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InstructionComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlanCreationTrigger</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Plan Creation (Coach) -->
+    <bpmn:task id="Task_PlanErstellung" name="Individuelle Pläne erstellen">
+      <bpmn:incoming>SequenceFlow_PlanCreationTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TrainingPhase1Start</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Training Phase 1 Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Start" sourceRef="Task_PlanErstellung" targetRef="InclusiveGateway_NutritionCheck"/>
+
+    <!-- Nutrition Counseling Decision (Participant) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_NutritionCheck">
+      <bpmn:incoming>SequenceFlow_TrainingPhase1Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Phase1Training</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Optional Nutrition Counseling -->
+    <bpmn:task id="Task_Nahrungsberatung" name="Zusätzliche Ernährungsberatung">
+      <bpmn:incoming>SequenceFlow_CounselingTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TrainingPhase1StartLoopback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back for optional counseling (simplified as parallel path merging) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CounselingTrigger" sourceRef="InclusiveGateway_NutritionCheck" targetRef="Task_Nahrungsberatung"/>
+    
+    <!-- Main Training Flow Phase 1 -->
+    <bpmn:task id="Task_TrainingPhase1" name="Trainingsprogramm (Monat 1-6)">
+      <bpmn:incoming>SequenceFlow_Phase1Training</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Phase1EndTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Counseling and Training -->
+    <bpmn:parallelGateway id="ParallelGateway_TrainingMerge">
+        <bpmn:incoming>SequenceFlow_Phase1Training</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_TrainingPhase1StartLoopback</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ZwischenCheckTrigger</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Check (Coach) -->
+    <bpmn:task id="Task_ZwischenCheck" name="Zwischen-Check &amp; Fortschrittsdokumentation">
+      <bpmn:incoming>SequenceFlow_Phase1EndTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GroupAssignmentStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Group Assignment Decision (Coach) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_GroupAssignment" name="Gruppeneinteilung?">
+      <bpmn:incoming>SequenceFlow_ZwischenCheckTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TrainingPhase2Indep</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TrainingPhase2Supp</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Training Phase 2 Independent -->
+    <bpmn:task id="Task_TrainingPhase2_Unabhaengig" name="Training ohne Wearables (Monat 7-12)">
+      <bpmn:incoming>SequenceFlow_TrainingPhase2Indep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Phase2EndTriggerA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Training Phase 2 Supported -->
+    <bpmn:task id="Task_TrainingPhase2_Gefuehrt" name="Training mit App/Wearables (Monat 7-12)">
+      <bpmn:incoming>SequenceFlow_TrainingPhase2Supp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Phase2EndTriggerB</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Phase 2 Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergePhase2">
+        <bpmn:incoming>SequenceFlow_Phase2EndTriggerA</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_Phase2EndTriggerB</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_FinalCheckStart</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Final Check (Coach) -->
+    <bpmn:task id="Task_AbschlussCheck" name="Abschließender Gesundheits-Check &amp; Auswertung">
+      <bpmn:incoming>SequenceFlow_FinalCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProgrammEnde</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProgrammBeendet" name="Programmende">
+        <bpmn:incoming>SequenceFlow_ProgrammEnde</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Setup Merge (Simplified to direct connections where valid) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetupSplit" sourceRef="StartEvent_ProgrammStart" targetRef="ParallelGateway_SetupSplit"/>
+    <bpmn:sequenceFlow id="SequenceFlow_HealthCheckStart" sourceRef="ParallelGateway_SetupSplit" targetRef="Task_GesundheitsCheck"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AppInstructionStart" sourceRef="ParallelGateway_SetupSplit" targetRef="Task_AppEinweisung"/>
+
+    <!-- Merge Setup Flows to Training Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckComplete" sourceRef="Task_GesundheitsCheck" targetRef="InclusiveGateway_TrainingStart"/>
+    <bpmn:sequenceFlow id="SequenceFlow_InstructionComplete" sourceRef="Task_AppEinweisung" targetRef="InclusiveGateway_TrainingStart"/>
+
+    <!-- Training Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlanCreationTrigger" sourceRef="InclusiveGateway_TrainingStart" targetRef="Task_PlanErstellung"/>
+    
+    <!-- Nutrition Logic (Simplified for valid flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Phase1Training" sourceRef="InclusiveGateway_NutritionCheck" targetRef="Task_TrainingPhase1"/>
+
+    <!-- Merge Training and Counseling back to Phase 2 Start logic (Simplified) -->
+    <bpmn:parallelGateway id="ParallelGateway_Phase1End">
+        <bpmn:incoming>SequenceFlow_CounselingTrigger</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_TrainingPhase1StartLoopback</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Connecting Training Task to End of Phase 1 Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ZwischenCheckTrigger" sourceRef="ParallelGateway_Phase1End" targetRef="Task_TrainingPhase2_Unabhaengig"/>
+
+    <!-- Group Assignment Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_GroupAssignmentStart" sourceRef="Task_ZwischenCheck" targetRef="ExclusiveGateway_GroupAssignment"/>
+    
+    <!-- Phase 2 Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase2Indep" name="Gruppe A (Unabhängig)" sourceRef="ExclusiveGateway_GroupAssignment" targetRef="Task_TrainingPhase2_Unabhaengig"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase2Supp" name="Gruppe B (Geführt)" sourceRef="ExclusiveGateway_GroupAssignment" targetRef="Task_TrainingPhase2_Gefuehrt"/>
+
+    <!-- Phase 2 End Merge -->
+    <bpmn:parallelGateway id="ParallelGateway_Phase1End">
+        <bpmn:incoming>SequenceFlow_ZwischenCheckTrigger</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_TrainingPhase1StartLoopback</bpmn:outgoing> <!-- Correction for flow logic -->
+    </bpmn:parallelGateway>
+
+    <!-- Correcting Phase 2 End Merge Logic (Simplified) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_Phase2End">
+        <bpmn:incoming>SequenceFlow_TrainingPhase1StartLoopback</bpmn:incoming> 
+        <bpmn:outgoing>SequenceFlow_ZwischenCheckTrigger</bpmn:outgoing> <!-- Re-routing for logic -->
+    </bpmn:inclusiveGateway>
+
+    <!-- Corrected Phase 2 End Merge Logic (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Phase1EndTrigger" sourceRef="Task_TrainingPhase1" targetRef="ParallelGateway_Phase1End"/>
+    
+    <!-- Final Check Flow -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergePhase2">
+        <bpmn:incoming>SequenceFlow_Phase2EndTriggerA</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_Phase2EndTriggerB</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_FinalCheckStart</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Final Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Phase2EndTriggerA" sourceRef="Task_TrainingPhase2_Unabhaengig" targetRef="InclusiveGateway_MergePhase2"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Phase2EndTriggerB" sourceRef="Task_TrainingPhase2_Gefuehrt" targetRef="InclusiveGateway_MergePhase2"/>
+
+    <!-- Final Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalCheckStart" sourceRef="InclusiveGateway_MergePhase2" targetRef="Task_AbschlussCheck"/>
+    
+    <!-- End Program Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProgrammEnde" sourceRef="Task_AbschlussCheck" targetRef="EndEvent_ProgrammBeendet"/>
+
+  </bpmn:process>
+</bpmn:definitions>

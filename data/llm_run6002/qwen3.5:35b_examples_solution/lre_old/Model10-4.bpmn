@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_MPON" name="MPON" processRef="Process_MPON"/>
+    <bpmn:participant id="Participant_MPOO" name="MPOO" processRef="Process_MPOO"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_01" sourceRef="Task_MPON_NotifyIntentions" targetRef="StartEvent_MPOO_EquipmentChange"/>
+    <bpmn:messageFlow id="MessageFlow_02" sourceRef="IntermediateThrowEvent_SelfDismountingYes" targetRef="CatchEvent_MPON_Announcement"/>
+    <bpmn:messageFlow id="MessageFlow_03" sourceRef="Task_GO_NotifyMSP" targetRef="EndNone_MSP_ProcessComplete"/>
+  </bpmn:collaboration>
+
+  <!-- MPON Process -->
+  <bpmn:process id="Process_MPON" isExecutable="false">
+    <bpmn:startEvent id="StartNone_MPON_01" name="Equipment Change Intention Initiated">
+      <bpmn:outgoing>SequenceFlow_StartToNotify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_MPON_NotifyIntentions" name="Notify MPOO about equipment change intentions">
+      <bpmn:incoming>SequenceFlow_StartToNotify</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_01Outgoing</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="CatchEvent_MPON_Announcement" name="Receive Self-Dismounting Announcement">
+      <bpmn:incoming>MessageFlow_02Incoming</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CatchToGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MPON_Decision" name="Self-Dismounting?">
+      <bpmn:incoming>SequenceFlow_CatchToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_MPON_FinalReading" name="Perform final reading">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinialToDismount</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_MPON_DismountOld" name="Dismount old equipment">
+      <bpmn:incoming>SequenceFlow_FinialToDismount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DismountMountNew</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_MPON_MountNew" name="Mount new device">
+      <bpmn:incoming>SequenceFlow_DismountMountNew</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MountReadMeter</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_MPON_ReadMeter" name="Read meter count from installed meter">
+      <bpmn:incoming>SequenceFlow_MountReadMeter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReadingToGO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SelfDismountingYes" name="Announce Self-Dismounting">
+      <bpmn:incoming>SequenceFlow_YesPath</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_02Outgoing</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:endEvent id="EndNone_MPON_01" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_EndToGO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToNotify" sourceRef="StartNone_MPON_01" targetRef="Task_MPON_NotifyIntentions"/>
+    <bpmn:sequenceFlow id="MessageFlow_01Outgoing" name="" sourceRef="Task_MPON_NotifyIntentions" targetRef="CatchEvent_MPON_Announcement">
+      <!-- Message flow to MPOO -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_CatchToGateway" sourceRef="CatchEvent_MPON_Announcement" targetRef="ExclusiveGateway_MPON_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_YesPath" name="Self-Dismounting Yes" sourceRef="ExclusiveGateway_MPON_Decision" targetRef="Task_MPON_FinalReading"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FinialToDismount" sourceRef="Task_MPON_FinalReading" targetRef="Task_MPON_DismountOld"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DismountMountNew" sourceRef="Task_MPON_DismountOld" targetRef="Task_MPON_MountNew"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MountReadMeter" sourceRef="Task_MPON_MountNew" targetRef="Task_MPON_ReadMeter"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReadingToGO" name="" sourceRef="Task_MPON_ReadMeter" targetRef="EndNone_MPON_01">
+      <!-- Message flow to GO -->
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO" isExecutable="false">
+    <bpmn:startEvent id="StartMessageMPOO_01" name="Equipment Change Notification Received">
+      <bpmn:outgoing>SequenceFlow_StartToDecision</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MPOO_Decision" name="Self-Dismounting Decision">
+      <bpmn:incoming>SequenceFlow_StartToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelfDismountYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_MPOO_FinalReading" name="Perform final reading">
+      <bpmn:incoming>MessageFlow_02Incoming</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinialToDismountMPOO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToDecision" sourceRef="StartMessageMPOO_01" targetRef="ExclusiveGateway_MPOO_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SelfDismountYes" name="Self-Dismounting Yes" sourceRef="ExclusiveGateway_MPOO_Decision" targetRef="Task_MPOO_FinalReading">
+      <!-- Message flow to MPON -->
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartMessageGO_01" name="Final Reading Values Received">
+      <bpmn:outgoing>SequenceFlow_StartToNotify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndNone_MSP_ProcessComplete" name="Process Completed"/>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToNotify" sourceRef="StartMessageGO_01" targetRef="Task_GO_NotifyMSP"/>
+  </bpmn:process>
+</bpmn:definitions>

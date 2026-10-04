@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd"
+             id="definitions" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="collaboration">
+    <participant id="paymentOfficeParticipant" name="Payment Office of SSP" processRef="paymentProcess"/>
+    <participant id="registryOfficeParticipant" name="Registry office" processRef="registryProcess"/>
+    <participant id="accountsReceivableParticipant" name="Accounts Receivable Department" processRef="accountsReceivableProcess"/>
+  </collaboration>
+
+  <process id="paymentProcess" isExecutable="true">
+    <startEvent id="startPaymentProcess" name="Generate Weekly Payment Report">
+      <outgoing>generateReport</outgoing>
+    </startEvent>
+    <sequenceFlow id="generateReport" sourceRef="startPaymentProcess" targetRef="taskGeneratePaymentReport"/>
+    <task id="taskGeneratePaymentReport" name="Generate payment report and pay vendor">
+      <incoming>generateReport</incoming>
+      <outgoing>sendPaymentReport</outgoing>
+    </task>
+    <sequenceFlow id="sendPaymentReport" sourceRef="taskGeneratePaymentReport" targetRef="exclusiveGateway"/>
+    <exclusiveGateway id="exclusiveGateway">
+      <incoming>sendPaymentReport</incoming>
+      <outgoing>automaticSend</outgoing>
+      <outgoing>manualSend</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="automaticSend" name="Automatic send" sourceRef="exclusiveGateway" targetRef="taskAutoSendPaymentReport"/>
+    <task id="taskAutoSendPaymentReport" name="Automatically send payment report to clients, Registry office and Accounts Receivable Department">
+      <incoming>automaticSend</incoming>
+      <outgoing>sendToRegistry</outgoing>
+    </task>
+    <sequenceFlow id="sendToRegistry" sourceRef="taskAutoSendPaymentReport" targetRef="registryOfficeParticipant"/>
+
+    <sequenceFlow id="manualSend" name="Manual send" sourceRef="exclusiveGateway" targetRef="taskManualSendPaymentReport"/>
+    <task id="taskManualSendPaymentReport" name="Manually send payment report">
+      <incoming>manualSend</incoming>
+    </task>
+
+  </process>
+
+  <process id="registryProcess" isExecutable="true">
+    <startEvent id="receiveRegistryPaymentReportStart" name="Receive Payment Report from Payment Office">
+      <incoming messageFlowRef="paymentToRegistryMessageFlow"/>
+      <outgoing>selectInvoices</outgoing>
+    </startEvent>
+    <messageFlow id="paymentToRegistryMessageFlow" sourceRef="paymentOfficeParticipant" targetRef="registryOfficeParticipant"/>
+
+    <sequenceFlow id="selectInvoices" sourceRef="receiveRegistryPaymentReportStart" targetRef="taskSelectInvoices"/>
+    <task id="taskSelectInvoices" name="Select paid invoices for archiving">
+      <incoming>selectInvoices</incoming>
+      <outgoing>archiveInvoices</outgoing>
+    </task>
+    <sequenceFlow id="archiveInvoices" sourceRef="taskSelectInvoices" targetRef="endRegistryProcess"/>
+    <endEvent id="endRegistryProcess" name="Archive invoices per vendor and payment date">
+      <incoming>archiveInvoices</incoming>
+    </endEvent>
+
+  </process>
+
+  <process id="accountsReceivableProcess" isExecutable="true">
+    <startEvent id="receiveAccountsReceivablePaymentReportStart" name="Receive Payment Report from Payment Office">
+      <incoming messageFlowRef="paymentToAccountsReceivableMessageFlow"/>
+      <outgoing>generateInvoice</outgoing>
+    </startEvent>
+    <messageFlow id="paymentToAccountsReceivableMessageFlow" sourceRef="paymentOfficeParticipant" targetRef="accountsReceivableParticipant"/>
+
+    <sequenceFlow id="generateInvoice" sourceRef="receiveAccountsReceivablePaymentReportStart" targetRef="taskGenerateMonthlyInvoice"/>
+    <task id="taskGenerateMonthlyInvoice" name="Generate monthly invoice for clients">
+      <incoming>generateInvoice</incoming>
+      <outgoing>chargeClient</outgoing>
+    </task>
+    <sequenceFlow id="chargeClient" sourceRef="taskGenerateMonthlyInvoice" targetRef="endAccountsReceivableProcess"/>
+    <endEvent id="endAccountsReceivableProcess" name="Charge $35 per invoice and notify client">
+      <incoming>chargeClient</incoming>
+    </endEvent>
+
+  </process>
+
+</definitions>

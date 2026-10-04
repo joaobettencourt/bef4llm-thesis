@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Unbedenklichkeitsbescheinigung Prozess" processRef="Process_0geryc1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_0geryc1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveInquiry" name="Anfrage Eingang">
+      <bpmn:outgoing>SequenceFlow_InitSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Initialization (Simultaneous Tasks) -->
+    <bpmn:parallelGateway id="ParallelGateway_0Init" name="Initialisierung">
+      <bpmn:incoming>SequenceFlow_InitSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskIdentifyProcess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TaskResetCount</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 1: Identify Process -->
+    <bpmn:task id="Task_0IdentifyProcess" name="Vorgang identifizieren &amp; nachvollziehbar machen">
+      <bpmn:incoming>SequenceFlow_TaskIdentifyProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InitMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Reset Count -->
+    <bpmn:task id="Task_0ResetCount" name="Bescheinigungsanzahl auf null setzen">
+      <bpmn:incoming>SequenceFlow_TaskResetCount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InitMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Initialization -->
+    <bpmn:parallelGateway id="ParallelGateway_0InitMerge" name="Initialisierung Ende">
+      <bpmn:incoming>SequenceFlow_InitMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckIdentity</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Check Sender Identity -->
+    <bpmn:task id="Task_0CheckSender" name="Absender prüfen">
+      <bpmn:incoming>SequenceFlow_CheckIdentity</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_PersonKnown</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision 1: Is Person Known? -->
+    <bpmn:xorGateway id="ExclusiveGateway_0PersonKnown" name="Person im System vorhanden">
+      <bpmn:incoming>SequenceFlow_Gateway_PersonKnown</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckEmployerRole</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandoverUnknown</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Path: Person Unknown -> Handover to Clerk -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverUnknown" name="Nein">
+      <bpmn:sourceRef>ExclusiveGateway_0PersonKnown</bpmn:sourceRef>
+      <bpmn:targetRef>Task_0HandoverClerk</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision 2: Is Employer? -->
+    <bpmn:xorGateway id="ExclusiveGateway_0IsEmployer" name="Rolle Arbeitgeber">
+      <bpmn:incoming>SequenceFlow_CheckEmployerRole</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateLetter</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartChecks</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Path: Not Employer -> Create Letter -->
+    <bpmn:task id="Task_0CreateLetter" name="Anschreiben erstellen">
+      <bpmn:incoming>SequenceFlow_CreateLetter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndInfoRequested</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Info Requested -->
+    <bpmn:endEvent id="EndEvent_InfoRequested" name="Anfrage zur Information">
+      <bpmn:incoming>SequenceFlow_EndInfoRequested</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path: Employer -> Start Checks (Parallel) -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartChecks" name="Ja, Arbeitgeber">
+      <bpmn:sourceRef>ExclusiveGateway_0IsEmployer</bpmn:sourceRef>
+      <bpmn:targetRef>ParallelGateway_ChecksSplit</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Gateway for Checks -->
+    <bpmn:parallelGateway id="ParallelGateway_0Checks" name="Prüfungen">
+      <bpmn:incoming>SequenceFlow_StartChecks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckTimes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckProofs</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 3: Check Insurance Times -->
+    <bpmn:task id="Task_0CheckTimes" name="Versicherungszeiten prüfen">
+      <bpmn:incoming>SequenceFlow_CheckTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_Uncertainty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Check Proof Count -->
+    <bpmn:task id="Task_0CheckProofs" name="Anzahl Beitragsnachweise prüfen">
+      <bpmn:incoming>SequenceFlow_CheckProofs</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_Uncertainty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Checks -->
+    <bpmn:parallelGateway id="ParallelGateway_0ChecksMerge" name="Prüfungen Ende">
+      <bpmn:incoming>SequenceFlow_Gateway_Uncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionUncertainty</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Decision 3: Uncertainty regarding amount? -->
+    <bpmn:xorGateway id="ExclusiveGateway_0Amount" name="Unsicherheit Beitragshöhe">
+      <bpmn:incoming>SequenceFlow_DecisionUncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckEstimates</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckClaims</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Task 5: Check Estimates (if uncertainty) -->
+    <bpmn:task id="Task_0CheckEstimates" name="Beitragsschätzungen prüfen">
+      <bpmn:incoming>SequenceFlow_CheckEstimates</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_ClaimsMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Estimates/No Uncertainty -->
+    <bpmn:parallelGateway id="ParallelGateway_0Estimates" name="Schätzungen Ende">
+      <bpmn:incoming>SequenceFlow_CheckClaims</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Gateway_ClaimsMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionAssessment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 6: Check Open Claims -->
+    <bpmn:task id="Task_0CheckClaims" name="Offene Forderungen prüfen">
+      <bpmn:incoming>SequenceFlow_CheckEstimates</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_ClaimsMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision 4: Central Assessment -->
+    <bpmn:xorGateway id="ExclusiveGateway_0Assessment" name="Unbedenklichkeit erfüllt">
+      <bpmn:incoming>SequenceFlow_DecisionAssessment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IssueFullCert</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IssueConditionalCert</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandoverClerk</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <!-- Path A: Full Good Standing -->
+    <bpmn:task id="Task_0IssueFullCert" name="Bescheinigung ausstellen">
+      <bpmn:incoming>SequenceFlow_IssueFullCert</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogHistory</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B: Conditional Good Standing -->
+    <bpmn:task id="Task_0IssueConditionalCert" name="Bescheinigung mit Hinweis ausstellen">
+      <bpmn:incoming>SequenceFlow_IssueConditionalCert</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogHistory</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path C: Handover to Clerk (from Assessment or Unknown Person) -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverClerk" name="Nicht erfüllt">
+      <bpmn:sourceRef>ExclusiveGateway_0Assessment</bpmn:sourceRef>
+      <bpmn:targetRef>Task_0HandoverClerk</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Handover -->
+    <bpmn:task id="Task_0HandoverClerk" name="Fall an Sachbearbeiter übergeben">
+      <bpmn:incoming>SequenceFlow_HandoverUnknown</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_HandoverClerk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndHandover</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Log History (Common for Cert Issuance) -->
+    <bpmn:parallelGateway id="ParallelGateway_0Log" name="Historie">
+      <bpmn:incoming>SequenceFlow_LogHistory</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndComplete1</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Complete" name="Bescheinigung ausgestellt">
+      <bpmn:incoming>SequenceFlow_LogHistory</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Handover" name="An Bearbeiter weitergeleitet">
+      <bpmn:incoming>SequenceFlow_EndHandover</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitSplit" sourceRef="StartEvent_ReceiveInquiry" targetRef="ParallelGateway_0Init">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TaskIdentifyProcess" name="" sourceRef="ParallelGateway_0Init" targetRef="Task_0IdentifyProcess"></bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TaskResetCount" name="" sourceRef="ParallelGateway_0Init" targetRef="Task_0ResetCount"></bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_InitMerge" name="" sourceRef="Task_0IdentifyProcess" targetRef="ParallelGateway_0InitMerge">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckIdentity" name="" sourceRef="ParallelGateway_0InitMerge" targetRef="Task_0CheckSender"></bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Gateway_PersonKnown" name="" sourceRef="Task_0CheckSender" targetRef="ExclusiveGateway_0PersonKnown">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckEmployerRole" name="" sourceRef="ExclusiveGateway_0PersonKnown" targetRef="ExclusiveGateway_0IsEmployer"></bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateLetter" name="Nein, keine Arbeitgeberrolle">
+      <bpmn:sourceRef>ExclusiveGateway_0IsEmployer</bpmn:sourceRef>
+      <bpmn:targetRef>Task_0CreateLetter</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndInfoRequested" name="" sourceRef="Task_0CreateLetter" targetRef="EndEvent_InfoRequested"></bpmn:sequenceFlow>
+
+    <bpmn:parallelGateway id="ParallelGateway_ChecksSplit">
+      <bpmn:incoming>SequenceFlow_StartChecks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckTimes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckProofs</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckTimes" name="" sourceRef="ParallelGateway_0Checks" targetRef="Task_0CheckTimes"></bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckProofs" name="" sourceRef="ParallelGateway_0Checks" targetRef="Task_0CheckProofs">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:parallelGateway id="ParallelGateway_0EstimatesMerge">
+      <bpmn:incoming>SequenceFlow_Gateway_Uncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionUncertainty</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:xorGateway id="ExclusiveGateway_0Amount">
+      <bpmn:incoming>SequenceFlow_Gateway_Uncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckEstimates</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DecisionAssessment</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+    <bpmn:task id="Task_0CheckClaims" name="Offene Forderungen prüfen">
+      <bpmn:incoming>SequenceFlow_CheckEstimates</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_ClaimsMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:xorGateway id="ExclusiveGateway_0Assessment" name="Unbedenklichkeit erfüllt">
+      <bpmn:incoming>SequenceFlow_DecisionUncertainty</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IssueFullCert</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IssueConditionalCert</bpmn:outgoing>
+    </bpmn:xorGateway>
+
+  </bpmn:process>
+</bpmn:definitions>

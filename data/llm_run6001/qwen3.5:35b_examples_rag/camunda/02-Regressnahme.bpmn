@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collaboration_RegressHandling">
+    <participant id="Participant_ProcessRegress" name="Regressabwicklung Versicherung" processRef="Process_Regress_Logic"/>
+  </collaboration>
+
+  <process id="Process_Regress_Logic" isExecutable="false">
+    
+    <!-- LaneSet Configuration -->
+    <laneSet>
+      <lane id="Lane_Sachbearbeiter" name="Sachbearbeiter">
+        <flowNodeRef>Task_FallPruefen</flowNodeRef>
+        <flowNodeRef>Gateway_EligibilityCheck</flowNodeRef>
+        <flowNodeRef>Gateway_WiderspruchPruefung</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_System" name="System">
+        <flowNodeRef>Task_ZahlungsaufforderungSenden</flowNodeRef>
+        <flowNodeRef>TimerEvent_FristAbgelaufen</flowNodeRef>
+        <flowNodeRef>Gateway_PaymentCheck</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_Inkasso" name="Inkassodienstleister">
+        <flowNodeRef>Task_AnIinkassoUebergeben</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="Start_RegressMeldung" name="Regressmeldung&#10;erhalten"/>
+    
+    <!-- Task: Check case -->
+    <task id="Task_FallPruefen" name="Fall prüfen">
+      <incoming>bpmn:Sequence_StartToCheck</incoming>
+      <outgoing>bpmn:Seq_EligibilityDecisionOut</outgoing>
+    </task>
+
+    <!-- Gateway: Is regressive claim possible? -->
+    <exclusiveGateway id="Gateway_EligibilityCheck" name="Möglichkeit&#10;besteht?">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_PaymentRequestOut</outgoing> <!-- Yes path -->
+      <outgoing>bpmn:Seq_CloseProcessNoPossibility</outgoing> <!-- No path -->
+    </exclusiveGateway>
+
+    <!-- Task: Send payment request and set follow-up review -->
+    <task id="Task_ZahlungsaufforderungSenden" name="Zahlungsaufforderung&#10;senden + Wiedervorlage">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_PaymentRequestOut</outgoing> 
+    </task>
+
+    <!-- End Event: Close process (no possibility) -->
+    <endEvent id="End_CloseNoPossibility" name="Vorgang&#10;geschlossen"/>
+
+    <!-- Timer Boundary Event for deadline check attached to Task_ZahlungsaufforderungSenden -->
+    <boundaryTimerEvent id="Boundary_TimerDeadline" attachedToRef="Task_ZahlungsaufforderungSenden">
+      <outgoing>bpmn:Seq_DeadlineReachedOut</outgoing>
+    </boundaryTimerEvent>
+
+    <!-- Gateway: Payment received? -->
+    <exclusiveGateway id="Gateway_PaymentCheck" name="Geld&#10;eingegangen?">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_BookReceiptOut</outgoing> <!-- Yes path -->
+      <outgoing>bpmn:Seq_CheckObjectionOut</outgoing> <!-- No/Deadline path -->
+    </exclusiveGateway>
+
+    <!-- Task: Book receipt and close process (money received) -->
+    <task id="Task_BuchEingang" name="Buchung&#10;verbuchen">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_CloseProcessReceiptOut</outgoing> 
+    </task>
+
+    <!-- End Event: Close process (money received) -->
+    <endEvent id="End_CloseWithPayment" name="Vorgang&#10;geschlossen"/>
+
+    <!-- Gateway: Objection justified? -->
+    <exclusiveGateway id="Gateway_WiderspruchPruefung" name="Widerspruch&#10;begründet?">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_CloseProcessJustOut</outgoing> <!-- Yes path -->
+      <outgoing>bpmn:Seq_HandoverCollectionOut</outgoing> <!-- No/Deadline path -->
+    </exclusiveGateway>
+
+    <!-- End Event: Close process (objection justified) -->
+    <endEvent id="End_CloseObjection" name="Vorgang&#10;geschlossen"/>
+
+    <!-- Task: Hand over to collection agency -->
+    <task id="Task_AnIinkassoUebergeben" name="An Inkassodienstleister&#10;abgeben">
+      <incoming>bpmn:Sequence_StartToCheck_Verified</incoming>
+      <outgoing>bpmn:Seq_CloseProcessCollectionOut</outgoing> 
+    </task>
+
+    <!-- End Event: Close process (collection handed over) -->
+    <endEvent id="End_CloseCollection" name="Vorgang&#10;geschlossen"/>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="Sequence_StartToCheck" sourceRef="Start_RegressMeldung" targetRef="Task_FallPruefen">
+      <bpmn:name>Regressmeldung</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="Sequence_StartToCheck_Verified" sourceRef="Task_FallPruefen" targetRef="Gateway_EligibilityCheck"/>
+
+    <!-- Eligible path -->
+    <sequenceFlow id="Seq_PaymentRequestOut" name="ja" sourceRef="Gateway_EligibilityCheck" targetRef="Task_ZahlungsaufforderungSenden">
+      <bpmn:name>Ja</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Not eligible path -->
+    <sequenceFlow id="Seq_CloseProcessNoPossibility" name="nein" sourceRef="Gateway_EligibilityCheck" targetRef="End_CloseNoPossibility">
+      <bpmn:name>Nein</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Payment received path -->
+    <sequenceFlow id="Seq_BookReceiptOut" name="ja" sourceRef="Gateway_PaymentCheck" targetRef="Task_BuchEingang"/>
+
+    <!-- Objection check path (no payment or deadline) -->
+    <sequenceFlow id="Seq_CheckObjectionOut" name="nein/abgelaufen" sourceRef="Gateway_PaymentCheck" targetRef="Gateway_WiderspruchPruefung">
+      <bpmn:name>Nein</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Objection justified path -->
+    <sequenceFlow id="Seq_CloseProcessJustOut" name="ja" sourceRef="Gateway_WiderspruchPruefung" targetRef="End_CloseObjection">
+      <bpmn:name>Begründet</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Objection not justified path -->
+    <sequenceFlow id="Seq_HandoverCollectionOut" name="nein/abgelaufen" sourceRef="Gateway_WiderspruchPruefung" targetRef="Task_AnIinkassoUebergeben">
+      <bpmn:name>Nicht begründet</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Collection handed over path -->
+    <sequenceFlow id="Seq_CloseProcessCollectionOut" sourceRef="Task_AnIinkassoUebergeben" targetRef="End_CloseCollection"/>
+
+  </process>
+</bpmn:definitions>

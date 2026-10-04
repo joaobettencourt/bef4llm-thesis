@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ShipmentProcess">
+    <bpmn:participant id="Participant_HardwareDealer" name="Computer Hardware Dealer" processRef="Process_ShipmentOrder" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ShipmentOrder" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretary" name="Secretary">
+        <bpmn:flowNodeRef>StartEvent_RequestShipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckQuantityType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ShipmentDecision</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse Worker">
+        <bpmn:flowNodeRef>Task_PackGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_FinalJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreparePickup</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Logistics" name="Logistics Manager">
+        <bpmn:flowNodeRef>Gateway_InsuranceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConcludeInsurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestShipment" name="Request Shipment">
+      <bpmn:outgoing>SequenceFlow_CheckType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Secretary checks quantity/type -->
+    <bpmn:task id="Task_CheckQuantityType" name="Check Quantity &amp; Shipment Type">
+      <bpmn:incoming>SequenceFlow_CheckType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitAdminPack</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_AdminSplit">
+      <bpmn:incoming>SequenceFlow_SplitAdminPack</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackGoodsStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Admin Path -->
+    <bpmn:exclusiveGateway id="Gateway_ShipmentDecision" name="Large Quantity?">
+      <bpmn:incoming>SequenceFlow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Large Path -->
+    <bpmn:task id="Task_GetOffers" name="Get Offers from 3 Forwarders">
+      <bpmn:incoming>SequenceFlow_LargePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCarrier</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectOrder" name="Select Offer &amp; Order Carrier">
+      <bpmn:incoming>SequenceFlow_SelectCarrier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small Path -->
+    <bpmn:task id="Task_FillSlip" name="Fill Standardized Parcel Slip">
+      <bpmn:incoming>SequenceFlow_SmallPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckInsurance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Insurance Decision -->
+    <bpmn:exclusiveGateway id="Gateway_InsuranceCheck" name="Insurance Required?">
+      <bpmn:incoming>SequenceFlow_CheckInsurance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoInsurePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesInsurePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Insurance Task -->
+    <bpmn:task id="Task_ConcludeInsurance" name="Conclude Insurance">
+      <bpmn:incoming>SequenceFlow_YesInsurePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SmallEndInsured</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small Path No Insurance -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoInsurePath" name="No">
+      <sourceRef>Gateway_InsuranceCheck</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Small Path End -->
+    <bpmn:sequenceFlow id="SequenceFlow_SmallEndInsured" name="Yes">
+      <sourceRef>Task_ConcludeInsurance</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Warehouse Path -->
+    <bpmn:task id="Task_PackGoods" name="Pack Goods">
+      <bpmn:incoming>SequenceFlow_PackGoodsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WarehouseEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Admin Merge (Inclusive to merge mutually exclusive paths) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_AdminMerge">
+      <bpmn:incoming>SequenceFlow_LargeEnd</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SmallPathNoInsure</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToFinalJoin</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Large Path End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_LargeEnd" name="Large">
+      <sourceRef>Task_SelectOrder</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Small Path End Flow (No Insurance) -->
+    <bpmn:exclusiveGateway id="Gateway_SmallEndJoin" name="">
+      <bpmn:incoming>SequenceFlow_NoInsurePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminMergeIn1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Small Path End Flow (No Insurance) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SmallPathNoInsure" name="">
+      <sourceRef>Gateway_InsuranceCheck</sourceRef>
+      <targetRef>Gateway_SmallEndJoin</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Small Path End Flow (No Insurance) -->
+    <bpmn:exclusiveGateway id="Gateway_NoInsureMerge" name="">
+      <bpmn:incoming>SequenceFlow_AdminMergeIn1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToFinalJoin</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Small Path End Flow (No Insurance) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AdminMergeIn1" name="">
+      <sourceRef>Gateway_SmallEndJoin</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Warehouse End Flow -->
+    <bpmn:exclusiveGateway id="Gateway_FinalConverger" name="">
+      <bpmn:incoming>SequenceFlow_LargeEnd</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SmallEndInsured</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToFinalJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Warehouse End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WarehouseEnd" name="">
+      <sourceRef>Task_PackGoods</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Join Gateway -->
+    <bpmn:parallelGateway id="Gateway_FinalJoin">
+      <bpmn:incoming>SequenceFlow_ToFinalJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PreparePickup</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:endEvent id="EndEvent_ShipmentPrepared" name="Shipment Prepared">
+      <bpmn:incoming>SequenceFlow_PreparePickup</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Flow Connections -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckType" sourceRef="StartEvent_RequestShipment" targetRef="Task_CheckQuantityType">
+      <name>Check Type</name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SplitAdminPack" name="">
+      <sourceRef>Task_CheckQuantityType</sourceRef>
+      <targetRef>ParallelGateway_AdminSplit</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToDecision">
+      <sourceRef>ParallelGateway_AdminSplit</sourceRef>
+      <targetRef>Gateway_ShipmentDecision</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PackGoodsStart" name="">
+      <sourceRef>ParallelGateway_AdminSplit</sourceRef>
+      <targetRef>Task_PackGoods</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LargePath">
+      <name>Yes - Large Quantity</name>
+      <sourceRef>Gateway_ShipmentDecision</sourceRef>
+      <targetRef>Task_GetOffers</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCarrier">
+      <sourceRef>Task_GetOffers</sourceRef>
+      <targetRef>Task_SelectOrder</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SmallPath" name="">
+      <name>No - Small Quantity</name>
+      <sourceRef>Gateway_ShipmentDecision</sourceRef>
+      <targetRef>Task_FillSlip</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsurance">
+      <sourceRef>Task_FillSlip</sourceRef>
+      <targetRef>Gateway_InsuranceCheck</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoInsurePath" name="">
+      <name>No - No Insurance Needed</name>
+      <sourceRef>Gateway_InsuranceCheck</sourceRef>
+      <targetRef>InclusiveGateway_AdminMerge</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_YesInsurePath" name="">
+      <name>Yes - Insurance Required</name>
+      <sourceRef>Gateway_InsuranceCheck</sourceRef>
+      <targetRef>Task_ConcludeInsurance</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToFinalJoin" name="">
+      <sourceRef>InclusiveGateway_AdminMerge</sourceRef>
+      <targetRef>ParallelGateway_FinalJoin</targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:parallelGateway id="ParallelGateway_FinalJoin">
+      <bpmn:incoming>SequenceFlow_ToFinalJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PreparePickup</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:endEvent id="EndEvent_ShipmentPrepared" name="Shipment Prepared">
+      <bpmn:incoming>SequenceFlow_PreparePickup</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

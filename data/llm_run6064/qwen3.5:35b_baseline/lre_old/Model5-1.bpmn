@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LoanApproval_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LoanProcess">
+    <bpmn:participant id="Participant_LoanProcess" name="Loan Approval Process" processRef="Process_LoanApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_LoanApproval" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ReceiveRequest" name="Customer Loan Request">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task: Risk Assessment Web Service -->
+    <bpmn:serviceTask id="Task_AssessRisk" name="Assess Request (Web Service)">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway for Decision -->
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Decision Point">
+      <bpmn:incoming>SequenceFlow_TaskToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DenyPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReviewPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Approve -->
+    <bpmn:task id="Task_NotifyApproval" name="Notify Customer (Approved)">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndApprove</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_Approved" name="Loan Approved">
+      <bpmn:incoming>SequenceFlow_ToEndApprove</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Deny -->
+    <bpmn:task id="Task_NotifyDenial" name="Notify Customer (Denied)">
+      <bpmn:incoming>SequenceFlow_DenyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndDeny</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="End_Denied" name="Loan Denied">
+      <bpmn:incoming>SequenceFlow_ToEndDeny</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 3: Review / Approver Web Service -->
+    <bpmn:serviceTask id="Task_ApproverService" name="Request Approval (Web Service)">
+      <bpmn:incoming>SequenceFlow_ReviewPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToNotifyApproveResult</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task for Feedback from Approver -->
+    <bpmn:task id="Task_NotifyReview" name="Notify Customer (Decision)">
+      <bpmn:incoming>SequenceFlow_ToNotifyApproveResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndFinal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3 -->
+    <bpmn:endEvent id="End_Final" name="Process Complete">
+      <bpmn:incoming>SequenceFlow_ToEndFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows with Conditions -->
+    
+    <!-- Start to Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="Start_ReceiveRequest" targetRef="Task_AssessRisk">
+      <bpmn:name>Loan Request Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task to Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToGateway" sourceRef="Task_AssessRisk" targetRef="Gateway_Decision">
+      <bpmn:name>Risk Assessment Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 1 Condition -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovePath" sourceRef="Gateway_Decision" targetRef="Task_NotifyApproval">
+      <bpmn:name>If Small AND Low Risk</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[amount &lt; 10000 && riskLevel == 'LOW']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2 Condition -->
+    <bpmn:sequenceFlow id="SequenceFlow_DenyPath" sourceRef="Gateway_Decision" targetRef="Task_NotifyDenial">
+      <bpmn:name>If High Risk</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[riskLevel == 'HIGH']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 3 Condition -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewPath" sourceRef="Gateway_Decision" targetRef="Task_ApproverService">
+      <bpmn:name>If Further Review OR Amount >= $10k</bpmn:name>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[needsReview || amount &gt;= 10000]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to End Approved -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndApprove" sourceRef="Task_NotifyApproval" targetRef="End_Approved">
+      <bpmn:name>Feedback Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to End Denied -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndDeny" sourceRef="Task_NotifyDenial" targetRef="End_Denied">
+      <bpmn:name>Feedback Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to Notify Review -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToNotifyApproveResult" sourceRef="Task_ApproverService" targetRef="Task_NotifyReview">
+      <bpmn:name>Approval Decision Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow to End Final -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndFinal" sourceRef="Task_NotifyReview" targetRef="End_Final">
+      <bpmn:name>Feedback Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

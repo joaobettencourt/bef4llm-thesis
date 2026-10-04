@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_HR" name="HR Process" processRef="Process_HR"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_HR" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_VacancyReported" name="Vacancy Reported">
+      <bpmn:outgoing>SequenceFlow_CreateJD</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Create Job Description -->
+    <bpmn:task id="Task_CreateJobDesc" name="Create Job Description">
+      <bpmn:incoming>SequenceFlow_CreateJD</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckClarity</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check for Confusion -->
+    <bpmn:exclusiveGateway id="Gateway_IsInfoClear" name="Is Information Clear?">
+      <bpmn:incoming>SequenceFlow_CheckClarity</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AskDept</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Ask Department (Loop for Confusion) -->
+    <bpmn:task id="Task_RequestClarification" name="Ask Department Again">
+      <bpmn:incoming>SequenceFlow_AskDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateJD</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Update JD based on feedback -->
+    <bpmn:task id="Task_UpdateJobDesc" name="Update Job Description">
+      <bpmn:incoming>SequenceFlow_UpdateJD</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckClarityLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Approval Decision -->
+    <bpmn:exclusiveGateway id="Gateway_ApprovalStatus" name="Approval Status?">
+      <bpmn:incoming>SequenceFlow_Submit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CorrectJD</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Submit for Approval -->
+    <bpmn:task id="Task_SubmitApproval" name="Submit Job Description">
+      <bpmn:incoming>SequenceFlow_CheckClarityLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Submit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Correct JD (Rejected Path) -->
+    <bpmn:task id="Task_CorrectDescription" name="Correct Description">
+      <bpmn:incoming>SequenceFlow_CorrectJD</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Resubmit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Post Job (Approved Path) -->
+    <bpmn:task id="Task_PostJob" name="Post the Job">
+      <bpmn:incoming>SequenceFlow_Approved</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_Posted" name="Job Posted">
+      <bpmn:incoming>SequenceFlow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Logic -->
+    
+    <!-- From Start to Create JD -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateJD" sourceRef="StartEvent_VacancyReported" targetRef="Task_CreateJobDesc"/>
+
+    <!-- From Create JD to Check Clarity Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClarity" name="Check Info" sourceRef="Task_CreateJobDesc" targetRef="Gateway_IsInfoClear">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Check Clarity Gateway to Ask Dept (No) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AskDept" name="Confusion?" sourceRef="Gateway_IsInfoClear" targetRef="Task_RequestClarification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isNotClear]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Update JD back to Check Clarity Gateway (Loop) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClarityLoop" name="Re-evaluate" sourceRef="Task_UpdateJobDesc" targetRef="Gateway_IsInfoClear">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Check Clarity Gateway to Submit (Yes) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClarityLoop2" name="Clear?" sourceRef="Gateway_IsInfoClear" targetRef="Task_SubmitApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isClear]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Submit to Approval Status Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_Submit" name="Submit & Wait" sourceRef="Task_SubmitApproval" targetRef="Gateway_ApprovalStatus">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Approval Status to Correct JD (Rejected) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CorrectJD" name="Rejected?" sourceRef="Gateway_ApprovalStatus" targetRef="Task_CorrectDescription">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isRejected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Correct JD back to Submit (Resubmit) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Resubmit" name="Submit Again" sourceRef="Task_CorrectDescription" targetRef="Task_SubmitApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Approval Status to Post Job (Approved) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Approved" name="Approved?" sourceRef="Gateway_ApprovalStatus" targetRef="Task_PostJob">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[isApproved]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- From Post Job to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEnd" sourceRef="Task_PostJob" targetRef="End_Event_Posted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

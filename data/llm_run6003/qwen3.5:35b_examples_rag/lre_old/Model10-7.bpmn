@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_MSPN_Registration" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MSPN_Process">
+    <bpmn:participant id="Participant_GO" name="GO (Government Office)" processRef="Process_GO"/>
+    <bpmn:participant id="Participant_MSPN" name="MSPN" processRef="Process_MSPN"/>
+    
+    <!-- Message Flows for Notifications -->
+    <bpmn:messageFlow id="MessageFlow_MSPO_Notification" sourceRef="Task_InformMSPO" targetRef="StartEvent_MSPO_Received">
+      <bpmn:sourceRef>Task_InformMSPO</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_MSPO_Received</bpmn:targetRef>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_MPO_Notification" sourceRef="Task_InformMPO" targetRef="StartEvent_MPO_Received">
+      <bpmn:sourceRef>Task_InformMPO</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_MPO_Received</bpmn:targetRef>
+    </bpmn:messageFlow>
+    
+    <bpmn:messageFlow id="MessageFlow_SP_Notification" sourceRef="Task_InformSP" targetRef="StartEvent_SP_Received">
+      <bpmn:sourceRef>Task_InformSP</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_SP_Received</bpmn:targetRef>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- MSPN Process -->
+  <bpmn:process id="Process_MSPN">
+    <bpmn:startEvent id="StartMSPN_Register" name="Register Measurement at GO">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <bpmn:endEvent id="EndMSPN_Complete" name="Registration Process Complete">
+      <bpmn:incoming>SequenceFlow_TaskToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="StartMSPN_Register" targetRef="EndMSPN_Complete"/>
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO">
+    <bpmn:startEvent id="StartGO_ApplicationReceived" name="Application Received from MSPN">
+      <bpmn:outgoing>SequenceFlow_StartToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane for GO -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_GO_Operations" name="GO Operations">
+        <bpmn:flowNodeRef>StartGO_ApplicationReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GoExamineApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionRejectConfirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RejectApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_GORejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignMSPN</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergeNotifications</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_GOComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task 1: GO examines application -->
+    <bpmn:task id="Task_GoExamineApplication" name="GO Examines Application">
+      <bpmn:incoming>SequenceFlow_StartToExamine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExamineToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Decision - Reject or Confirm -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionRejectConfirm" name="Decision">
+      <bpmn:incoming>SequenceFlow_ExamineToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Reject Application -->
+    <bpmn:task id="Task_RejectApplication" name="Reject MSPN Application">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="End_GORejected" name="Application Rejected">
+      <bpmn:incoming>SequenceFlow_RejectToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 3: Confirm Application -->
+    <bpmn:task id="Task_ConfirmApplication" name="Confirm MSPN Application">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmToAssign</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Assign MSPN -->
+    <bpmn:task id="Task_AssignMSPN" name="GO Assigns MSPN">
+      <bpmn:incoming>SequenceFlow_ConfirmToAssign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssignToInformMSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Inform MSPO -->
+    <bpmn:intermediateThrowEvent id="Task_InformMSPO" name="Inform MSPO">
+      <bpmn:incoming>SequenceFlow_AssignToInformMSPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSPOSent</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 6: Inform MPO -->
+    <bpmn:task id="Task_InformMPO" name="Inform MPO">
+      <bpmn:incoming>SequenceFlow_MSPOSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MPOSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 7: Inform SP -->
+    <bpmn:intermediateThrowEvent id="Task_InformSP" name="Inform SP">
+      <bpmn:incoming>SequenceFlow_MPOSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SPSent</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Gateway 2: Merge All Notifications -->
+    <bpmn:parallelGateway id="Gateway_MergeNotifications" name="Merge Notification Paths">
+      <bpmn:incoming>SequenceFlow_SPSent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyCompleteToEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event for Completion -->
+    <bpmn:endEvent id="End_GOComplete" name="All Parties Informed">
+      <bpmn:incoming>SequenceFlow_NotifyCompleteToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows within GO Process -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToExamine" sourceRef="StartGO_ApplicationReceived" targetRef="Task_GoExamineApplication"/>
+    
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Application" sourceRef="Gateway_DecisionRejectConfirm" targetRef="Task_RejectApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejectDecision}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm Application" sourceRef="Gateway_DecisionRejectConfirm" targetRef="Task_ConfirmApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${confirmDecision}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Post-Confirmation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmToAssign" sourceRef="Task_ConfirmApplication" targetRef="Task_AssignMSPN"/>
+    
+    <!-- Notification Sequence Flows (Sequential for simplicity) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AssignToInformMSPO" name="Notify MSPO First" sourceRef="Task_AssignMSPN" targetRef="Task_InformMSPO"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MSPOSent" sourceRef="Task_InformMSPO" targetRef="Task_InformMPO"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MPOSent" name="Notify MPO Next" sourceRef="Task_InformMPO" targetRef="Task_InformSP"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SPSent" name="Notify SP Last" sourceRef="Task_InformSP" targetRef="Gateway_MergeNotifications"/>
+    
+    <!-- Rejection Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectToEnd" sourceRef="Task_RejectApplication" targetRef="End_GORejected"/>
+
+    <!-- Notification Complete to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyCompleteToEnd" name="All Notifications Sent" sourceRef="Gateway_MergeNotifications" targetRef="End_GOComplete"/>
+  </bpmn:process>
+
+  <!-- MSPO Process (Receiving notification) -->
+  <bpmn:process id="Process_MSPO">
+    <bpmn:startEvent id="StartEvent_MSPO_Received" name="Receive Assignment Notification from GO">
+      <bpmn:outgoing>SequenceFlow_MSPO_ProcessNotification</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane for MSPO -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MSPO_Operations" name="MSPO Operations">
+        <bpmn:flowNodeRef>StartEvent_MSPO_Received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MSPO_ProcessNotification</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task to Process Notification -->
+    <bpmn:task id="Task_MSPO_ProcessNotification" name="Process Assignment Information">
+      <bpmn:incoming>SequenceFlow_MSPO_ProcessNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSPO_Complete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndMSPO_NotificationProcessed" name="Notification Processed">
+      <bpmn:incoming>SequenceFlow_MSPO_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_ProcessNotification" sourceRef="StartEvent_MSPO_Received" targetRef="Task_MSPO_ProcessNotification"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_Complete" name="Process Complete" sourceRef="Task_MSPO_ProcessNotification" targetRef="EndMSPO_NotificationProcessed"/>
+  </bpmn:process>
+
+  <!-- MPO Process (Receiving notification) -->
+  <bpmn:process id="Process_MPO">
+    <bpmn:startEvent id="StartEvent_MPO_Received" name="Receive Assignment Notification from GO">
+      <bpmn:outgoing>SequenceFlow_MPO_ProcessNotification</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane for MPO -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MPO_Operations" name="MPO Operations">
+        <bpmn:flowNodeRef>StartEvent_MPO_Received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MPO_ProcessNotification</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task to Process Notification -->
+    <bpmn:task id="Task_MPO_ProcessNotification" name="Process Assignment Information">
+      <bpmn:incoming>SequenceFlow_MPO_ProcessNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MPO_Complete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndMPO_NotificationProcessed" name="Notification Processed">
+      <bpmn:incoming>SequenceFlow_MPO_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_MPO_ProcessNotification" sourceRef="StartEvent_MPO_Received" targetRef="Task_MPO_ProcessNotification"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MPO_Complete" name="Process Complete" sourceRef="Task_MPO_ProcessNotification" targetRef="EndMPO_NotificationProcessed"/>
+  </bpmn:process>
+
+  <!-- SP Process (Receiving notification) -->
+  <bpmn:process id="Process_SP">
+    <bpmn:startEvent id="StartEvent_SP_Received" name="Receive Assignment Notification from GO">
+      <bpmn:outgoing>SequenceFlow_SP_ProcessNotification</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane for SP -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SP_Operations" name="SP Operations">
+        <bpmn:flowNodeRef>StartEvent_SP_Received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SP_ProcessNotification</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Task to Process Notification -->
+    <bpmn:task id="Task_SP_ProcessNotification" name="Process Assignment Information">
+      <bpmn:incoming>SequenceFlow_SP_ProcessNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SP_Complete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndSP_NotificationProcessed" name="Notification Processed">
+      <bpmn:incoming>SequenceFlow_SP_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SP_ProcessNotification" sourceRef="StartEvent_SP_Received" targetRef="Task_SP_ProcessNotification"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SP_Complete" name="Process Complete" sourceRef="Task_SP_ProcessNotification" targetRef="EndSP_NotificationProcessed"/>
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_AssignmentNotification" name="Assignment Notification"/>
+</bpmn:definitions>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_ComputerRepairShop">
+    <bpmn:participant id="Participant_ComputerRepairShop" name="Computer Repair Shop Process" processRef="Process_Repair"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Repair" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_CustomerBringsDefectiveComputer" name="Customer brings defective computer">
+      <bpmn:outgoing>SequenceFlow_Start_CheckCost</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: CRS checks defect and calculates cost -->
+    <bpmn:task id="Task_CRSCheckDefect" name="CRS checks defect &amp; hands out repair cost calculation">
+      <bpmn:incoming>SequenceFlow_Start_CheckCost</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Cost acceptable decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CostAcceptable" name="Costs acceptable?">
+      <bpmn:incoming>SequenceFlow_CheckDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoTakeHome</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesStartRepair</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Computer taken home unrepaired -->
+    <bpmn:endEvent id="End_Event_TakeHomeUnrepaired" name="Computer takes home unrepaired">
+      <bpmn:incoming>SequenceFlow_NoTakeHome</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway for two repair activities in arbitrary order -->
+    <bpmn:parallelGateway id="ParallelGateway_StartRepair" name="Start Repair Activities">
+      <bpmn:incoming>SequenceFlow_YesStartRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SoftwareConfig</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 2: Check and repair hardware -->
+    <bpmn:task id="Task_HardwareCheckRepair" name="Check &amp; repair hardware">
+      <bpmn:incoming>SequenceFlow_HardwareCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestHardwareResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Check and configure software -->
+    <bpmn:task id="Task_SoftwareCheckConfig" name="Check &amp; configure software">
+      <bpmn:incoming>SequenceFlow_SoftwareConfig</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestSoftwareResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Test hardware result -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HardwareTest" name="Hardware test passed?">
+      <bpmn:incoming>SequenceFlow_TestHardwareResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoRepairAgainHW</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesMergeToTestSW</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 3: Test software result -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SoftwareTest" name="Software test passed?">
+      <bpmn:incoming>SequenceFlow_TestSoftwareResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoRepairAgainSW</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesMergeToFinalTest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Another arbitrary repair activity (if error detected) -->
+    <bpmn:task id="Task_ArbitraryRepair" name="Execute additional repair">
+      <bpmn:incoming>SequenceFlow_NoRepairAgainHW</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryHardwareTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Merge after hardware repair loop -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MergeHW" name="Merge HW Path">
+      <bpmn:incoming>SequenceFlow_RetryHardwareTest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesMergeToFinalTest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway 5: Merge after software repair loop -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeSW" name="Merge SW Path">
+      <bpmn:incoming>SequenceFlow_NoRepairAgainSW</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesMergeToFinalTest</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Gateway 6: Final merge before completion -->
+    <bpmn:parallelGateway id="ParallelGateway_FinalMerge" name="All Tests Complete">
+      <bpmn:incoming>SequenceFlow_YesMergeToFinalTest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinishRepair</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2: Repair finished -->
+    <bpmn:endEvent id="End_Event_RepairFinished" name="Repair is finished">
+      <bpmn:incoming>SequenceFlow_FinishRepair</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Start_CheckCost" sourceRef="Start_Event_CustomerBringsDefectiveComputer" targetRef="Task_CRSCheckDefect"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDecision" name="After cost calculation" sourceRef="Task_CRSCheckDefect" targetRef="ExclusiveGateway_CostAcceptable"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoTakeHome" name="No, costs not acceptable" sourceRef="ExclusiveGateway_CostAcceptable" targetRef="End_Event_TakeHomeUnrepaired">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${costsNotAccepted}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesStartRepair" name="Yes, costs acceptable" sourceRef="ExclusiveGateway_CostAcceptable" targetRef="ParallelGateway_StartRepair">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${costsAccepted}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareCheck" sourceRef="ParallelGateway_StartRepair" targetRef="Task_HardwareCheckRepair"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareConfig" sourceRef="ParallelGateway_StartRepair" targetRef="Task_SoftwareCheckConfig"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TestHardwareResult" name="After hardware check" sourceRef="Task_HardwareCheckRepair" targetRef="ExclusiveGateway_HardwareTest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TestSoftwareResult" name="After software config" sourceRef="Task_SoftwareCheckConfig" targetRef="ExclusiveGateway_SoftwareTest"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoRepairAgainHW" name="Error detected, repair again" sourceRef="ExclusiveGateway_HardwareTest" targetRef="Task_ArbitraryRepair">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${hardwareErrorDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_YesMergeToTestSW" name="Hardware test passed, continue to software merge" sourceRef="ExclusiveGateway_HardwareTest" targetRef="InclusiveGateway_MergeSW">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${hardwarePassed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoRepairAgainSW" name="Error detected, repair again" sourceRef="ExclusiveGateway_SoftwareTest" targetRef="Task_ArbitraryRepair">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${softwareErrorDetected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_YesMergeToFinalTest" name="Software test passed, continue to final merge" sourceRef="ExclusiveGateway_SoftwareTest" targetRef="ParallelGateway_FinalMerge">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${softwarePassed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RetryHardwareTest" name="Retry after additional repair" sourceRef="Task_ArbitraryRepair" targetRef="ExclusiveGateway_HardwareTest"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinishRepair" name="All tests passed, finish" sourceRef="ParallelGateway_FinalMerge" targetRef="End_Event_RepairFinished">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${allTestsPassed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

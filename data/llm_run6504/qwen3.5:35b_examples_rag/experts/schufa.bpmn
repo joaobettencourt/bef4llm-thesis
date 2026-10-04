@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_ScoringProcess_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_BankSchufa">
+    <bpmn:participant id="Participant_BankProcess" name="Bank Process (Credit Granting)" processRef="Process_Scoring_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_StartRequest" name="Scoring Request Initiated"/>
+  <bpmn:message id="Message_ResponseImmediate" name="Level 1 Scoring Result Ready"/>
+  <bpmn:message id="Message_DelayNotification" name="Delay Notification Received"/>
+  <bpmn:message id="Message_FinalResult" name="Final Level 2 Scoring Result"/>
+
+  <bpmn:process id="Process_Scoring_1" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FrontendUser" name="Frontend / User Interaction">
+        <bpmn:flowNodeRef>UserTask_DisplayResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_NotifyDelayHint</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SystemLogic" name="System Logic / Process">
+        <bpmn:flowNodeRef>StartEvent_ScoringRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_SendScoringRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchIntermediate_WaitResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ImmediateResult?</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SendDelayHint</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchIntermediate_Level2Wait</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ScoringRequest" name="Scoring Request Initiated">
+      <bpmn:messageEventDefinition messageRef="Message_StartRequest"/>
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send Scoring Request -->
+    <bpmn:serviceTask id="ServiceTask_SendScoringRequest" name="Send Scoring Request to Schufa">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Initial Response (Level 1 or Delay Notification) -->
+    <bpmn:intermediateCatchEvent id="CatchIntermediate_WaitResponse" name="Wait for Schufa Response">
+      <bpmn:messageEventDefinition messageRef="Message_ResponseImmediate"/>
+      <bpmn:messageEventDefinition messageRef="Message_DelayNotification"/>
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResultType</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to check if result is immediate or delayed -->
+    <bpmn:exclusiveGateway id="Gateway_ImmediateResult?" name="Level 1 Result Ready?">
+      <bpmn:incoming>SequenceFlow_CheckResultType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResultReady</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Delayed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- If result ready immediately -->
+    <bpmn:userTask id="UserTask_DisplayResult" name="Display Scoring Result to User">
+      <bpmn:incoming>SequenceFlow_ResultReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- If delayed -->
+    <bpmn:userTask id="UserTask_NotifyDelayHint" name="Notify User of Delay">
+      <bpmn:incoming>SequenceFlow_Delayed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel2Result</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Level 2 Result -->
+    <bpmn:intermediateCatchEvent id="CatchIntermediate_Level2Wait" name="Wait for Final Scoring Result">
+      <bpmn:messageEventDefinition messageRef="Message_FinalResult"/>
+      <bpmn:incoming>SequenceFlow_WaitLevel2Result</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayFinalResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Display Final Result -->
+    <bpmn:userTask id="UserTask_SendDelayHint" name="Display Scoring Hint to User">
+      <bpmn:incoming>SequenceFlow_Delayed</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel2Result</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Process1" name="Scoring Completed (Immediate)">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Process2" name="Scoring Completed (Delayed)">
+      <bpmn:incoming>SequenceFlow_DisplayFinalResult</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_ScoringRequest" targetRef="ServiceTask_SendScoringRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse" sourceRef="ServiceTask_SendScoringRequest" targetRef="CatchIntermediate_WaitResponse"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResultType" sourceRef="CatchIntermediate_WaitResponse" targetRef="Gateway_ImmediateResult?"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ResultReady" name="Yes - Result Ready" sourceRef="Gateway_ImmediateResult?" targetRef="UserTask_DisplayResult">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${level1ResultAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Delayed" name="No - Delay Required" sourceRef="Gateway_ImmediateResult?" targetRef="UserTask_NotifyDelayHint">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${level1NotAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess1" sourceRef="UserTask_DisplayResult" targetRef="EndEvent_Process1"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel2Result" sourceRef="UserTask_NotifyDelayHint" targetRef="CatchIntermediate_Level2Wait"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CourtFiles">
+    <bpmn:participant id="Participant_CourtProcess" name="Court File Processing Process" processRef="Process_CourtFileProcessing" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CourtFileProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FileClerk" name="Court Clerk">
+        <bpmn:flowNodeRef>StartEvent_Morning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckFiles</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_FileCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SearchInitiated</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrackFiles</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Associate" name="Associate">
+        <bpmn:flowNodeRef>Task_HandToAssociate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DirectionsHearing</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event - Each morning -->
+    <bpmn:startEvent id="StartEvent_Morning" name="Morning">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check files for court hearing order -->
+    <bpmn:task id="Task_CheckFiles" name="Check files in order">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToFileGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Are all files complete? -->
+    <bpmn:exclusiveGateway id="Gateway_FileCheck" name="All files&#10;complete?">
+      <bpmn:incoming>SequenceFlow_CheckToFileGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SearchPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TrackPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2a - If files missing -->
+    <bpmn:task id="Task_SearchInitiated" name="Search initiated">
+      <bpmn:incoming>SequenceFlow_SearchPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SearchToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2b - If files complete -->
+    <bpmn:task id="Task_TrackFiles" name="Physically track to&#10;intended location">
+      <bpmn:incoming>SequenceFlow_TrackPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TrackToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway - After files ready -->
+    <bpmn:parallelGateway id="Parallel_GatewayReady" name="Files&#10;ready">
+      <bpmn:incoming>SequenceFlow_SearchToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_TrackToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HandAssociate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DistributeLawlist</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 3a - Hand to Associate -->
+    <bpmn:task id="Task_HandToAssociate" name="Hand files to&#10;Associate">
+      <bpmn:incoming>SequenceFlow_HandAssociate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToHearingEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3b - Distribute Lawlist (parallel) -->
+    <bpmn:intermediateThrowEvent id="Intermediate_DistributeLawlist" name="Distribute Judges&#10;Lawlist to relevant">
+      <bpmn:incoming>SequenceFlow_DistributeLawlist</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event - Directions hearings conducted -->
+    <bpmn:endEvent id="EndEvent_DirectionsHearing" name="Directions&#10;hearings">
+      <bpmn:incoming>SequenceFlow_ToHearingEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_Morning" targetRef="Task_CheckFiles" />
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToFileGateway" name="check files&#10;complete?" sourceRef="Task_CheckFiles" targetRef="Gateway_FileCheck" />
+
+    <!-- File Check Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_SearchPath" name="No - missing" sourceRef="Gateway_FileCheck" targetRef="Task_SearchInitiated">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TrackPath" name="Yes - complete" sourceRef="Gateway_FileCheck" targetRef="Task_TrackFiles">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after file preparation -->
+    <bpmn:exclusiveGateway id="Exclusive_GatewayMerge" name="All files&#10;ready?">
+      <bpmn:incoming>SequenceFlow_SearchToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_TrackToMerge</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Split after files ready -->
+    <bpmn:sequenceFlow id="SequenceFlow_SearchToMerge" sourceRef="Task_SearchInitiated" targetRef="Exclusive_GatewayMerge" />
+    <bpmn:sequenceFlow id="SequenceFlow_TrackToMerge" sourceRef="Task_TrackFiles" targetRef="Parallel_GatewayReady" />
+
+    <!-- Parallel Tasks -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandAssociate" name="Hand to Associate" sourceRef="Parallel_GatewayReady" targetRef="Task_HandToAssociate" />
+
+    <bpmn:exclusiveGateway id="Exclusive_LawlistDone">
+      <bpmn:name>Lawlist&#10;distributed?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DistributeLawlist</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToHearingEnd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_DistributeLawlist" name="Distribute Lawlist" sourceRef="Parallel_GatewayReady" targetRef="Intermediate_DistributeLawlist" />
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_QuestionnaireLoop">
+  <bpmn:collaboration id="Collaboration_ClaimHandling">
+    <bpmn:participant id="Participant_ClaimHandler" name="Claims Department" processRef="Process_QuestionnaireLoop"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_QuestionnaireLoop" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestQuestionnaire" name="Request Questionnaire Initiated">
+      <bpmn:outgoing>SequenceFlow_SendQ</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send Questionnaire -->
+    <bpmn:task id="Task_SendQuestionnaire" name="Send Questionnaire to Claimant">
+      <bpmn:incoming>SequenceFlow_SendQ</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catching Message Event (Wait for Response) -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_Receive" name="Receive Completed Questionnaire">
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessReceived</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Boundary Timer Event (Attached to Intermediate Message) -->
+    <bpmn:boundaryEvent id="BoundaryTimer_5Days" name="Wait 5 Days">
+      <bpmn:attachedToRef>IntermediateMessage_Receive</bpmn:attachedToRef>
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDurationExpression">PT5D</bpmn:timerDefinition>
+      <bpmn:outgoing>SequenceFlow_SendReminder</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Task 2: Send Reminder -->
+    <bpmn:task id="Task_SendReminder" name="Send Reminder to Claimant">
+      <bpmn:incoming>SequenceFlow_SendReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_WaitAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_QuestionnaireReceived" name="Questionnaire Received">
+      <bpmn:incoming>SequenceFlow_ProcessReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    1. Start -> Send Questionnaire
+    <bpmn:sequenceFlow id="SequenceFlow_SendQ" sourceRef="StartEvent_RequestQuestionnaire" targetRef="Task_SendQuestionnaire">
+      <bpmn:name>Initiate</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    2. Send Questionnaire -> Wait for Response (Intermediate Message)
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse" sourceRef="Task_SendQuestionnaire" targetRef="IntermediateMessage_Receive">
+      <bpmn:name>Send and Await</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    3. Receive Response -> End Process (Success Path)
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessReceived" sourceRef="IntermediateMessage_Receive" targetRef="EndEvent_QuestionnaireReceived">
+      <bpmn:name>Response Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    4. Timeout (Boundary) -> Send Reminder
+    <bpmn:sequenceFlow id="SequenceFlow_SendReminder" sourceRef="BoundaryTimer_5Days" targetRef="Task_SendReminder">
+      <bpmn:name>No Response After 5 Days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    5. Send Reminder -> Loop Back to Wait (Retry Path)
+    <bpmn:sequenceFlow id="SequenceLoop_WaitAgain" sourceRef="Task_SendReminder" targetRef="IntermediateMessage_Receive">
+      <bpmn:name>Send Reminder and Retry</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

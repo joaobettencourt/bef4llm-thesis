@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_SO_Auftrag" name="SO: Angebot/Auftrag" processRef="Proc_PurchaseOrderProcess" />
+    <bpmn:participant id="Pool_AddressManagement" name="SO: Address-Management" processRef="Proc_AddressManagementProcess" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_PurchaseOrderProcess" isExecutable="false">
+    <bpmn:startEvent id="Start_ReceiveOrder" name="Receive subsidiary order">
+      <bpmn:outgoing>Flow_Start_Order</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SO_Auftrag" name="SO: Angebot/Auftrag">
+        <bpmn:flowNodeRef>Start_ReceiveOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Parallel_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Parallel_Merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareInvoicing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckSubsidiary</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_RelationshipModeled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MergeInvoicePath</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_SendInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_AddressManagement" name="SO: Address-Management">
+        <bpmn:flowNodeRef>Task_AddParentAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Parallel Gateway to split into concurrent activities -->
+    <bpmn:parallelGateway id="Gw_Parallel_Start">
+      <bpmn:incoming>Flow_Start_Order</bpmn:incoming>
+      <bpmn:outgoing>Flow_PrepareGoods</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ShipGoods</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 1: Prepare goods for shipment -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare goods for shipment">
+      <bpmn:incoming>Flow_PrepareGoods</bpmn:incoming>
+      <bpmn:outgoing>Flow_GoodsToShip</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Ship goods -->
+    <bpmn:task id="Task_ShipGoods" name="Ship goods">
+      <bpmn:incoming>Flow_ShipGoods</bpmn:incoming>
+      <bpmn:outgoing>Flow_GoodsShipped</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Prepare invoicing (concurrent) -->
+    <bpmn:task id="Task_PrepareInvoicing" name="Prepare invoicing">
+      <bpmn:incoming>Gw_Parallel_Start</bpmn:outgoing>
+      <bpmn:outgoing>Flow_InvoicePrepared</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge parallel flows -->
+    <bpmn:parallelGateway id="Gw_Parallel_Merge">
+      <bpmn:incoming>Flow_GoodsShipped</bpmn:incoming>
+      <bpmn:outgoing>Gw_CheckSubsidiary</bpmn:incomng>
+    </bpmn:parallelGateway>
+
+    <!-- Decision 1: Is customer subsidiary? -->
+    <bpmn:exclusiveGateway id="Gw_CheckSubsidiary">
+      <bpmn:incoming>Gw_Parallel_Merge</bpmn:outgoing>Flow_IsIndependent</bpmn:incomng>
+      <bpmn:outgoing>Flow_IsIndependent</bpmn:outgoing>
+      <bpmn:outgoing>Flow_IsSubsidiary</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Decision 2: Is subsidiary relationship modeled in ERP? -->
+    <bpmn:exclusiveGateway id="Gw_RelationshipModeled">
+      <bpmn:incoming>Flow_IsSubsidiary</bpmn:outgoing>Gw_MergeInvoicePath</bpmn:incomng>
+      <bpmn:outgoing>Flow_AlreadyModeled</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NotYetModeled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task in Address-Management lane -->
+    <bpmn:task id="Task_AddParentAddress" name="Add parent company as invoicing address">
+      <bpmn:incoming>Flow_NotYetModeled</bpmn:outgoing>Gw_MergeInvoicePath</bpmn:incomng>
+      <bpmn:outgoing>Flow_AddressAdded</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge all invoice paths -->
+    <bpmn:exclusiveGateway id="Gw_MergeInvoicePath">
+      <bpmn:incoming>Gw_RelationshipModeled</bpmn:incomng>Flow_AlreadyModeled</bpmn:outgoing>
+      <bpmn:incoming>Task_AddParentAddress</bpmn:outgoing>Flow_AddressAdded</bpmn:incomng>
+      <bpmn:outgoing>Gw_CheckSubsidiary</bpmn:incomng>Flow_IsIndependent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Create invoice -->
+    <bpmn:task id="Task_CreateInvoice" name="Create the invoice">
+      <bpmn:incoming>Gw_MergeInvoicePath</bpmn:incomng>Flow_IsIndependent</bpmn:outgoing>
+      <bpmn:outgoing>Flow_InvoiceCreated</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event: Send Invoice -->
+    <bpmn:intermediateThrowEvent id="Event_SendInvoice" name="Send the invoice">
+      <bpmn:incoming>Task_CreateInvoice</bpmn:incomng>Flow_InvoiceCreated</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Invoice sent">
+      <bpmn:incoming>Gw_Parallel_Start</bpmn:incomng>Flow_InvoiceCreated</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_Order" sourceRef="Start_ReceiveOrder" targetRef="Gw_Parallel_Start" />
+    <bpmn:sequenceFlow id="Flow_PrepareGoods" name="Prepare goods for shipment" sourceRef="Gw_Parallel_Start" targetRef="Task_PrepareGoods" />
+    <bpmn:sequenceFlow id="Flow_ShipGoods" name="Ship goods (concurrent)" sourceRef="Gw_Parallel_Start" targetRef="Task_ShipGoods" />
+    <bpmn:sequenceFlow id="Flow_GoodsToShip" sourceRef="Task_PrepareGoods" targetRef="Task_ShipGoods" />
+    <bpmn:sequenceFlow id="Flow_InvoicePrepared" name="Prepare invoicing (concurrent)" sourceRef="Gw_Parallel_Start" targetRef="Task_PrepareInvoicing" />
+    <bpmn:exclusiveGateway id="Gw_CheckSubsidiary">
+      <bpmn:incoming>Gw_Parallel_Merge</bpmn:outgoing>Flow_IsIndependent</bpmn:incomng>
+    </bpmn:sequenceFlow id="Flow_IsIndependent" name="Customer is independent or relationship modeled in ERP" sourceRef="Gw_CheckSubsidiary" targetRef="Task_CreateInvoice" />
+    <bpmn:exclusiveGateway id="Gw_RelationshipModeled">
+      <bpmn:incoming>Flow_IsSubsidiary</bpmn:outgoing>Gw_MergeInvoicePath</bpmn:incomng>
+    </bpmn:sequenceFlow id="Flow_AlreadyModeled" name="Relationship already modeled in ERP" sourceRef="Gw_RelationshipModeled" targetRef="Task_CreateInvoice" />
+    <bpmn:exclusiveGateway id="Gw_MergeInvoicePath">
+      <bpmn:incoming>Flow_NotYetModeled</bpmn:outgoing>Gw_Parallel_Start</bpmn:incomng>
+    </bpmn:sequenceFlow id="Flow_AddressAdded" sourceRef="Task_AddParentAddress" targetRef="Gw_MergeInvoicePath" />
+    <bpmn:exclusiveGateway id="Gw_CheckSubsidiary">
+      <bpmn:incoming>Gw_Parallel_Start</bpmn:outgoing>Flow_IsIndependent</bpmn:incomng>
+    </bpmn:sequenceFlow id="Flow_InvoiceCreated" sourceRef="Task_CreateInvoice" targetRef="Event_SendInvoice" />
+
+  </bpmn:process>
+</bpmn:definitions>

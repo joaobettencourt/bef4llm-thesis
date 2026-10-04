@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1aeg7k3">
+    <bpmn:participant id="Participant_Guest" name="Guest Process" processRef="Process_Guest"/>
+    <bpmn:participant id="Participant_Employee" name="Employee Process" processRef="Process_Employee"/>
+    <bpmn:participant id="Participant_Chef" name="Chef Process" processRef="Process_Chef"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_1_employeeToChef">
+      <bpmn:sourceRef>Task_Employee_InformChef</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_Chef_OrderReceived</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_2_chefToEmployee">
+      <bpmn:sourceRef>Task_Chef_PlaceInHatch</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_Employee_MealReadyCheck</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Message for buzzer notification -->
+    <bpmn:message id="Message_BuzzerNotification" name="Buzzer Notification"/>
+  </bpmn:collaboration>
+
+  <!-- Guest Process -->
+  <bpmn:process id="Process_Guest">
+    <bpmn:startEvent id="StartEvent_1_guestEnters" name="Guest Enters Restaurant">
+      <bpmn:outgoing>SequenceFlow_1_enter</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_Guest_ChooseDish" name="Choose Dish from Menu">
+      <bpmn:incoming>SequenceFlow_1_enter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2_waitTurn</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Guest_WaitForOrder" name="Wait for Turn">
+      <bpmn:incoming>SequenceFlow_2_waitTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3_placeOrder</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Guest_PickUpMeal" name="Pick Up Meal &amp; Eat">
+      <bpmn:incoming>SequenceFlow_7_pickupReady</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1_enter" sourceRef="StartEvent_1_guestEnters" targetRef="Task_Guest_ChooseDish"/>
+    <bpmn:sequenceFlow id="SequenceFlow_2_waitTurn" name="Wait for Turn" sourceRef="Task_Guest_ChooseDish" targetRef="Task_Guest_WaitForOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_3_placeOrder" sourceRef="Task_Guest_WaitForOrder" targetRef="StartEvent_Employee_OrderReceived">
+      <bpmn:name>Place Order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Timer for buzzer notification -->
+    <bpmn:startEvent id="StartEvent_Timer_BuzzerRing" name="Timer: Buzzer Ring After 5 Minutes">
+      <bpmn:outgoing>SequenceFlow_4_timerTrigger</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Timer Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_TimerWait" name="Wait 5 Minutes">
+      <bpmn:incoming>SequenceFlow_4_timerTrigger</bpmn:incoming>
+      <bpmn:outgoing>Gateway_Employee_MealReadyCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow for timer -->
+    <bpmn:sequenceFlow id="SequenceFlow_4_timerTrigger" sourceRef="StartEvent_Timer_BuzzerRing" targetRef="IntermediateEvent_TimerWait"/>
+
+    <!-- Gateway for timeout check (in Employee lane) -->
+    <bpmn:exclusiveGateway id="Gateway_Employee_MealReadyCheck">
+      <bpmn:incoming>SequenceFlow_5_messageFromChef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_6_guestReactsYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_7_noReactionLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for guest reacts -->
+    <bpmn:sequenceFlow id="SequenceFlow_6_guestReactsYes" name="Guest Reacts to Buzzer">
+      <bpmn:name>yes</bpmn:name>
+      <bpmn:sourceRef>Gateway_Employee_MealReadyCheck</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Guest_PickUpMeal</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for no reaction -->
+    <bpmn:sequenceFlow id="SequenceFlow_7_noReactionLoop" name="Guest No Reaction">
+      <bpmn:name>no</bpmn:name>
+      <bpmn:sourceRef>Gateway_Employee_MealReadyCheck</bpmn:sourceRef>
+      <bpmn:targetRef>Task_Employee_CallGuestTimeout</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Employee Process -->
+  <bpmn:process id="Process_Employee">
+    <bpmn:startEvent id="StartEvent_Employee_OrderReceived" name="Order Received from Guest">
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_8_takeOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_Employee_TakeOrder" name="Enter Order in POS System">
+      <bpmn:incoming>SequenceFlow_8_takeOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_9_collectMoney</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Employee_CollectMoney" name="Collect Money from Guest">
+      <bpmn:incoming>SequenceFlow_9_collectMoney</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10_setupBuzzer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Employee_SetupBuzzer" name="Setup Buzzer for Guest">
+      <bpmn:incoming>SequenceFlow_10_setupBuzzer</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_1_employeeToChef</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task to call guest if no reaction -->
+    <bpmn:userTask id="Task_Employee_CallGuestTimeout" name="Call Guest (if no reaction)">
+      <bpmn:incoming>SequenceFlow_7_noReactionLoop</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_1_employeeToChef</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_8_takeOrder" sourceRef="StartEvent_Employee_OrderReceived" targetRef="Task_Employee_TakeOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_9_collectMoney" name="Collect Payment" sourceRef="Task_Employee_TakeOrder" targetRef="Task_Employee_CollectMoney"/>
+    <bpmn:sequenceFlow id="SequenceFlow_10_setupBuzzer" name="Setup Buzzer &amp; Inform Chef" sourceRef="Task_Employee_CollectMoney" targetRef="Task_Employee_SetupBuzzer">
+      <bpmn:name>Set up buzzer</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Chef Process -->
+  <bpmn:process id="Process_Chef">
+    <bpmn:startEvent id="StartEvent_Chef_OrderReceived" name="New Meal Order Received">
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_11_prepareMeal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_Chef_PrepareMeal" name="Prepare the Meal">
+      <bpmn:incoming>SequenceFlow_11_prepareMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_12_placeInHatch</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Chef_PlaceInHatch" name="Place Meal in Service Hatch">
+      <bpmn:incoming>SequenceFlow_12_placeInHatch</bpmn:incoming>
+      <bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_11_prepareMeal" sourceRef="StartEvent_Chef_OrderReceived" targetRef="Task_Chef_PrepareMeal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_12_placeInHatch" name="Place in Hatch &amp; Notify Employee" sourceRef="Task_Chef_PrepareMeal" targetRef="Task_Chef_PlaceInHatch">
+      <bpmn:name>Prepare meal</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

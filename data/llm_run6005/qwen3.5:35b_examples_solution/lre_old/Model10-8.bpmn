@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_MSPO" name="MSPO" processRef="Process_MSPO"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_01">
+      <bpmn:name>Deregistration Request</bpmn:name>
+      <bpmn:sourceRef="IntermediateThrow_MSPO_Deregister" targetRef="StartEvent_GO_Verify"/>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow for GO informing MSPO -->
+    <bpmn:messageFlow id="MessageFlow_02">
+      <bpmn:name>Assignment Notification</bpmn:name>
+      <bpmn:sourceRef="Task_GO_InformMSPO" targetRef="IntermediateCatch_MSPO_Notification"/>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow for GO informing MPO -->
+    <bpmn:messageFlow id="MessageFlow_03">
+      <bpmn:name>MPO Assignment Notification</bpmn:name>
+      <bpmn:sourceRef="Task_GO_InformMPO" targetRef="IntermediateCatch_MPO_Notification"/>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow for GO informing SP -->
+    <bpmn:messageFlow id="MessageFlow_04">
+      <bpmn:name>SP Assignment Notification</bpmn:name>
+      <bpmn:sourceRef="Task_GO_InformSP" targetRef="IntermediateCatch_SP_Notification"/>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- MSPO Process -->
+  <bpmn:process id="Process_MSPO" isExecutable="false">
+    <bpmn:startEvent id="StartMSPO_01">
+      <bpmn:name>Deregistration Request</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_MSPO_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="TaskMSPO_01" name="Deregister at GO">
+      <bpmn:name>Deregister at GO</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MSPO_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSPO_Deregister</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate event to send message -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrow_MSPO_Deregister">
+      <bpmn:name>Deregistration Request Sent</bpmn:name>
+      <bpmn:messageRef="Message_DeregistrationRequest"/>
+      <bpmn:incoming>SequenceFlow_MSPO_SendMessage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSPO_WaitResponse</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate event to receive message -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_MSPO_Notification">
+      <bpmn:name>Assignment Notification Received</bpmn:name>
+      <bpmn:messageRef="Message_AssignmentNotification"/>
+      <bpmn:incoming>SequenceFlow_MSPO_ReceiveMsg</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MSPO_End</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Intermediate events for MPO and SP notifications (internal to MSPO) -->
+    <bpmn:endEvent id="EndMSPO_01">
+      <bpmn:name>Deregistration Process Complete</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MSPO_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_Start" sourceRef="StartMSPO_01" targetRef="TaskMSPO_01"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_Deregister" sourceRef="TaskMSPO_01" targetRef="IntermediateThrow_MSPO_Deregister"/>
+
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_GO_Verify">
+      <bpmn:name>Deregistration Verification</bpmn:name>
+      <bpmn:messageRef="Message_DeregistrationRequest"/>
+      <bpmn:outgoing>SequenceFlow_GO_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway for decision -->
+    <bpmn:exclusiveGateway id="Gateway_GO_Decision">
+      <bpmn:name>Deregistration Valid?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_Reject</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GO_Confirm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reject Path -->
+    <bpmn:endEvent id="EndGO_01">
+      <bpmn:name>Deregistration Rejected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_Reject_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirm Path -->
+    <bpmn:task id="TaskGO_01" name="Preliminarily confirm deregistration">
+      <bpmn:name>Preliminarily confirm deregistration</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_Confirm_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_AssignMSP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Assign GO as MSP -->
+    <bpmn:task id="TaskGO_02" name="Assign GO as MSP">
+      <bpmn:name>Preliminarily confirm deregistration of MSPO</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_AssignMSP_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_InformMSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform MSPO -->
+    <bpmn:task id="TaskGO_03" name="Inform MSPO about assignment">
+      <bpmn:name>Informs MSPO of new MSP assignment</bpmn:name>
+      <bpmn:messageRef="Message_AssignmentNotification"/>
+      <bpmn:incoming>SequenceFlow_GO_InformMSPO_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_InformMPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform MPO -->
+    <bpmn:task id="TaskGO_04" name="Inform MPO about assignment">
+      <bpmn:name>Informs MPO of new MSP assignment</bpmn:name>
+      <bpmn:messageRef="Message_MPOAssignmentNotification"/>
+      <bpmn:incoming>SequenceFlow_GO_InformMPO_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_InformSP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inform SP -->
+    <bpmn:task id="TaskGO_05" name="Inform SP about assignment">
+      <bpmn:name>Informs SP of new MSP assignment</bpmn:name>
+      <bpmn:messageRef="Message_SPAssignmentNotification"/>
+      <bpmn:incoming>SequenceFlow_GO_InformSP_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GO_End</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndGO_02">
+      <bpmn:name>Deregistration Process Complete</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GO_Start" sourceRef="StartEvent_GO_Verify" targetRef="Gateway_GO_Decision"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_Reject" name="No - Invalid">
+      <bpmn:name>Reject</bpmn:name>
+      <bpmn:sourceRef="Gateway_GO_Decision" targetRef="EndGO_01"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_Confirm_Start">
+      <bpmn:name>Yes - Valid</bpmn:name>
+      <bpmn:sourceRef="Gateway_GO_Decision" targetRef="TaskGO_01"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_AssignMSP_Start">
+      <bpmn:sourceRef="TaskGO_01" targetRef="TaskGO_02"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_InformMSPO_Start">
+      <bpmn:name>Informs MSPO</bpmn:name>
+      <bpmn:sourceRef="TaskGO_02" targetRef="TaskGO_03"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_InformMPO_Start">
+      <bpmn:name>Informs MPO</bpmn:name>
+      <bpmn:sourceRef="TaskGO_03" targetRef="TaskGO_04"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_InformSP_Start">
+      <bpmn:name>Informs SP</bpmn:name>
+      <bpmn:sourceRef="TaskGO_04" targetRef="TaskGO_05"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GO_End">
+      <bpmn:sourceRef="TaskGO_05" targetRef="EndGO_02"/>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+</bpmn:definitions>

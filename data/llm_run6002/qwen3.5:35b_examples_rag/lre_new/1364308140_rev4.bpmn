@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SOProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_SOProc">
+    <bpmn:participant id="Participant_SOPool" name="SO Management Process" processRef="Process_SO123"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SO123" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_AngebotAuftrag" name="SO Angebot/Auftrag">
+        <bpmn:flowNodeRef>StartEvent_ReceiveOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckCustomerRelation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>MergeBillingPath</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CreateInvoiceTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SendInvoiceTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AddressMgmt" name="SO Address-management">
+        <bpmn:flowNodeRef>AddParentCompanyTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveOrder" name="Subsidiary Order Received">
+      <bpmn:outgoing>SequenceFlow_StartToSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split (Logistics vs Billing) -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Start Logistics &amp; Invoicing">
+      <bpmn:incoming>SequenceFlow_StartToSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogisticsPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BillingPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Logistics Path -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare Goods for Shipment">
+      <bpmn:incoming>SequenceFlow_LogisticsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GoodsToShip</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>SequenceFlow_GoodsToShip</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LogisticsJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Billing Path Decision -->
+    <bpmn:exclusiveGateway id="Gateway_CheckCustomerRelation" name="Subsidiary &amp; Relation Modeled?">
+      <bpmn:incoming>SequenceFlow_BillingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddAddressNeeded</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DirectInvoice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Address Management Task (Lane 2) -->
+    <bpmn:task id="AddParentCompanyTask" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>SequenceFlow_AddAddressNeeded</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressToInvoiceMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Point for Billing Logic -->
+    <bpmn:exclusiveGateway id="MergeBillingPath" name="Converge Invoice Paths">
+      <bpmn:incoming>SequenceFlow_DirectInvoice</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AddressToInvoiceMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateInvoiceTaskRef</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Invoice Task -->
+    <bpmn:task id="CreateInvoiceTask" name="Create Invoice">
+      <bpmn:incoming>SequenceFlow_CreateInvoiceTaskRef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Invoice Task -->
+    <bpmn:task id="SendInvoiceTask" name="Send Invoice">
+      <bpmn:incoming>SequenceFlow_SendInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BillingJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join (Wait for Logistics & Billing) -->
+    <bpmn:parallelGateway id="ParallelGateway_Join" name="Merge Process Paths">
+      <bpmn:incoming>SequenceFlow_LogisticsJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_BillingJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderComplete" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSplit" sourceRef="StartEvent_ReceiveOrder" targetRef="ParallelGateway_Split"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_LogisticsPath" name="Logistics Path" sourceRef="ParallelGateway_Split" targetRef="Task_PrepareGoods"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GoodsToShip" sourceRef="Task_PrepareGoods" targetRef="Task_ShipGoods"/>
+    <bpmn:sequenceFlow id="SequenceFlow_LogisticsJoin" name="Logistics Complete" sourceRef="Task_ShipGoods" targetRef="ParallelGateway_Join"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_BillingPath" name="Billing Path" sourceRef="ParallelGateway_Split" targetRef="Gateway_CheckCustomerRelation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AddAddressNeeded" name="Yes (Add Address)" sourceRef="Gateway_CheckCustomerRelation" targetRef="AddParentCompanyTask"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DirectInvoice" name="No/Independent Customer" sourceRef="Gateway_CheckCustomerRelation" targetRef="MergeBillingPath"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddressToInvoiceMerge" sourceRef="AddParentCompanyTask" targetRef="MergeBillingPath"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateInvoiceTaskRef" name="Create Invoice Flow" sourceRef="MergeBillingPath" targetRef="CreateInvoiceTask"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendInvoice" sourceRef="CreateInvoiceTask" targetRef="SendInvoiceTask"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BillingJoin" name="Invoicing Complete" sourceRef="SendInvoiceTask" targetRef="ParallelGateway_Join"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" sourceRef="ParallelGateway_Join" targetRef="EndEvent_OrderComplete"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_ZooClub" name="Barcelona Zoo Club Organization" processRef="Process_Membership"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Membership" isExecutable="true">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Visitor" name="Visitor/Member">
+        <bpmn:flowNodeRef>Event_StartRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DecideMembershipType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ExclusiveMembershipType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareIndividualInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareFamilyInfo</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ZooClubDept" name="ZooClub Department">
+        <bpmn:flowNodeRef>InclusiveGateway_MergePrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDataAndRequestPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gate_ParallelHandover</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_PaymentConfirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintCardAndDeliver</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_BillingDept" name="Billing Department">
+        <bpmn:flowNodeRef>Gate_ParallelHandover</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPaymentRequestToBank</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_MarketingDept" name="Marketing Department">
+        <bpmn:flowNodeRef>InclusiveGateway_MergePrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ForwardInfoToMarketing</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Event_StartRequest" name="Membership Request">
+      <bpmn:outgoing>SequenceFlow_DecideType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Decide Membership Type (Visitor) -->
+    <bpmn:task id="Task_DecideMembershipType" name="Decide Membership Type">
+      <bpmn:incoming>SequenceFlow_DecideType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Individual vs Family (Visitor) -->
+    <bpmn:exclusiveGateway id="Gateway_ExclusiveMembershipType" name="Individual or Family?">
+      <bpmn:incoming>SequenceFlow_GatewayDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IndividualPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Prepare Individual Info (Visitor) -->
+    <bpmn:task id="Task_PrepareIndividualInfo" name="Prepare Personal Information">
+      <bpmn:incoming>SequenceFlow_IndividualPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToZooClubMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Prepare Family Info (Visitor) -->
+    <bpmn:task id="Task_PrepareFamilyInfo" name="Prepare Spouse &amp; Child Information">
+      <bpmn:incoming>SequenceFlow_FamilyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToZooClubMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Merge Prep Paths (Inclusive) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergePrep">
+      <bpmn:incoming>SequenceFlow_ToZooClubMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HandoverToDept</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Sequence Flow from Decision Gateway to Family Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_FamilyPath" sourceRef="Gateway_ExclusiveMembershipType" targetRef="Task_PrepareFamilyInfo">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Decision Gateway to Individual Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_IndividualPath" sourceRef="Gateway_ExclusiveMembershipType" targetRef="Task_PrepareIndividualInfo">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Decision Gateway to Individual Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayDecision" sourceRef="Task_DecideMembershipType" targetRef="Gateway_ExclusiveMembershipType"/>
+
+    <!-- Task: Enter Data and Request Payment (ZooClub Dept) -->
+    <bpmn:task id="Task_EnterDataAndRequestPayment" name="Enter Data &amp; Request Payment">
+      <bpmn:incoming>SequenceFlow_HandoverToDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelSplitHandover</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToZooClubMerge" sourceRef="Task_PrepareIndividualInfo" targetRef="InclusiveGateway_MergePrep"/>
+    
+    <!-- Parallel Split for Billing and Marketing Handover (ZooClub Dept) -->
+    <bpmn:parallelGateway id="Gate_ParallelHandover">
+      <bpmn:incoming>SequenceFlow_HandoverToDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToBillingDept</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToMarketingDept</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_FamilyToMerge" sourceRef="Task_PrepareFamilyInfo" targetRef="InclusiveGateway_MergePrep"/>
+
+    <!-- Task: Send Payment Request (Billing Dept) -->
+    <bpmn:task id="Task_SendPaymentRequestToBank" name="Send Payment Request to Bank">
+      <bpmn:incoming>SequenceFlow_ToBillingDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BankProcessTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Forward Info (Marketing Dept) -->
+    <bpmn:task id="Task_ForwardInfoToMarketing" name="Forward Visitor Information">
+      <bpmn:incoming>SequenceFlow_ToMarketingDept</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_RequestMagazineTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Request Magazine (Marketing Dept) -->
+    <bpmn:task id="Task_RequestMagazine" name="Request Zoo Club Magazine">
+      <bpmn:incoming>SequenceFlow_RequestMagazineTrigger</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MagazineSentEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event: Payment Confirmed (Intermediate Catching Message) -->
+     <bpmn:intermediateCatchEvent id="Event_PaymentConfirmed">
+      <bpmn:incoming>SequenceFlow_BankProcessTrigger</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_PrintCardTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Print Card and Deliver (ZooClub Dept) -->
+     <bpmn:task id="Task_PrintCardAndDeliver" name="Print &amp; Deliver Membership Card">
+      <bpmn:incoming>SequenceFlow_PrintCardTask</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_VisitorReceivesEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Card Delivered (Visitor Home) -->
+    <bpmn:endEvent id="End_MemberCardDelivered">
+      <bpmn:incoming>SequenceFlow_VisitorReceivesEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Magazine Sent (Marketing) -->
+     <bpmn:endEvent id="End_MagazineSent">
+      <bpmn:incoming>SequenceFlow_MagazineSentEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DecideType" sourceRef="Event_StartRequest" targetRef="Task_DecideMembershipType"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverToDept" sourceRef="InclusiveGateway_MergePrep" targetRef="Gate_ParallelHandover"/>
+
+     <!-- Sequence Flow to Billing Dept (Parallel) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToBillingDept" sourceRef="Gate_ParallelHandover" targetRef="Task_SendPaymentRequestToBank"/>
+
+    <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_HandoverToDept" sourceRef="InclusiveGateway_MergePrep" targetRef="Task_EnterDataAndRequestPayment"/>
+
+     <!-- Task: Enter Data and Request Payment (ZooClub Dept) -->
+    <bpmn:task id="Task_EnterDataAndRequestPayment" name="Enter Data &amp; Request Payment">
+      <bpmn:incoming>SequenceFlow_HandoverToDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ParallelSplitHandover</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToZooClubMerge" sourceRef="Task_PrepareIndividualInfo" targetRef="InclusiveGateway_MergePrep"/>
+
+    <!-- Parallel Split for Billing and Marketing Handover (ZooClub Dept) -->
+    <bpmn:parallelGateway id="Gate_ParallelHandover">
+      <bpmn:incoming>SequenceFlow_HandoverToDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToBillingDept</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToMarketingDept</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_ParallelSplitHandover" sourceRef="Task_EnterDataAndRequestPayment" targetRef="Gate_ParallelHandover"/>
+
+    <!-- Task: Send Payment Request (Billing Dept) -->
+    <bpmn:task id="Task_SendPaymentRequestToBank" name="Send Payment Request to Bank">
+      <bpmn:incoming>SequenceFlow_ToBillingDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BankProcessTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToZooClubMerge" sourceRef="Task_PrepareIndividualInfo" targetRef="InclusiveGateway_MergePrep"/>
+
+    <!-- Task: Forward Info (Marketing Dept) - Note: Logic implies this happens after ZooClub Handover, parallel to Billing -->
+     <bpmn:task id="Task_ForwardInfoToMarketing" name="Forward Visitor Information">
+      <bpmn:incoming>SequenceFlow_ToBillingDept</bpmn:incoming> <!-- Reusing flow from Parallel Split for simplicity in single pool model -->
+       <bpmn:outgoing>SequenceFlow_RequestMagazineTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow to Billing Dept (Parallel) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToBillingDept" sourceRef="Gate_ParallelHandover" targetRef="Task_SendPaymentRequestToBank"/>
+
+    <!-- Task: Request Magazine (Marketing Dept) -->
+    <bpmn:task id="Task_RequestMagazine" name="Request Zoo Club Magazine">
+      <bpmn:incoming>SequenceFlow_RequestMagazineTrigger</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MagazineSentEnd</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Individual Prep to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToZooClubMerge" sourceRef="Task_PrepareIndividualInfo" targetRef="InclusiveGateway_MergePrep"/>
+
+    <!-- Event: Payment Confirmed (Intermediate Catching Message) - Represents Bank Response -->
+     <bpmn:intermediateCatchEvent id="Event_PaymentConfirmed">
+      <bpmn:incoming>SequenceFlow_BankProcessTrigger</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_PrintCardTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Sequence Flow from Billing Task to Bank Process/Confirmation -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankProcessTrigger" sourceRef="Task_SendPaymentRequestToBank" targetRef="Event_PaymentConfirmed"/>
+
+    <!-- Task: Print Card and Deliver (ZooClub Dept) -->
+     <bpmn:task id="Task_PrintCardAndDeliver" name="Print &amp; Deliver Membership Card">
+      <bpmn:incoming>SequenceFlow_PrintCardTask</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_VisitorReceivesEnd</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Confirmation to Print Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrintCardTask" sourceRef="Event_PaymentConfirmed" targetRef="Task_PrintCardAndDeliver"/>
+
+    <!-- End Event 1: Card Delivered (Visitor Home) -->
+    <bpmn:endEvent id="End_MemberCardDelivered">
+      <bpmn:incoming>SequenceFlow_VisitorReceivesEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow from Print Task to End Event 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_VisitorReceivesEnd" sourceRef="Task_PrintCardAndDeliver" targetRef="End_MemberCardDelivered"/>
+
+    <!-- End Event 2: Magazine Sent (Marketing) -->
+     <bpmn:endEvent id="End_MagazineSent">
+      <bpmn:incoming>SequenceFlow_MagazineSentEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow from Request Mag to End Event 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestMagazineTrigger" sourceRef="Task_ForwardInfoToMarketing" targetRef="Task_RequestMagazine"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MagazineSentEnd" sourceRef="Task_RequestMagazine" targetRef="End_MagazineSent"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="ChainsawManufacturingProcess" isExecutable="false">
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_CustomerRequest">
+      <bpmn:name>Customer requests custom chainsaw</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_RecordProperties</bpmn:outgoing>
+    </startEvent>
+
+    <!-- Task 1 -->
+    <task id="Task_RecordCustomerProperties" name="Record customer properties">
+      <incoming>SequenceFlow_RecordProperties</incoming>
+      <outgoing>SequenceFlow_OrderPartsStart</outgoing>
+    </task>
+
+    <!-- Parallel Gateway for ordering parts in parallel -->
+    <parallelGateway id="Gateway_OrderPartsParallel">
+      <bpmn:incoming>SequenceFlow_OrderPartsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderGuideBar</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderChain</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderMotorElectric</bpmn:outgoing>
+    </parallelGateway>
+
+    <!-- Tasks for ordering parts -->
+    <task id="Task_OrderGuideBar" name="Order guide bar">
+      <incoming>SequenceFlow_OrderGuideBar</incoming>
+      <outgoing>SequenceFlow_GuideBarArrived</outgoing>
+    </task>
+
+    <task id="Task_OrderChain" name="Order chain">
+      <incoming>SequenceFlow_OrderChain</incoming>
+      <outgoing>SequenceFlow_ChainArrived</outgoing>
+    </task>
+
+    <task id="Task_OrderMotorElectric" name="Order motor/electric parts">
+      <incoming>SequenceFlow_OrderMotorElectric</incoming>
+      <outgoing>SequenceFlow_MotorPartsArrived</outgoing>
+    </task>
+
+    <!-- Parallel Gateway to converge part arrivals -->
+    <parallelGateway id="Gateway_PartsConverge">
+      <bpmn:incoming>SequenceFlow_GuideBarArrived</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ChainArrived</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MotorPartsArrived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AllPartsReady</bpmn:outgoing>
+    </parallelGateway>
+
+    <!-- Task 2 -->
+    <task id="Task_InspectAllParts" name="Manual inspection of all parts">
+      <incoming>SequenceFlow_AllPartsReady</incoming>
+      <outgoing>SequenceFlow_AssembleStart</outgoing>
+    </task>
+
+    <!-- Task 3 -->
+    <task id="Task_AssembleChainsaw" name="Assemble chainsaw">
+      <incoming>SequenceFlow_AssembleStart</incoming>
+      <outgoing>SequenceFlow_FirstSawReadyDecision</outgoing>
+    </task>
+
+    <!-- Exclusive Gateway for customer feedback decision -->
+    <exclusiveGateway id="Gateway_CustomerFeedback">
+      <bpmn:incoming>SequenceFlow_SatisfiedOrNot</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceRestOrder</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelProcess</bpmn:outgoing>
+    </exclusiveGateway>
+
+    <!-- Task 4 -->
+    <task id="Task_SendProductionUpdates" name="Send production updates to customer">
+      <incoming>SequenceFlow_RegularUpdateLoop</incoming>
+      <outgoing>SequenceFlow_ProcessContinue</outgoing>
+    </task>
+
+    <!-- End Events -->
+    <endEvent id="EndEvent_SatisfiedContinue">
+      <bpmn:name>Saw approved - produce rest of order</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProduceRestOrder</bpmn:incoming>
+    </endEvent>
+
+    <endEvent id="EndProcess_CancelledOrder">
+      <bpmn:name>Customer not satisfied - cancel process</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CancelProcess</bpmn:incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_RecordProperties" sourceRef="StartEvent_CustomerRequest" targetRef="Task_RecordCustomerProperties">
+      <bpmn:name>Receive order details</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_OrderPartsStart" sourceRef="Task_RecordCustomerProperties" targetRef="Gateway_OrderPartsParallel"/>
+
+    <sequenceFlow id="SequenceFlow_OrderGuideBar" name="Order guide bar (parallel)" sourceRef="Gateway_OrderPartsParallel" targetRef="Task_OrderGuideBar"/>
+    
+    <sequenceFlow id="SequenceFlow_OrderChain" name="Order chain (parallel)" sourceRef="Gateway_OrderPartsParallel" targetRef="Task_OrderChain"/>
+
+    <sequenceFlow id="SequenceFlow_OrderMotorElectric" name="Order motor parts (parallel)" sourceRef="Gateway_OrderPartsParallel" targetRef="Task_OrderMotorElectric"/>
+
+    <sequenceFlow id="SequenceFlow_GuideBarArrived" sourceRef="Task_OrderGuideBar" targetRef="Gateway_PartsConverge">
+      <bpmn:name>Part arrived</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_ChainArrived" sourceRef="Task_OrderChain" targetRef="Gateway_PartsConverge"/>
+
+    <sequenceFlow id="SequenceFlow_MotorPartsArrived" sourceRef="Task_OrderMotorElectric" targetRef="Gateway_PartsConverge"/>
+
+    <sequenceFlow id="SequenceFlow_AllPartsReady" name="All parts received" sourceRef="Gateway_PartsConverge" targetRef="Task_InspectAllParts"/>
+
+    <sequenceFlow id="SequenceFlow_AssembleStart" sourceRef="Task_InspectAllParts" targetRef="Task_AssembleChainsaw">
+      <bpmn:name>Inspection complete</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Loop for regular updates during production -->
+    <parallelGateway id="Gateway_ProductionUpdateLoopStart"/>
+
+    <sequenceFlow id="SequenceFlow_SendFirstToCustomer" sourceRef="Task_AssembleChainsaw" targetRef="Task_SendProductionUpdates">
+      <bpmn:name>Send first saw</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task for sending first saw to customer -->
+    <task id="Task_SendFirstSaw" name="Send first chainsaw to customer">
+      <incoming>SequenceFlow_SendProductionUpdates</incoming>
+      <outgoing>SequenceFlow_CustomerFeedbackReceived</outgoing>
+    </task>
+
+    <!-- Exclusive Gateway for feedback decision (after receiving feedback) -->
+    <exclusiveGateway id="Gateway_FeedbackDecision" gatewayDirection="Diverging">
+      <bpmn:incoming>SequenceFlow_CustomerFeedbackReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceRestOrder</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelProcess</bpmn:outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence flows for feedback loop -->
+    <sequenceFlow id="SequenceFlow_CustomerFeedbackReceived" sourceRef="Task_SendFirstSaw" targetRef="Gateway_FeedbackDecision"/>
+
+    <!-- Regular update loop during production -->
+    <parallelGateway id="Gateway_FirstSawReady">
+      <bpmn:incoming>SequenceFlow_AssembleStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendFirstToCustomer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RegularUpdateLoop</bpmn:outgoing>
+    </parallelGateway>
+
+    <!-- Sequence flows for feedback loop -->
+    <sequenceFlow id="SequenceFlow_ProduceRestOrder" sourceRef="Gateway_FeedbackDecision" targetRef="EndEvent_SatisfiedContinue"/>
+
+    <sequenceFlow id="SequenceFlow_CancelProcess" sourceRef="Gateway_FeedbackDecision" targetRef="EndProcess_CancelledOrder">
+      <bpmn:name>Customer not satisfied</bpmn:name>
+    </sequenceFlow>
+
+  </process>
+</bpmn:definitions>

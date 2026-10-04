@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ShippingProcess">
+  <bpmn:collaboration id="Collaboration_0geryc1">
+    <bpmn:participant id="Participant_HardwareShop" name="Hardware Shop Shipping Process" processRef="Process_Shipping"/>
+    <bpmn:participant id="Participant_LogisticProviders" name="Logistic Companies Agency" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Shipping" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretary" name="Secretary">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClariyShipper</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_Amounts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InviteOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCompany</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_AdminPrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelSplitAdminPackaging</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WriteLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_InsuranceCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehousemen" name="Warehousemen">
+        <bpmn:flowNodeRef>ParallelSplitAdminPackaging</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageGoods</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_LogisticsManager" name="Logistics Department Head">
+        <bpmn:flowNodeRef>InclusiveGateway_InsuranceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArrangeInsurance</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Goods to be shipped">
+      <bpmn:outgoing>SequenceFlow_StartToClarify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Clarify Shipper -->
+    <bpmn:task id="Task_ClariyShipper" name="Clarify who will do the shipping">
+      <bpmn:incoming>SequenceFlow_StartToClarify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClarifyToAmounts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Amount Size Decision -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_Amounts" name="Large amounts?">
+      <bpmn:incoming>SequenceFlow_ClarifyToAmounts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LargePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SmallPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Large Path Tasks -->
+    <bpmn:task id="Task_InviteOffers" name="Invite 3 logistic companies">
+      <bpmn:incoming>SequenceFlow_LargePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSelectCompany</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task Select Company -->
+    <bpmn:task id="Task_SelectCompany" name="Select logistic company">
+      <bpmn:incoming>SequenceFlow_ToSelectCompany</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAdminPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SmallPath" name="Small amounts (Normal Post)" sourceRef="InclusiveGateway_Amounts" targetRef="Task_WriteLabel">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[amountSize == small]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Large Path to Admin Prep -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeAdminPrep" name="" sourceRef="Task_SelectCompany" targetRef="InclusiveGateway_AdminPrep"/>
+
+    <!-- Inclusive Gateway for Admin Prep (Merge Point) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_AdminPrep">
+      <bpmn:incoming>SequenceFlow_MergeAdminPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitToPackagingAndLabeling</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Sequence Flow from Order Received to Validate Order (alternative path) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ClarifyToAmounts" sourceRef="Task_ClariyShipper" targetRef="InclusiveGateway_Amounts"/>
+    
+    <!-- Main connection -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToClarify" name="" sourceRef="StartEvent_01" targetRef="Task_ClariyShipper"/>
+
+    <!-- Parallel Split for Packaging and Admin Tasks -->
+    <bpmn:parallelGateway id="ParallelSplitAdminPackaging">
+      <bpmn:incoming>SequenceFlow_SplitToPackagingAndLabeling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToWriteLabel</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToPackageGoods</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow from Admin Prep to Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_SplitToPackagingAndLabeling" sourceRef="InclusiveGateway_AdminPrep" targetRef="ParallelSplitAdminPackaging"/>
+
+    <!-- Task Write Label (Secretary) -->
+    <bpmn:task id="Task_WriteLabel" name="Write package label">
+      <bpmn:incoming>SequenceFlow_ToWriteLabel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LabelToInsuranceCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Write Label -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToWriteLabel" sourceRef="ParallelSplitAdminPackaging" targetRef="Task_WriteLabel"/>
+
+    <!-- Gateway Insurance Check (Exclusive) -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_InsuranceCheck">
+      <bpmn:incoming>SequenceFlow_LabelToInsuranceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ArrangeInsuranceYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SkipInsuranceNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow to Insurance Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_LabelToInsuranceCheck" sourceRef="Task_WriteLabel" targetRef="InclusiveGateway_InsuranceCheck"/>
+
+    <!-- Task Arrange Insurance (Logistics Manager) -->
+    <bpmn:task id="Task_ArrangeInsurance" name="Take parcel insurance">
+      <bpmn:incoming>SequenceFlow_ArrangeInsuranceYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsuranceToMergeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Arrange Insurance -->
+    <bpmn:sequenceFlow id="SequenceFlow_ArrangeInsuranceYes" name="if necessary?" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="Task_ArrangeInsurance"/>
+
+    <!-- Skip Insurance Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipInsuranceNo" name="" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="ParallelMergeEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[insuranceNotNeeded]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Task Package Goods (Warehousemen) -->
+    <bpmn:task id="Task_PackageGoods" name="Package goods">
+      <bpmn:incoming>SequenceFlow_ToPackageGoods</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackToMergeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Package Goods -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToPackageGoods" sourceRef="ParallelSplitAdminPackaging" targetRef="Task_PackageGoods"/>
+
+    <!-- Merge End Gateway (All paths converge) -->
+    <bpmn:exclusiveGateway id="ParallelMergeEnd">
+      <bpmn:incoming>SequenceFlow_InsuranceToMergeEnd</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_SkipInsuranceNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PackToMergeEnd</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Insurance Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsuranceToMergeEnd" sourceRef="Task_ArrangeInsurance" targetRef="ParallelMergeEnd"/>
+
+    <!-- Merge Pack and Admin Tasks to End Prep -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_EndPrep">
+      <bpmn:incoming>SequenceFlow_PackToMergeEnd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToPreparePickup</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Pack to Merge End -->
+    <bpmn:sequenceFlow id="SequenceFlow_PackToMergeEnd" sourceRef="Task_PackageGoods" targetRef="ParallelMergeEnd"/>
+
+    <!-- Task Prepare for Pickup (Secretary/General) -->
+    <bpmn:task id="Task_PreparePickup" name="Prepare goods for pickup">
+      <bpmn:incoming>SequenceFlow_ToPreparePickup</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndToReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Prepare Pickup -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToPreparePickup" sourceRef="ParallelMergeEnd" targetRef="Task_PreparePickup"/>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_01" name="Ready for pickup">
+      <bpmn:incoming>SequenceFlow_EndToReady</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndToReady" sourceRef="Task_PreparePickup" targetRef="EndEvent_01"/>
+
+  </bpmn:process>
+</bpmn:definitions>

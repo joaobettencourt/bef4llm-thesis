@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1aeg7k3">
+    <bpmn:participant id="Participant_1regress" name="Regressabwicklung Prozess" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RegressNotification" name="Regressmeldung erhalten">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if regression possible -->
+    <bpmn:userTask id="Task_CheckPossibility" name="Fall prüfen - Regress möglich?">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: Possibility exists -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Possibility" name="Regress möglich?">
+      <bpmn:incoming>SequenceFlow_CheckGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesPossibility</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPossibility</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send payment demand -->
+    <bpmn:userTask id="Task_SendDemand" name="Zahlungsaufforderung senden">
+      <bpmn:incoming>SequenceFlow_YesPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetFollowUp</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Set on follow-up review -->
+    <bpmn:userTask id="Task_SetFollowUp" name="Vorgang auf Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_SetFollowUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForMoneyOrDeadline</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catching Event for Money Received -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchMoney" name="Geld eingegangen">
+      <bpmn:incoming>SequenceFlow_WaitForMoneyOrDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookReceipt</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Intermediate Catching Event for Objection -->
+    <bpmn:intermediateCatchEvent id="Intermediate_CatchObjection" name="Widerspruch vom VN">
+      <bpmn:incoming>SequenceFlow_WaitForMoneyOrDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckJustified</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Book receipt -->
+    <bpmn:userTask id="Task_BookReceipt" name="Eingang verbuchen">
+      <bpmn:incoming>SequenceFlow_BookReceipt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseMoney</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Objection justified -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Justified" name="Widerspruch gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_CheckJustified</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JustifiedYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_JustifiedNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Hand to collection agency -->
+    <bpmn:userTask id="Task_HandToCollection" name="An Inkasso-Dienstleister abgeben">
+      <bpmn:incoming>SequenceFlow_JustifiedNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseInkasso</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_NoPossibility" name="Vorgang geschlossen (kein Regress)">
+      <bpmn:incoming>SequenceFlow_CloseCaseNoReg</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_MoneyReceived" name="Vorgang geschlossen (Geld eingegangen)">
+      <bpmn:incoming>SequenceFlow_CloseCaseMoney</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_JustifiedObjection" name="Vorgang geschlossen (Widerspruch gerechtfertigt)">
+      <bpmn:incoming>SequenceFlow_CloseCaseJustified</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_RegressNotification" targetRef="Task_CheckPossibility"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckGateway" name="Prüfung abgeschlossen" sourceRef="Task_CheckPossibility" targetRef="ExclusiveGateway_Possibility"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesPossibility" name="ja, möglich" sourceRef="ExclusiveGateway_Possibility" targetRef="Task_SendDemand"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoPossibility" name="nein, nicht möglich" sourceRef="ExclusiveGateway_Possibility" targetRef="EndEvent_NoPossibility"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SetFollowUp" sourceRef="Task_SendDemand" targetRef="Task_SetFollowUp"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForMoneyOrDeadline" name="Warten auf Zahlung oder Fristablauf" sourceRef="Task_SetFollowUp" targetRef="Intermediate_CatchMoney"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BookReceipt" sourceRef="Intermediate_CatchMoney" targetRef="Task_BookReceipt"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseMoney" name="Vorgang schließen" sourceRef="Task_BookReceipt" targetRef="EndEvent_MoneyReceived"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckJustified" sourceRef="Intermediate_CatchObjection" targetRef="ExclusiveGateway_Justified"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_JustifiedYes" name="ja, gerechtfertigt" sourceRef="ExclusiveGateway_Justified" targetRef="EndEvent_JustifiedObjection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseNoReg" name="Vorgang schließen (kein Regress)" sourceRef="Task_CheckPossibility" targetRef="EndEvent_NoPossibility"/>
+
+  </bpmn:process>
+</bpmn:definitions>

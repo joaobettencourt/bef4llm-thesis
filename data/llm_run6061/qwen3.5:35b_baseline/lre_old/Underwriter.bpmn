@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_IPO_Process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_MainProcess" name="IPO Process Execution" processRef="Process_IPO"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_IPO" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DecisionGoPublic" name="Decision to Go Public">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Select Underwriters -->
+    <bpmn:task id="Task_SelectUnderwriters" name="Select Underwriters">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Reputation Check -->
+    <bpmn:exclusiveGateway id="Gate_ReputationCheck" name="Facts Presented Fairly?">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>SequenceFlow_Reject</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Split for SEC and Compliance/Roadshow -->
+    <bpmn:parallelGateway id="Gate_Split" name="Split Activities">
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SECPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CompliancePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: SEC Registration -->
+    <bpmn:task id="Task_PrepareRegStmt" name="Prepare Registration Statement">
+      <bpmn:incoming>SequenceFlow_SECPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSECEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event: SEC Clearance -->
+    <bpmn:intermediateCatchEvent id="Event_SECClearance" name="Receive SEC Clearance">
+      <bpmn:incoming>SequenceFlow_ToSECEvent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SECReadyToMerge</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Path 2: Compliance & Roadshow -->
+    <bpmn:task id="Task_CheckBlueSky" name="Check Blue-Sky Laws">
+      <bpmn:incoming>SequenceFlow_CompliancePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRoadShow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ArrangeRoadshow" name="Arrange Road Show">
+      <bpmn:incoming>SequenceFlow_ToRoadShow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RoadshowDoneToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway -->
+    <bpmn:parallelGateway id="Gate_Merge" name="Wait for All">
+      <bpmn:incoming>SequenceFlow_SECReadyToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_RoadshowDoneToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FixPrice</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Tasks -->
+    <bpmn:task id="Task_FixIssuePrice" name="Fix Issue Price">
+      <bpmn:incoming>SequenceFlow_FixPrice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Commitment</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterCommitment" name="Enter Firm Commitment">
+      <bpmn:incoming>SequenceFlow_Commitment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gate_FinalDecision" name="Reason Not To Offer?">
+      <bpmn:incoming>SequenceFlow_FinalCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OfferPublic</bpmn:outgoing> <!-- No Reason -->
+      <bpmn:outgoing>SequenceFlow_CancelOffer</bpmn:outgoing> <!-- Yes Reason -->
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Success" name="IPO Completed">
+      <bpmn:incoming>SequenceFlow_OfferPublic</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Cancelled" name="Offer Cancelled">
+      <bpmn:incoming>SequenceFlow_CancelOffer</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_DecisionGoPublic" targetRef="Task_SelectUnderwriters"/>
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Select Underwriters" sourceRef="Task_SelectUnderwriters" targetRef="Gate_ReputationCheck"/>
+    
+    <!-- Reputation Check Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_3" name="Yes, Proceed" sourceRef="Gate_ReputationCheck" targetRef="Gate_Split"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Reject" name="No Facts Fairly Presented" sourceRef="Gate_ReputationCheck" targetRef="End_Cancelled">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Branches -->
+    <bpmn:sequenceFlow id="SequenceFlow_SECPath" name="SEC Registration Path" sourceRef="Gate_Split" targetRef="Task_PrepareRegStmt"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CompliancePath" name="Compliance &amp; Roadshow Path" sourceRef="Gate_Split" targetRef="Task_CheckBlueSky"/>
+
+    <!-- SEC Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSECEvent" sourceRef="Task_PrepareRegStmt" targetRef="Event_SECClearance"/>
+    
+    <!-- Compliance/Roadshow Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRoadShow" name="Check Blue Sky Laws" sourceRef="Task_CheckBlueSky" targetRef="Task_ArrangeRoadshow"/>
+
+    <!-- Merge Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SECReadyToMerge" sourceRef="Event_SECClearance" targetRef="Gate_Merge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RoadshowDoneToMerge" name="Road Show Completed" sourceRef="Task_ArrangeRoadshow" targetRef="Gate_Merge"/>
+
+    <!-- Final Process Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FixPrice" sourceRef="Gate_Merge" targetRef="Task_FixIssuePrice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Commitment" name="Fix Price &amp; Commit" sourceRef="Task_FixIssuePrice" targetRef="Task_EnterCommitment"/>
+    
+    <!-- Final Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalCheck" sourceRef="Task_EnterCommitment" targetRef="Gate_FinalDecision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_OfferPublic" name="No Reason Not To Offer" sourceRef="Gate_FinalDecision" targetRef="End_Success">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_CancelOffer" name="Reason Exists" sourceRef="Gate_FinalDecision" targetRef="End_Cancelled">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

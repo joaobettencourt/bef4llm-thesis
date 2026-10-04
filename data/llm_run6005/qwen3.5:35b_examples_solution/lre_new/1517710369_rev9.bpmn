@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_3k9m7xq" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_2h8v6np">
+    <bpmn:participant id="Participant_User" name="User"/>
+    <bpmn:participant id="Participant_System" name="Payment System"/>
+    <bpmn:messageFlow id="MessageFlow_VerifyCC" sourceRef="IntermediateThrowEvent_VerifyRequest" targetRef="Participant_CCAuthority">
+      <bpmn:name>Verify Credit Card Request</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AddCreditCard">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_UserActions" name="User Actions">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ModifyAddress</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClickContinue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SystemProcessing" name="System Processing">
+        <bpmn:flowNodeRef>IntermediateThrowEvent_VerifyRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAddressCorrectness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_AddressCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_VerificationResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckVerificationResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CardValidation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddToAccount</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ExternalAuthority" name="Credit Card Authority">
+        <bpmn:participant ref="Participant_CCAuthority"/>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Credit Card Payment Selected">
+      <bpmn:outgoing>SequenceFlow_StartToDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Enter Credit Card Details -->
+    <bpmn:task id="Task_EnterDetails" name="Enter credit card details">
+      <bpmn:incoming>SequenceFlow_StartToDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DetailsToAddressCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Check Billing Address Correctness -->
+    <bpmn:task id="Task_CheckAddressCorrectness" name="Check billing address is correct">
+      <bpmn:incoming>SequenceFlow_DetailsToAddressCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressCheckGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Address Correctness Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AddressCheck" name="Billing address correct?">
+      <bpmn:incoming>SequenceFlow_AddressCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ModifyAddressLoopback</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ContinueToClickButton</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Modify Billing Address (loopback) -->
+    <bpmn:task id="Task_ModifyAddress" name="Modify billing address">
+      <bpmn:incoming>SequenceFlow_ModifyAddressLoopback</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueToClickButton</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Click Continue Button -->
+    <bpmn:task id="Task_ClickContinue" name="Click continue button">
+      <bpmn:incoming>SequenceFlow_ContinueToClickButton</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerifyCreditCardRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event: Send Verification Request -->
+    <bpmn:message id="Message_VerifyCC" name="Verify Credit Card"/>
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_VerifyRequest" name="Verify Credit Card with Authority">
+      <bpmn:incoming>SequenceFlow_VerifyCreditCardRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForVerificationResult</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_VerifyCC"/>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event: Receive Verification Result -->
+    <bpmn:message id="Message_CCResponse" name="Credit Card Response"/>
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_VerificationResult" name="Verification result received">
+      <bpmn:incoming>SequenceFlow_WaitForVerificationResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResponseTask</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_CCResponse"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Check Verification Response -->
+    <bpmn:task id="Task_CheckVerificationResponse" name="Check Credit Card Authority response">
+      <bpmn:incoming>SequenceFlow_CheckResponseTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CardValidationGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Card Validation Result -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CardValidation" name="Credit card validated?">
+      <bpmn:incoming>SequenceFlow_CardValidationGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddToAccountSuccess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelAdditionFailure</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Add to Account (success path) -->
+    <bpmn:task id="Task_AddToAccount" name="Add credit card to account">
+      <bpmn:incoming>SequenceFlow_AddToAccountSuccess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Success -->
+    <bpmn:endEvent id="EndEvent_Success" name="Credit card added to account">
+      <bpmn:incoming>SequenceFlow_SuccessEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event: Failure -->
+    <bpmn:endEvent id="EndEvent_Failure" name="Addition of credit card cancelled">
+      <bpmn:incoming>SequenceFlow_CancelAdditionFailure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToDetails" sourceRef="StartEvent_1" targetRef="Task_EnterDetails"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DetailsToAddressCheck" sourceRef="Task_EnterDetails" targetRef="Task_CheckAddressCorrectness"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AddressCheckGateway" sourceRef="Task_CheckAddressCorrectness" targetRef="ExclusiveGateway_AddressCheck"/>
+
+    <!-- Address Check Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ModifyAddressLoopback" name="No - incorrect address" sourceRef="ExclusiveGateway_AddressCheck" targetRef="Task_ModifyAddress">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Address Check Gateway Correct Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueToClickButton" name="Yes - correct address" sourceRef="ExclusiveGateway_AddressCheck" targetRef="Task_ClickContinue">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Continue Button to Verification Request -->
+    <bpmn:sequenceFlow id="SequenceFlow_VerifyCreditCardRequest" sourceRef="Task_ClickContinue" targetRef="IntermediateThrowEvent_VerifyRequest"/>
+
+    <!-- Wait for External Response (internal flow) -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForVerificationResult" sourceRef="IntermediateThrowEvent_VerifyRequest" targetRef="IntermediateCatchEvent_VerificationResult"/>
+
+    <!-- Check Verification Result Task Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResponseTask" sourceRef="IntermediateCatchEvent_VerificationResult" targetRef="Task_CheckVerificationResponse"/>
+
+    <!-- Card Validation Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddToAccountSuccess" name="Yes - validated" sourceRef="ExclusiveGateway_CardValidation" targetRef="Task_AddToAccount">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Card Validation Failure Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CancelAdditionFailure" name="No - invalid card" sourceRef="ExclusiveGateway_CardValidation" targetRef="EndEvent_Failure">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Success End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessEndEvent" sourceRef="Task_AddToAccount" targetRef="EndEvent_Success"/>
+
+  </bpmn:process>
+</bpmn:definitions>

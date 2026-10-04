@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_DIYRepair_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collaboration_DIYRepair">
+    <participant id="Participant_DiyTool" name="DIY Smartphone Repair Tool" processRef="Process_DIYRepair"/>
+  </collaboration>
+
+  <process id="Process_DIYRepair" isExecutable="false">
+    <laneSet>
+      <lane id="Lane_User" name="User">
+        <flowNodeRef>StartEvent_EnterModel</flowNodeRef>
+        <flowNodeRef>UserTask_ContactFriends</flowNodeRef>
+        <flowNodeRef>Gateway_RepairSuccess</flowNodeRef>
+        <flowNodeRef>UserTask_SendReview</flowNodeRef>
+        <flowNodeRef>UserTask_SendToExpert</flowNodeRef>
+      </lane>
+      <lane id="Lane_System" name="Repair Tool System">
+        <flowNodeRef>SystemTask_GetMaterialsList</flowNodeRef>
+        <flowNodeRef>SystemTask_GetToolsList</flowNodeRef>
+        <flowNodeRef>Gateway_OrderingChoices</flowNodeRef>
+        <flowNodeRef>SystemTask_PurchaseParts</flowNodeRef>
+        <flowNodeRef>UserTask_ReceiveInstructions</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_EnterModel" name="Enter smartphone model and damage">
+      <bpmn:outgoing>SequenceFlow_GetMaterialsList</bpmn:outgoing>
+    </startEvent>
+
+    <!-- System Task 1: Get Materials List -->
+    <task id="SystemTask_GetMaterialsList" name="Get list of materials needed">
+      <incoming>SequenceFlow_GetMaterialsList</incoming>
+      <outgoing>SequenceFlow_GetToolsList</outgoing>
+    </task>
+
+    <!-- System Task 2: Get Tools List -->
+    <task id="SystemTask_GetToolsList" name="Get list of tools required">
+      <incoming>SequenceFlow_GetMaterialsList</incoming>
+      <outgoing>SequenceFlow_OrderingChoices</outgoing>
+    </task>
+
+    <!-- Gateway: Ordering Choices Decision -->
+    <exclusiveGateway id="Gateway_OrderingChoices" name="Order parts?">
+      <bpmn:incoming>SequenceFlow_OrderingChoices</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContactFriends</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PurchasePartsDirect</bpmn:outgoing>
+    </exclusiveGateway>
+
+    <!-- User Task 1: Contact Friends -->
+    <task id="UserTask_ContactFriends" name="Contact friends for borrowing/buying">
+      <incoming>SequenceFlow_ContactFriends</incoming>
+      <outgoing>SequenceFlow_MergeOrderingChoices</outgoing>
+    </task>
+
+    <!-- System Task 3: Purchase Parts -->
+    <task id="SystemTask_PurchaseParts" name="Purchase remaining parts online">
+      <bpmn:incoming>SequenceFlow_OrderingChoicesDirect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveInstructions</bpmn:outgoing>
+    </task>
+
+    <!-- User Task 4: Receive Instructions -->
+    <userTask id="UserTask_ReceiveInstructions" name="Receive repair instructions">
+      <incoming>SequenceFlow_PurchasePartsMerge</incoming>
+      <outgoing>SequenceFlow_RepairPhone</outgoing>
+    </userTask>
+
+    <!-- User Task 5: Repair Phone -->
+    <manualTask id="ManualTask_Repair" name="Repair smartphone screen">
+      <bpmn:incoming>SequenceFlow_RepairPhone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckSuccess</bpmn:outgoing>
+    </manualTask>
+
+    <!-- Gateway: Repair Success Decision -->
+    <exclusiveGateway id="Gateway_RepairSuccess" name="Repair successful?">
+      <bpmn:incoming>SequenceFlow_CheckSuccess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendReview</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendToExpert</bpmn:outgoing>
+    </exclusiveGateway>
+
+    <!-- User Task 6: Send Review/Video -->
+    <task id="UserTask_SendReview" name="Send review and/or video">
+      <incoming>SequenceFlow_SendReview</incoming>
+      <outgoing>SequenceFlow_EndSuccess</bpmn:outgoing>
+    </task>
+
+    <!-- End Event: Success -->
+    <endEvent id="EndEvent_Success" name="Repair complete with feedback">
+      <bpmn:incoming>SequenceFlow_EndSuccess</bpmn:incoming>
+    </endEvent>
+
+    <!-- User Task 7: Send to Expert (if failed) -->
+    <task id="UserTask_SendToExpert" name="Send phone to expert for repair">
+      <incoming>SequenceFlow_SendToExpert</incoming>
+      <outgoing>SequenceFlow_EndFailed</bpmn:outgoing>
+    </task>
+
+    <!-- End Event: Failed but sent to expert -->
+    <endEvent id="EndEvent_Expert" name="Sent to professional repair">
+      <bpmn:incoming>SequenceFlow_EndFailed</bpmn:incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_GetMaterialsList" sourceRef="StartEvent_EnterModel" targetRef="SystemTask_GetMaterialsList"/>
+    <sequenceFlow id="SequenceFlow_GetToolsList" sourceRef="SystemTask_GetMaterialsList" targetRef="SystemTask_GetToolsList"/>
+    <sequenceFlow id="SequenceFlow_OrderingChoices" name="Order parts?" sourceRef="SystemTask_GetToolsList" targetRef="Gateway_OrderingChoices"/>
+
+    <!-- Ordering Choices Branches -->
+    <sequenceFlow id="SequenceFlow_ContactFriends" name="Yes - contact friends" sourceRef="Gateway_OrderingChoices" targetRef="UserTask_ContactFriends"/>
+    <sequenceFlow id="SequenceFlow_PurchasePartsDirect" name="No / Purchase remaining" sourceRef="Gateway_OrderingChoices" targetRef="SystemTask_PurchaseParts"/>
+
+    <!-- Merge after ordering choices -->
+    <exclusiveGateway id="Gateway_MergeOrdering" gatewayDirection="Converging">
+      <bpmn:incoming>SequenceFlow_ContactFriends</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PurchasePartsMerge</bpmn:outgoing>
+    </exclusiveGateway>
+
+    <!-- Continue to instructions -->
+    <sequenceFlow id="SequenceFlow_PurchasePartsDirect" sourceRef="SystemTask_GetToolsList" targetRef="UserTask_ReceiveInstructions"/>
+    
+    <!-- Repair flow continues -->
+    <sequenceFlow id="SequenceFlow_RepairPhone" name="" sourceRef="Gateway_OrderingChoices" targetRef="ManualTask_Repair"/>
+
+    <!-- Success/Failure Decision -->
+    <sequenceFlow id="SequenceFlow_CheckSuccess" sourceRef="ManualTask_Repair" targetRef="Gateway_RepairSuccess"/>
+
+    <!-- Final branches based on success -->
+    <sequenceFlow id="SequenceFlow_SendReview" name="Yes - successful repair" sourceRef="Gateway_RepairSuccess" targetRef="UserTask_SendReview"/>
+    <sequenceFlow id="SequenceFlow_SendToExpert" name="No - needs expert help" sourceRef="Gateway_RepairSuccess" targetRef="UserTask_SendToExpert"/>
+
+  </process>
+</bpmn:definitions>

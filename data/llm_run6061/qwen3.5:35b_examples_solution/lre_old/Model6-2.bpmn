@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderProcess">
+    <bpmn:participant id="Participant_AssemblerAG" name="Assembler AG" processRef="Process_AssemblerAG"/>
+    <bpmn:participant id="Participant_Supplier" name="Supplier" processRef="Process_Supplier"/>
+    
+    <!-- Message Flow 1: Assembler sends order to Supplier -->
+    <bpmn:messageFlow id="MessageFlow_OrderRequest" sourceRef="Task_PlaceOrder" targetRef="StartEvent_ReceiveOrder">
+      <bpmn:sourceRef>Task_PlaceOrder</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_ReceiveOrder</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow 2: Supplier sends invoice back to Assembler -->
+    <bpmn:messageFlow id="MessageFlow_InvoiceResponse" sourceRef="Task_SendInvoice" targetRef="IntermediateCatch_ReceiptInvoice">
+      <bpmn:sourceRef>Task_SendInvoice</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateCatch_ReceiptInvoice</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Process for Assembler AG -->
+  <bpmn:process id="Process_AssemblerAG" isExecutable="false">
+    
+    <!-- Start Event (Periodic Timer) -->
+    <bpmn:startEvent id="StartEvent_TimerMonthly" name="First of Month Trigger">
+      <bpmn:outgoing>SequenceFlow_StartToOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Place Order (Sends Message) -->
+    <bpmn:task id="Task_PlaceOrder" name="Place Order with Supplier">
+      <bpmn:incoming>SequenceFlow_StartToOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderToCatchInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event (Receives Invoice) -->
+    <bpmn:startEvent id="IntermediateCatch_ReceiptInvoice" name="Receive Invoice">
+      <bpmn:incoming>SequenceFlow_OrderToCatchInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CatchToEnd</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Fulfilled" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_CatchToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows within Assembler AG Pool -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToOrder" sourceRef="StartEvent_TimerMonthly" targetRef="Task_PlaceOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_OrderToCatchInvoice" name="Awaiting Invoice" sourceRef="Task_PlaceOrder" targetRef="IntermediateCatch_ReceiptInvoice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CatchToEnd" sourceRef="IntermediateCatch_ReceiptInvoice" targetRef="EndEvent_Fulfilled"/>
+
+  </bpmn:process>
+
+  <!-- Process for Supplier -->
+  <bpmn:process id="Process_Supplier" isExecutable="false">
+    
+    <!-- Start Event (Triggered by Message) -->
+    <bpmn:startEvent id="StartEvent_ReceiveOrder" name="Receive Order Request">
+      <bpmn:incoming>SequenceFlow_StartToProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Process Order -->
+    <bpmn:task id="Task_ProcessOrder" name="Process Product Parts">
+      <bpmn:incoming>SequenceFlow_StartToProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Invoice -->
+    <bpmn:task id="Task_SendInvoice" name="Send Invoice to Assembler">
+      <bpmn:incoming>SequenceFlow_ProcessOrderToInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndSupplierProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SupplierDone" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_SendInvoiceToTask</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows within Supplier Pool -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToProcess" sourceRef="StartEvent_ReceiveOrder" targetRef="Task_ProcessOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessOrderToInvoice" name="Processing Complete" sourceRef="Task_ProcessOrder" targetRef="Task_SendInvoice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndSupplierProcess" sourceRef="Task_SendInvoice" targetRef="EndEvent_SupplierDone"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

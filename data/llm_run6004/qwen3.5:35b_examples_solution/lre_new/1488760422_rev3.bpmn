@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_InvProcess_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Invoice_Processing">
+    <bpmn:participant id="Participant_SSP_AdminOffice" name="Admin Office (SSP)" processRef="Proc_Invoice_01" />
+    <bpmn:participant id="Participant_Client" name="Client" />
+    
+    <!-- Message Flows for Client Interaction -->
+    <bpmn:messageFlow id="Msg_Flow_Reminder_Request" sourceRef="Task_SendReminder" targetRef="Participant_Client" />
+    <bpmn:messageFlow id="Msg_Flow_InformationComplete" sourceRef="Participant_Client" targetRef="Event_CatchInfoReceived" name="Client complete the invoice / Information provided" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Invoice_01" isExecutable="false">
+    <!-- Lane Set for Organization -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_AdminOffice" name="Admin Office">
+        <bpmn:flowNodeRef>StartEvent_Receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortClient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AttachForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CompletenessCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_NotComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterSLAInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CheckPriority</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApplyRedStamp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_PriorityMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckCompliance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ComplianceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ExceptionAction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessNonCompliant</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallClient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPostalMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Timer10Hours</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_MergeBeforeAllocation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AllocateDEO</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Receipt" name="Receive Invoice">
+       <bpmn:messageEventDefinition />
+       <bpmn:outgoing>SF_StartToSortClient</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Initial Processing Tasks -->
+    <bpmn:task id="Task_SortClient" name="Sort Invoice per Client">
+      <bpmn:incoming>SF_StartToSortClient</bpmn:incoming>
+      <bpmn:outgoing>SF_ClientToVendor</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SortVendor" name="Sort Invoice per Vendor">
+       <bpmn:incoming>SF_ClientToVendor</bpmn:incoming>
+       <bpmn:outgoing>SF_VendorAttachForm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Entry Form Tasks -->
+    <bpmn:task id="Task_AttachForm" name="Attach Invoice Entry Form">
+       <bpmn:incoming>SF_VendorAttachForm</bpmn:incoming>
+       <bpmn:outgoing>SF_EnterInfoStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterInfo" name="Enter Required Info on Form">
+       <bpmn:incoming>SF_VendorAttachForm</bpmn:incoming> 
+       <bpmn:outgoing>SF_CheckCompletenessStart</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Check Completeness -->
+    <bpmn:task id="Task_CompletenessCheck" name="Check Completeness of Invoice">
+       <bpmn:incoming>SF_EnterInfoStart</bpmn:incoming> 
+       <bpmn:outgoing>SF_GW_CompleteCheck</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 1: Completeness Check -->
+    <bpmn:exclusiveGateway id="GW_CompletenessCheck" name="Invoice Complete?">
+       <bpmn:incoming>SF_GW_CompleteCheck</bpmn:incoming>
+       <bpmn:outgoing>SF_NotComplete_End</bpmn:outgoing>
+       <bpmn:outgoing>SF_YesProceedSLA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- End Event for Not Complete -->
+    <bpmn:endEvent id="EndEvent_NotComplete" name="Process Finished">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>SF_NotComplete_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Gateway 2: Priority Check (After SLA Info) -->
+    <bpmn:task id="Task_EnterSLAInfo" name="Enter SLA Info &amp; Check Priority">
+       <bpmn:incoming>SF_YesProceedSLA</bpmn:incoming>
+       <bpmn:outgoing>SF_GW_PriorityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="GW_CheckPriority" name="High Priority?">

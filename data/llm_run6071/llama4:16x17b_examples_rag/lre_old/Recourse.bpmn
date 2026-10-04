@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collaboration_1">
+    <participant id="Participant_0" name="Subrogation Handling" processRef="Pool_0"/>
+  </collaboration>
+  <process id="Pool_0" isExecutable="false">
+    <laneSet>
+      <lane id="Lane_0" name="Handler">
+        <flowNodeRef>StartNoneEvent_0</flowNodeRef>
+        <flowNodeRef>Task_GetInfo</flowNodeRef>
+        <flowNodeRef>ExclusiveGateway_SubrogationPossible</flowNodeRef>
+        <flowNodeRef>Task_SendRequest</flowNodeRef>
+        <flowNodeRef>Task_CreateReminder</flowNodeRef>
+        <flowNodeRef>Task_CloseCase</flowNodeRef>
+        <flowNodeRef>ExclusiveGateway_Disagreement</flowNodeRef>
+        <flowNodeRef>Task_CheckDisagreement</flowNodeRef>
+        <flowNodeRef>ExclusiveGateway_ForwardCollection</flowNodeRef>
+        <flowNodeRef>EndNoneEvent_0</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Sequence Flows  -->
+    <sequenceFlow id="SequenceFlow_GetInfo" sourceRef="StartNoneEvent_0" targetRef="Task_GetInfo"/>
+    <sequenceFlow id="SequenceFlow_SubrogationPossible" sourceRef="Task_GetInfo" targetRef="ExclusiveGateway_SubrogationPossible"/>
+    <sequenceFlow id="SequenceFlow_SendRequest" sourceRef="ExclusiveGateway_SubrogationPossibleYes" targetRef="Task_SendRequest"/>
+    <sequenceFlow id="SequenceFlow_CreateReminder" sourceRef="Task_SendRequest" targetRef="Task_CreateReminder"/>
+    <sequenceFlow id="SequenceFlow_CloseCaseAfterPayment" sourceRef="Task_MakeBooking" targetRef="Task_CloseCase"/>
+    <sequenceFlow id="SequenceFlow_CheckDisagreement" sourceRef="ExclusiveGateway_Disagreement" targetRef="Task_CheckDisagreement"/>
+    <sequenceFlow id="SequenceFlow_ForwardCollectionYes" sourceRef="Task_CheckDisagreement" targetRef="ExclusiveGateway_ForwardCollection"/>
+    <sequenceFlow id="SequenceFlow_ForwardCollectionNoResponse" sourceRef="TimerEvent_0" targetRef="ExclusiveGateway_ForwardCollection"/>
+
+    <!-- Tasks  -->
+    <task id="Task_GetInfo" name="Get Information about Insurant">
+      <incoming>SequenceFlow_GetInfo</incoming>
+      <outgoing>SequenceFlow_SubrogationPossible</outgoing>
+    </task>
+
+    <task id="Task_SendRequest" name="Send Request for Payment">
+      <incoming>SequenceFlow_SendRequest</incoming>
+      <outgoing>SequenceFlow_CreateReminder</outgoing>
+    </task>
+
+    <task id="Task_CreateReminder" name="Create Reminder">
+      <incoming>SequenceFlow_CreateReminder</incoming>
+      <outgoing>SequenceFlow_CloseCaseAfterPayment</outgoing>
+    </task>
+
+    <task id="Task_MakeBooking" name="Make Booking">
+      <outgoing>SequenceFlow_CloseCaseAfterPayment</outgoing>
+    </task>
+
+    <task id="Task_CheckDisagreement" name="Check Disagreement Reasoning">
+      <incoming>SequenceFlow_CheckDisagreement</incoming>
+      <outgoing>SequenceFlow_ForwardCollectionYes</outgoing>
+    </task>
+
+    <task id="Task_CloseCase" name="Close Case">
+      <incoming>SequenceFlow_CloseCaseAfterPayment</incoming>
+    </task>
+
+    <!-- Gateways  -->
+    <exclusiveGateway id="ExclusiveGateway_SubrogationPossible" name="Is Subrogation Possible?">
+      <incoming>SequenceFlow_SubrogationPossible</incoming>
+      <outgoing>SequenceFlow_SendRequest</outgoing>
+      <outgoing>SequenceFlow_CloseCaseNotPossible</outgoing>
+    </exclusiveGateway>
+
+    <sequenceFlow id="SequenceFlow_CloseCaseNotPossible" sourceRef="ExclusiveGateway_SubrogationPossible" targetRef="Task_CloseCase"/>
+
+    <exclusiveGateway id="ExclusiveGateway_Disagreement" name="Insurant Disagrees?">
+      <incoming>SequenceFlow_CreateReminder</incoming>
+      <outgoing>SequenceFlow_CheckDisagreement</outgoing>
+      <outgoing>SequenceFlow_ForwardCollectionNoResponse</outgoing>
+    </exclusiveGateway>
+
+    <sequenceFlow id="SequenceFlow_ForwardCollectionYes" sourceRef="Task_CheckDisagreement" targetRef="ExclusiveGateway_ForwardCollection"/>
+    <sequenceFlow id="SequenceFlow_ForwardCollectionNoResponse" sourceRef="TimerEvent_0" targetRef="ExclusiveGateway_ForwardCollection"/>
+
+    <exclusiveGateway id="ExclusiveGateway_ForwardCollection">
+      <incoming>SequenceFlow_ForwardCollectionYes</incoming>
+      <incoming>SequenceFlow_ForwardCollectionNoResponse</incoming>
+      <outgoing>SequenceFlow_CloseCaseAfterPayment</outgoing>
+    </exclusiveGateway>
+
+    <!-- Events  -->
+    <startEvent id="StartNoneEvent_0" name="Subrogation Handling">
+      <outgoing>SequenceFlow_GetInfo</outgoing>
+    </startEvent>
+
+    <endEvent id="EndNoneEvent_0" name="Case Closed">
+      <incoming>SequenceFlow_CloseCaseAfterPayment</incoming>
+    </endEvent>
+
+    <intermediateCatchEvent id="TimerEvent_0">
+      <outgoing>SequenceFlow_ForwardCollectionNoResponse</outgoing>
+    </intermediateCatchEvent>
+  </process>
+</definitions>

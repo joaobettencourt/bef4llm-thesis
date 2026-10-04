@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_Reimbursement_01">
+    <bpmn:participant name="ERICS Reimbursement Process" processRef="Process_Reimbursement_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Reimbursement_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent name="Reimbursement Request Received" id="StartEvent_RequestReceived">
+      <bpmn:outgoing>_Flow_CreateContact</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Create Contact -->
+    <bpmn:task name="Create Reimbursement Contact" id="_Task_CreateContact">
+      <bpmn:incoming>_Flow_CreateContact</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ChooseBeneficiary</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Choose Beneficiary -->
+    <bpmn:task name="Choose Beneficiary" id="_Task_ChooseBeneficiary">
+      <bpmn:incoming>_Flow_ChooseBeneficiary</bpmn:incoming>
+      <bpmn:outgoing>_Flow_DetermineDuration</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Determine Duration -->
+    <bpmn:task name="Determine Refund Period Duration" id="_Task_DetermineDuration">
+      <bpmn:incoming>_Flow_DetermineDuration</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CustomerCheckGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Customer Type Check -->
+    <bpmn:exclusiveGateway name="Customer Group?" id="_Gateway_CustomerType">
+      <bpmn:incoming>_Flow_CustomerCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SelectGroupAssociationPath</bpmn:outgoing> <!-- Verband -->
+      <bpmn:outgoing>_Flow_ManualSelectionPath</bpmn:outgoing>   <!-- Normal Subsidiaries -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4a: Select Group Association (Verband) -->
+    <bpmn:task name="Select Customer Group Association" id="_Task_SelectGroupAssociation">
+      <bpmn:incoming>_Flow_SelectGroupAssociationPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_MergeSelectionToThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4b: Manual Selection (Normal) -->
+    <bpmn:task name="Manually Select Customers" id="_Task_ManualSelection">
+      <bpmn:incoming>_Flow_ManualSelectionPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_MergeSelectionToThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Point -->
+    <bpmn:parallelGateway name="Merge Selection Paths" id="_Gateway_MergeSelection">
+      <bpmn:incoming>_Flow_SelectGroupAssociationPath</bpmn:incoming> 
+      <bpmn:incoming>_Flow_ManualSelectionPath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SetThreshold</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 5: Set Threshold -->
+    <bpmn:task name="Set Threshold" id="_Task_SetThreshold">
+      <bpmn:incoming>_Flow_SetThreshold</bpmn:incoming>
+      <bpmn:outgoing>_Flow_WaitRefundPeriodEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event: Wait for Refund Period End -->
+    <bpmn:intermediateCatchEvent name="Wait for Refund Period" id="_Event_RefundPeriodEnd">
+      <bpmn:incoming>_Flow_WaitRefundPeriodEnd</bpmn:incoming>
+      <bpmn:outgoing>_Flow_PrintCreditNotePath</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 6a: Print and Send Credit Note -->
+    <bpmn:task name="Print and Send Credit Note" id="_Task_PrintCreditNote">
+      <bpmn:incoming>_Flow_PrintCreditNotePath</bpmn:incoming>
+      <bpmn:outgoing>_Flow_MergeBeforeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6b: Calculate and Pay Reimbursement -->
+    <bpmn:task name="Calculate and Pay Reimbursement" id="_Task_CalculatePay">
+      <bpmn:incoming>_Flow_PrintCreditNotePath</bpmn:outgoing> 
+      <bpmn:outgoing>_Flow_MergeBeforeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Before End -->
+    <bpmn:parallelGateway name="Merge Final Paths" id="_Gateway_FinalMerge">
+      <bpmn:incoming>_Flow_PrintCreditNotePath</bpmn:incoming> 
+      <bpmn:incoming>_Flow_CalculatePayToEnd</bpmn:incoming>
+      <bpmn:outgoing>_Flow_EndProcess</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Reimbursement Process Completed" id="_End_ProcessCompleted">
+      <bpmn:incoming>_Flow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_RequestReceived" targetRef="_Task_CreateContact" id="_Flow_CreateContact"/>
+    <bpmn:sequenceFlow sourceRef="_Task_CreateContact" targetRef="_Task_ChooseBeneficiary" id="_Flow_ChooseBeneficiary"/>
+    <bpmn:sequenceFlow sourceRef="_Task_ChooseBeneficiary" targetRef="_Task_DetermineDuration" id="_Flow_DetermineDuration"/>
+    <bpmn:sequenceFlow sourceRef="_Task_DetermineDuration" targetRef="_Gateway_CustomerType" id="_Flow_CustomerCheckGateway"/>
+    
+    <!-- Selection Paths -->
+    <bpmn:sequenceFlow name="Verband - Group Association" sourceRef="_Gateway_CustomerType" targetRef="_Task_SelectGroupAssociation" id="_Flow_SelectGroupAssociationPath">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow name="Normal - Manual Selection" sourceRef="_Gateway_CustomerType" targetRef="_Task_ManualSelection" id="_Flow_ManualSelectionPath">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge to Threshold -->
+    <bpmn:sequenceFlow name="Merge Selection Paths" sourceRef="_Gateway_MergeSelection" targetRef="_Task_SetThreshold" id="_Flow_SetThreshold"/>
+    
+    <!-- Wait for Period End -->
+    <bpmn:sequenceFlow sourceRef="_Task_SetThreshold" targetRef="_Event_RefundPeriodEnd" id="_Flow_WaitRefundPeriodEnd">
+      <bpmn:name>Wait</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Parallel Processing -->
+    <bpmn:parallelGateway name="Split for Credit Note and Payment" id="_Gateway_SplitFinal">
+      <bpmn:incoming>_Event_RefundPeriodEnd</bpmn:outgoing> 
+      <bpmn:outgoing>_Flow_PrintCreditNotePath</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_CalculatePayToMerge</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Credit Note Path -->
+    <bpmn:sequenceFlow sourceRef="_Task_PrintCreditNote" targetRef="_Gateway_FinalMerge" id="_Flow_MergeBeforeEnd"/>
+    
+    <!-- Payment Path -->
+    <bpmn:sequenceFlow sourceRef="_Task_CalculatePay" targetRef="_Gateway_FinalMerge" id="_Flow_CalculatePayToMerge">
+      <bpmn:name>Calculate and Pay</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Merge -->
+    <bpmn:parallelGateway name="Final Convergence" id="_Gateway_ConvergeBeforeEnd">
+      <bpmn:incoming>_Flow_MergeBeforeEnd</bpmn:incoming> 
+      <bpmn:outgoing>_Flow_EndProcess</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow sourceRef="_Task_PrintCreditNote" targetRef="_Event_RefundPeriodEnd" id="_Flow_PrintCreditNotePath">
+      <bpmn:name>Credit Note</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

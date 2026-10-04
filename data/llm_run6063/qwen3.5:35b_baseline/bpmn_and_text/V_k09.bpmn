@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_StorageManagement_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Abcde_Fixed">
+    <bpmn:participant name="Storage Management Process" processRef="Process_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_OrderFulfillment">
+    
+    <!-- Lane configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Order Management System">
+        <bpmn:flowNodeRef>StartEvent_ReadOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CheckProductStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_OrderReadyForShipment</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="Warehouse Operations">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckProductStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WithdrawFromWarehouse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_DeliveryDelayCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Procurement">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckProductStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReorderFromWholesaler</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Stock Management">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckProductStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterInStockSystem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_OrderReadyForShipment</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Shipping Operations">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckProductStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_ShipmentPreparation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RequestCourier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackProducts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReadOrder" name="Read Order from System">
+      <bpmn:outgoing>SequenceFlow_CheckProductStock</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- First Decision Gateway - Product Stock Check -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_CheckProductStock" name="Is product in stock?">
+      <bpmn:incoming>SequenceFlow_CheckProductStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WithdrawIfAvailable</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReorderIfNotInStock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Withdraw from warehouse -->
+    <bpmn:task id="Task_WithdrawFromWarehouse" name="Withdraw Product from Warehouse">
+      <bpmn:incoming>SequenceFlow_WithdrawIfAvailable</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterInStockSystem</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Reorder from wholesaler -->
+    <bpmn:task id="Task_ReorderFromWholesaler" name="Reorder Product from Wholesaler">
+      <bpmn:incoming>SequenceFlow_ReorderIfNotInStock</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForArrival</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway - Delivery Delay Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DeliveryDelayCheck" name="Delivery delay &gt; 10 days?">
+      <bpmn:incoming>SequenceFlow_WaitForArrival</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PenaltyRequired</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPenaltyNeeded</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Demand penalty -->
+    <bpmn:task id="Task_DemandDelayPenalty" name="Demand Delivery Delay Penalty from Wholesaler">
+      <bpmn:incoming>SequenceFlow_PenaltyRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterInStockSystem</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Register in stock system -->
+    <bpmn:task id="Task_RegisterInStockSystem" name="Register Product in Stock Management System">
+      <bpmn:incoming>SequenceFlow_WithdrawFromWarehouse</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PenaltyRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckOrderReadyForShipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway - Order Ready for Shipment -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_OrderReadyForShipment" name="Is order ready for shipment?">
+      <bpmn:incoming>SequenceFlow_CheckOrderReadyForShipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestCourierAndPack</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelectNextProduct</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for Shipment Preparation -->
+    <bpmn:parallelGateway id="ParallelGateway_ShipmentPreparation" name="Prepare shipment">
+      <bpmn:incoming>SequenceFlow_RequestCourierAndPack</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestCourierTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackProductsTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task - Request courier -->
+    <bpmn:task id="Task_RequestCourier" name="Request Courier">
+      <bpmn:incoming>SequenceFlow_RequestCourierTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeForShipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Pack products -->
+    <bpmn:task id="Task_PackProducts" name="Pack Products">
+      <bpmn:incoming>SequenceFlow_PackProductsTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeForShipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway for Shipment -->
+    <bpmn:parallelGateway id="ParallelGateway_ShipmentMerge" name="Ship products">
+      <bpmn:incoming>SequenceFlow_MergeForShipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderCompleted" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Attributes only, no child elements) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckProductStock" sourceRef="StartEvent_ReadOrder" targetRef="InclusiveGateway_CheckProductStock"/>    
+    <bpmn:sequenceFlow name="Yes - In Stock" id="SequenceFlow_WithdrawIfAvailable" sourceRef="InclusiveGateway_CheckProductStock" targetRef="Task_WithdrawFromWarehouse"/>
+    <bpmn:sequenceFlow name="No - Not in Stock" id="SequenceFlow_ReorderIfNotInStock" sourceRef="InclusiveGateway_CheckProductStock" targetRef="Task_ReorderFromWholesaler"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForArrival" sourceRef="Task_ReorderFromWholesaler" targetRef="ExclusiveGateway_DeliveryDelayCheck"/>
+    
+    <bpmn:sequenceFlow name="Yes - &gt;10 days delay" id="SequenceFlow_PenaltyRequired" sourceRef="ExclusiveGateway_DeliveryDelayCheck" targetRef="Task_DemandDelayPenalty"/>
+
+    <bpmn:sequenceFlow name="No - Within 10 days" id="SequenceFlow_NoPenaltyNeeded" sourceRef="ExclusiveGateway_DeliveryDelayCheck" targetRef="Task_RegisterInStockSystem"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WithdrawFromWarehouse" sourceRef="Task_WithdrawFromWarehouse" targetRef="Task_RegisterInStockSystem"/>
+
+    <bpmn:sequenceFlow name="Yes - Order Ready" id="SequenceFlow_RequestCourierAndPack" sourceRef="ExclusiveGateway_OrderReadyForShipment" targetRef="ParallelGateway_ShipmentPreparation"/>
+    
+    <bpmn:sequenceFlow name="No - Next Product" id="SequenceFlow_SelectNextProduct" sourceRef="ExclusiveGateway_OrderReadyForShipment" targetRef="InclusiveGateway_CheckProductStock"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RequestCourierTask" sourceRef="ParallelGateway_ShipmentPreparation" targetRef="Task_RequestCourier"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PackProductsTask" sourceRef="ParallelGateway_ShipmentPreparation" targetRef="Task_PackProducts"/>
+
+    <bpmn:sequenceFlow name="Merge for Shipment" id="SequenceFlow_MergeForShipment">
+      <bpmn:source>Task_RequestCourier</bpmn:source> <!-- Note: Standard BPMN 2.0 does not use sourceRef as child element in process definition, but attributes are required -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="ParallelGateway_ShipmentMerge" targetRef="EndEvent_OrderCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CustomBike">
+    <bpmn:participant id="Participant_Company" name="Customized Bicycle Manufacturing Company" processRef="Process_CustomBike"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CustomBike" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sales" name="Sales Department">
+        <bpmn:flowNodeRef>StartEvent_OrderReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_ReviewOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AcceptReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_InformDepartments</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_ShipBicycle</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Storehouse" name="Storehouse">
+        <bpmn:flowNodeRef>Gw_PartLoopStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CheckPartQuantity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AvailabilityCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_ReservePart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_BackOrderPart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MorePartsCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_SelectUncheckedPart</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Engineering" name="Engineering Department">
+        <bpmn:flowNodeRef>Tsk_PrepareAssembling</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_AssemblyStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_AssembleBicycle</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OrderReceived" name="Order Received">
+      <bpmn:outgoing>SFlow_ReviewOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Review Order (Sales) -->
+    <bpmn:task id="Tsk_ReviewOrder" name="Receive and Process Order Details">
+      <bpmn:incoming>SFlow_ReviewOrder</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AcceptRejectDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Accept or Reject (Sales) -->
+    <bpmn:exclusiveGateway id="Gw_AcceptReject" name="Accept Order?">
+      <bpmn:incoming>SFlow_AcceptRejectDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_RejectOrder</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_InformDepartments</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Rejected -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Order Rejected">
+      <bpmn:incoming>SFlow_RejectOrder</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Inform Departments (Sales) -->
+    <bpmn:task id="Tsk_InformDepartments" name="Inform Storehouse and Engineering Department">
+      <bpmn:incoming>SFlow_InformDepartments</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SplitParallel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split (After Inform) -->
+    <bpmn:parallelGateway id="Gw_Partition_Start" name="">
+       <bpmn:incoming>SFlow_SplitParallel</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CheckPartQuantity</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_PrepareAssembling</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Storehouse Lane Flow -->
+    
+    <!-- Task: Check Part Quantity (Storehouse) -->
+    <bpmn:task id="Tsk_CheckPartQuantity" name="Check Required Quantity of Each Item">
+      <bpmn:incoming>SFlow_CheckPartQuantity</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AvailableDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Available in-house? (Storehouse) -->
+    <bpmn:exclusiveGateway id="Gw_AvailabilityCheck" name="Available In-House?">
+      <bpmn:incoming>SFlow_AvailableDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ReservePart</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_BackOrderPart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Reserve Part (Storehouse) -->
+    <bpmn:task id="Tsk_ReservePart" name="Reserve Part">
+      <bpmn:incoming>SFlow_ReservePart</bpmn:incoming>
+      <bpmn:outgoing>SFlow_MorePartsCheckIn1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Back-Order Part (Storehouse) -->
+    <bpmn:task id="Tsk_BackOrderPart" name="Back-order Part">
+      <bpmn:incoming>SFlow_BackOrderPart</bpmn:incoming>
+      <bpmn:outgoing>SFlow_MorePartsCheckIn2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Any part left unchecked? (Storehouse) -->
+    <bpmn:exclusiveGateway id="Gw_MorePartsCheck" name="Any Part Left Unchecked?">
+      <bpmn:incoming>SFlow_MorePartsCheckIn1</bpmn:incoming>
+      <bpmn:incoming>SFlow_MorePartsCheckIn2</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SelectNextPart</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_AssemblyJoinReady</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Task Select Unchecked (Storehouse) - Loop Back Logic -->
+    <bpmn:task id="Tsk_SelectUncheckedPart" name="Select Next Part">
+      <bpmn:incoming>SFlow_SelectNextPart</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CheckNextItem</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Engineering Lane Flow -->
+    
+    <!-- Task: Prepare Assembling (Engineering) -->
+    <bpmn:task id="Tsk_PrepareAssembling" name="Prepare for Assembling">
+      <bpmn:incoming>SFlow_PrepareAssembling</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EngineeringPrepDone</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Parallel Gateway Join (Before Assembly) -->
+      <bpmn:parallelGateway id="Gw_AssemblyStart" name="">
+        <bpmn:incoming>SFlow_StorehouseReady</bpmn:incoming>
+         <bpmn:incoming>SFlow_EngineeringPrepDone</bpmn:incoming>
+       </bpmn:parallelGateway>
+
+    <!-- Task: Assemble Bicycle (Engineering) -->
+     <bpmn:task id="Tsk_AssembleBicycle" name="Assemble Bicycle">
+        <bpmn:incoming>SFlow_StartAssembly</bpmn:incoming>
+         <bpmn:outgoing>SFlow_ShipStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Ship to Customer (Sales) -->
+      <bpmn:task id="Tsk_ShipBicycle" name="Ship Bicycle to Customer">
+        <bpmn:incoming>SFlow_ShipStart</bpmn:incoming>
+         <bpmn:outgoing>SFlow_ProcessFinished</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- End Event -->
+     <bpmn:endEvent id="EndEvent_Finished" name="Process Finished">
+        <bpmn:incoming>SFlow_ProcessFinished</bpmn:incoming>
+       </bpmn:endEvent>
+
+
+    <!-- Sequence Flows -->
+    
+      <!-- Start to Review -->
+      <bpmn:sequenceFlow id="SFlow_ReviewOrder" sourceRef="StartEvent_OrderReceived" targetRef="Tsk_ReviewOrder"/>
+
+      <!-- Review to Decision -->
+      <bpmn:sequenceFlow id="SFlow_AcceptRejectDecision" name="" sourceRef="Tsk_ReviewOrder" targetRef="Gw_AcceptReject"/>
+
+      <!-- Reject Path -->
+       <bpmn:sequenceFlow id="SFlow_RejectOrder" name="No" sourceRef="Gw_AcceptReject" targetRef="EndEvent_Rejected"/>
+
+      <!-- Accept Path to Inform Task (Sales) -> Parallel Split Start in Storehouse Lane? No, usually flow crosses lanes via sequence flow within participant -->
+       <bpmn:sequenceFlow id="SFlow_InformDepartments" name="Yes" sourceRef="Gw_AcceptReject" targetRef="Tsk_InformDepartments"/>
+
+      <!-- Inform to Parallel Split (Storehouse/Eng) -->
+        <bpmn:sequenceFlow id="SFlow_SplitParallel" sourceRef="Tsk_InformDepartments" targetRef="Gw_Partition_Start"/>
+
+       <!-- Storehouse Loop Start Flow -->
+         <bpmn:sequenceFlow id="SFlow_CheckPartQuantity" name="" sourceRef="Gw_Partition_Start" targetRef="Tsk_CheckPartQuantity"/>
+
+        <!-- Check to Decision -->
+          <bpmn:sequenceFlow id="SFlow_AvailableDecision" name="" sourceRef="Tsk_CheckPartQuantity" targetRef="Gw_AvailabilityCheck"/>
+
+         <!-- Available -> Reserve -->
+           <bpmn:sequenceFlow id="SFlow_ReservePart" name="Yes" sourceRef="Gw_AvailabilityCheck" targetRef="Tsk_ReservePart"/>
+
+          <!-- Not Available -> Back Order -->
+            <bpmn:sequenceFlow id="SFlow_BackOrderPart" name="No" sourceRef="Gw_AvailabilityCheck" targetRef="Tsk_BackOrderPart"/>
+
+           <!-- Reserve/Backorder to More Parts Check Gateway (Storehouse) -->
+             <bpmn:sequenceFlow id="SFlow_MorePartsCheckIn1" sourceRef="Tsk_ReservePart" targetRef="Gw_MorePartsCheck"/>
+              <bpmn:sequenceFlow id="SFlow_MorePartsCheckIn2" sourceRef="Tsk_BackOrderPart" targetRef="Gw_MorePartsCheck"/>
+
+             <!-- Loop Decision -->
+               <bpmn:sequenceFlow id="SFlow_SelectNextPart" name="Yes" sourceRef="Gw_MorePartsCheck" targetRef="Tsk_SelectUncheckedPart"/>
+                <bpmn:sequenceFlow id="SFlow_StorehouseReady" name="No" sourceRef="Gw_MorePartsCheck" targetRef="Gw_AssemblyStart"/>
+
+              <!-- Loop Back to Check Quantity -->
+               <bpmn:sequenceFlow id="SFlow_CheckNextItem" sourceRef="Tsk_SelectUncheckedPart" targetRef="Tsk_CheckPartQuantity"/>
+
+
+             <!-- Engineering Prepare Flow (Parallel Split to Task) -->
+               <bpmn:sequenceFlow id="SFlow_PrepareAssembling" name="" sourceRef="Gw_Partition_Start" targetRef="Tsk_PrepareAssembling"/>
+
+            <!-- Join Logic for Assembly Start -->
+              <bpmn:parallelGateway id="GW_Parallel_2">
+                <bpmn:incoming>SFlow_StorehouseReady</bpmn:incoming>
+                 <bpmn:incoming>SFlow_EngineeringPrepDone</bpmn:incoming>
+               </bpmn:parallelGateway>
+
+             <!-- Assembly Task Flow -->
+               <bpmn:sequenceFlow id="SFlow_StartAssembly" sourceRef="Gw_AssemblyStart" targetRef="Tsk_AssembleBicycle"/>
+
+            <!-- Ship to Customer (Sales) -->
+              <bpmn:sequenceFlow id="SFlow_ShipStart" name="" sourceRef="Tsk_AssembleBicycle" targetRef="Tsk_ShipBicycle"/>
+
+             <!-- Process Finished End Flow -->
+               <bpmn:sequenceFlow id="SFlow_ProcessFinished" sourceRef="Tsk_ShipBicycle" targetRef="EndEvent_Finished"/>
+
+
+    </bpmn:process>
+</bpmn:definitions>

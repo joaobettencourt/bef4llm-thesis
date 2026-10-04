@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_RecourseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RecourseProc">
+    <bpmn:participant id="Participant_ClerkDepartment" name="Insurance Recourse Management" processRef="Process_Recourse"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Recourse" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Clerk" name="Clerk">
+        <bpmn:flowNodeRef>StartEvent_PotentialSubrogation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetInformationAboutPotentialSubrogation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CheckPossibilityOfRecourse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPaymentRequestAndSetReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_WaitForResponse</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Finance" name="Finance">
+        <bpmn:flowNodeRef>InclusiveGateway_CheckDisagreementReasoning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CloseCaseRight</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Collection" name="Collection">
+        <bpmn:flowNodeRef>Task_ForwardToCollectionAgency</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_PotentialSubrogation" name="Potential Subrogation Detected">
+      <bpmn:outgoing>SequenceFlow_GetInformation</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_GetInformationAboutPotentialSubrogation" name="Get Information About Potential Subrogation">
+      <bpmn:incoming>SequenceFlow_GetInformation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPossibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckPossibilityOfRecourse" name="Check Possibility of Recourse">
+      <bpmn:incoming>SequenceFlow_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendRequestIfPossible</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CloseCaseNoRecourse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_SendPaymentRequestAndSetReminder" name="Send Payment Request and Set Reminder">
+      <bpmn:incoming>SequenceFlow_SendRequestIfPossible</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitWaitLogic</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 (Split) -->
+    <bpmn:parallelGateway id="ParallelGateway_WaitForResponse">
+      <bpmn:name>Wait for Response/Deadline</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SplitWaitLogic</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Event 1 (Payment) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_PaymentReceived" name="Money Received">
+      <bpmn:messageRefMessageId="msg_MoneyReceived"/>
+      <bpmn:incoming>SequenceFlow_PaymentReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessPaymentBooking</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_MakeBookingAndCloseCase" name="Make Booking and Close Case">
+      <bpmn:name>Making Payment Booking &amp; Closing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProcessPaymentBooking</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCasePaid</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event 2 (Disagreement) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_DisagreementReceived" name="Insurant Disagrees">
+      <bpmn:messageRefMessageId="msg_Disagreement"/>
+      <bpmn:incoming>SequenceFlow_DisagreementPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDisagreementReasoning</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 3 (Check Disagreement) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckDisagreementReasoning" name="Is Reasoning Valid?">
+      <bpmn:name>Insurant Right?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckDisagreementReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseRight</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ForwardToCollectionAgencyWrong</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 (Close Right) -->
+    <bpmn:task id="Task_CloseCaseRight" name="Close Case">
+      <bpmn:name>Closing Case Due to Valid Reasoning</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CloseCaseRight</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCaseClosedRight</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 (Forward to Collection) -->
+    <bpmn:task id="Task_ForwardToCollectionAgency" name="Forward Case to Collection Agency">
+      <bpmn:name>Forcing Recourse via Agency</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ForwardToCollectionAgencyWrong</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCaseCollections</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event 3 (Timer) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_TimerDeadlineReached" name="Disagreement Deadline Reached">
+      <bpmn:timerDuration>P1D</bpmn:timerDuration>
+      <bpmn:name>Wait for Disagreement Period</bpmn:name>
+      <bpmn:incoming>SequenceFlow_TimerDeadlinePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ForwardToCollectionAgencyTimer</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_CaseClosedNoRecourse" name="Case Closed (No Recourse)">
+      <bpmn:incoming>SequenceFlow_CloseCaseNoRecourse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_CasePaid" name="Case Paid">
+      <bpmn:name>Payment Received &amp; Closed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndCasePaid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_CaseClosedRight" name="Case Closed (Reasoning Valid)">
+      <bpmn:incoming>SequenceFlow_EndCaseClosedRight</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_CaseCollections" name="Case Forwarded to Agency">
+      <bpmn:name>Forwarded for Collection</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndCaseCollections</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GetInformation" sourceRef="StartEvent_PotentialSubrogation" targetRef="Task_GetInformationAboutPotentialSubrogation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPossibility" sourceRef="Task_GetInformationAboutPotentialSubrogation" targetRef="ExclusiveGateway_CheckPossibilityOfRecourse">
+      <bpmn:name>Check Possibility</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequestIfPossible" name="Yes, Possible Recourse" sourceRef="ExclusiveGateway_CheckPossibilityOfRecourse" targetRef="Task_SendPaymentRequestAndSetReminder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[recoursePossible]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseNoRecourse" name="No, Not Possible Recourse" sourceRef="ExclusiveGateway_CheckPossibilityOfRecourse" targetRef="EndEvent_CaseClosedNoRecourse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[recourseNotPossible]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SplitWaitLogic" sourceRef="Task_SendPaymentRequestAndSetReminder" targetRef="ParallelGateway_WaitForResponse"/>
+
+    <!-- Wait Logic Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentReceivedPath" name="Money Received Path" sourceRef="ParallelGateway_WaitForResponse" targetRef="IntermediateCatch_PaymentReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[paymentReceived]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementPath" name="Disagreement Path" sourceRef="ParallelGateway_WaitForResponse" targetRef="IntermediateCatch_DisagreementReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[disagreementReceived]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Timer Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerDeadlinePath" name="Timer Path" sourceRef="ParallelGateway_WaitForResponse" targetRef="IntermediateCatch_TimerDeadlineReached">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[deadlineReached]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessPaymentBooking" sourceRef="IntermediateCatch_PaymentReceived" targetRef="Task_MakeBookingAndCloseCase"/>
+    
+    <!-- Disagreement Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDisagreementReasoning" name="Check Reasoning Path" sourceRef="IntermediateCatch_DisagreementReceived" targetRef="ExclusiveGateway_CheckDisagreementReasoning">
+      <!-- Note: In a strict model, this would join at the gateway. Here we route directly to decision for clarity -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseRight" name="Insurant Right" sourceRef="ExclusiveGateway_CheckDisagreementReasoning" targetRef="Task_CloseCaseRight">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[disagreementValid]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardToCollectionAgencyWrong" name="Insurant Wrong" sourceRef="ExclusiveGateway_CheckDisagreementReasoning" targetRef="Task_ForwardToCollectionAgency">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[disagreementInvalid]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flow Connections -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndCasePaid" sourceRef="Task_MakeBookingAndCloseCase" targetRef="EndEvent_CasePaid"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndCaseClosedRight" sourceRef="Task_CloseCaseRight" targetRef="EndEvent_CaseClosedRight"/>
+
+    <!-- Timer Path to Collection -->
+    <bpmn:sequenceFlow id="SequenceFlow_ForwardToCollectionAgencyTimer" name="Deadline Reached (No Money)" sourceRef="IntermediateCatch_TimerDeadlineReached" targetRef="Task_ForwardToCollectionAgency">
+      <bpmn:name>Forward if No Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Collection Agency End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndCaseCollections" sourceRef="Task_ForwardToCollectionAgency" targetRef="EndEvent_CaseCollections"/>
+
+  </bpmn:process>
+</bpmn:definitions>

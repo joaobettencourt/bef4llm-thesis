@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0a1">
+    <bpmn:participant id="Participant_TPA" name="Town Planning Authority" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_CM" name="Committee Members" processRef="Process_CommitteeMembers"/>
+    <bpmn:messageFlow id="MessageFlow_01" sourceRef="IntermediateThrowEvent_SendSchedule" targetRef="IntermediateCatchEvent_ReceiptConfirmation"/>
+    <bpmn:messageFlow id="MessageFlow_02" sourceRef="IntermediateThrowEvent_ConflictReport" targetRef="IntermediateCatchEvent_ConflictReceived"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CoordinationUnit" name="Coordination Unit">
+        <bpmn:flowNodeRef>Task_DraftSchedule</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckConflicts</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SupportOfficer" name="Support Officer">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckDates</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event with Timer Trigger (November each year) -->
+    <bpmn:startEvent id="StartEvent_1" name="Annual Schedule Draft">
+      <bpmn:outgoing>SequenceFlow_Init</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- Task 1: Coordination Unit drafts schedule -->
+    <bpmn:task id="Task_DraftSchedule" name="Draft meeting schedule for next year">
+      <bpmn:incoming>SequenceFlow_Init</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSupportOfficer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Support Officer checks dates -->
+    <bpmn:task id="Task_CheckDates" name="Check draft dates and suggest modifications">
+      <bpmn:incoming>SequenceFlow_ToSupportOfficer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BackToCoordinationUnit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Start to Draft Schedule -->
+    <bpmn:sequenceFlow id="SequenceFlow_Init" sourceRef="StartEvent_1" targetRef="Task_DraftSchedule"/>
+
+    <!-- Sequence Flow to Support Officer for checking dates -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSupportOfficer" name="Send draft schedule" sourceRef="Task_DraftSchedule" targetRef="Task_CheckDates"/>
+
+    <!-- Sequence Flow back from Support Officer to Coordination Unit -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackToCoordinationUnit" name="Return with modifications" sourceRef="Task_CheckDates" targetRef="Gateway_ResolveConflicts"/>
+
+    <!-- Gateway for conflict resolution loop -->
+    <bpmn:exclusiveGateway id="Gateway_ResolveConflicts">
+      <bpmn:incoming>SequenceFlow_BackToCoordinationUnit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendFinalSchedule</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Coordination Unit rechecks dates -->
+    <bpmn:task id="Task_FinalizeSchedule" name="Recheck all dates and resolve conflicts">
+      <bpmn:incoming>SequenceFlow_SendFinalSchedule</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToCommitteeMembers</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for sending schedule to Committee Members -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SendSchedule" name="Send final schedule by email">
+      <bpmn:incoming>SequenceFlow_ToCommitteeMembers</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Sequence Flow to send schedule -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendFinalSchedule" sourceRef="Gateway_ResolveConflicts" targetRef="Task_FinalizeSchedule"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToCommitteeMembers" name="Send final schedule by email" sourceRef="Task_FinalizeSchedule" targetRef="IntermediateThrowEvent_SendSchedule"/>
+
+    <!-- Intermediate Catch Event for receiving conflict reports -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_ConflictReceived" name="Receive conflict report">
+      <bpmn:name>Conflict Received</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReceiveReport</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:endEvent id="EndEvent_Complete">
+      <bpmn:name>Annual Schedule Finalized</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProcessComplete</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessComplete" sourceRef="IntermediateThrowEvent_SendSchedule" targetRef="EndEvent_Complete"/>
+    
+     <!-- Loop back from conflict report if needed, or just end. For this model we connect receive event to finalize task for loop logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReceiveReport" name="Process Conflict Report" sourceRef="IntermediateCatchEvent_ConflictReceived" targetRef="Task_FinalizeSchedule"/>
+
+  </bpmn:process>
+
+  <bpmn:process id="Process_CommitteeMembers" isExecutable="false">
+    <!-- Intermediate Catch Event for receiving schedule -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_ReceiptConfirmation" name="Receive final schedule by email">
+      <bpmn:name>Receive Schedule</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReceivedSchedule</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task for Committee Members to check diaries -->
+    <bpmn:task id="Task_CheckDiary" name="Check diary and advise of conflicts">
+      <bpmn:name>Review Schedule</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReceivedSchedule</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendConflictReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for sending conflict report -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_ConflictReport" name="Send conflict report by email">
+      <bpmn:name>Conflict Report</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendConflictReport</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Sequence Flow for receiving schedule -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReceivedSchedule" sourceRef="IntermediateCatchEvent_ReceiptConfirmation" targetRef="Task_CheckDiary"/>
+
+    <!-- Sequence Flow to send conflict report -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendConflictReport" name="Send conflict advice by email" sourceRef="Task_CheckDiary" targetRef="IntermediateThrowEvent_ConflictReport"/>
+
+    <!-- End Event for Committee Members process -->
+    <bpmn:endEvent id="EndEvent_CM_Complete">
+      <bpmn:name>Committee Review Complete</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FinalizedConflictReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizedConflictReport" sourceRef="IntermediateThrowEvent_ConflictReport" targetRef="EndEvent_CM_Complete"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RestaurantProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_RestaurantService">
+    <bpmn:participant id="Participant_Restaurant" name="Restaurant Service Process" processRef="Process_ServiceOrder"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ServiceOrder" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Guest">
+        <bpmn:flowNodeRef>StartEvent_Arrival</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaitTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PickupMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>Task_EnterPOS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetBuzzer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformChef</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RingBuzzer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallGuest</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Chef" name="Chef">
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceHatch</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Arrival" name="Guest Arrives">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Guest Lane Tasks -->
+    <bpmn:task id="Task_SelectDish" name="Select Dish from Menu">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_WaitTurn" name="Wait for Turn">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Interaction Guest to Employee -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_Arrival" targetRef="Task_SelectDish"/>
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_SelectDish" targetRef="Task_WaitTurn"/>
+
+    <!-- Employee Lane Tasks -->
+    <bpmn:task id="Task_EnterPOS" name="Enter Order &amp; Collect Money">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Guest to Employee Interaction -->
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="Task_WaitTurn" targetRef="Task_EnterPOS"/>
+
+    <bpmn:task id="Task_SetBuzzer" name="Set Buzzer &amp; Handover">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Employee to Guest Interaction -->
+    <bpmn:sequenceFlow id="SequenceFlow_04" sourceRef="Task_EnterPOS" targetRef="Task_SetBuzzer"/>
+
+    <bpmn:task id="Task_InformChef" name="Inform Chef of Order">
+      <bpmn:incoming>SequenceFlow_05</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_06</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Employee to Kitchen Interaction -->
+    <bpmn:sequenceFlow id="SequenceFlow_05" sourceRef="Task_SetBuzzer" targetRef="Task_InformChef"/>
+
+    <!-- Chef Lane Tasks -->
+    <bpmn:task id="Task_PrepareMeal" name="Prepare Meal">
+      <bpmn:incoming>SequenceFlow_06</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Internal Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_06" sourceRef="Task_InformChef" targetRef="Task_PrepareMeal"/>
+
+    <bpmn:task id="Task_PlaceHatch" name="Place in Service Hatch">
+      <bpmn:incoming>SequenceFlow_07</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_08</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Internal Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_07" sourceRef="Task_PrepareMeal" targetRef="Task_PlaceHatch"/>
+
+    <!-- Chef to Employee Notification (Implicit via flow) -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_ChefReady">
+      <bpmn:incoming>SequenceFlow_08</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_09</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Kitchen to Employee Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_08" sourceRef="Task_PlaceHatch" targetRef="IntermediateEvent_ChefReady"/>
+
+    <!-- Back to Employee Lane for Ringing Buzzer -->
+    <bpmn:task id="Task_RingBuzzer" name="Ring Guest&#39;s Buzzer">
+      <bpmn:incoming>SequenceFlow_09</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Employee to Guest Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_09" sourceRef="IntermediateEvent_ChefReady" targetRef="Task_RingBuzzer"/>
+
+    <!-- Loop Logic for Timeout/Call Guest -->
+    <bpmn:parallelGateway id="ParallelGateway_WaitPickup">
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_12</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Guest Pickup Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="Task_RingBuzzer" targetRef="ParallelGateway_WaitPickup"/>
+    
+    <bpmn:task id="Task_PickupMeal" name="Pick Up Meal &amp; Eat">
+      <bpmn:incoming>SequenceFlow_11</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Guest Lane Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_11" sourceRef="ParallelGateway_WaitPickup" targetRef="Task_PickupMeal"/>
+
+    <!-- Timer/Call Path (Employee Side) -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_CallGuest">
+      <bpmn:incoming>SequenceFlow_12</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CallerLoop</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer Branch -->
+    <bpmn:sequenceFlow id="SequenceFlow_12" sourceRef="ParallelGateway_WaitPickup" targetRef="IntermediateTimer_CallGuest"/>
+
+    <bpmn:task id="Task_CallGuest" name="Call Guest (5 min timeout)">
+      <bpmn:incoming>SequenceFlow_CallerLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to wait state -->
+    <bpmn:sequenceFlow id="SequenceFlow_CallerLoop" sourceRef="Task_CallGuest" targetRef="ParallelGateway_WaitPickup"/>
+    
+    <!-- Timer Event Configuration (Implicit in ID naming for this XML generation) -->
+    <!-- Note: In a real BPMN engine, IntermediateTimer would have timer definition. Here modeled as flow logic for simplicity of valid structure without DI constraints on timers. -->
+
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Meal Served">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_PickupMeal" targetRef="EndEvent_ProcessComplete"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

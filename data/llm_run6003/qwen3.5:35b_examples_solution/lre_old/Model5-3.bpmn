@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Office Supply Request Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_SubmitRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewChangeComments</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>Gateway_ApprovalDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyRejection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyChangeRequired</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_PurchaseDept" name="Purchase Department">
+        <bpmn:flowNodeRef>Subprocess_MakeQuotations</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VendorValidation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectVendor</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubmitRequest" name="Submit office supply request">
+      <bpmn:outgoing>SequenceFlow_RegisterRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Registration Task -->
+    <bpmn:userTask id="Task_RegisterRequest" name="Register requirement">
+      <bpmn:incoming>SequenceFlow_ReviewChangeComments</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorApproval</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Supervisor Approval Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ApprovalDecision" name="Request Approved?">
+      <bpmn:incoming>SequenceFlow_SupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyRejection</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotifyChangeRequired</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovedToPurchaseDept</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Rejection Path -->
+    <bpmn:userTask id="Task_NotifyRejection" name="Notify about rejection">
+      <bpmn:incoming>SequenceFlow_NotifyRejection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Change Required Path -->
+    <bpmn:userTask id="Task_NotifyChangeRequired" name="Notify about required change">
+      <bpmn:incoming>SequenceFlow_NotifyChangeRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewComments</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Employee Review Path -->
+    <bpmn:userTask id="Task_ReviewChangeComments" name="Review comments for change request">
+      <bpmn:incoming>SequenceFlow_ReviewComments</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterRequestLoopback</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Approved Path to Purchase Department -->
+    <bpmn:userTask id="Subprocess_MakeQuotations" name="Make quotations (subprocess)">
+      <bpmn:incoming>SequenceFlow_ApprovedToPurchaseDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorValidationCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Vendor Validation Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_VendorValidation" name="Vendor Valid?">
+      <bpmn:incoming>SequenceFlow_VendorValidationCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectDifferentVendor</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmSelectedVendor</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Select Different Vendor Loop -->
+    <bpmn:userTask id="Task_SelectVendor" name="Select vendor">
+      <bpmn:incoming>SequenceFlow_SelectDifferentVendor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VendorValidationCheckLoopback</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Purchase Order Path -->
+    <bpmn:userTask id="Task_GeneratePurchaseOrder" name="Generate and send purchase order">
+      <bpmn:incoming>SequenceFlow_ConfirmSelectedVendor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForDelivery</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Delivery -->
+    <bpmn:intermediateCatchEvent id="IntermediateWaitDelivery" name="Wait for delivery">
+      <bpmn:incoming>SequenceFlow_WaitForDelivery</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveInvoice</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Receive Invoice -->
+    <bpmn:userTask id="Task_ProcessInvoice" name="Process invoice">
+      <bpmn:incoming>SequenceFlow_ReceiveInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendNotificationFinal</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Final Notification -->
+    <bpmn:userTask id="Task_NotifyApproval" name="Notify about approval">
+      <bpmn:incoming>SequenceFlow_ApprovedToPurchaseDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendNotificationFinalFromApproved</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndRejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndCompleted" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_SendNotificationFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterRequest" sourceRef="StartEvent_SubmitRequest" targetRef="Task_RegisterRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApproval" sourceRef="Task_RegisterRequest" targetRef="Gateway_ApprovalDecision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyRejection" name="Rejected" sourceRef="Gateway_ApprovalDecision" targetRef="Task_NotifyRejection"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndRejected" sourceRef="Task_NotifyRejection" targetRef="EndRejected"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyChangeRequired" name="Change Required" sourceRef="Gateway_ApprovalDecision" targetRef="Task_NotifyChangeRequired"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewComments" sourceRef="Task_NotifyChangeRequired" targetRef="Task_ReviewChangeComments"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterRequestLoopback" sourceRef="Task_ReviewChangeComments" targetRef="Task_RegisterRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedToPurchaseDept" name="Approved" sourceRef="Gateway_ApprovalDecision" targetRef="Subprocess_MakeQuotations"/>
+    <bpmn:sequenceFlow id="SequenceFlow_VendorValidationCheck" sourceRef="Subprocess_MakeQuotations" targetRef="Gateway_VendorValidation"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SelectDifferentVendor" name="Not Valid" sourceRef="Gateway_VendorValidation" targetRef="Task_SelectVendor"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmSelectedVendor" name="Valid" sourceRef="Gateway_VendorValidation" targetRef="Task_GeneratePurchaseOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_VendorValidationCheckLoopback" sourceRef="Task_SelectVendor" targetRef="Gateway_VendorValidation"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForDelivery" sourceRef="Task_GeneratePurchaseOrder" targetRef="IntermediateWaitDelivery"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReceiveInvoice" sourceRef="IntermediateWaitDelivery" targetRef="Task_ProcessInvoice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendNotificationFinal" sourceRef="Task_ProcessInvoice" targetRef="EndCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

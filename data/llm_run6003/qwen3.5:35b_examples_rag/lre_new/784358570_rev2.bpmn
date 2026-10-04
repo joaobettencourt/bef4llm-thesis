@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderProcessing" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_ProcessOrder" name="Order Processing Process" processRef="Process_OrderDelivery"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderDelivery" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckItemsAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformCustomerDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderMissingProducts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>Gateway_DeliveryArrived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecheckProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Courier" name="Courier Company">
+        <bpmn:flowNodeRef>Gateway_DeliveryDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformClientDelay</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Logistics" name="Logistics">
+        <bpmn:flowNodeRef>Gateway_RouteDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DecideRoute</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Driver" name="Driver">
+        <bpmn:flowNodeRef>Gateway_PickupComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdateSystem</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System" name="Centralized Service">
+        <bpmn:flowNodeRef>EndEvent_Completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Review Order">
+      <bpmn:outgoing>Flow_StartToCheckItems</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Items Availability Task -->
+    <bpmn:userTask id="Task_CheckItemsAvailability" name="Check if all items available">
+      <bpmn:incoming>Flow_StartToCheckItems</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckToGatewayAvailable</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Items Availability -->
+    <bpmn:exclusiveGateway id="Gateway_ItemsAvailable" name="Items Available?">
+      <bpmn:incoming>Flow_CheckToGatewayAvailable</bpmn:incoming>
+      <bpmn:outgoing>Flow_AvailableYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AvailableNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Inform Customer About Delay -->
+    <bpmn:userTask id="Task_InformCustomerDelay" name="Inform customer about potential delay">
+      <bpmn:incoming>Flow_AvailableNo</bpmn:incoming>
+      <bpmn:outgoing>Flow_DelayToOrderMissing</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Order Missing Products -->
+    <bpmn:userTask id="Task_OrderMissingProducts" name="Order missing products">
+      <bpmn:incoming>Flow_DelayToOrderMissing</bpmn:incoming>
+      <bpmn:outgoing>Flow_OrderByGatewayDelivery</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Delivery Arrival -->
+    <bpmn:exclusiveGateway id="Gateway_DeliveryArrived" name="Delivery Arrived?">
+      <bpmn:incoming>Flow_OrderByGatewayDelivery</bpmn:incoming>
+      <bpmn:outgoing>Flow_ArrivedYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Re-check Products -->
+    <bpmn:userTask id="Task_RecheckProducts" name="Re-check if all products on store">
+      <bpmn:incoming>Flow_ArrivedYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_RecheckToGatewayOK</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Products OK -->
+    <bpmn:exclusiveGateway id="Gateway_ProductsOK" name="All products OK?">
+      <bpmn:incoming>Flow_RecheckToGatewayOK</bpmn:incoming>
+      <bpmn:outgoing>Flow_OKYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Package Order -->
+    <bpmn:userTask id="Task_PackageOrder" name="Recollect and prepare package">
+      <bpmn:incoming>Flow_RecheckToGatewayOK</bpmn:incoming>
+      <bpmn:outgoing>Flow_PackagedToCourierInformed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Inform Courier Company -->
+    <bpmn:userTask id="Task_InformCourier" name="Inform courier about pre-processed package">
+      <bpmn:incoming>Flow_PackagedToCourierInformed</bpmn:incoming>
+      <bpmn:outgoing>Flow_CourierReadyToGatewayDelay</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Delivery Delay -->
+    <bpmn:exclusiveGateway id="Gateway_DeliveryDelay" name="Enough Resources?">
+      <bpmn:incoming>Flow_CourierReadyToGatewayDelay</bpmn:incoming>
+      <bpmn:outgoing>Flow_DelayYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Inform Client About Delay -->
+    <bpmn:userTask id="Task_InformClientDelay" name="Inform client about potential delay">
+      <bpmn:incoming>Flow_DelayYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ClientInformedToPickup</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Pickup -->
+    <bpmn:exclusiveGateway id="Gateway_Pickup" name="Driver Available?">
+      <bpmn:incoming>Flow_ClientInformedToPickup</bpmn:incoming>
+      <bpmn:outgoing>Flow_DriverYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Driver Picks Up Package -->
+    <bpmn:userTask id="Task_PickupPackage" name="Driver picks up package">
+      <bpmn:incoming>Flow_DriverYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_PickedToGatewayRoute</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Route Decision -->
+    <bpmn:exclusiveGateway id="Gateway_RouteDecision" name="Best Route?">
+      <bpmn:incoming>Flow_PickedToGatewayRoute</bpmn:incoming>
+      <bpmn:outgoing>Flow_RouteReadyToDelivery</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Decide Best Route -->
+    <bpmn:userTask id="Task_DecideRoute" name="Decide best route for delivery">
+      <bpmn:incoming>Flow_PickedToGatewayRoute</bpmn:incoming>
+      <bpmn:outgoing>Flow_RouteReadyToDelivery2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Driver Delivers Package -->
+    <bpmn:userTask id="Task_DeliverPackage" name="Driver delivers package">
+      <bpmn:incoming>Flow_RouteReadyToDelivery2</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeliveredToUpdateSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Update System -->
+    <bpmn:userTask id="Task_UpdateSystem" name="Update system and notify stakeholders">
+      <bpmn:incoming>Flow_DeliveredToUpdateSystem</bpmn:incoming>
+      <bpmn:outgoing>Flow_SystemUpdatedToEndCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Order Completed -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Order Delivered">
+      <bpmn:incoming>Flow_SystemUpdatedToEndCompleted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToCheckItems" sourceRef="StartEvent_1" targetRef="Task_CheckItemsAvailability"/>
+    <bpmn:sequenceFlow id="Flow_CheckToGatewayAvailable" name="" sourceRef="Task_CheckItemsAvailability" targetRef="Gateway_ItemsAvailable"/>
+    <bpmn:sequenceFlow id="Flow_AvailableYes" name="Yes - Available" sourceRef="Gateway_ItemsAvailable" targetRef="Gateway_DeliveryArrived"/>
+    <bpmn:sequenceFlow id="Flow_AvailableNo" name="No - Missing Items" sourceRef="Gateway_ItemsAvailable" targetRef="Task_InformCustomerDelay"/>
+    <bpmn:sequenceFlow id="Flow_DelayToOrderMissing" name="" sourceRef="Task_InformCustomerDelay" targetRef="Task_OrderMissingProducts"/>
+    <bpmn:sequenceFlow id="Flow_OrderByGatewayDelivery" name="" sourceRef="Task_OrderMissingProducts" targetRef="Gateway_DeliveryArrived"/>
+    <bpmn:sequenceFlow id="Flow_ArrivedYes" name="After x days - Arrived" sourceRef="Gateway_DeliveryArrived" targetRef="Task_RecheckProducts"/>
+    <bpmn:sequenceFlow id="Flow_RecheckToGatewayOK" name="" sourceRef="Task_RecheckProducts" targetRef="Gateway_ProductsOK"/>
+    <bpmn:sequenceFlow id="Flow_OKYes" name="All Products OK" sourceRef="Gateway_ProductsOK" targetRef="Task_PackageOrder"/>
+    <bpmn:sequenceFlow id="Flow_PackagedToCourierInformed" name="" sourceRef="Task_PackageOrder" targetRef="Task_InformCourier"/>
+    <bpmn:sequenceFlow id="Flow_CourierReadyToGatewayDelay" name="" sourceRef="Task_InformCourier" targetRef="Gateway_DeliveryDelay"/>
+    <bpmn:sequenceFlow id="Flow_DelayYes" name="Need More Resources" sourceRef="Gateway_DeliveryDelay" targetRef="Task_InformClientDelay"/>
+    <bpmn:sequenceFlow id="Flow_ClientInformedToPickup" name="" sourceRef="Task_InformClientDelay" targetRef="Gateway_Pickup"/>
+    <bpmn:sequenceFlow id="Flow_DriverYes" name="Driver Available" sourceRef="Gateway_Pickup" targetRef="Task_PickupPackage"/>
+    <bpmn:sequenceFlow id="Flow_PickedToGatewayRoute" name="" sourceRef="Task_PickupPackage" targetRef="Gateway_RouteDecision"/>
+    <bpmn:sequenceFlow id="Flow_RouteReadyToDelivery2" name="" sourceRef="Task_DecideRoute" targetRef="Task_DeliverPackage"/>
+    <bpmn:sequenceFlow id="Flow_DeliveredToUpdateSystem" name="" sourceRef="Task_DeliverPackage" targetRef="Task_UpdateSystem"/>
+    <bpmn:sequenceFlow id="Flow_SystemUpdatedToEndCompleted" name="" sourceRef="Task_UpdateSystem" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

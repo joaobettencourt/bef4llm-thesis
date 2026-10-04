@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_CVS" name="CVS Bag Collection Process" processRef="Process_BagCollection"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BagCollection" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartBagIdentified" name="Not collected bag identified">
+      <bpmn:outgoing>bpmn:SequenceFlow_CheckRetries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to check retry count -->
+    <bpmn:userTask id="TaskCheckRetryCount" name="Check number of resolution retries">
+      <bpmn:incoming>bpmn:SequenceFlow_CheckRetries</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CompareThreshold</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway to compare retries with threshold -->
+    <bpmn:exclusiveGateway id="GatewayRetryThreshold">
+      <bpmn:incoming>bpmn:SequenceFlow_CompareThreshold</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ExceedsThreshold</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_ContactCustomer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence flows from retry threshold gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRetries" sourceRef="StartBagIdentified" targetRef="TaskCheckRetryCount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CompareThreshold" name="Compare with max retries?" sourceRef="TaskCheckRetryCount" targetRef="GatewayRetryThreshold">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${retryCount &gt;= MAX_RETRIES}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Branch 1: Exceeds threshold - return to production -->
+    <bpmn:userTask id="TaskReturnToProduction" name="Return bag to production area for disassemble">
+      <bpmn:incoming>bpmn:SequenceFlow_ExceedsThreshold</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_EndDisassembled</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Branch 2: Contact customer -->
+    <bpmn:userTask id="TaskContactCustomer" name="Contact customer by phone">
+      <bpmn:incoming>bpmn:SequenceFlow_ContactCustomer</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CustomerResponse</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for customer response -->
+    <bpmn:exclusiveGateway id="GatewayCustomerResponse">
+      <bpmn:incoming>bpmn:SequenceFlow_CustomerResponse</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_WithdrawsOrder</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_PromisesPickup</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence flows from customer response gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContactCustomer" name="Retry count &lt; threshold?" sourceRef="GatewayRetryThreshold" targetRef="TaskContactCustomer">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${retryCount &lt; MAX_RETRIES}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Customer withdraws order -->
+    <bpmn:userTask id="TaskWithdrawDisassemble" name="Return bag to production for disassemble">
+      <bpmn:incoming>bpmn:SequenceFlow_WithdrawsOrder</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_EndWithdrawn</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Customer promises pickup - increase retry count -->
+    <bpmn:userTask id="TaskIncreaseRetryCount" name="Increase retry count on bag label">
+      <bpmn:incoming>bpmn:SequenceFlow_PromisesPickup</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_LoopBackToCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Unsuccessful contact - increase retry count -->
+    <bpmn:userTask id="TaskIncreaseRetryCountUnsuccess" name="Increase retry count on bag label">
+      <bpmn:incoming>bpmn:SequenceFlow_Uncontacted</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_LoopBackToCheck2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End events -->
+    <bpmn:endEvent id="EndDisassembled" name="Bag disassembled">
+      <bpmn:incoming>bpmn:SequenceFlow_EndDisassembled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndWithdrawn" name="Order withdrawn - Bag disassembled">
+      <bpmn:incoming>bpmn:SequenceFlow_EndWithdrawn</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Loop back to check retry count -->
+    <bpmn:sequenceFlow id="SequenceFlow_ExceedsThreshold" name="Yes - exceeds threshold" sourceRef="GatewayRetryThreshold" targetRef="TaskReturnToProduction">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${retryCount &gt;= MAX_RETRIES}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Customer withdraws order -->
+    <bpmn:sequenceFlow id="SequenceFlow_WithdrawsOrder" name="Customer withdraws order" sourceRef="GatewayCustomerResponse" targetRef="TaskWithdrawDisassemble">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${contactSuccessful AND customerWithdraws}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Customer promises pickup -->
+    <bpmn:sequenceFlow id="SequenceFlow_PromisesPickup" name="Customer promises to pick up" sourceRef="GatewayCustomerResponse" targetRef="TaskIncreaseRetryCount">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${contactSuccessful AND customerPromises}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Unsuccessful contact -->
+    <bpmn:sequenceFlow id="SequenceFlow_Uncontacted" name="Contact unsuccessful" sourceRef="GatewayCustomerResponse" targetRef="TaskIncreaseRetryCountUnsuccess">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${!contactSuccessful}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop back to check retry count after increasing -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBackToCheck" name="Loop - increase retry and recheck" sourceRef="TaskIncreaseRetryCount" targetRef="GatewayRetryThreshold"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBackToCheck2" name="Loop - increase retry and recheck" sourceRef="TaskIncreaseRetryCountUnsuccess" targetRef="GatewayRetryThreshold"/>
+
+    <!-- End flow from disassemble task -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndDisassembled" sourceRef="TaskReturnToProduction" targetRef="EndDisassembled"/>
+    
+    <!-- End flow from withdrawn order task -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndWithdrawn" sourceRef="TaskWithdrawDisassemble" targetRef="EndWithdrawn"/>
+
+  </bpmn:process>
+</bpmn:definitions>

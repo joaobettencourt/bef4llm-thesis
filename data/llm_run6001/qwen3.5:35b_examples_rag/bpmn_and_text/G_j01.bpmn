@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_FarmingBot_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_FarmBot_01">
+    <bpmn:participant id="Participant_Player" name="Player/Bot System" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_CreateBot" name="Create Farming Bot">
+      <bpmn:outgoing>SF_StartToResourceSelection</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Resource Selection Phase -->
+    <bpmn:userTask id="UserTask_SelectResources" name="Select Resources to Collect">
+      <bpmn:incoming>SF_StartToResourceSelection</bpmn:incoming>
+      <bpmn:outgoing>SF_GoToPriorityCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Priority Decision -->
+    <bpmn:exclusiveGateway id="GW_PriorityDecision" name="Set Priority&#10;Levels?">
+       <bpmn:incoming>SF_GoToPriorityCheck</bpmn:incoming>
+       <bpmn:outgoing>SF_StartParallelCollection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Resource Collection -->
+    <bpmn:parallelGateway id="GW_ParallelStart" name="Collect Resources&#10;(Up to 10)">
+       <bpmn:incoming>SF_StartParallelCollection</bpmn:incoming>
+       <bpmn:outgoing>SF_ResourcesReady</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Tool Creation -->
+    <bpmn:userTask id="UserTask_CreateTools" name="Create Tools from Resources">
+      <bpmn:incoming>SF_StartParallelCollection</bpmn:incoming>
+      <bpmn:outgoing>SF_MainFarmFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Milestone Check -->
+    <bpmn:exclusiveGateway id="GW_MilestoneCheck" name="Milestone&#10;Reached?">
+       <bpmn:incoming>SF_CheckMilestones</bpmn:incoming>
+       <bpmn:outgoing>SF_NotifyPlayerYes</bpmn:outgoing>
+       <bpmn:outgoing>SF_ContinueFarmLoopNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Notification Task -->
+    <bpmn:userTask id="UserTask_SendNotification" name="Notify Player&#10;of Milestone">
+      <bpmn:incoming>SF_NotifyPlayerYes</bpmn:incoming>
+      <bpmn:outgoing>SF_ContinueFarmLoopNo</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Update Materials Task -->
+    <bpmn:userTask id="UserTask_UpdateMaterials" name="Update Farming&#10;Material List">
+       <bpmn:incoming>SF_AnyTimeFromCheck</bpmn:incoming>
+       <bpmn:outgoing>SF_ContinueFarmLoopNo</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Natural Disaster Event -->
+    <bpmn:startEvent id="Start_Disaster" name="Natural&#10;Disaster">
+      <bpmn:outgoing>SF_SetBotBackToGather</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End of Farming -->
+    <bpmn:endEvent id="End_FarmComplete" name="Bot Finished">
+      <bpmn:incoming>SF_BotFinishedFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Post-Farming Activities -->
+    <bpmn:userTask id="UserTask_SendMaterials" name="Send Materials&#10;to Friends">
+       <bpmn:incoming>SF_SendToFriends</bpmn:incoming>
+       <bpmn:outgoing>SF_EndProcessFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_BragToFriends" name="Brag to Friends">
+      <bpmn:incoming>SF_BragOnly</bpmn:incoming>
+      <bpmn:outgoing>SF_EndProcessFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Decision for Post-Farming -->
+    <bpmn:exclusiveGateway id="GW_SendOrBrag" name="Send Materials&#10;or Brag?">
+       <bpmn:incoming>SF_BotFinishedFlow</bpmn:incoming>
+       <bpmn:outgoing>SF_SendToFriends</bpmn:outgoing>
+       <bpmn:outgoing>SF_BragOnly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gather Resources Task -->
+    <bpmn:userTask id="UserTask_GatherResources" name="Gather Resources">
+      <bpmn:incoming>SF_MainFarmFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckMilestones</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToResourceSelection" sourceRef="Start_CreateBot" targetRef="UserTask_SelectResources"/>
+    
+    <bpmn:sequenceFlow id="SF_GoToPriorityCheck" sourceRef="UserTask_SelectResources" targetRef="GW_PriorityDecision"/>
+    
+    <bpmn:sequenceFlow id="SF_StartParallelCollection" name="Set Priorities" sourceRef="GW_PriorityDecision" targetRef="GW_ParallelStart"/>
+
+    <!-- Resource Dependency Flow -->
+    <bpmn:sequenceFlow id="SF_ResourcesReady" sourceRef="UserTask_CreateTools" targetRef="GW_MilestoneCheck"/>
+
+    <!-- Main Farming Loop -->
+    <bpmn:sequenceFlow id="SF_MainFarmFlow" name="Start Gathering" sourceRef="GW_ParallelStart" targetRef="UserTask_GatherResources"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckMilestones" name="Check Progress" sourceRef="UserTask_GatherResources" targetRef="GW_MilestoneCheck"/>
+
+    <!-- Milestone Notification Flow -->
+    <bpmn:sequenceFlow id="SF_NotifyPlayerYes" name="Yes - Notify" sourceRef="GW_MilestoneCheck" targetRef="UserTask_SendNotification"/>
+
+    <!-- Continue Farming Flow -->
+    <bpmn:sequenceFlow id="SF_ContinueFarmLoopNo" name="No Milestone / Update Materials" sourceRef="GW_MilestoneCheck" targetRef="UserTask_GatherResources"/>
+    
+    <bpmn:sequenceFlow id="SF_NotifyToFarmLoop" sourceRef="UserTask_SendNotification" targetRef="UserTask_GatherResources"/>
+
+    <!-- Update Materials Flow -->
+    <bpmn:sequenceFlow id="SF_AnyTimeFromCheck" name="Any Time During Farming" sourceRef="GW_MilestoneCheck" targetRef="UserTask_UpdateMaterials"/>
+
+    <!-- Disaster Recovery Flow -->
+    <bpmn:sequenceFlow id="SF_SetBotBackToGather" name="Disaster Occurred - Reset Progress" sourceRef="Start_Disaster" targetRef="UserTask_GatherResources"/>
+
+    <!-- Post-Farming Decision Flow -->
+    <bpmn:sequenceFlow id="SF_BotFinishedFlow" sourceRef="GW_MilestoneCheck" targetRef="GW_SendOrBrag">
+      <bpmn:dataAssociation>
+        <bpmn:inputSet/>
+        <bpmn:outputSet/>
+      </bpmn:dataAssociation>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Materials Flow -->
+    <bpmn:sequenceFlow id="SF_SendToFriends" name="Send to Friends" sourceRef="GW_SendOrBrag" targetRef="UserTask_SendMaterials"/>
+
+    <!-- Brag Flow -->
+    <bpmn:sequenceFlow id="SF_BragOnly" name="Brag Only" sourceRef="GW_SendOrBrag" targetRef="UserTask_BragToFriends"/>
+
+    <!-- End Process Flow -->
+    <bpmn:sequenceFlow id="SF_EndProcessFlow" sourceRef="UserTask_SendMaterials" targetRef="End_FarmComplete"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

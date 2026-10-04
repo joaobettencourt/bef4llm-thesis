@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_BagHandling">
+    <bpmn:participant id="Participant_CVS_System" name="Bag Management System (CVS)" processRef="Process_BagHandling" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BagHandling" isExecutable="true">
+    <bpmn:dataObjectReference id="DataBagInfo" name="Bag Information" />
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CVS_Automation" name="CVS Automation Lane">
+        <bpmn:flowNodeRef>StartEvent_NotCollectedBag</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckRetryCount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RetryLimitCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Disassembled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ContactCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CustomerOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessCompleted</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NotCollectedBag" name="Not Collected Bag Identified">
+      <bpmn:outgoing>SequenceFlow_StartToTask</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Retry Count -->
+    <bpmn:task id="Task_CheckRetryCount" name="Check Number of Resolution Retries">
+      <bpmn:incoming>SequenceFlow_StartToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TaskToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Retry Limit Check -->
+    <bpmn:exclusiveGateway id="Gateway_RetryLimitCheck" name="Retries &gt; Specified Number?">
+      <bpmn:incoming>SequenceFlow_TaskToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayYesToDisassemble</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GatewayNoToContact</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2A: Return for Disassembly (Limit Reached) -->
+    <bpmn:task id="Task_ReturnDisassemble_LimitReached" name="Return Bag to Production Area">
+      <bpmn:incoming>SequenceFlow_GatewayYesToDisassemble</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisassembleToEnd1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Disassembled" name="Bag Disassembled">
+      <bpmn:incoming>SequenceFlow_DisassembleToEnd1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2B: Contact Customer (Limit Not Reached) -->
+    <bpmn:userTask id="Task_ContactCustomer" name="Contact Customer by Phone">
+      <bpmn:incoming>SequenceFlow_GatewayNoToContact</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContactToOutcome</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Contact Outcome -->
+    <bpmn:exclusiveGateway id="Gateway_CustomerOutcome" name="Customer Response?">
+      <bpmn:incoming>SequenceFlow_ContactToOutcome</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OutcomeWithdrawnToDisassemble</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OutcomePromiseOrFailToRetryCount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3A: Return for Disassembly (Customer Withdrawn) -->
+    <bpmn:task id="Task_ReturnDisassemble_WonWithdrawal" name="Return Bag to Production Area">
+      <bpmn:incoming>SequenceFlow_OutcomeWithdrawnToDisassemble</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisassembledToEnd2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3B: Increase Retry Count (Promise or Unsuccessful) -->
+    <bpmn:task id="Task_IncreaseRetryCount" name="Increase Retry Count on Bag Label">
+      <bpmn:incoming>SequenceFlow_OutcomePromiseOrFailToRetryCount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryToEnd2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ProcessCompleted" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_DisassembledToEnd2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_RetryToEnd2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTask" sourceRef="StartEvent_NotCollectedBag" targetRef="Task_CheckRetryCount">
+      <bpmn:name />
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TaskToGateway" sourceRef="Task_CheckRetryCount" targetRef="Gateway_RetryLimitCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayYesToDisassemble" name="Retries &gt; Limit" sourceRef="Gateway_RetryLimitCheck" targetRef="Task_ReturnDisassemble_LimitReached">
+      <bpmn:name>yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayNoToContact" name="Retries &lt;= Limit" sourceRef="Gateway_RetryLimitCheck" targetRef="Task_ContactCustomer">
+      <bpmn:name>no</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisassembleToEnd1" name="" sourceRef="Task_ReturnDisassemble_LimitReached" targetRef="EndEvent_Disassembled"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ContactToOutcome" sourceRef="Task_ContactCustomer" targetRef="Gateway_CustomerOutcome"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OutcomeWithdrawnToDisassemble" name="Successful &amp; Withdrawn" sourceRef="Gateway_CustomerOutcome" targetRef="Task_ReturnDisassemble_WonWithdrawal">
+      <bpmn:name>successful, withdrawn</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OutcomePromiseOrFailToRetryCount" name="Successful &amp; Promise OR Unsuccessful" sourceRef="Gateway_CustomerOutcome" targetRef="Task_IncreaseRetryCount">
+      <bpmn:name>promise or fail</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisassembledToEnd2" name="" sourceRef="Task_ReturnDisassemble_WonWithdrawal" targetRef="EndEvent_ProcessCompleted"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RetryToEnd2" name="" sourceRef="Task_IncreaseRetryCount" targetRef="EndEvent_ProcessCompleted"/>
+  </bpmn:process>
+</bpmn:definitions>

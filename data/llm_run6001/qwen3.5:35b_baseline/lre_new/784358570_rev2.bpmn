@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderFulfillment">
+    <bpmn:participant id="Participant_OrderFulfillment" name="Order Fulfillment Process" processRef="Process_Fulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Fulfillment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_StoreStaff" name="Store Staff">
+        <bpmn:name>Store Staff</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_ReviewOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DiscontinuedItem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformCustomerOrderMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateTimer_WaitDelivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AllProductsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessFailed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreparePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Logistics" name="Logistics & Courier">
+        <bpmn:name>Logistics & Courier</bpmn:name>
+        <bpmn:flowNodeRef>Task_NotifyCourier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateTimer_WaitResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DriverPickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_DecideRoute</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeliverPackage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_UpdateSystem</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReviewOrder" name="Review Order">
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Availability -->
+    <bpmn:task id="Task_CheckAvailability" name="Check Item Availability">
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayDecision1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Items Available? -->
+    <bpmn:exclusiveGateway id="Gateway_ItemsAvailable" name="Items Available?">
+      <bpmn:incoming>SequenceFlow_GatewayDecision1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DiscontinuedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MissingPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Discontinued Item -->
+    <bpmn:endEvent id="EndEvent_DiscontinuedItem" name="Order Cancelled (Discontinued)">
+      <bpmn:name>In exceptional case of discontinued item, inform customer</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DiscontinuedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Inform Customer & Order Products -->
+    <bpmn:task id="Task_InformCustomerOrderMissing" name="Inform Customer & Order Products">
+      <bpmn:name>Informs customer about delay and orders missing products</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MissingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitDeliveryStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_WaitDelivery" name="Wait x Days for Delivery">
+      <bpmn:name>Average wait of x days</bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitDeliveryStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RecheckAvailability</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Re-check Availability -->
+    <bpmn:task id="Task_RecheckAvailability" name="Re-Check Products on Store">
+      <bpmn:name>Staff checks if all products are on store</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RecheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayDecision2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: All Products Available? -->
+    <bpmn:exclusiveGateway id="Gateway_AllProductsAvailable" name="All Products Available?">
+      <bpmn:name>If everything is OK, then the staff recollects all products</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GatewayDecision2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PreparePackagePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Process Failed -->
+    <bpmn:endEvent id="EndEvent_ProcessFailed" name="Process Failed">
+      <bpmn:name>All products not available after wait</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FailedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Prepare Package -->
+    <bpmn:task id="Task_PreparePackage" name="Recollect & Prepare Package">
+      <bpmn:name>Staff recollects all products and prepare a package</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PreparePackagePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyCourierStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Notify Courier -->
+    <bpmn:task id="Task_NotifyCourier" name="Notify Courier about Package">
+      <bpmn:name>Courier is informed about the pre-processed package</bpmn:name>
+      <bpmn:incoming>SequenceFlow_NotifyCourierStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResourcesStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event for Courier Resources -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_WaitResources" name="Wait for Human Resources">
+      <bpmn:name>Courier waits until enough human resources</bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitResourcesStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DriverPickupPath</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Driver Pickup -->
+    <bpmn:task id="Task_DriverPickup" name="Driver Picks Up Package">
+      <bpmn:name>The package is picked up by the designated driver</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DriverPickupPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideRouteStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Service Task: Route Decision -->
+    <bpmn:serviceTask id="Service_DecideRoute" name="Decide Best Route">
+      <bpmn:name>A centralized service decides the best route to deliver all driver's packages</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DecideRouteStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeliverPackagePath</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Deliver Package -->
+    <bpmn:task id="Task_DeliverPackage" name="Deliver Package">
+      <bpmn:name>The driver delivers the package</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DeliverPackagePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateSystemStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Update System -->
+    <bpmn:endEvent id="EndEvent_UpdateSystem" name="Update System">
+      <bpmn:name>All stakeholders notified via system update</bpmn:name>
+      <bpmn:incoming>SequenceFlow_UpdateSystemStart</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailability" sourceRef="StartEvent_ReviewOrder" targetRef="Task_CheckAvailability">
+      <bpmn:name>The process starts by reviewing the order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayDecision1" sourceRef="Task_CheckAvailability" targetRef="Gateway_ItemsAvailable"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DiscontinuedPath" sourceRef="Gateway_ItemsAvailable" targetRef="EndEvent_DiscontinuedItem">
+      <bpmn:name>In exceptional case of discontinued item, inform customer</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MissingPath" sourceRef="Gateway_ItemsAvailable" targetRef="Task_InformCustomerOrderMissing">
+      <bpmn:name>If something is missing, inform customer about delay</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitDeliveryStart" sourceRef="Task_InformCustomerOrderMissing" targetRef="IntermediateTimer_WaitDelivery">
+      <bpmn:name>Average wait of x days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RecheckAvailability" sourceRef="IntermediateTimer_WaitDelivery" targetRef="Task_RecheckAvailability"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayDecision2" sourceRef="Task_RecheckAvailability" targetRef="Gateway_AllProductsAvailable">
+      <bpmn:name>Check again if all products are on store</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PreparePackagePath" sourceRef="Gateway_AllProductsAvailable" targetRef="Task_PreparePackage">
+      <bpmn:name>If everything is OK, then the staff recollects all products</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FailedPath" sourceRef="Gateway_AllProductsAvailable" targetRef="EndEvent_ProcessFailed">
+      <bpmn:name>If not OK, process fails</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyCourierStart" sourceRef="Task_PreparePackage" targetRef="Task_NotifyCourier"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResourcesStart" sourceRef="Task_NotifyCourier" targetRef="IntermediateTimer_WaitResources">
+      <bpmn:name>Courier informs client about potential delay until enough resources</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DriverPickupPath" sourceRef="IntermediateTimer_WaitResources" targetRef="Task_DriverPickUp">
+      <bpmn:name>The package is picked up by the designated driver</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecideRouteStart" sourceRef="Task_DriverPickup" targetRef="Service_DecideRoute">
+      <bpmn:name>A centralized service decides the best route</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DeliverPackagePath" sourceRef="Service_DecideRoute" targetRef="Task_DeliverPackage">
+      <bpmn:name>The driver delivers the package</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_UpdateSystemStart" sourceRef="Task_DeliverPackage" targetRef="EndEvent_UpdateSystem"/>
+
+  </bpmn:process>
+</bpmn:definitions>

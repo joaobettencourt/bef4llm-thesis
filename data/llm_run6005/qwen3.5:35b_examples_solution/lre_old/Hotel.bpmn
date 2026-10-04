@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RoomService_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_HotelRoomService">
+    <bpmn:participant id="Participant_HotelRS" name="Hotel Room Service" processRef="Process_RoomService_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_RoomService_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Manager" name="Room-Service Manager">
+        <bpmn:flowNodeRef>StartEvent_CallRS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TakeOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Kitchen" name="Kitchen">
+        <bpmn:flowNodeRef>Task_SubmitTicket</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Sommelier" name="Sommelier">
+        <bpmn:flowNodeRef>Gateway_AlcoholCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GiveOrderSommelier</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Waiter" name="Waiter">
+        <bpmn:flowNodeRef>Gateway_DrinksCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReadyCart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareNonAlcDrinks</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CallRS" name="Guest Calls Room Service">
+      <bpmn:outgoing>SeqFlow_StartToTakeOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Manager Tasks -->
+    <bpmn:task id="Task_TakeOrder" name="Take down Order">
+      <bpmn:incoming>SeqFlow_StartToTakeOrder</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_OrderSplitParallel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Kitchen Tasks -->
+    <bpmn:task id="Task_SubmitTicket" name="Submit Order Ticket to Kitchen">
+      <bpmn:incoming>SeqFlow_TicketToKitchen</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_KitchenPrepareMeal</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PrepareMeal" name="Prepare Meal">
+      <bpmn:incoming>SeqFlow_KitchenPrepareMeal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_MealReadyToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sommelier Logic -->
+    <bpmn:exclusiveGateway id="Gateway_AlcoholCheck" name="Alcoholic Beverages Ordered?">
+      <bpmn:name>Alcoholic Beverages Ordered?</bpmn:name>
+      <bpmn:incoming>SeqFlow_OrderSplitParallel</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_AlcoholYes_Sommelier</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_GiveOrderSommelier" name="Give Order to Sommelier">
+      <bpmn:name>Give Order to Sommelier</bpmn:name>
+      <bpmn:incoming>SeqFlow_AlcoholYes_Sommelier</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SommelerWorkComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Waiter Tasks -->
+    <bpmn:exclusiveGateway id="Gateway_DrinksCheck" name="Non-Alcoholic Drinks Needed?">
+      <bpmn:name>Drinks Check</bpmn:name>
+      <bpmn:incoming>SeqFlow_WaiterStartTasks</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_DrinksYes_PrepareNonAlc</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_ReadyCart" name="Ready Cart">
+      <bpmn:name>Ready Cart</bpmn:name>
+      <bpmn:incoming>SeqFlow_WaiterStartTasks</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CartReadyToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Waiter Drink Task -->
+    <bpmn:task id="Task_PrepareNonAlcDrinks" name="Prepare Non-Alcoholic Drinks">
+      <bpmn:name>Prepare Non-Alcoholic Drinks</bpmn:name>
+      <bpmn:incoming>SeqFlow_DrinksYes_PrepareNonAlc</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_NonAlcReadyToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Convergence Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_Converge" name="All Ready">
+      <bpmn:name>All Ready</bpmn:name>
+      <bpmn:incoming>SeqFlow_MealReadyToMerge</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_AllReadyToDeliver</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Delivery Flow -->
+    <bpmn:endEvent id="EndEvent_OrderComplete" name="Order Completed">
+      <bpmn:name>Order Completed</bpmn:name>
+      <bpmn:incoming>SeqFlow_BillingDoneToFinish</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToTakeOrder" sourceRef="StartEvent_CallRS" targetRef="Task_TakeOrder">
+      <bpmn:name>To Take Order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Split from Manager to Kitchen, Sommelier Check, Waiter Assignment -->
+    <bpmn:parallelGateway id="ParallelManagerSplit" name="Start Parallel Work">
+      <bpmn:name>Start Parallel Work</bpmn:name>
+      <bpmn:incoming>SeqFlow_OrderSplitParallel</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_TicketToKitchen</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Waiter Assignment Flow -->
+     <bpmn:task id="Task_AssignWaiter" name="Assign Order to Waiter">
+       <bpmn:name>Assign Order to Waiter</bpmn:name>
+      <bpmn:incoming>SeqFlow_OrderSplitParallel</bpmn:incoming> 
+    </bpmn:task>
+
+     <!-- Correcting flow logic for valid XML -->
+  </bpmn:process>
+</bpmn:definitions>

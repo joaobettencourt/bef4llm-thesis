@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_RecourseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RecourseProc">
+    <bpmn:participant id="Participant_Versicherung" name="Versicherungsabwicklung - Regressprozess" processRef="Process_Recourse"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Recourse" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeiter (Regress)">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FallPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_ValidBasis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClosedNoBasis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ZahlungsaufforderungSenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_WaitStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClosedPaid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BookReceiptCloseCase</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_JustifiedCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClosedJustified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignCollectionDeadline</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClosedAssignedDeadline</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_Deadline</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Message_ObjectionReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckObjection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignCollectionUnjustified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClosedAssignedUnjustified</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Benachrichtigung Regress möglich">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_FallPruefen" name="Fall prüfen (Möglichkeit Regress)">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_ValidBasis" name="Möglichkeit besteht?">
+      <bpmn:incoming>SequenceFlow_CheckToGateway1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoBasisToEnd</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesToSendRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_ClosedNoBasis" name="Vorgang geschlossen (keine Möglichkeit)">
+      <bpmn:incoming>SequenceFlow_NoBasisToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_ZahlungsaufforderungSenden" name="Zahlungsaufforderung senden &amp; Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_YesToSendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToWaitSplit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Waiting State -->
+    <bpmn:parallelGateway id="InclusiveGateway_WaitStart" name="Warten auf Ereignis">
+      <bpmn:incoming>SequenceFlow_SendToWaitSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PaymentPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ObjectionPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer Event Path -->
+    <bpmn:intermediateCatchEvent id="Timer_Deadline" name="Frist abgelaufen">
+      <bpmn:incoming>SequenceFlow_TimerPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerToAssignDeadline</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task Assign Collection (Deadline) -->
+    <bpmn:task id="Task_AssignCollectionDeadline" name="Inkasso-Dienstleister beauftragen">
+      <bpmn:incoming>SequenceFlow_TimerToAssignDeadline</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeadlineToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ClosedAssignedDeadline" name="Vorgang geschlossen (Inkasso - Frist)">
+      <bpmn:incoming>SequenceFlow_DeadlineToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Payment Event Path -->
+    <bpmn:messageEvent id="Message_PaymentReceived" name="Geld eingegangen">
+      <bpmn:incoming>SequenceFlow_PaymentPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentToTask</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+    <!-- Task Book Receipt -->
+    <bpmn:task id="Task_BookReceiptCloseCase" name="Eingang verbuchen &amp; schließen">
+      <bpmn:incoming>SequenceFlow_PaymentToTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3 -->
+    <bpmn:endEvent id="EndEvent_ClosedPaid" name="Vorgang abgeschlossen (Bezahlt)">
+      <bpmn:incoming>SequenceFlow_PaymentToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Objection Event Path -->
+    <bpmn:messageEvent id="Message_ObjectionReceived" name="VN widerspricht">
+      <bpmn:incoming>SequenceFlow_ObjectionPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObjToTaskCheck</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+    <!-- Task Check Objection -->
+    <bpmn:task id="Task_CheckObjection" name="Widerspruch prüfen">
+      <bpmn:incoming>SequenceFlow_ObjToTaskCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObjToGateway2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_JustifiedCheck" name="Zahlungsverweigerung gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_ObjToGateway2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JustifiedToEnd</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UnjustifiedToAssign</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 4 -->
+    <bpmn:endEvent id="EndEvent_ClosedJustified" name="Vorgang geschlossen (Gerechtfertigter Widerspruch)">
+      <bpmn:incoming>SequenceFlow_JustifiedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task Assign Collection (Unjustified) -->
+    <bpmn:task id="Task_AssignCollectionUnjustified" name="Inkasso-Dienstleister beauftragen">
+      <bpmn:incoming>SequenceFlow_UnjustifiedToAssign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnjustifiedToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 5 -->
+    <bpmn:endEvent id="EndEvent_ClosedAssignedUnjustified" name="Vorgang geschlossen (Inkasso - Unberechtigt)">
+      <bpmn:incoming>SequenceFlow_UnjustifiedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="StartEvent_01" targetRef="Task_FallPruefen"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToGateway1" name="Fall geprüft?" sourceRef="Task_FallPruefen" targetRef="InclusiveGateway_ValidBasis">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoBasisToEnd" name="Nein (keine Möglichkeit)" sourceRef="InclusiveGateway_ValidBasis" targetRef="EndEvent_ClosedNoBasis">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!basisExists]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_YesToSendRequest" name="Ja (Möglichkeit besteht)" sourceRef="InclusiveGateway_ValidBasis" targetRef="Task_ZahlungsaufforderungSenden">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[basisExists]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToWaitSplit" sourceRef="Task_ZahlungsaufforderungSenden" targetRef="InclusiveGateway_WaitStart"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TimerPath" name="Frist abgelaufen?" sourceRef="InclusiveGateway_WaitStart" targetRef="Timer_Deadline">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[deadlineExpired]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentPath" name="Geld eingegangen?" sourceRef="InclusiveGateway_WaitStart" targetRef="Message_PaymentReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[paymentReceived]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ObjectionPath" name="Widerspruch?" sourceRef="InclusiveGateway_WaitStart" targetRef="Message_ObjectionReceived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[objectionReceived]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Post-Event Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToAssignDeadline" sourceRef="Timer_Deadline" targetRef="Task_AssignCollectionDeadline"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentToTask" name="Geld eingegangen?" sourceRef="Message_PaymentReceived" targetRef="Task_BookReceiptCloseCase">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[paymentConfirmed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ObjToTaskCheck" sourceRef="Message_ObjectionReceived" targetRef="Task_CheckObjection"/>
+
+    <!-- Objection Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_JustifiedToEnd" name="Ja (Gerechtfertigt)" sourceRef="InclusiveGateway_JustifiedCheck" targetRef="EndEvent_ClosedJustified">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[justificationValid]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_UnjustifiedToAssign" name="Nein (Unberechtigt)" sourceRef="InclusiveGateway_JustifiedCheck" targetRef="Task_AssignCollectionUnjustified">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[!justificationValid]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DeadlineToEnd" sourceRef="Task_AssignCollectionDeadline" targetRef="EndEvent_ClosedAssignedDeadline"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentToEnd" name="Vorgang schließen?" sourceRef="Task_BookReceiptCloseCase" targetRef="EndEvent_ClosedPaid">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[closeProcess]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_UnjustifiedToEnd" sourceRef="Task_AssignCollectionUnjustified" targetRef="EndEvent_ClosedAssignedUnjustified"/>
+
+  </bpmn:process>
+</bpmn:definitions>

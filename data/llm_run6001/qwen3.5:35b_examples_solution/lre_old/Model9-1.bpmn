@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Account Defaulters Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event - Weekday morning timer -->
+    <bpmn:startEvent id="StartEvent_WeekdayMorning" name="Every weekday morning">
+      <bpmn:outgoing>SFlow_StartToBackup</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Database Backup -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup database">
+      <bpmn:incoming>SFlow_StartToBackup</bpmn:incoming>
+      <bpmn:outgoing>SFlow_BackupToCheckDefaulters</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 - Check for new records in Account Defaulters table -->
+    <bpmn:exclusiveGateway id="Gateway_CheckNewRecords" name="New defaulter records?">
+      <bpmn:incoming>SFlow_BackupToCheckDefaulters</bpmn:incoming>
+      <bpmn:outgoing>SFlow_YesNewRecords</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoNewRecords</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 - Register defaulting accounts and customers -->
+    <bpmn:task id="Task_RegisterDefaulters" name="Register all defaulting accounts and customers">
+      <bpmn:incoming>SFlow_YesNewRecords</bpmn:incoming>
+      <bpmn:outgoing>SFlow_RegisterToCheckPreviousClients</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 - Check if client codes previously advised -->
+    <bpmn:exclusiveGateway id="Gateway_PreviouslyAdvised" name="Previously advised?">
+      <bpmn:incoming>SFlow_RegisterToCheckPreviousClients</bpmn:incoming>
+      <bpmn:outgoing>SFlow_YesAdvised</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoAdvised</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 - Produce table and send to account management -->
+    <bpmn:task id="Task_ProduceTable" name="Produce defaulting accounts table">
+      <bpmn:incoming>SFlow_NoAdvised</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TableToAccountManagement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event - 2:30 PM timer -->
+    <bpmn:intermediateCatchEvent id="Timer_230PM" name="2:30 PM">
+      <bpmn:incoming>SFlow_TableToAccountManagement</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TimerAlertSupervisor</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4 - Alert supervisor if not completed by 2:30 PM -->
+    <bpmn:task id="Task_AlertSupervisor1" name="Alert supervisor">
+      <bpmn:incoming>SFlow_TimerAlertSupervisor</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SupervisorToCRMCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 - Check CRM system for returns -->
+    <bpmn:task id="Task_CheckCRMSystem" name="Check CRM system">
+      <bpmn:incoming>SFlow_SupervisorToCRMCheck</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CRMToNewReturnsGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 - Check for new returns -->
+    <bpmn:exclusiveGateway id="Gateway_NewReturns" name="New returns filed?">
+      <bpmn:incoming>SFlow_CRMToNewReturnsGateway</bpmn:incoming>
+      <bpmn:outgoing>SFlow_YesReturns</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoReturns</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6 - Reconcile with existing defaulters table -->
+    <bpmn:task id="Task_Reconcile" name="Reconcile with account defaulters table">
+      <bpmn:incoming>SFlow_YesReturns</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ReconcileToTimer4PM</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event - 4:00 PM timer -->
+    <bpmn:intermediateCatchEvent id="Timer_400PM" name="4:00 PM">
+      <bpmn:incoming>SFlow_ReconcileToTimer4PM</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TimerAlertSupervisor2</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 7 - Alert supervisor if not completed by 4:00 PM -->
+    <bpmn:task id="Task_AlertSupervisor2" name="Alert supervisor">
+      <bpmn:incoming>SFlow_TimerAlertSupervisor2</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SupervisorToEndEvent1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Process completed">
+      <bpmn:incoming>SFlow_NoReturnsToCompleted</bpmn:incoming>
+      <bpmn:incoming>SFlow_SupervisorToEndEvent2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_StartToBackup" sourceRef="StartEvent_WeekdayMorning" targetRef="Task_BackupDatabase"/>
+    <bpmn:sequenceFlow id="SFlow_BackupToCheckDefaulters" sourceRef="Task_BackupDatabase" targetRef="Gateway_CheckNewRecords"/>
+    <bpmn:sequenceFlow id="SFlow_YesNewRecords" name="Yes - new records found" sourceRef="Gateway_CheckNewRecords" targetRef="Task_RegisterDefaulters"/>
+    <bpmn:sequenceFlow id="SFlow_NoNewRecords" name="No - no new records" sourceRef="Gateway_CheckNewRecords" targetRef="Timer_230PM">
+      <!-- This path handles the case where there are NO new defaulter records -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SFlow_RegisterToCheckPreviousClients" name="" sourceRef="Task_RegisterDefaulters" targetRef="Gateway_PreviouslyAdvised"/>
+    <bpmn:sequenceFlow id="SFlow_YesAdvised" name="Yes - previously advised" sourceRef="Gateway_PreviouslyAdvised" targetRef="Timer_230PM">
+      <!-- Skip table production if already advised -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SFlow_NoAdvised" name="No - not previously advised" sourceRef="Gateway_PreviouslyAdvised" targetRef="Task_ProduceTable"/>
+    <bpmn:sequenceFlow id="SFlow_TableToAccountManagement" name="" sourceRef="Task_ProduceTable" targetRef="Timer_230PM">
+      <!-- After producing table, check time constraint -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SFlow_TimerAlertSupervisor" name="Not completed by 2:30 PM" sourceRef="Timer_230PM" targetRef="Task_AlertSupervisor1"/>
+    <bpmn:sequenceFlow id="SFlow_SupervisorToCRMCheck" name="" sourceRef="Task_AlertSupervisor1" targetRef="Task_CheckCRMSystem">
+      <!-- After alerting, continue with CRM check -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SFlow_CRMToNewReturnsGateway" name="" sourceRef="Task_CheckCRMSystem" targetRef="Gateway_NewReturns"/>
+    <bpmn:sequenceFlow id="SFlow_YesReturns" name="Yes - new returns filed" sourceRef="Gateway_NewReturns" targetRef="Task_Reconcile"/>
+    <bpmn:sequenceFlow id="SFlow_NoReturns" name="No - no new returns" sourceRef="Gateway_NewReturns" targetRef="EndEvent_Completed">
+      <!-- If no new returns, process can end -->
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SFlow_ReconcileToTimer4PM" name="" sourceRef="Task_Reconcile" targetRef="Timer_400PM"/>
+    <bpmn:sequenceFlow id="SFlow_TimerAlertSupervisor2" name="Not completed by 4:00 PM" sourceRef="Timer_400PM" targetRef="Task_AlertSupervisor2"/>
+    <bpmn:sequenceFlow id="SFlow_SupervisorToEndEvent1" name="" sourceRef="Task_AlertSupervisor2" targetRef="EndEvent_Completed">
+      <!-- After alerting, process ends -->
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

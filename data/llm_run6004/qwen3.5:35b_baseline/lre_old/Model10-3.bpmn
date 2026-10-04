@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_GO" name="Grid Operator (GO)" processRef="Process_1"/>
+    <bpmn:participant id="Participant_MPOO" name="Meter Point Owner (MPOO)"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DeregistrationRequest" name="Deregistration Request Received">
+      <bpmn:outgoing>SequenceFlow_Verify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Verify Deregistration -->
+    <bpmn:task id="Task_Verify" name="Verify Deregistration">
+      <bpmn:incoming>SequenceFlow_Verify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecisionRejectConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Reject or Confirm -->
+    <bpmn:exclusiveGateway id="Gateway_RejectConfirm" name="Deregistration Approved?">
+      <bpmn:incoming>SequenceFlow_DecisionRejectConfirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Rejected -->
+    <bpmn:endEvent id="End_Event_Rejected" name="Deregistration Rejected">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Prepare Readmission (Confirm Path) -->
+    <bpmn:task id="Task_PrepareReadmission" name="Prepare Readmission of Measuring Point">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ObligationDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Obligation Decision -->
+    <bpmn:exclusiveGateway id="Gateway_Obliged" name="Obliged to continue operations?">
+      <bpmn:incoming>SequenceFlow_ObligationDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoObligationPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: No Obligation -->
+    <bpmn:endEvent id="End_Event_ObligedNo" name="Continue Operations Not Required">
+      <bpmn:incoming>SequenceFlow_NoObligationPath</bpmn:incoming>
+    </bmmn:endEvent>
+
+    <!-- Path B: Obligation (Confirmation) -->
+    <bpmn:startEvent id="Start_Event_Confirmation" name="MPOO Confirms Continuation">
+      <bpmn:outgoing>SequenceFlow_EquipmentAcquisition</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 3: Equipment Acquisition -->
+    <bpmn:task id="Task_Equipment" name="Perform Equipment Acquisition and/or Changes">
+      <bpmn:incoming>SequenceFlow_NoObligationPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ConfirmationReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssignMPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Assign GO as MPO -->
+    <bpmn:task id="Task_AssignGO" name="Assign GO as Meter Point Operator (MPO)">
+      <bpmn:incoming>SequenceFlow_Equipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyParallel</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Parallel Notification -->
+    <bpmn:parallelGateway id="Gateway_Notify" name="Notify Parties">
+      <bpmn:incoming>SequenceFlow_AssignGO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformMPOO</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 5a: Inform MPOO -->
+    <bpmn:task id="Task_InformMPOO" name="Inform MPOO about Assignment End/Beginning">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5b: Inform MSPO -->
+    <bpmn:task id="Task_InformMSPO" name="Inform MSPO about Assignment of GO">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5c: Inform SP -->
+    <bpmn:task id="Task_InformSP" name="Inform SP about Assignment of GO">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Merge Notifications -->
+    <bpmn:parallelGateway id="Gateway_Merge" name="All Parties Notified">
+      <bpmn:incoming>SequenceFlow_InformMPOO</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InformMSPO</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2: Completed -->
+    <bpmn:endEvent id="End_Event_Completed" name="Assignment Completed">
+      <bpmn:incoming>SequenceFlow_MergeNotify</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Verify" sourceRef="StartEvent_DeregistrationRequest" targetRef="Task_Verify"/>
+    
+    <bpmn:exclusiveGateway id="Gateway_DecisionRejectConfirm">
+      <bpmn:incoming>SequenceFlow_DecisionRejectConfirm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionRejectConfirm" sourceRef="Task_Verify" targetRef="Gateway_RejectConfirm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[verificationComplete]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:exclusiveGateway id="Gateway_ObligedDecision" name="Obliged?">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoObligationPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" sourceRef="Gateway_DecisionRejectConfirm" targetRef="End_Event_Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[rejectDeregistration]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:exclusiveGateway id="Gateway_ConfirmObligation" name="Confirm Deregistration">
+      <bpmn:incoming>SequenceFlow_DecisionRejectConfirm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PrepareReadmissionPath</bmmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" sourceRef="Gateway_DecisionRejectConfirm" targetRef="Task_PrepareReadmission">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[confirmDeregistration]]></bpmn:conditionExpression>
+    </bmmn:sequenceFlow>
+
+    <!-- Task 2 Re-definition for flow continuity -->
+    <bpmn:task id="Task_PrepareReadmission" name="Prepare Readmission of Measuring Point">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ObligationDecision</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 Re-definition -->
+    <bpmn:exclusiveGateway id="Gateway_Obliged" name="Obliged to continue operations?">
+      <bpmn:incoming>SequenceFlow_ObligationDecision</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoObligationPath</bmmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A -->
+    <bpmn:endEvent id="End_Event_ObligedNo" name="Continue Operations Not Required">
+      <bpmn:incoming>SequenceFlow_NoObligationPath</bmmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to Equipment -->
+    <bpmn:sequenceFlow id="SequenceFlow_ObligationDecision" sourceRef="Task_PrepareReadmission" targetRef="Gateway_Obliged">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[readmissionPrepared]]></bpmn:conditionExpression>
+    </bmmn:sequenceFlow>
+
+    <!-- Path B -->
+    <bpmn:startEvent id="Start_Event_Confirmation" name="MPOO Confirms Continuation">
+      <bpmn:outgoing>SequenceFlow_EquipmentAcquisition</bmmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_Equipment" name="Perform Equipment Acquisition and/or Changes">
+      <bpmn:incoming>SequenceFlow_NoObligationPath</bmmn:outgoing>
+      <bpmn:incoming>SequenceFlow_ConfirmationReceived</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AssignMPO</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4 -->
+    <bpmn:task id="Task_AssignGO" name="Assign GO as Meter Point Operator (MPO)">
+      <bpmn:incoming>SequenceFlow_EquipmentAcquisition</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotifyParallel</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 -->
+    <bpmn:parallelGateway id="Gateway_Notify" name="Notify Parties">
+      <bpmn:incoming>SequenceFlow_AssignGO</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InformMPOO</bmmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 5a -->
+    <bpmn:task id="Task_InformMPOO" name="Inform MPOO about Assignment End/Beginning">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5b -->
+    <bpmn:task id="Task_InformMSPO" name="Inform MSPO about Assignment of GO">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5c -->
+    <bpmn:task id="Task_InformSP" name="Inform SP about Assignment of GO">
+      <bpmn:incoming>SequenceFlow_NotifyParallel</bmmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MergeNotify</bmmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 -->
+    <bpmn:parallelGateway id="Gateway_Merge" name="All Parties Notified">
+      <bpmn:incoming>SequenceFlow_InformMPOO</bmmn:outgoing>
+      <bpmn:incoming>SequenceFlow_InformMSPO</bmmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="End_Event_Completed" name="Assignment Completed">
+      <bpmn:incoming>SequenceFlow_MergeNotify</bmmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Corrected) -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoObligationPath" sourceRef="Gateway_ObligedDecision" targetRef="Task_Equipment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[notObliged]]></bpmn:conditionExpression>
+    </bmmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmationReceived" sourceRef="Start_Event_Confirmation" targetRef="Task_Equipment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[confirmed]]></bpmn:conditionExpression>
+    </bmmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_AccountCreation">
+    <bpmn:participant id="Participant_PayPalSystem" name="PayPal Account Creation Process" processRef="Process_AccountCreation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AccountCreation" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Create PayPal Account">
+      <bpmn:outgoing>SequenceFlow_StartToAccountType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway for account type selection -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AccountType" name="Select Account Type?">
+      <bpmn:incoming>SequenceFlow_StartToAccountType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PersonalAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PremiumAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for entering details -->
+    <bpmn:task id="Task_EnterDetails" name="Enter Login and Personal Details">
+      <bpmn:incoming SequenceFlow_AccountTypeToDetails></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DetailsToPEP</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for PEP affiliation -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PEP" name="Affiliated with PEP?">
+      <bpmn:incoming SequenceFlow_DetailsToPEP></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PEPAffirmed</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PEPNotAffiliated</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for creating account -->
+    <bpmn:task id="Task_CreateAccount" name="Create Account">
+      <bpmn:incoming SequenceFlow_PEPAffirmed></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToSystem</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for submission -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_Submit" name="Submit Account Details to System">
+      <bpmn:incoming SequenceFlow_SendToSystem></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SystemReceives</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event for validation -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_Validation" name="Receive Validation Request">
+      <bpmn:incoming SequenceFlow_SystemReceives></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidationsComplete</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway for validation result -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Validation" name="Valid Fields?">
+      <bpmn:incoming SequenceFlow_ValidationsComplete></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidFields</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InvalidFields</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for notifying client -->
+    <bpmn:task id="Task_NotifyClient" name="Notify Client of Invalid Fields">
+      <bpmn:incoming SequenceFlow_InvalidFields></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClientCorrects</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for generating welcome email -->
+    <bpmn:task id="Task_GenerateWelcomeEmail" name="Generate and Send Welcome Email">
+      <bpmn:incoming SequenceFlow_ValidFields></bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreated</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Success" name="Account Created Successfully">
+      <bpmn:incoming SequenceFlow_AccountCreated></bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAccountType" sourceRef="StartEvent_1" targetRef="ExclusiveGateway_AccountType"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PersonalAccount" name="Personal Account" sourceRef="ExclusiveGateway_AccountType" targetRef="Task_EnterDetails">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[accountType == 'personal']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PremiumAccount" name="Premium Account" sourceRef="ExclusiveGateway_AccountType" targetRef="Task_EnterDetails">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[accountType == 'premium']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AccountTypeToDetails" sourceRef="ExclusiveGateway_PersonalAccount" targetRef="Task_EnterDetails"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DetailsToPEP" name="Enter Details Complete" sourceRef="Task_EnterDetails" targetRef="ExclusiveGateway_PEP"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PEPAffirmed" name="Yes - Affiliated with PEP" sourceRef="ExclusiveGateway_PEP" targetRef="Task_CreateAccount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[pepAffiliation == 'yes']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PEPNotAffiliated" name="No - Not Affiliated with PEP" sourceRef="ExclusiveGateway_PEP" targetRef="Task_CreateAccount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[pepAffiliation == 'no']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendToSystem" sourceRef="Task_CreateAccount" targetRef="IntermediateThrowEvent_Submit"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SystemReceives" name="Details Submitted to System" sourceRef="IntermediateThrowEvent_Submit" targetRef="IntermediateCatchEvent_Validation">
+      <bpmn:messageEventDefinition/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ValidationsComplete" sourceRef="IntermediateCatchEvent_Validation" targetRef="ExclusiveGateway_Validation"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ValidFields" name="All Fields Valid" sourceRef="ExclusiveGateway_Validation" targetRef="Task_GenerateWelcomeEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[validationResult == 'valid']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_InvalidFields" name="Some Fields Invalid" sourceRef="ExclusiveGateway_Validation" targetRef="Task_NotifyClient">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[validationResult == 'invalid']]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ClientCorrects" sourceRef="Task_NotifyClient" targetRef="ExclusiveGateway_AccountType"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreated" name="Welcome Email Sent" sourceRef="Task_GenerateWelcomeEmail" targetRef="EndEvent_Success"/>
+  </bpmn:process>
+</bpmn:definitions>

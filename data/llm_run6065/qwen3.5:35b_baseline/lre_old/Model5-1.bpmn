@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_LoanApproval" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_LoanProcess">
+    <bpmn:participant name="Loan Approval System" processRef="Proc_LoanApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_LoanApproval" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ReceiveRequest" name="Receive Loan Request">
+      <bpmn:outgoing>Flow_StartToAssess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task: Risk Assessment Web Service -->
+    <bpmn:serviceTask id="Service_Task_AssessRisk" name="Invoke Risk Assessment">
+      <bpmn:incoming>Flow_StartToAssess</bpmn:incoming>
+      <bpmn:outgoing>Flow_RiskToDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway for Decision Logic -->
+    <bpmn:exclusiveGateway id="Gate_Decision" name="Assessment Result">
+      <bpmn:incoming>Flow_RiskToDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DenyPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ReviewPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Approved -->
+    <bpmn:task id="Task_NotifyApproval" name="Notify Customer - Approval">
+      <bpmn:incoming>Flow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndApproved</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Denied -->
+    <bpmn:task id="Task_NotifyDenial" name="Notify Customer - Denial">
+      <bpmn:incoming>Flow_DenyPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndDenied</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 3: Review/Approver Service -->
+    <bpmn:serviceTask id="Service_Task_Applier" name="Invoke Approver Web Service">
+      <bpmn:incoming>Flow_ReviewPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovalToNotify</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task after Approver -->
+    <bpmn:task id="Task_NotifyDecision" name="Notify Customer - Decision">
+      <bpmn:incoming>Flow_ApprovalToNotify</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Completed" name="Process Completed">
+      <bpmn:incoming>Flow_EndApproved</bpmn:incoming>
+      <bpmn:incoming>Flow_EndDenied</bpmn:incoming>
+      <bpmn:incoming>Flow_EndReview</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Assessment -->
+    <bpmn:sequenceFlow id="Flow_StartToAssess" sourceRef="Start_ReceiveRequest" targetRef="Service_Task_AssessRisk"/>
+
+    <!-- Gateway Outgoing Flows with Conditions (Implicit in labels) -->
+    <bpmn:sequenceFlow id="Flow_ApprovePath" name="Small &amp; Low Risk" 
+                      sourceRef="Gate_Decision" targetRef="Task_NotifyApproval"/>
+
+    <bpmn:sequenceFlow id="Flow_DenyPath" name="High Risk" 
+                      sourceRef="Gate_Decision" targetRef="Task_NotifyDenial"/>
+
+    <bpmn:sequenceFlow id="Flow_ReviewPath" name="Further Review or Amount &gt;= $10k" 
+                      sourceRef="Gate_Decision" targetRef="Service_Task_Applier"/>
+
+    <!-- Assessment to Gateway -->
+    <bpmn:sequenceFlow id="Flow_RiskToDecision" sourceRef="Service_Task_AssessRisk" targetRef="Gate_Decision"/>
+
+    <!-- Paths to End Event -->
+    <bpmn:sequenceFlow id="Flow_EndApproved" 
+                      sourceRef="Task_NotifyApproval" targetRef="End_Completed"/>
+    
+    <bpmn:sequenceFlow id="Flow_EndDenied" 
+                      sourceRef="Task_NotifyDenial" targetRef="End_Completed"/>
+
+    <!-- Approver Path Flow -->
+    <bpmn:sequenceFlow id="Flow_ApprovalToNotify" 
+                      sourceRef="Service_Task_Applier" targetRef="Task_NotifyDecision"/>
+    
+    <bpmn:sequenceFlow id="Flow_EndReview" 
+                      sourceRef="Task_NotifyDecision" targetRef="End_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LegoMachine_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="Process_BuildLegoMachine" isExecutable="false">
+    <!-- Start Event -->
+    <startEvent id="StartEvent_DevelopDesign">
+      <outgoing>SequenceFlow_StartToDesign</outgoing>
+    </startEvent>
+
+    <!-- Task: Develop basic design -->
+    <task id="Task_DesignBasicMachine" name="Develop basic machine design">
+      <incoming>SequenceFlow_StartToDesign</incoming>
+      <outgoing>SequenceFlow_OrderSets</outgoing>
+    </task>
+
+    <!-- Sequence Flow from Start to Design Task -->
+    <sequenceFlow id="SequenceFlow_StartToDesign" sourceRef="StartEvent_DevelopDesign" targetRef="Task_DesignBasicMachine"/>
+
+    <!-- Task: Order Lego brick sets -->
+    <serviceTask id="Task_OrderLegoSets" name="Order certain Lego brick sets">
+      <incoming>SequenceFlow_OrderSets</incoming>
+      <outgoing>SequenceFlow_GiveToChildren</outgoing>
+    </serviceTask>
+
+    <!-- Sequence Flow to Order Sets Task -->
+    <sequenceFlow id="SequenceFlow_OrderSets" sourceRef="Task_DesignBasicMachine" targetRef="Task_OrderLegoSets"/>
+
+    <!-- Task: Children sort parts into containers -->
+    <task id="Task_ChildrenSortParts" name="Children sort parts for you">
+      <incoming>SequenceFlow_GiveToChildren</incoming>
+      <outgoing>SequenceFlow_BuildSubcomponents</outgoing>
+    </task>
+
+    <!-- Sequence Flow to Sort Parts Task -->
+    <sequenceFlow id="SequenceFlow_GiveToChildren" sourceRef="Task_OrderLegoSets" targetRef="Task_ChildrenSortParts"/>
+
+    <!-- Parallel Gateway for building multiple subcomponents individually (optional but realistic) -->
+    <parallelGateway id="ParallelGateway_BuildSubcomponents">
+      <incoming>SequenceFlow_BuildSubcomponents</incoming>
+      <outgoing>SequenceFlow_Subcomponent1Build</outgoing>
+      <outgoing>SequenceFlow_Subcomponent2Build</outgoing>
+    </parallelGateway>
+
+    <!-- Sequence Flow to Parallel Gateway -->
+    <sequenceFlow id="SequenceFlow_BuildSubcomponents" sourceRef="Task_ChildrenSortParts" targetRef="ParallelGateway_BuildSubcomponents"/>
+
+    <!-- Subcomponent 1 Build Task (example of building individually) -->
+    <task id="Task_BuildSubcomponent1" name="Build subcomponent 1">
+      <incoming>SequenceFlow_Subcomponent1Build</incoming>
+      <outgoing>SequenceFlow_TestSubcomponent1</outgoing>
+    </task>
+
+    <!-- Subcomponent 2 Build Task (example of building individually) -->
+    <task id="Task_BuildSubcomponent2" name="Build subcomponent 2">
+      <incoming>SequenceFlow_Subcomponent2Build</incoming>
+      <outgoing>SequenceFlow_TestSubcomponent2</outgoing>
+    </task>
+
+    <!-- Sequence Flows from Parallel Gateway to Build Tasks -->
+    <sequenceFlow id="SequenceFlow_Subcomponent1Build" sourceRef="ParallelGateway_BuildSubcomponents" targetRef="Task_BuildSubcomponent1"/>
+    <sequenceFlow id="SequenceFlow_Subcomponent2Build" sourceRef="ParallelGateway_BuildSubcomponents" targetRef="Task_BuildSubcomponent2"/>
+
+    <!-- Exclusive Gateway: Parts available? (Decision point for reordering) -->
+    <exclusiveGateway id="ExclusiveGateway_PartsAvailable">
+      <incoming>SequenceFlow_CheckParts</incoming>
+      <outgoing>SequenceFlow_ReorderIndividualParts</outgoing>
+      <outgoing>SequenceFlow_ProceedToBuild</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Reorder individual parts -->
+    <task id="Task_ReorderIndividualParts" name="Reorder individual parts">
+      <incoming>SequenceFlow_ReorderIndividualParts</incoming>
+      <outgoing>SequenceFlow_CheckPartsAgain</outgoing>
+    </task>
+
+    <!-- Sequence Flow to Parts Available Gateway (from build tasks) -->
+    <sequenceFlow id="SequenceFlow_CheckParts" sourceRef="Task_BuildSubcomponent1" targetRef="ExclusiveGateway_PartsAvailable"/>
+    
+    <!-- Loop back from Reorder task to check parts again -->
+    <sequenceFlow id="SequenceFlow_ReorderIndividualParts" name="No more parts in container" sourceRef="ExclusiveGateway_PartsAvailable" targetRef="Task_ReorderIndividualParts"/>
+
+    <!-- Sequence Flow after reordering (looping back) -->
+    <sequenceFlow id="SequenceFlow_CheckPartsAgain" sourceRef="Task_ReorderIndividualParts" targetRef="ParallelGateway_BuildSubcomponents"/>
+
+    <!-- Exclusive Gateway: Test successful? for Subcomponent 1 -->
+    <exclusiveGateway id="ExclusiveGateway_TestSuccessful_1">
+      <incoming>SequenceFlow_Subcomponent1Test</incoming>
+      <outgoing>SequenceFlow_AssembleIfSuccess_1</outgoing>
+      <outgoing>SequenceFlow_RedesignRebuild_1</outgoing>
+    </exclusiveGateway>
+
+    <!-- Exclusive Gateway: Test successful? for Subcomponent 2 -->
+    <exclusiveGateway id="ExclusiveGateway_TestSuccessful_2">
+      <incoming>SequenceFlow_Subcomponent2Test</incoming>
+      <outgoing>SequenceFlow_AssembleIfSuccess_2</outgoing>
+      <outgoing>SequenceFlow_RedesignRebuild_2</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence Flow to Test Task -->
+    <sequenceFlow id="SequenceFlow_Subcomponent1Test" sourceRef="Task_BuildSubcomponent1" targetRef="ExclusiveGateway_TestSuccessful_1"/>
+    
+    <!-- Sequence Flow to Test Task for Subcomponent 2 -->
+    <sequenceFlow id="SequenceFlow_Subcomponent2Test" sourceRef="Task_BuildSubcomponent2" targetRef="ExclusiveGateway_TestSuccessful_2"/>
+
+    <!-- Exclusive Gateway: All tests successful? (Converging) -->
+    <exclusiveGateway id="ExclusiveGateway_AllTestsSuccessful">
+      <incoming>SequenceFlow_AssembleIfSuccess_1</incoming>
+      <incoming>SequenceFlow_AssembleIfSuccess_2</incoming>
+      <outgoing>SequenceFlow_AssembleMachine</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Redesign and rebuild failed subcomponents -->
+    <task id="Task_RedesignRebuild" name="Redesign and rebuild">
+      <incoming>SequenceFlow_RedesignRebuild_1</incoming>
+      <outgoing>SequenceFlow_RetryTest</outgoing>
+    </task>
+
+    <!-- Sequence Flow for redesign/rebuild loop back -->
+    <sequenceFlow id="SequenceFlow_RedesignRebuild" name="No - test failed" sourceRef="ExclusiveGateway_TestSuccessful_1" targetRef="Task_RedesignRebuild"/>
+    
+    <!-- Loop back from Redesign task to build again -->
+    <sequenceFlow id="SequenceFlow_RetryTest" sourceRef="Task_RedesignRebuild" targetRef="ParallelGateway_BuildSubcomponents"/>
+
+    <!-- Sequence Flow for successful test paths -->
+    <sequenceFlow id="SequenceFlow_AssembleIfSuccess_1" name="Yes - all tests passed" sourceRef="ExclusiveGateway_TestSuccessful_1" targetRef="ExclusiveGateway_AllTestsSuccessful"/>
+    
+    <!-- Task: Assemble subcomponents into machine -->
+    <task id="Task_AssembleMachine" name="Assemble subcomponents">
+      <incoming>SequenceFlow_AssembleIfSuccess</incoming>
+      <outgoing>SequenceFlow_CompleteProcess</outgoing>
+    </task>
+
+    <!-- Sequence Flow to Assembly Task (from successful tests) -->
+    <sequenceFlow id="SequenceFlow_AssembleMachine" sourceRef="ExclusiveGateway_AllTestsSuccessful" targetRef="Task_AssembleMachine"/>
+
+    <!-- End Event: Machine completed -->
+    <endEvent id="EndEvent_MachineCompleted">
+      <incoming>SequenceFlow_CompleteProcess</incoming>
+    </endEvent>
+
+    <!-- Sequence Flow to Complete Process -->
+    <sequenceFlow id="SequenceFlow_CompleteProcess" sourceRef="Task_AssembleMachine" targetRef="EndEvent_MachineCompleted"/>
+
+  </process>
+</bpmn:definitions>

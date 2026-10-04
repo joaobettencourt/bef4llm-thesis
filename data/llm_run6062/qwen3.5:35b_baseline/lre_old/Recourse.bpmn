@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_Subrogation_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="CollabSubrogationProcess_1">
+    <bpmn:participant id="Participant_SubsogrationUnit" name="Insurance Subrogation Unit" processRef="Proc_Subrogation_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Subrogation_01" isExecutable="true">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_PossibleSubrogation" name="Insurant possibly subrogated against">
+      <bpmn:outgoing>SequenceFlow_GetInfo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Get information -->
+    <bpmn:task id="Task_GetInformation" name="Get information about case">
+      <bpmn:incoming>SequenceFlow_GetInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPossibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckRecourse" name="Is recourse possible?">
+      <bpmn:incoming>SequenceFlow_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CloseCaseNoRecourse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send payment request -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send request for payment to insurant">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MakeReminder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Make reminder -->
+    <bpmn:task id="Task_MakeReminder" name="Make reminder">
+      <bpmn:incoming>SequenceFlow_MakeReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForPaymentOrDisagreement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Close case (no recourse) -->
+    <bpmn:endEvent id="EndEvent_CloseCaseNoRecourse" name="Close case">
+      <bpmn:incoming>SequenceFlow_CloseCaseNoRecourse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Event-based Gateway for payment or disagreement -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_PaymentOrDisagreement" name="Wait for outcome">
+      <bpmn:incoming>SequenceFlow_WaitForPaymentOrDisagreement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceivedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementPath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Timer Catch Event for deadline -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_WaitForDeadline" name="Disagreement deadline reached">
+      <bpmn:incoming>SequenceFlow_WaitForPaymentOrDisagreement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerToCollection</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message Event for money received -->
+    <bpmn:messageEvent id="MessageEvent_MoneyReceived" name="Money received">
+      <bpmn:incoming>SequenceFlow_PaymentReceivedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookingTask</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+    <!-- Message Event for disagreement -->
+    <bpmn:messageEvent id="MessageEvent_Disagreement" name="Insurant disagrees">
+      <bpmn:incoming>SequenceFlow_DisagreementDetectedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckReasoningTask</bpmn:outgoing>
+    </bpmn:messageEvent>
+
+    <!-- Task: Make booking -->
+    <bpmn:task id="Task_MakeBooking" name="Make booking">
+      <bpmn:incoming>SequenceFlow_BookingTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseBookedPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Close case (booked) -->
+    <bpmn:endEvent id="EndEvent_CloseCaseBooked" name="Close case">
+      <bpmn:incoming>SequenceFlow_CloseCaseBookedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Check reasoning -->
+    <bpmn:task id="Task_CheckReasoning" name="Check insurant's reasoning">
+      <bpmn:incoming>SequenceFlow_CheckReasoningTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InsurantRightOrWrongPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for reasoning decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_IsReasoningCorrect" name="Is insurant right?">
+      <bpmn:incoming>SequenceFlow_InsurantRightOrWrongPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseDisagreementPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceForwardToCollectionAgencyTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Close case (disagreement) -->
+    <bpmn:endEvent id="EndEvent_CloseCaseDisagreement" name="Close case">
+      <bpmn:incoming>SequenceFlow_CloseCaseDisagreementPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Forward to collection agency -->
+    <bpmn:task id="Task_ForwardToCollectionAgency" name="Forward case to collection agency">
+      <bpmn:incoming>SequenceForwardToCollectionAgencyPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectionCompletePath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Close case (collection) -->
+    <bpmn:endEvent id="EndEvent_CloseCaseCollection" name="Close case">
+      <bpmn:incoming>SequenceFlow_CollectionCompletePath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GetInfo" sourceRef="StartEvent_PossibleSubrogation" targetRef="Task_GetInformation" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPossibility" name="Check possibility of recourse" sourceRef="Task_GetInformation" targetRef="ExclusiveGateway_CheckRecourse" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" name="Yes - recourse possible" sourceRef="ExclusiveGateway_CheckRecourse" targetRef="Task_SendPaymentRequest" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseNoRecourse" name="No - no recourse" sourceRef="ExclusiveGateway_CheckRecourse" targetRef="EndEvent_CloseCaseNoRecourse" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_MakeReminder" sourceRef="Task_SendPaymentRequest" targetRef="Task_MakeReminder" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForPaymentOrDisagreement" name="Wait for payment or disagreement" sourceRef="Task_MakeReminder" targetRef="EventBasedGateway_PaymentOrDisagreement" />
+
+    <!-- Payment received path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentReceivedPath" sourceRef="MessageEvent_MoneyReceived" targetRef="Task_MakeBooking" name="Money received - make booking" />
+    
+    <!-- Disagreement path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementDetectedPath" sourceRef="MessageEvent_Disagreement" targetRef="Task_CheckReasoning" name="Insurant disagrees - check reasoning" />
+
+    <!-- Reasoning decision paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_InsurantRightOrWrongPath" sourceRef="Task_CheckReasoning" targetRef="ExclusiveGateway_IsReasoningCorrect" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseDisagreementPath" name="Yes - insurant right" sourceRef="ExclusiveGateway_IsReasoningCorrect" targetRef="EndEvent_CloseCaseBooked" />
+
+    <!-- Collection agency paths -->
+    <bpmn:sequenceFlow id="SequenceForwardToCollectionAgencyTask" name="No - insurant wrong / deadline reached" sourceRef="ExclusiveGateway_IsReasoningCorrect" targetRef="Task_ForwardToCollectionAgency" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToCollection" sourceRef="IntermediateTimer_WaitForDeadline" targetRef="Task_ForwardToCollectionAgency" name="Deadline without payment - forward to collection agency" />
+
+    <!-- Final completion flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseBookedPath" sourceRef="Task_MakeBooking" targetRef="EndEvent_CloseCaseBooked" />
+    
+    <bpmn:sequenceFlow id="SequenceForwardToCollectionAgencyPath" name="Forward to collection agency - case closed" sourceRef="Task_ForwardToCollectionAgency" targetRef="EndEvent_CloseCaseCollection" />
+
+  </bpmn:process>
+</bpmn:definitions>

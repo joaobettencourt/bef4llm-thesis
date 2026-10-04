@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MailProcess">
+    <bpmn:participant id="Participant_RandE_Court" name="R&amp;E Court Process" processRef="Process_MailProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MailProcessing" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailUnit" name="Mail Processing Unit">
+        <bpmn:flowNodeRef>StartEvent_DailyCollection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CollectMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_SortUnopenedMail</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Registry" name="Registry">
+        <bpmn:flowNodeRef>Tsk_OpenAndSortMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_RegisterIncomingMail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_QualityCheckCompliance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CompliantDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CaptureMatterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_PrepareResponseEnvelope</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Cashier" name="Cashier">
+        <bpmn:flowNodeRef>Gw_ParallelSplitAfterAcceptance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_TakeApplicableFees</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tsk_CapturePartyDetailsPrintFile</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:endEvent id="EndEvent_RejectedMail">
+        <bpmn:incoming>SFlow_CompileRequisitionList_End</bpmn:incoming>
+      </bpmn:endEvent>
+
+      <bpmn:startEvent id="StartEvent_DailyCollection" name="Daily Mail Collection">
+        <bpmn:outgoing>SFlow_CollectMail_Start</bpmn:outgoing>
+        <bpmn:timerEventDefinition/>
+      </bpmn:startEvent>
+
+      <bpmn:endEvent id="EndEvent_ProcessComplete">
+        <bpmn:incoming>SFlow_FinalConvergence_End</bpmn:incoming>
+      </bpmn:endEvent>
+
+      <!-- Mail Processing Unit Tasks -->
+      <bpmn:task id="Tsk_CollectMail" name="Collect mail from party">
+        <bpmn:incoming>SFlow_CollectMail_Start</bpmn:incoming>
+        <bpmn:outgoing>SFlow_SortUnopened_MailUnit</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:task id="Tsk_SortUnopenedMail" name="Sort unopened mail into business areas">
+        <bpmn:incoming>SFlow_SortUnopened_MailUnit</bpmn:incoming>
+        <bpmn:outgoing>SFlow_DistributeToRegistry_01</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Registry Tasks -->
+      <bpmn:task id="Tsk_OpenAndSortMail" name="Open and sort received mail">
+        <bpmn:incoming>SFlow_DistributeToRegistry_01</bpmn:incoming>
+        <bpmn:outgoing>SFlow_RegisterIncoming_MailUnit</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:task id="Tsk_RegisterIncomingMail" name="Register in manual incoming Mail Register">
+        <bpmn:incoming>SFlow_RegisterIncoming_MailUnit</bpmn:incoming>
+        <bpmn:outgoing>SFlow_QualityCheck_Registry</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:task id="Tsk_QualityCheckCompliance" name="Quality check mail compliance">
+        <bpmn:incoming>SFlow_QualityCheck_Registry</bpmn:incoming>
+        <bpmn:outgoing>SFlow_CompliantDecision_Gateway</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Decision Gateway -->
+      <bpmn:exclusiveGateway id="Gw_CompliantDecision" name="Mail Compliant?">
+        <bpmn:incoming>SFlow_CompliantDecision_Gateway</bpmn:incoming>
+        <bpmn:outgoing>SFlow_RejectedPath_01</bpmn:outgoing>
+        <bpmn:outgoing>SFlow_AcceptedPath_ParallelSplit</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+      <!-- Rejection Path -->
+      <bpmn:task id="Tsk_CompileRequisitionList" name="Compile requisition list explaining rejection">
+        <bpmn:incoming>SFlow_RejectedPath_01</bpmn:incoming>
+        <bpmn:outgoing>SFlow_SendBackToParty_Rejection</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Acceptance Path - Parallel Processing -->
+      <bpmn:parallelGateway id="Gw_ParallelSplitAfterAcceptance" name="Parallel Split">
+        <bpmn:incoming>SFlow_AcceptedPath_ParallelSplit</bpmn:incoming>
+        <bpmn:outgoing>SFlow_CashierFees_Processing</bpmn:outgoing>
+        <bpmn:outgoing>SFlow_RegistryResponseProcessing</bpmn:outgoing>
+      </bpmn:parallelGateway>
+
+      <!-- Cashier Tasks -->
+      <bpmn:task id="Tsk_TakeApplicableFees" name="Take applicable fees attached to mail">
+        <bpmn:incoming>SFlow_CashierFees_Processing</bpmn:incoming>
+        <bpmn:outgoing>SFlow_PartyDetails_PrintFile_01</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:task id="Tsk_CapturePartyDetailsPrintFile" name="Capture Party Details and print Physical Court File">
+        <bpmn:incoming>SFlow_PartyDetails_PrintFile_01</bpmn:incoming>
+        <bpmn:outgoing>SFlow_Convergence_Gateway_Incoming</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Registry Response Processing -->
+      <bpmn:task id="Tsk_CaptureMatterDetails" name="Capture matter details (types of action)">
+        <bpmn:incoming>SFlow_AcceptedPath_ParallelSplit</bpmn:incoming>
+        <bpmn:outgoing>SFlow_ResponseEnvelope_01</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:task id="Tsk_PrepareResponseEnvelope" name="Put receipt and copied documents into envelope">
+        <bpmn:incoming>SFlow_ResponseEnvelope_01</bpmn:incoming>
+        <bpmn:outgoing>SFlow_PostToParty_Convergence_Incoming</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Sequence Flows -->
+      <bpmn:sequenceFlow id="SFlow_CollectMail_Start" sourceRef="StartEvent_DailyCollection" targetRef="Tsk_CollectMail"/>
+
+      <bpmn:sequenceFlow id="SFlow_SortUnopened_MailUnit" name="" sourceRef="Tsk_CollectMail" targetRef="Tsk_SortUnopenedMail"/>
+
+      <bpmn:sequenceFlow id="SFlow_DistributeToRegistry_01" name="Distributed to Registry" sourceRef="Tsk_SortUnopenedMail" targetRef="Tsk_OpenAndSortMail"/>
+
+      <bpmn:sequenceFlow id="SFlow_RegisterIncoming_MailUnit" name="" sourceRef="Tsk_OpenAndSortMail" targetRef="Tsk_RegisterIncomingMail"/>
+
+      <bpmn:sequenceFlow id="SFlow_QualityCheck_Registry" name="" sourceRef="Tsk_RegisterIncomingMail" targetRef="Tsk_QualityCheckCompliance"/>
+
+      <bpmn:sequenceFlow id="SFlow_CompliantDecision_Gateway" name="" sourceRef="Tsk_QualityCheckCompliance" targetRef="Gw_CompliantDecision"/>
+
+      <!-- Rejection Path -->
+      <bpmn:sequenceFlow id="SFlow_RejectedPath_01" name="No - Not Compliant" sourceRef="Gw_CompliantDecision" targetRef="Tsk_CompileRequisitionList">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${mailCompliant = false}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+
+      <!-- Acceptance Path -->
+      <bpmn:sequenceFlow id="SFlow_AcceptedPath_ParallelSplit" name="Yes - Compliant" sourceRef="Gw_CompliantDecision" targetRef="Gw_ParallelSplitAfterAcceptance">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${mailCompliant = true}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+
+      <!-- Rejection Completion -->
+      <bpmn:task id="Tsk_SendBackToParty_Rejection" name="Send requisition list back to party">
+        <bpmn:incoming>SFlow_SendBackToParty_Rejection</bpmn:incoming>
+        <bpmn:outgoing>SFlow_CompileRequisitionList_End</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Parallel Processing Paths -->
+      <bpmn:sequenceFlow id="SFlow_CashierFees_Processing" name="" sourceRef="Gw_ParallelSplitAfterAcceptance" targetRef="Tsk_TakeApplicableFees"/>
+
+      <bpmn:sequenceFlow id="SFlow_RegistryResponseProcessing" name="" sourceRef="Gw_ParallelSplitAfterAcceptance" targetRef="Tsk_CaptureMatterDetails"/>
+
+      <!-- Cashier Processing -->
+      <bpmn:sequenceFlow id="SFlow_PartyDetails_PrintFile_01" name="" sourceRef="Tsk_TakeApplicableFees" targetRef="Tsk_CapturePartyDetailsPrintFile"/>
+
+      <!-- Registry Response Processing -->
+      <bpmn:sequenceFlow id="SFlow_ResponseEnvelope_01" name="" sourceRef="Tsk_CaptureMatterDetails" targetRef="Tsk_PrepareResponseEnvelope"/>
+
+      <!-- Convergence Gateway for Parallel Paths -->
+      <bpmn:parallelGateway id="Gw_Convergence_Gateway" name="Parallel Join">
+        <bpmn:incoming>SFlow_PartyDetails_PrintFile_01</bpmn:incoming>
+        <bpmn:incoming>SFlow_PostToParty_Convergence_Incoming</bpmn:incoming>
+        <bpmn:outgoing>SFlow_FinalConvergence_End</bpmn:outgoing>
+      </bpmn:parallelGateway>
+
+      <!-- Final Convergence -->
+      <bpmn:sequenceFlow id="SFlow_PostToParty_Convergence_Incoming" name="" sourceRef="Tsk_PrepareResponseEnvelope" targetRef="Gw_Convergence_Gateway"/>
+
+      <bpmn:sequenceFlow id="SFlow_FinalConvergence_End" name="" sourceRef="Gw_Convergence_Gateway" targetRef="EndEvent_ProcessComplete"/>
+    </bpmn:process>
+  </bpmn:definitions>

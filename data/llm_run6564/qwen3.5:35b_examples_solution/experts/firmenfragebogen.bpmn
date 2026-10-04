@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Firmenfragebogen Verarbeitung" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Auto" name="Automatische Verarbeitung">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PartnerFound</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TimeExists</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manual" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserTask_PartnerCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_DataException</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ContactException</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Eingang Firmenfragebogen">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>SequenceFlow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Capture & Process -->
+    <bpmn:serviceTask id="ServiceTask_01" name="Fragebogen erfassen und verarbeiten">
+      <bpmn:incoming>SequenceFlow_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartnerSearch</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Partner Found? -->
+    <bpmn:exclusiveGateway id="Gateway_PartnerFound" name="Partner gefunden?">
+      <bpmn:incoming>SequenceFlow_PartnerSearch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCheck_Auto</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Manual_Check</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Task 1: Partner Check -->
+    <bpmn:userTask id="UserTask_PartnerCheck" name="Manuelle Prüfung durch Sachbearbeiter">
+      <bpmn:incoming>SequenceFlow_Manual_Check</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCheck_Merge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 2: Company Data Verification -->
+    <bpmn:serviceTask id="ServiceTask_02" name="Unternehmensdaten prüfen">
+      <bpmn:incoming>SequenceFlow_DataCheck_Auto</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_DataCheck_Merge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimeCheck_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Boundary Event for Task 2 -->
+    <bpmn:boundaryEvent id="Boundary_01" name="Problem/Klärungsbedarf">
+      <bpmn:errorEventDefinition />
+      <bpmn:attachedToRef>ServiceTask_02</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_Exception_Data</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Manual Task 2: Exception Handling Data -->
+    <bpmn:userTask id="UserTask_DataException" name="Manuelle Bearbeitung (Mitarbeiter)">
+      <bpmn:incoming>SequenceFlow_Exception_Data</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_End_Manual_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Insurance Times Exist? -->
+    <bpmn:exclusiveGateway id="Gateway_TimeExists" name="Umlagezeiten vorhanden?">
+      <bpmn:incoming>SequenceFlow_TimeCheck_Gateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerifyTimes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateTimes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3a: Verify Existing Times -->
+    <bpmn:serviceTask id="ServiceTask_03" name="Umlagezeiten überprüfen">
+      <bpmn:incoming>SequenceFlow_VerifyTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimeCheck_Merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 3b: Create New Times -->
+    <bpmn:serviceTask id="ServiceTask_04" name="Neue Einträge anlegen">
+      <bpmn:incoming>SequenceFlow_CreateTimes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimeCheck_Merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 4: Contact Data Verification -->
+    <bpmn:serviceTask id="ServiceTask_05" name="Kontaktdaten überprüfen">
+      <bpmn:incoming>SequenceFlow_TimeCheck_Merge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_End_Success</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Boundary Event for Task 4 -->
+    <bpmn:boundaryEvent id="Boundary_02" name="Problem/Klärungsbedarf">
+      <bpmn:errorEventDefinition />
+      <bpmn:attachedToRef>ServiceTask_05</bpmn:attachedToRef>
+      <bpmn:outgoing>SequenceFlow_Exception_Contact</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Manual Task 3: Exception Handling Contact -->
+    <bpmn:userTask id="UserTask_ContactException" name="Manuelle Bearbeitung (Mitarbeiter)">
+      <bpmn:incoming>SequenceFlow_Exception_Contact</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_End_Manual_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Success" name="Daten vollständig">
+      <bpmn:incoming>SequenceFlow_End_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Manual_1" name="Manuelle Bearbeitung abgeschlossen (Daten)">
+      <bpmn:incoming>SequenceFlow_End_Manual_1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Manual_2" name="Manuelle Bearbeitung abgeschlossen (Kontakt)">
+      <bpmn:incoming>SequenceFlow_End_Manual_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Start" sourceRef="StartEvent_1" targetRef="ServiceTask_01" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PartnerSearch" name="Automatische Suche" sourceRef="ServiceTask_01" targetRef="Gateway_PartnerFound">
+      <bpmn:conditionExpression>${partnerCount == 1}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 Outgoing -->
+    <bpmn:sequenceFlow id="SequenceFlow_DataCheck_Auto" name="Ja, eindeutig" sourceRef="Gateway_PartnerFound" targetRef="ServiceTask_02">
+      <bpmn:conditionExpression>${partnerCount == 1}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Manual_Check" name="Nein, unklar oder nicht gefunden" sourceRef="Gateway_PartnerFound" targetRef="UserTask_PartnerCheck">
+      <bpmn:conditionExpression>${partnerCount != 1}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge after Manual Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_DataCheck_Merge" sourceRef="UserTask_PartnerCheck" targetRef="ServiceTask_02" />
+
+    <!-- Exception Flow from Data Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_Exception_Data" name="Fehler/Klärung" sourceRef="Boundary_01" targetRef="UserTask_DataException">
+      <bpmn:conditionExpression>${error}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Exception Flow from Contact Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_Exception_Contact" name="Fehler/Klärung" sourceRef="Boundary_02" targetRef="UserTask_ContactException">
+      <bpmn:conditionExpression>${error}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Time Check Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimeCheck_Gateway" sourceRef="ServiceTask_02" targetRef="Gateway_TimeExists" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_VerifyTimes" name="Ja, vorhanden" sourceRef="Gateway_TimeExists" targetRef="ServiceTask_03">
+      <bpmn:conditionExpression>${exists}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateTimes" name="Nein, fehlen Einträge" sourceRef="Gateway_TimeExists" targetRef="ServiceTask_04">
+      <bpmn:conditionExpression>${!exists}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Time Check Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimeCheck_Merge" sourceRef="ServiceTask_03" targetRef="ServiceTask_05" />
+    <bpmn:sequenceFlow id="SequenceFlow_CreateTimes_Merge" sourceRef="ServiceTask_04" targetRef="ServiceTask_05" />
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_End_Success" name="Erfolgreich geprüft" sourceRef="ServiceTask_05" targetRef="End_Success" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_End_Manual_1" sourceRef="UserTask_DataException" targetRef="End_Manual_1" />
+    <bpmn:sequenceFlow id="SequenceFlow_End_Manual_2" sourceRef="UserTask_ContactException" targetRef="End_Manual_2" />
+
+  </bpmn:process>
+</bpmn:definitions>

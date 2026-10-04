@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Account Defaulters Process" processRef="Process_P1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_P1" isExecutable="false">
+    <!-- Start Event - Daily weekday morning -->
+    <bpmn:startEvent id="Start_Timer_001" name="Weekday Morning Timer">
+      <bpmn:outgoing>Flow_BackupDB</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Backup Database -->
+    <bpmn:task id="Task_CheckDefaulters_002" name="Backup &amp; Check Defaulters Table">
+      <bpmn:incoming>Flow_BackupDB</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_NewRecords_003</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 - Check for new records -->
+    <bpmn:exclusiveGateway id="Gateway_NewRecords_003" name="New Records Found?">
+      <bpmn:incoming>Flow_CheckDefaulters</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CRMCheck_NoRecords</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 - Check CRM for returns (if no new records) -->
+    <bpmn:task id="Task_CheckCRM_004" name="Check CRM System">
+      <bpmn:incoming>Flow_CRMCheck_NoRecords</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_NewReturns_005</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 - Check for new returns -->
+    <bpmn:exclusiveGateway id="Gateway_NewReturns_005" name="New Returns Exist?">
+      <bpmn:incoming>Flow_CheckCRM</bpmn:outgoing>
+      <bpmn:outgoing>Task_RegisterAccounts_006</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 - Register accounts -->
+    <bpmn:task id="Task_RegisterAccounts_006" name="Register Defaulting Accounts &amp; Customers">
+      <bpmn:incoming>Flow_NewReturns</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_PreviouslyAdvised_007</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 - Check if previously advised -->
+    <bpmn:exclusiveGateway id="Gateway_PreviouslyAdvised_007" name="Previously Advised?">
+      <bpmn:incoming>Flow_RegisterAccounts</bpmn:outgoing>
+      <bpmn:outgoing>Task_CreateReport_008</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 - Create report -->
+    <bpmn:task id="Task_CreateReport_008" name="Create Defaulting Accounts Report">
+      <bpmn:incoming>Flow_NotPreviouslyAdvised</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_SendToManagement_009</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 - Send to account management -->
+    <bpmn:task id="Task_SendReport_009" name="Send Report to Account Management">
+      <bpmn:incoming>Flow_CreateReport</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_CheckCRMAgain_010</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 - Check CRM again -->
+    <bpmn:exclusiveGateway id="Gateway_CheckCRMAgain_010" name="New Returns Exist?">
+      <bpmn:incoming>Flow_SendReport</bpmn:outgoing>
+      <bpmn:outgoing>Task_Reconcile_011</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6 - Reconciliation -->
+    <bpmn:task id="Task_Reconcile_011" name="Reconcile with Defaulters Table">
+      <bpmn:incoming>Flow_NewReturnsAgain</bpmn:outgoing>
+      <bpmn:outgoing>End_Completed_012</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Completed_012" name="Process Completed">
+      <bpmn:incoming>Flow_ReconcileComplete</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_BackupDB" sourceRef="Start_Timer_001" targetRef="Task_CheckDefaulters_002" />
+    <bpmn:sequenceFlow id="Flow_CheckDefaulters" name="Check Defaulters Table" sourceRef="Task_CheckDefaulters_002" targetRef="Gateway_NewRecords_003" />
+    <bpmn:sequenceFlow id="Flow_CRMCheck_NoRecords" name="No New Records" sourceRef="Gateway_NewRecords_003" targetRef="Task_CheckCRM_004" />
+    <bpmn:sequenceFlow id="Flow_CheckCRM" name="Check CRM System" sourceRef="Task_CheckCRM_004" targetRef="Gateway_NewReturns_005" />
+    <bpmn:sequenceFlow id="Flow_NewReturns" name="New Returns Exist" sourceRef="Gateway_NewReturns_005" targetRef="Task_RegisterAccounts_006" />
+    <bpmn:sequenceFlow id="Flow_RegisterAccounts" name="Register Accounts" sourceRef="Task_RegisterAccounts_006" targetRef="Gateway_PreviouslyAdvised_007" />
+    <bpmn:sequenceFlow id="Flow_NotPreviouslyAdvised" name="Not Previously Advised" sourceRef="Gateway_PreviouslyAdvised_007" targetRef="Task_CreateReport_008" />
+    <bpmn:sequenceFlow id="Flow_AlreadyAdvised" name="Already Advised" sourceRef="Gateway_PreviouslyAdvised_007" targetRef="End_Completed_012" />
+    <bpmn:sequenceFlow id="Flow_CreateReport" name="Create Report" sourceRef="Task_CreateReport_008" targetRef="Task_SendReport_009" />
+    <bpmn:sequenceFlow id="Flow_SendReport" name="Send to Management" sourceRef="Task_SendReport_009" targetRef="Gateway_CheckCRMAgain_010" />
+    <bpmn:sequenceFlow id="Flow_NewReturnsAgain" name="New Returns Exist Again" sourceRef="Gateway_CheckCRMAgain_010" targetRef="Task_Reconcile_011" />
+    <bpmn:sequenceFlow id="Flow_NoMoreReturns" name="No New Returns" sourceRef="Gateway_CheckCRMAgain_010" targetRef="End_Completed_012" />
+    <bpmn:sequenceFlow id="Flow_ReconcileComplete" name="Reconciliation Complete" sourceRef="Task_Reconcile_011" targetRef="End_Completed_012" />
+
+  </bpmn:process>
+</bpmn:definitions>

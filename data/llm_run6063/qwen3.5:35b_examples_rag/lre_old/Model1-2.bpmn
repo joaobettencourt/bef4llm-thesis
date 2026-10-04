@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ComputerRepair_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RepairProcess">
+    <bpmn:participant id="Participant_RetailerServiceCenter" name="Retailer Service Center"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ComputerRepair_1" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_RepairRequest" name="Customer brings in defective computer">
+      <bpmn:outgoing>SequenceFlow_AssessDefect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: CRS checks defect and calculates cost -->
+    <bpmn:task id="Task_AssessDefect" name="CRS checks defect &amp; calculate repair costs">
+      <bpmn:incoming>SequenceFlow_AssessDefect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideCosts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Customer decision on costs -->
+    <bpmn:exclusiveGateway id="Gateway_AcceptCosts" name="Accept repair cost?">
+      <bpmn:incoming>SequenceFlow_DecideCosts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReturnUnrepaired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Customer takes computer home -->
+    <bpmn:endEvent id="End_UnrepairedReturn" name="Computer taken home unrepaired">
+      <bpmn:incoming>SequenceFlow_ReturnUnrepaired</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway 1: Start Repair Activities -->
+    <bpmn:parallelGateway id="Parallel_StartRepair" name="Start Repairs (Arbitrary Order)">
+      <bpmn:incoming>SequenceFlow_RepairPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HardwareBranch</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SoftwareBranch</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Branch 1: Hardware Repair -->
+    <bpmn:task id="Task_RepairHardware" name="Check and repair hardware">
+      <bpmn:incoming>SequenceFlow_HardwareBranch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestHW</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 1.2: Test Hardware -->
+    <bpmn:task id="Task_TestHardware" name="Test system functionality (Hardware)">
+      <bpmn:incoming>SequenceFlow_TestHW</bpmn:incoming>
+      <bpmn:outgoing>Gateway_HWErrorCheck_Outgoing</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1.2: Error Detected? -->
+    <bpmn:exclusiveGateway id="Gateway_HWErrorCheck" name="HW error detected?">
+      <bpmn:incoming>SequenceFlow_TestHW</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_RepairHardware</bpmn:outgoing>
+      <bpmn:outgoing>Sequence_HWComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop back to Hardware Repair -->
+    <bpmn:sequenceFlow id="SequenceLoop_RepairHardware" sourceRef="Gateway_HWErrorCheck" targetRef="Task_RepairHardware"/>
+
+    <!-- Branch 2: Software Repair -->
+    <bpmn:task id="Task_ConfigSoftware" name="Check and configure software">
+      <bpmn:incoming>SequenceFlow_SoftwareBranch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestSW</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2.2: Test Software -->
+    <bpmn:task id="Task_TestSoftware" name="Test system functionality (Software)">
+      <bpmn:incoming>SequenceFlow_TestSW</bpmn:incoming>
+      <bpmn:outgoing>Gateway_SWErrorCheck_Outgoing</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2.2: Error Detected? -->
+    <bpmn:exclusiveGateway id="Gateway_SWErrorCheck" name="SW error detected?">
+      <bpmn:incoming>SequenceFlow_TestSW</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_ConfigSoftware</bpmn:outgoing>
+      <bpmn:outgoing>Sequence_SWComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop back to Software Configuration -->
+    <bpmn:sequenceFlow id="SequenceLoop_ConfigSoftware" sourceRef="Gateway_SWErrorCheck" targetRef="Task_ConfigSoftware"/>
+
+    <!-- Parallel Gateway 2: Join Paths -->
+    <bpmn:parallelGateway id="Parallel_JoinRepair" name="Join Repair Paths">
+      <bpmn:incoming>Sequence_HWComplete</bpmn:incoming>
+      <bpmn:incoming>Sequence_SWComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Finalize</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2: Repair Finished -->
+    <bpmn:endEvent id="End_RepairFinished" name="Repair finished">
+      <bpmn:incoming>SequenceFlow_Finalize</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Connections -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AssessDefect" sourceRef="Start_RepairRequest" targetRef="Task_AssessDefect"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DecideCosts" name="Accept costs?" sourceRef="Task_AssessDefect" targetRef="Gateway_AcceptCosts"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RepairPath" name="Yes (Accept)" sourceRef="Gateway_AcceptCosts" targetRef="Parallel_StartRepair"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnUnrepaired" name="No (Reject)" sourceRef="Gateway_AcceptCosts" targetRef="End_UnrepairedReturn"/>
+
+    <!-- Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_HardwareBranch" sourceRef="Parallel_StartRepair" targetRef="Task_RepairHardware"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SoftwareBranch" sourceRef="Parallel_StartRepair" targetRef="Task_ConfigSoftware"/>
+
+    <!-- Hardware Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestHW" name="Test HW" sourceRef="Task_RepairHardware" targetRef="Gateway_HWErrorCheck"/>
+    
+    <bpmn:sequenceFlow id="Sequence_HWComplete" name="No Error" sourceRef="Gateway_HWErrorCheck" targetRef="Parallel_JoinRepair"/>
+
+    <!-- Software Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestSW" name="Test SW" sourceRef="Task_ConfigSoftware" targetRef="Gateway_SWErrorCheck"/>
+
+    <bpmn:sequenceFlow id="Sequence_SWComplete" name="No Error" sourceRef="Gateway_SWErrorCheck" targetRef="Parallel_JoinRepair"/>
+
+    <!-- Finalize -->
+    <bpmn:sequenceFlow id="SequenceFlow_Finalize" sourceRef="Parallel_JoinRepair" targetRef="End_RepairFinished"/>
+
+  </bpmn:process>
+</bpmn:definitions>

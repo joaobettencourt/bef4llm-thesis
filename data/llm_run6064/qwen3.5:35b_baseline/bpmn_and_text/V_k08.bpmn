@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderingInShop" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OnlineShopOrdering">
+    <bpmn:participant id="Participant_EshopSystem" name="E-Shop System" processRef="Process_OrderingInShop"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderingInShop" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_LoginRequest" name="Customer Logs In">
+      <bpmn:outgoing>SequenceFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Credentials (includes wait) -->
+    <bpmn:task id="Task_CheckCredentials" name="Validate Login &amp; Wait">
+      <bpmn:incoming>SequenceFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CredentialsResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Login Success? -->
+    <bpmn:exclusiveGateway id="GW_LoginSuccess" name="Login Successful">
+      <bpmn:incoming>SequenceFlow_CredentialsResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event: Shopping Stopped -->
+    <bpmn:endEvent id="End_Event_ShoppingStopped" name="Shopping Experience Stops">
+      <bpmn:incoming>SequenceFlow_FailPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Select Product -->
+    <bpmn:task id="Task_SelectProduct" name="Select Products">
+      <bpmn:incoming>SequenceFlow_LoopStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Add to Cart & Save -->
+    <bpmn:task id="Task_AddToCartSave" name="Add Product &amp; Save">
+      <bpmn:incoming>SequenceFlow_ToCart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAllSelected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: All Products Selected? -->
+    <bpmn:exclusiveGateway id="GW_AllProductsSelected" name="All Products Selected">
+      <bpmn:incoming>SequenceFlow_CheckAllSelected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinishSelections</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- System Task: Prepare Order & Shipment -->
+    <bpmn:task id="Task_SystemPrepareOrderShipment" name="System Prepares Order">
+      <bpmn:incoming>SequenceFlow_FinishSelections</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitPaymentAddress</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="PG_PaymentAddressSplit" name="Parallel Payment &amp; Address">
+      <bpmn:incoming>SequenceFlow_SplitPaymentAddress</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PathPaymentData</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PathShippingAddr</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Payment Path -->
+    <bpmn:task id="Task_EnterPaymentData" name="Enter Payment Data">
+      <bpmn:incoming>SequenceFlow_PathPaymentData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitBankConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: Wait for Bank Confirmation -->
+    <bpmn:intermediateCatchEvent id="IC_BankConfirmation" name="Wait for Bank Confirmation">
+      <bpmn:messageEventDefinition ref="Message_BankConfirm"/>
+      <bpmn:incoming>SequenceFlow_WaitBankConfirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentConfirmedPath</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Address Path -->
+    <bpmn:task id="Task_EnterShippingAddr" name="Enter Shipping Address">
+      <bpmn:incoming>SequenceFlow_PathShippingAddr</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckBillingSame</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Billing Same as Shipping? -->
+    <bpmn:exclusiveGateway id="GW_SameBilling" name="Different Billing Address">
+      <bpmn:incoming>SequenceFlow_CheckBillingSame</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterSeparateBilling</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SkipBillingTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Enter Separate Billing Address -->
+    <bpmn:task id="Task_EnterSeparateBilling" name="Enter Independent Billing Address">
+      <bpmn:incoming>SequenceFlow_EnterSeparateBilling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressPathComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="PG_JoinOrderFinish" name="Join Payment &amp; Address">
+      <bpmn:incoming>SequenceFlow_PaymentConfirmedPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AddressPathComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeOrderTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_SystemFinalizeOrder" name="System Finishes Order">
+      <bpmn:incoming>SequenceFlow_FinalizeOrderTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Event_OrderCompleted" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheck" sourceRef="Start_Event_LoginRequest" targetRef="Task_CheckCredentials"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CredentialsResult" name="Login Check Result" sourceRef="Task_CheckCredentials" targetRef="GW_LoginSuccess">
+      <bpmn:name>Login Check Result</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessPath" name="Yes" sourceRef="GW_LoginSuccess" targetRef="Task_SelectProduct"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FailPath" name="No" sourceRef="GW_LoginSuccess" targetRef="End_Event_ShoppingStopped"/>
+
+    <!-- Loop Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopStart" name="" sourceRef="Task_SelectProduct" targetRef="Task_AddToCartSave">
+      <bpmn:name>Loop Start</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToCart" name="" sourceRef="Task_SelectProduct" targetRef="Task_AddToCartSave"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAllSelected" sourceRef="Task_AddToCartSave" targetRef="GW_AllProductsSelected"/>
+
+    <!-- Loop Back Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueLoop" name="" sourceRef="GW_AllProductsSelected" targetRef="Task_SelectProduct">
+      <bpmn:name>Not All Selected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Main Flow to Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinishSelections" name="" sourceRef="GW_AllProductsSelected" targetRef="Task_SystemPrepareOrderShipment">
+      <bpmn:name>All Selected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SplitPaymentAddress" sourceRef="Task_SystemPrepareOrderShipment" targetRef="PG_PaymentAddressSplit"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PathPaymentData" name="" sourceRef="PG_PaymentAddressSplit" targetRef="Task_EnterPaymentData"/>
+    
+    <!-- Address Path Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PathShippingAddr" name="" sourceRef="PG_PaymentAddressSplit" targetRef="Task_EnterShippingAddr"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckBillingSame" sourceRef="Task_EnterShippingAddr" targetRef="GW_SameBilling"/>
+    
+    <!-- Billing Decision Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterSeparateBilling" name="" sourceRef="GW_SameBilling" targetRef="Task_EnterSeparateBilling">
+      <bpmn:name>Different Address</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AddressPathComplete" name="" sourceRef="GW_SameBilling" targetRef="PG_JoinOrderFinish">
+      <bpmn:name>No Separate Billing</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Confirmation Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitBankConfirm" sourceRef="Task_EnterPaymentData" targetRef="IC_BankConfirmation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentConfirmedPath" name="" sourceRef="IC_BankConfirmation" targetRef="PG_JoinOrderFinish"/>
+
+    <!-- Finalization Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrderTask" sourceRef="PG_JoinOrderFinish" targetRef="Task_SystemFinalizeOrder"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" name="" sourceRef="Task_SystemFinalizeOrder" targetRef="End_Event_OrderCompleted"/>
+
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_CustomerCredentials">
+      <bpmn:name>Customer Credentials</bpmn:name>
+    </bpmn:dataObjectReference>
+    
+    <bpmn:association sourceRef="Task_CheckCredentials" targetRef="Data_CustomerCredentials"/>
+
+    <!-- Message Definitions -->
+    <bpmn:message id="Message_BankConfirm">
+      <bpmn:name>Bank Confirmation</bpmn:name>
+    </bpmn:message>
+    
+  </bpmn:process>
+</bpmn:definitions>

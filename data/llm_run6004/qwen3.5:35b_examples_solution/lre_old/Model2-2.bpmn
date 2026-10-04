@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_powerSwitchProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0geryc1">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Service (Shared)" processRef="Pool_CustomerService"/>
+    <bpmn:participant id="Participant_Customer" name="Customer" processRef="Pool_Customer"/>
+    <bpmn:participant id="Participant_GridOperator" name="Grid Operator" processRef="Pool_GridOperator"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Pool_CustomerService" isExecutable="false">
+    <bpmn:startEvent id="StartMessage_1">
+      <bpmn:name>Switch-over Request Received</bpmn:name>
+      <bpmn:messageRef="Msg_SwitchRequest"/>
+      <bpmn:outgoing>SequenceFlow_CustomerService_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ReceiveCustomerData" name="Receive Customer Data">
+      <bpmn:incoming>SequenceFlow_CustomerService_Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterCRM</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:dataObject id="DataCustomerObject" name="Customer Data Object"/>
+
+    <bpmn:task id="Task_EnterCRM" name="Enter Customer into CRM System">
+      <bpmn:incoming>SequenceFlow_EnterCRM</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDataCompleteness</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_DataValidation" name="Data Complete &amp; Plausible?">
+      <bpmn:incoming>SequenceFlow_CheckDataCompleteness</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ErrorHandling</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ExistingCustomerCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_ErrorHandling" name="Error Handling (Correct Data)">
+      <bpmn:incoming>SequenceFlow_ErrorHandling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterCRM</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_NewCustomer" name="Existing Customer?">
+      <bpmn:incoming>SequenceFlow_ExistingCustomerCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateNewCustomer</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PrepareContract</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_CreateNewCustomer" name="Create New Customer Object">
+      <bpmn:incoming>SequenceFlow_CreateNewCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepareContract</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ContractPreparation" name="Prepare Contract Documents">
+      <bpmn:incoming>SequenceFlow_PrepareContract</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckContractsCIS</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ContractCheck" name="Contract Check Successful?">
+      <bpmn:incoming>SequenceFlow_CheckContractsCIS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeIssues</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendConfirmation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_AnalyzeIssues" name="Analyze &amp; Resolve Issues">
+      <bpmn:incoming>SequenceFlow_AnalyzeIssues</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegenerateContracts</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SendConfirmation" name="Send Confirmation Document">
+      <bpmn:incoming>SequenceFlow_ContractCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestGridOperator</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CheckContractsCIS" name="Check Contracts in CIS">
+      <bpmn:incoming>SequenceFlow_ContractPreparation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContractCheckGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ContractCheck" name="">
+      <bpmn:incoming>SequenceFlow_CheckContractsCIS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeIssues</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendConfirmation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_RequestGridOperator" name="Request Supplier Concurrence">
+      <bpmn:incoming>SequenceFlow_SendConfirmation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResponse</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ConcurrenceResult" name="Supplier Concurrence?">
+      <bpmn:incoming>SequenceFlow_CheckConcurrenceResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateCISContract_NoObjection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_WaitForGridResponse" name="Wait for Grid Operator Response">
+      <bpmn:incoming>SequenceFlow_RequestGridOperator</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckConcurrenceResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_ContractCheck" name="">
+      <bpmn:incoming>SequenceFlow_CheckContractsCIS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeIssues</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendConfirmation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_CreateCISContract" name="Create CIS Contract">
+      <bpmn:incoming>SequenceFlow_CheckConcurrenceResult_NoObjection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSwitchOffer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SendSwitchOffer" name="Send Switch Offer to Customer">
+      <bpmn:incoming>SequenceFlow_CreateCISContract</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForCustomerDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:eventBasedGateway id="Gateway_CustomerDecision" name="">
+      <bpmn:incoming>SequenceFlow_WaitForCustomerDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CatchWithdrawal</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CatchConfirmation</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_Withdrawal" name="Customer Withdraws">
+      <bpmn:messageRef="Msg_CustomerWithdrawal"/>
+      <bpmn:incoming>SequenceFlow_CatchWithdrawal</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_Confirmation" name="Customer Confirms">
+      <bpmn:messageRef="Msg_CustomerConfirmation"/>
+      <bpmn:incoming>SequenceFlow_CatchConfirmation</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ImportMeterData</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_7Days" name="Wait 7 Days">
+      <bpmn:incoming>SequenceFlow_WaitForCustomerDecision</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AutoAcceptContract</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_7DaysResult" name="">
+      <bpmn:incoming>SequenceFlow_AutoAcceptContract</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ImportMeterData</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_ImportMeterData" name="Import Meter Data">
+      <bpmn:incoming>SequenceFlow_AutoAcceptContract</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CustomerService_Withdrawal">
+      <bpmn:name>Process Ended (Customer Withdrawal)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartMessage_Confirmation">
+      <bpmn:messageRef="Msg_ContractConfirmation"/>
+      <bpmn:outgoing>SequenceFlow_SendToCustomer</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_CustomerService_ImportMeterData">
+      <bpmn:name>Meter Data Imported (Process Ended)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndWithDrawal</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:message id="Msg_SwitchRequest" name="Switch-over Request"/>
+    <bpmn:message id="Msg_ContractConfirmation" name="Contract Confirmation Document"/>
+    <bpmn:message id="Msg_CustomerWithdrawal" name="Customer Withdrawal Notification"/>
+    <bpmn:message id="Msg_CustomerConfirmation" name="Customer Contract Acceptance"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MSPN_MSPO">
+    <bpmn:participant id="Participant_MSPN" name="MSPN" processRef="Process_MSPN"/>
+    <bpmn:participant id="Participant_MSPO" name="MSPO" processRef="Process_MSPO"/>
+    <bpmn:messageFlow id="MsgFlow_DismissalSent" sourceRef="Event_SendDismissal" targetRef="Event_ReceiveDismissal">
+      <bpmn:name>Send Dismissal</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <!-- MSPN Process -->
+  <bpmn:process id="Process_MSPN" isExecutable="false">
+    <bpmn:startEvent id="Start_NoneMSPN">
+      <bpmn:name>MSPN Start</bpmn:name>
+      <bpmn:outgoing>SeqFlow_StartToDismissal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_SendDismissal" name="Send Dismissal">
+      <bpmn:incoming>SeqFlow_StartToDismissal</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_DismissalSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_MSPN_Complete">
+      <bpmn:name>MSPN Complete</bpmn:name>
+      <bpmn:incoming>SeqFlow_DismissalSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Message Throw Event -->
+    <bpmn:messageThrowEvent id="Event_SendDismissal">
+      <bpmn:outgoing>SeqFlow_MessageOut</bpmn:outgoing>
+    </bpmn:messageThrowEvent>
+
+    <bpmn:sequenceFlow id="SeqFlow_StartToDismissal" sourceRef="Start_NoneMSPN" targetRef="Task_SendDismissal"/>
+    <bpmn:sequenceFlow id="SeqFlow_DismissalSent" name="Dismissal Sent" sourceRef="Task_SendDismissal" targetRef="End_MSPN_Complete">
+      <bpmn:name>Dismissal Sent</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- MSPO Process -->
+  <bpmn:process id="Process_MSPO" isExecutable="false">
+    <bpmn:startEvent id="Start_MessageMSPO">
+      <bpmn:name>Receive Dismissal</bpmn:name>
+      <bpmn:messageRef>Message_Dismissal</bpmn:messageRef>
+      <bpmn:outgoing>SeqFlow_StartToReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Message Catch Event -->
+    <bpmn:messageCatchEvent id="Event_ReceiveDismissal">
+      <bpmn:name>Catch Dismissal</bpmn:name>
+      <bpmn:incoming>SeqFlow_MessageIn</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CatchToReview</bpmn:outgoing>
+    </bpmn:messageCatchEvent>
+
+    <!-- Review Task -->
+    <bpmn:task id="Task_ReviewDismissal" name="Review Dismissal">
+      <bpmn:name>Review Dismissal</bpmn:name>
+      <bpmn:incoming>SeqFlow_CatchToReview</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="Gate_Decision">
+      <bpmn:name>Decision Point</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reject Task -->
+    <bpmn:task id="Task_RejectDismissal" name="Reject Dismissal">
+      <bpmn:name>Reject Dismissal</bpmn:name>
+      <bpmn:incoming>SeqFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToEndReject</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Confirm Task -->
+    <bpmn:task id="Task_ConfirmDismissal" name="Confirm Dismissal">
+      <bpmn:name>Confirm Dismissal</bpmn:name>
+      <bpmn:incoming>SeqFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToEndConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Reject">
+      <bpmn:name>Dismissal Rejected</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToEndReject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Confirm">
+      <bpmn:name>Dismissal Confirmed</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToEndConfirm</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToReview" sourceRef="Start_MessageMSPO" targetRef="Task_ReviewDismissal"/>
+    <bpmn:sequenceFlow id="SeqFlow_CatchToReview" name="Message Received" sourceRef="Event_ReceiveDismissal" targetRef="Task_ReviewDismissal">
+      <bpmn:name>Message Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ToGateway" name="To Decision" sourceRef="Task_ReviewDismissal" targetRef="Gate_Decision"/>
+    
+    <bpmn:sequenceFlow id="SeqFlow_RejectPath" name="Reject Decision">
+      <bpmn:name>Reject</bpmn:name>
+      <bpmn:sourceRef>Gate_Decision</bpmn:sourceRef>
+      <bpmn:targetRef>Task_RejectDismissal</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ConfirmPath" name="Confirm Decision">
+      <bpmn:name>Confirm</bpmn:name>
+      <bpmn:sourceRef>Gate_Decision</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ConfirmDismissal</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ToEndReject" sourceRef="Task_RejectDismissal" targetRef="End_Reject"/>
+    <bpmn:sequenceFlow id="SeqFlow_ToEndConfirm" sourceRef="Task_ConfirmDismissal" targetRef="End_Confirm"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

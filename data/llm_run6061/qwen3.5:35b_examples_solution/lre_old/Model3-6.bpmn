@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ClaimsProcessing">
+    <bpmn:participant id="Participant_ClaimsProcessing" name="Claims Processing Organization" processRef="Process_ClaimHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ClaimHandling" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartClaimReceived" name="Claim Received">
+      <bpmn:outgoing>SFlow_CheckInsurance</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Insurance Status -->
+    <bpmn:task id="Task_CheckInsurance" name="Check Claimant Insured?">
+      <bpmn:incoming>SFlow_CheckInsurance</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InsuredDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is Claimant Insured? -->
+    <bpmn:exclusiveGateway id="GW_IsInsured" name="Is claimant insured?">
+      <bpmn:incoming>SFlow_InsuredDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_RejectClaim</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_EvaluateSeverity</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path A: Not Insured -->
+    <bpmn:task id="Task_Reject" name="Inform Claimant of Rejection">
+      <bpmn:incoming>SFlow_RejectClaim</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event A -->
+    <bpmn:endEvent id="End_Rejected" name="Claim Rejected">
+      <bpmn:incoming>SFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path B: Insured - Evaluate Severity -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+      <bpmn:incoming>SFlow_EvaluateSeverity</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendForms</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Send Forms -->
+    <bpmn:task id="Task_SendForms" name="Send Relevant Forms to Claimant">
+      <bpmn:incoming>SFlow_SendForms</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CheckCompleteness</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Check Completeness (After forms returned) -->
+    <bpmn:task id="Task_CheckCompleteness" name="Check Forms for Completeness">
+      <bpmn:incoming>SFlow_CheckCompleteness</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CompletenessDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Are Forms Complete? -->
+    <bpmn:exclusiveGateway id="GW_IsComplete" name="Forms complete?">
+      <bpmn:incoming>SFlow_CompletenessDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_RegisterClaim</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_InformUpdate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path C: Complete -->
+    <bpmn:task id="Task_Register" name="Register Claim in System">
+      <bpmn:incoming>SFlow_RegisterClaim</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EndRegistered</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event B -->
+    <bpmn:endEvent id="End_Registered" name="Claims Notification Process Ends">
+      <bpmn:incoming>SFlow_EndRegistered</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path D: Incomplete - Loop Back -->
+    <bpmn:task id="Task_InformUpdate" name="Inform Claimant to Update Forms">
+      <bpmn:incoming>SFlow_InformUpdate</bpmn:incoming>
+      <bpmn:outgoing>SFlow_LoopBackCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_CheckInsurance" sourceRef="StartClaimReceived" targetRef="Task_CheckInsurance"/>
+    
+    <bpmn:sequenceFlow id="SFlow_InsuredDecision" name="No" sourceRef="GW_IsInsured" targetRef="Task_Reject"/>
+
+    <bpmn:sequenceFlow id="SFlow_EvaluateSeverity" name="Yes" sourceRef="GW_IsInsured" targetRef="Task_EvaluateSeverity"/>
+    
+    <bpmn:sequenceFlow id="SFlow_SendForms" sourceRef="Task_EvaluateSeverity" targetRef="Task_SendForms"/>
+
+    <!-- Loop Logic for Forms Check -->
+    <bpmn:sequenceFlow id="SFlow_CheckCompleteness" name="" sourceRef="Task_SendForms" targetRef="Task_CheckCompleteness"/>
+
+    <bpmn:sequenceFlow id="SFlow_CompletenessDecision" sourceRef="Task_CheckCompleteness" targetRef="GW_IsComplete"/>
+
+    <bpmn:sequenceFlow id="SFlow_RegisterClaim" name="Yes, Complete" sourceRef="GW_IsComplete" targetRef="Task_Register"/>
+    
+    <bpmn:sequenceFlow id="SFlow_InformUpdate" name="No, Update Required" sourceRef="GW_IsComplete" targetRef="Task_InformUpdate"/>
+
+    <bpmn:sequenceFlow id="SFlow_LoopBackCheck" sourceRef="Task_InformUpdate" targetRef="Task_CheckCompleteness"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

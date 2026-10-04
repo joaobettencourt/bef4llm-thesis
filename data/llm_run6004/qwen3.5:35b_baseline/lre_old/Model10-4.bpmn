@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Equipment Change Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="true">
+    
+    <!-- LaneSet -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_MPON" name="MPON">
+        <bpmn:flowNodeRef>Task_MPON_NotifyIntentions</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SelfDisCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FinalReading_DismountOld_MPON</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MountNewDevice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReadMeterCountInstalled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendFinalReadingValues_GO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReportDeviceChanges_TO_GO</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_MPOO" name="MPOO">
+        <bpmn:flowNodeRef>Gateway_SelfDisCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MPOO_AnnounceSelfDismounting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FinalReading_DismountOld_MPOO</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_GO" name="GO">
+        <bpmn:flowNodeRef>Task_GoNotifyMSP</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="Equipment Change Intentions">
+      <bpmn:outgoing>SequenceFlow_StartToNotify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: MPON notifies MPOO -->
+    <bpmn:task id="Task_MPON_NotifyIntentions" name="MPON notifies MPOO about equipment change intentions">
+      <bpmn:incoming>SequenceFlow_StartToNotify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SelfDisCheck" name="Self Dismounting?">
+      <bpmn:incoming>SequenceFlow_NotifyToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelfDisYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelfDisNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Self Dismounting -->
+    <bpmn:task id="Task_MPOO_AnnounceSelfDismounting" name="MPOO announces self dismounting to the MPON">
+      <bpmn:incoming>SequenceFlow_SelfDisYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesToWork</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: No Self Dismounting -->
+    <bpmn:task id="Task_MPOO_NoSelfNotify_MPON_Receive" name="MPOO notifies MPON about no self-dismounting">
+      <bpmn:incoming>SequenceFlow_SelfDisNo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoToWork</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Work Tasks (Split by Actor) -->
+    <bpmn:task id="Task_FinalReading_DismountOld_MPOO" name="Perform Final Reading & Dismount Old Equipment">
+      <bpmn:incoming>SequenceFlow_YesToWork</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeMountNewDevice</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_FinalReading_DismountOld_MPON" name="Perform Final Reading & Dismount Old Equipment">
+      <bpmn:incoming>SequenceFlow_NoToWork</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConvergeMountNewDevice2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Converging to Mount New Device (MPON) -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesToWork" sourceRef="Task_MPOO_AnnounceSelfDismounting" targetRef="Task_FinalReading_DismountOld_MPOO"/>
+    
+    <bpmn:task id="Task_MountNewDevice" name="Mount the new device">
+      <bpmn:incoming>SequenceFlow_ConvergeMountNewDevice</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ConvergeMountNewDevice2</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_MountToRead</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flows for Convergence -->
+      <bpmn:sequenceFlow id="SequenceFlow_ConvergeMountNewDevice" sourceRef="Task_FinalReading_DismountOld_MPOO" targetRef="Task_MountNewDevice"/>
+       <bpmn:sequenceFlow id="SequenceFlow_MPONTasksConverge" name="" sourceRef="Task_FinalReading_DismountOld_MPON" targetRef="Task_MountNewDevice">
+         <!-- Condition logic implied -->
+      </bpmn:sequenceFlow>
+
+    <!-- Task Read Meter Count (MPON) -->
+     <bpmn:task id="Task_ReadMeterCountInstalled" name="Read the meter count from installed meter">
+      <bpmn:incoming>SequenceFlow_MountToRead</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_SendFinalReadingValues_GO</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task Send Values to GO (MPON) -->
+      <bpmn:sequenceFlow id="SequenceFlow_MountToRead" sourceRef="Task_MountNewDevice" targetRef="Task_ReadMeterCountInstalled"/>
+
+       <bpmn:task id="Task_SendFinalReadingValues_GO" name="Send values of final reading to GO">
+        <bpmn:incoming>SequenceFlow_SendFinalReadingValues_GO</bpmn:incoming> 
+         <bpmn:outgoing>SequenceFlow_ReportDeviceChanges_TO_GO</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Task Report Details to GO (MPON) -->
+        <bpmn:sequenceFlow id="SequenceFlow_SendFinalReadingValues_GO" sourceRef="Task_ReadMeterCountInstalled" targetRef="Task_SendFinalReadingValues_GO"/>
+
+         <bpmn:task id="Task_ReportDeviceChanges_TO_GO" name="Tell GO about device changes, master data and meter count at installation">
+          <bpmn:incoming>SequenceFlow_ReportDeviceChanges_TO_GO</bpmn:incoming> 
+           <bpmn:outgoing>SequenceFlow_GoNotifyMSP</bpmn:outgoing>
+        </bpmn:task>
+
+         <!-- Task GO Notify MSP (GO) -->
+          <bpmn:sequenceFlow id="SequenceFlow_ReportDeviceChanges_TO_GO" sourceRef="Task_SendFinalReadingValues_GO" targetRef="Task_ReportDeviceChanges_TO_GO"/>
+
+           <bpmn:task id="Task_GoNotifyMSP" name="Notify MSP about device changes, master data and meter counts">
+            <bpmn:incoming>SequenceFlow_GoNotifyMSP</bpmn:incoming> 
+             <bpmn:outgoing>SequenceFlow_EndFromMSP</bpmn:outgoing>
+          </bpmn:task>
+
+           <!-- End Event -->
+            <bpmn:endEvent id="End_1" name="Process Complete">
+              <bpmn:incoming>SequenceFlow_EndFromMSP</bpmn:incoming> 
+            </bpmn:endEvent>
+
+             <bpmn:sequenceFlow id="SequenceFlow_GoNotifyMSP" sourceRef="Task_ReportDeviceChanges_TO_GO" targetRef="Task_GoNotifyMSP"/>
+              <bpmn:sequenceFlow id="SequenceFlow_EndFromMSP" sourceRef="Task_GoNotifyMSP" targetRef="End_1"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/06-02-01.xsd http://www.omg.org/spec/BPMN/2.0/20100501/06-02-01.xsd"
+             id="definitions" 
+             targetNamespace="http://example.com/bpmn">
+  <process id="character_creation_process" isExecutable="true">
+    <startEvent id="new_character_wanted">
+      <outgoing>check_battle_net_account</outgoing>
+    </startEvent>
+    <sequenceFlow id="check_battle_net_account_flow" sourceRef="new_character_wanted" targetRef="has_battle_net_account"/>
+    <exclusiveGateway id="has_battle_net_account">
+      <incoming>check_battle_net_account_flow</incoming>
+      <outgoing>create_new_account</outgoing>
+      <outgoing>proceed_with_account</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="create_new_account_flow" name="no" sourceRef="has_battle_net_account" targetRef="create_battle_net_account">
+      <conditionExpression xsi:type="tFormalExpression">${battleNetAccount == null}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="proceed_with_account_flow" name="yes" sourceRef="has_battle_net_account" targetRef="check_woW_subscription">
+      <conditionExpression xsi:type="tFormalExpression">${battleNetAccount != null}</conditionExpression>
+    </sequenceFlow>
+    <serviceTask id="create_battle_net_account_task" name="Create new battle.net account">
+      <incoming>create_new_account</incoming>
+      <outgoing>confirm_email_link</outgoing>
+    </serviceTask>
+    <sequenceFlow id="confirm_email_link_flow" sourceRef="create_battle_net_account_task" targetRef="confirm_account_info_via_email"/>
+    <manualTask id="confirm_account_info_via_email" name="Confirm account information via email link">
+      <incoming>confirm_email_link_flow</incoming>
+      <outgoing>proceed_with_subscription_check</outgoing>
+    </manualTask>
+    <sequenceFlow id="proceed_with_subscription_check_flow" sourceRef="confirm_account_info_via_email" targetRef="check_woW_subscription"/>
+    <serviceTask id="check_woW_subscription_task" name="Check WoW subscription">
+      <incoming>proceed_with_account</incoming>
+      <outgoing>has_subscription</outgoing>
+      <outgoing>select_payment_method</outgoing>
+    </serviceTask>
+    <exclusiveGateway id="has_subscription_gateway">
+      <incoming>check_woW_subscription_task</incoming>
+      <outgoing>enter_credit_card_info</outgoing>
+      <outgoing>proceed_with_character_creation</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="select_payment_method_flow" name="no" sourceRef="check_woW_subscription_task" targetRef="payment_method_decision">
+      <conditionExpression xsi:type="tFormalExpression">${subscription == null}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="enter_credit_card_info_flow" name="Credit Card" sourceRef="has_subscription_gateway" targetRef="manual_enter_credit_card_info">
+      <conditionExpression xsi:type="tFormalExpression">${paymentMethod == 'creditCard'}</conditionExpression>
+    </sequenceFlow>
+    <exclusiveGateway id="payment_method_decision_gateway">
+      <incoming>select_payment_method_flow</incoming>
+      <outgoing>enter_iban_bic</outgoing>
+      <outgoing>enter_credit_card_info_gateway</outgoing>
+    </exclusiveGateway>
+    <manualTask id="manual_enter_credit_card_info" name="Enter credit card information">
+      <incoming>enter_credit_card_info_gateway</incoming>
+      <outgoing>proceed_with_character_creation_flow</outgoing>
+    </manualTask>
+    <sequenceFlow id="enter_credit_card_info_gateway_flow" sourceRef="payment_method_decision_gateway" targetRef="manual_enter_credit_card_info">
+      <conditionExpression xsi:type="tFormalExpression">${paymentMethod == 'creditCard'}</conditionExpression>
+    </sequenceFlow>
+    <manualTask id="enter_iban_bic" name="Enter IBAN and BIC numbers">
+      <incoming>enter_iban_bic</incoming>
+      <outgoing>proceed_with_character_creation_flow</outgoing>
+    </manualTask>
+    <sequenceFlow id="proceed_with_character_creation_flow" sourceRef="manual_enter_credit_card_info" targetRef="log_into_game"/>
+    <parallelGateway id="character_details_gateway">
+      <incoming>log_into_game</incoming>
+      <outgoing>select_realm_flow</outgoing>
+      <outgoing>select_race_class_flow</outgoing>
+      <outgoing>think_of_names_flow</outgoing>
+    </parallelGateway>
+    <manualTask id="log_into_game" name="Log into game">
+      <incoming>proceed_with_character_creation_flow</incoming>
+      <outgoing>character_details_gateway</outgoing>
+    </manualTask>
+    <sequenceFlow id="select_realm_flow" sourceRef="character_details_gateway" targetRef="select_realm_of_your_character"/>
+    <sequenceFlow id="select_race_class_flow" sourceRef="character_details_gateway" targetRef="select_race_and_class_of_your_character"/>
+    <sequenceFlow id="think_of_names_flow" sourceRef="character_details_gateway" targetRef="enter_name">
+      <conditionExpression xsi:type="tFormalExpression">${names != null}</conditionExpression>
+    </sequenceFlow>
+    <manualTask id="select_realm_of_your_character" name="Select realm of your character">
+      <incoming>select_realm_flow</incoming>
+    </manualTask>
+    <manualTask id="select_race_and_class_of_your_character" name="Select race and class of your character">
+      <incoming>select_race_class_flow</incoming>
+    </manualTask>
+    <serviceTask id="enter_name_task" name="Enter character name">
+      <incoming>think_of_names_flow</incoming>
+      <outgoing>name_available_check_flow</outgoing>
+    </serviceTask>
+    <sequenceFlow id="name_available_check_flow" sourceRef="enter_name_task" targetRef="is_name_available_gateway"/>
+    <exclusiveGateway id="is_name_available_gateway">
+      <incoming>name_available_check_flow</incoming>
+      <outgoing>character_created_flow</outgoing>
+      <outgoing>try_another_name_flow</outgoing>
+    </exclusiveGateway>
+    <sequenceFlow id="character_created_flow" name="yes" sourceRef="is_name_available_gateway" targetRef="receive_confirmation_and_selfies_task">
+      <conditionExpression xsi:type="tFormalExpression">${nameAvailable == true}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="try_another_name_flow" name="no" sourceRef="is_name_available_gateway" targetRef="enter_name_task">
+      <conditionExpression xsi:type="tFormalExpression">${nameAvailable == false}</conditionExpression>
+    </sequenceFlow>
+    <serviceTask id="receive_confirmation_and_selfies_task" name="Receive confirmation and character selfies">
+      <incoming>character_created_flow</incoming>
+      <outgoing>expansion_release_note_flow</outgoing>
+    </serviceTask>
+    <endEvent id="expansion_release_note_event">
+      <incoming>expansion_release_note_flow</incoming>
+    </endEvent>
+  </process>
+</definitions>

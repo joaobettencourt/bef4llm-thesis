@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ExpenseReportReceived">
+      <bpmn:name>Expense Report Received</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_CheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to check if employee has account -->
+    <bpmn:task id="Task_CheckEmployeeAccount" name="Check Employee Account">
+      <bpmn:incoming>SequenceFlow_CheckAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for account decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HasAccount" name="Employee has account?">
+      <bpmn:incoming>SequenceFlow_AccountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesHasAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoNoAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to create account if needed -->
+    <bpmn:task id="Task_CreateNewAccount" name="Create New Account">
+      <bpmn:incoming>SequenceFlow_NoNoAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreated</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to review expense report -->
+    <bpmn:task id="Task_ReviewExpenseReport" name="Review Expense Report">
+      <bpmn:incoming>SequenceFlow_YesHasAccount</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountCreated</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for amount decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>SequenceFlow_AmountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LowAmountPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HighAmountPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for low amount - direct deposit -->
+    <bpmn:task id="Task_ProcessDirectDeposit" name="Process Direct Deposit">
+      <bpmn:incoming>SequenceFlow_LowAmountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndLowAmount</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for high amount - ask supervisor -->
+    <bpmn:task id="Task_RequestSupervisorApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_HighAmountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for supervisor approval path -->
+    <bpmn:parallelGateway id="ParallelGateway_ApprovalPath">
+      <bpmn:incoming>SequenceFlow_SupervisorStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Timer7Days</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Timer30Days</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 7 days - approval in progress -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 Days">
+      <bpmn:incoming>SequenceFlow_Timer7Days</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendProgressEmail</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 30 days - process cancellation -->
+    <bpmn:intermediateCatchEvent id="Timer_30Days" name="30 Days">
+      <bpmn:incoming>SequenceFlow_Timer30Days</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendCancellationEmail</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor approval -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorApproval" name="Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_Timer7Days</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ProcessDepositAfterApproval</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor rejection -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorRejection" name="Supervisor Rejection">
+      <bpmn:incoming>SequenceFlow_Timer7Days</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendRejectionEmailTask</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to send approval in progress email -->
+    <bpmn:task id="Task_SendProgressEmail" name="Send Approval In Progress Email">
+      <bpmn:incoming>SequenceFlow_SendProgressEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RetryApprovalPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to send cancellation email -->
+    <bpmn:task id="Task_SendCancellationEmail" name="Send Cancellation Email">
+      <bpmn:incoming>SequenceFlow_SendCancellationEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndCancelled</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task to send rejection email -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_SendRejectionEmailTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for low amount -->
+    <bpmn:endEvent id="End_LowAmount" name="Reimbursement Processed">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndLowAmount</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for cancellation -->
+    <bpmn:endEvent id="End_Cancelled" name="Canceled - Re-submit Required">
+      <bpmn:name>Canceled</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndCancelled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for rejection -->
+    <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+      <bpmn:name>Rejected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for successful approval -->
+    <bpmn:endEvent id="End_Success" name="Reimbursement Processed">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAccount" sourceRef="StartEvent_ExpenseReportReceived" targetRef="Task_CheckEmployeeAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountDecision" name="" sourceRef="Task_CheckEmployeeAccount" targetRef="ExclusiveGateway_HasAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesHasAccount" name="Yes" sourceRef="ExclusiveGateway_HasAccount" targetRef="Task_ReviewExpenseReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoNoAccount" name="No" sourceRef="ExclusiveGateway_HasAccount" targetRef="Task_CreateNewAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreated" name="" sourceRef="Task_CreateNewAccount" targetRef="Task_ReviewExpenseReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AmountDecision" name="" sourceRef="Task_ReviewExpenseReport" targetRef="ExclusiveGateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_LowAmountPath" name="Yes (&lt;$200)" sourceRef="ExclusiveGateway_AmountCheck" targetRef="Task_ProcessDirectDeposit"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HighAmountPath" name="No (≥$200)" sourceRef="ExclusiveGateway_AmountCheck" targetRef="Task_RequestSupervisorApproval"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndLowAmount" name="" sourceRef="Task_ProcessDirectDeposit" targetRef="End_LowAmount"/>
+
+    <!-- Supervisor approval path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorStart" sourceRef="Task_RequestSupervisorApproval" targetRef="ParallelGateway_ApprovalPath"/>
+    
+    <bpmn:parallelGateway id="ParallelGateway_After7Days">
+      <bpmn:incoming>SequenceFlow_SendProgressEmail</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RetryApprovalTask</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Retry approval path -->
+    <bpmn:task id="Task_RequestSupervisorRetry" name="Request Supervisor Approval (Retry)">
+      <bpmn:incoming>SequenceFlow_RetryApprovalPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorStart2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence flows for retry path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryApprovalPath" sourceRef="Task_SendProgressEmail" targetRef="ParallelGateway_After7Days"/>
+    
+    <bpmn:parallelGateway id="ParallelGateway_ApprovalStart2">
+      <bpmn:incoming>SequenceFlow_SupervisorStart2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_Timer7DaysRetry</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_Timer30DaysRetry</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 7 days retry -->
+    <bpmn:intermediateCatchEvent id="Timer_7DaysRetry" name="7 Days">
+      <bpmn:incoming>SequenceFlow_Timer7DaysRetry</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendProgressEmail2</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 30 days retry -->
+    <bpmn:intermediateCatchEvent id="Timer_30DaysRetry" name="30 Days">
+      <bpmn:incoming>SequenceFlow_Timer30DaysRetry</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendCancellationEmail2</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor approval retry -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorApprovalRetry" name="Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_Timer7DaysRetry</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ProcessDepositAfterApproval2</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor rejection retry -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorRejectionRetry" name="Supervisor Rejection">
+      <bpmn:incoming>SequenceFlow_Timer7DaysRetry</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendRejectionEmailTask2</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to send approval in progress email retry -->
+    <bpmn:task id="Task_SendProgressEmailRetry" name="Send Approval In Progress Email">
+      <bpmn:incoming>SequenceFlow_SendProgressEmail2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RetryApprovalPath2</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task to send cancellation email retry -->
+    <bpmn:task id="Task_SendCancellationEmailRetry" name="Send Cancellation Email">
+      <bpmn:incoming>SequenceFlow_SendCancellationEmail2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_EndCancelled2</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task to send rejection email retry -->
+    <bpmn:task id="Task_SendRejectionEmailRetry" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_SendRejectionEmailTask2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_EndRejected2</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Sequence flows for retry path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorStart2" sourceRef="Task_RequestSupervisorRetry" targetRef="ParallelGateway_ApprovalStart2"/>
+    
+    <bpmn:parallelGateway id="ParallelGateway_After7DaysRetry">
+      <bpmn:incoming>SequenceFlow_SendProgressEmail2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RetryApprovalTask2</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Retry approval path -->
+    <bpmn:task id="Task_RequestSupervisorRetry2" name="Request Supervisor Approval (Final)">
+      <bpmn:incoming>SequenceFlow_RetryApprovalPath2</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SupervisorStart3</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Sequence flows for retry path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RetryApprovalPath2" sourceRef="Task_SendProgressEmailRetry" targetRef="ParallelGateway_After7DaysRetry"/>
+    
+    <bpmn:parallelGateway id="ParallelGateway_ApprovalStart3">
+      <bpmn:incoming>SequenceFlow_SupervisorStart3</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_Timer7DaysFinal</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_Timer30DaysFinal</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 7 days final -->
+    <bpmn:intermediateCatchEvent id="Timer_7DaysFinal" name="7 Days">
+      <bpmn:incoming>SequenceFlow_Timer7DaysFinal</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendProgressEmail3</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 30 days final -->
+    <bpmn:intermediateCatchEvent id="Timer_30DaysFinal" name="30 Days">
+      <bpmn:incoming>SequenceFlow_Timer30DaysFinal</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendCancellationEmail3</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor approval final -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorApprovalFinal" name="Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_Timer7DaysFinal</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ProcessDepositAfterApproval3</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message for supervisor rejection final -->
+    <bpmn:intermediateCatchEvent id="Message_SupervisorRejectionFinal" name="Supervisor Rejection">
+      <bpmn:incoming>SequenceFlow_Timer7DaysFinal</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_SendRejectionEmailTask3</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to send approval in progress email final -->
+    <bpmn:task id="Task_SendProgressEmailFinal" name="Send Approval In Progress Email">
+      <bpmn:incoming>SequenceFlow_SendProgressEmail3</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RetryApprovalPath3</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task to send cancellation email final -->
+    <bpmn:task id="Task_SendCancellationEmailFinal" name="Send Cancellation Email">
+      <bpmn:incoming>SequenceFlow_SendCancellationEmail3</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_EndCancelled3</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task to send rejection email final -->
+    <bpmn:task id="Task_SendRejectionEmailFinal" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_SendRejectionEmailTask3</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_EndRejected3</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Sequence flows for retry path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorStart3" sourceRef="Task_RequestSupervisorRetry2" targetRef="ParallelGateway_ApprovalStart3"/>
+    
+    <bpmn:endEvent id="End_SuccessFinal">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EndSuccessFinal</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

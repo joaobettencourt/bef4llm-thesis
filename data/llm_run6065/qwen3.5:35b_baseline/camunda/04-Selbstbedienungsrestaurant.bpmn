@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RestaurantProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RestaurantProc">
+    <bpmn:participant id="Participant_ServiceDept" name="Restaurant Service Process" processRef="Proc_OrderHandling" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OrderHandling" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Guest/Customer">
+        <bpmn:flowNodeRef>StartEvent_CustomerArrival</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaitForTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckGuestResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_GuestEatsMeal</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Staff" name="Staff Member">
+        <bpmn:flowNodeRef>Task_EnterOrderIntoSystem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetUpPagerForGuest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformCookAboutMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_CookNotifiesStaffFoodReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriggerGuestPagerWhenReady</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Cook" name="Cook">
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_StaffNotifiedFoodReady</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerArrival" name="Guest Arrives When Hungry">
+      <bpmn:outgoing>SequenceFlow_ArriveToSelectDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Guest Tasks -->
+    <bpmn:task id="Task_SelectDish" name="Select Dish from Changing Menu">
+      <bpmn:incoming>SequenceFlow_ArriveToSelectDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectToWaitForTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_WaitForTurn" name="Wait Until It's Their Turn">
+      <bpmn:incoming>SequenceFlow_SelectToWaitForTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitToPlaceOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Tasks -->
+    <bpmn:task id="Task_EnterOrderIntoSystem" name="Enter Order into Cash Register System">
+      <bpmn:incoming>SequenceFlow_PlaceOrderToEnterOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterPaymentCollection</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CollectPayment" name="Collect Payment from Guest">
+      <bpmn:incoming>SequenceFlow_EnterOrderIntoSystemToCollect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentToSetUpPager</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Pager Setup -->
+    <bpmn:task id="Task_SetUpPagerForGuest" name="Set Up Pager for Guest">
+      <bpmn:incoming>SequenceFlow_PaymentToSetUpPager</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetupPagerInformCook</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Cook Tasks -->
+    <bpmn:task id="Task_PrepareMeal" name="Prepare the Meal">
+      <bpmn:incoming>SequenceFlow_CookNotifiedToStartPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepToPlaceInPassThrough</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Guest Response Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckGuestResponse" name="Guest Responds to Pager?">
+      <bpmn:incoming>SequenceFlow_PagerTriggeredToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesGuestResponds</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoNoResponseAfter5Min</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_GuestEatsMeal" name="Customer Eats Meal">
+      <bpmn:incoming>SequenceFlow_CustomerPicksUpFood</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ArriveToSelectDish" sourceRef="StartEvent_CustomerArrival" targetRef="Task_SelectDish">
+      <bpmn:name>Guest Arrives</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelectToWaitForTurn" sourceRef="Task_SelectDish" targetRef="Task_WaitForTurn">
+      <bpmn:name>Select Dish Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:task id="Task_PlaceOrder" name="Place Order with Staff Member">
+      <bpmn:incoming>SequenceFlow_WaitToPlaceOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrderToEnterOrder</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitToPlaceOrder" sourceRef="Task_WaitForTurn" targetRef="Task_PlaceOrder">
+      <bpmn:name>Wait Until Turn</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrderToEnterOrder" name="Place Order Complete" sourceRef="Task_PlaceOrder" targetRef="Task_EnterOrderIntoSystem">
+      <!-- Guest places order -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EnterPaymentCollection" sourceRef="Task_EnterOrderIntoSystem" targetRef="Task_CollectPayment">
+      <bpmn:name>Collect Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Correction for flow ID mismatch -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterOrderIntoSystemToCollect" sourceRef="Task_EnterOrderIntoSystem" targetRef="Task_CollectPayment">
+      <bpmn:name>Enter Order Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Remove duplicate flow ID logic, keeping one valid path -->
+    <bpmn:task id="Task_InformCookAboutMeal" name="Inform Cook About Ordered Meal">
+      <bpmn:incoming>SequenceFlow_PaymentToSetUpPager</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetupPagerInformCook</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Cook Notification Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CookNotifiedToStartPrep" sourceRef="Task_InformCookAboutMeal" targetRef="Task_PrepareMeal">
+      <bpmn:name>Cook Notified</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Cook Completes Meal -->
+    <bpmn:task id="Task_PlaceInPassThrough" name="Place Finished Meal in Pass-Through Window">
+      <bpmn:incoming>SequenceFlow_PrepToPlaceInPassThrough</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CookNotifiesStaffFoodReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Staff Notified Food Ready -->
+    <bpmn:event id="Event_StaffNotifiedFoodReady" name="Cook Informs Staff">
+      <bpmn:incoming>SequenceFlow_CookNotifiesStaffFoodReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TriggerPagerWhenReady</bpmn:outgoing>
+    </bpmn:event>
+
+    <!-- Trigger Pager -->
+    <bpmn:task id="Task_TriggerGuestPagerWhenReady" name="Trigger Guest's Pager When Food Ready">
+      <bpmn:incoming>SequenceFlow_TriggerPagerWhenReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PagerTriggeredToCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Guest Response Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_PagerTriggeredToCheck" sourceRef="Task_TriggerGuestPagerWhenReady" targetRef="Gateway_CheckGuestResponse">
+      <bpmn:name>Pager Triggered</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Guest Responds -->
+    <bpmn:task id="Task_GuestRespondsToPager" name="Guest Responds to Pager Signal">
+      <bpmn:incoming>SequenceFlow_YesGuestResponds</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CustomerPicksUpFood</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Guest Picks Up Food -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesGuestResponds" sourceRef="Gateway_CheckGuestResponse" targetRef="Task_GuestRespondsToPager">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Guest Does Not Respond -->
+    <bpmn:task id="Task_CallGuestAfter5Min" name="Call Guest After 5 Minutes (If No Response)">
+      <bpmn:incoming>SequenceFlow_NoNoResponseAfter5Min</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CalledBackToCheckAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Call Back Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoNoResponseAfter5Min" sourceRef="Gateway_CheckGuestResponse" targetRef="Task_CallGuestAfter5Min">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Call Back Loop Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CalledBackToCheckAgain" sourceRef="Task_CallGuestAfter5Min" targetRef="Gateway_CheckGuestResponse">
+      <bpmn:name>Call Guest Again</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Pickup Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerPicksUpFood" sourceRef="Task_GuestRespondsToPager" targetRef="End_GuestEatsMeal">
+      <bpmn:name>Pick Up and Eat Meal</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

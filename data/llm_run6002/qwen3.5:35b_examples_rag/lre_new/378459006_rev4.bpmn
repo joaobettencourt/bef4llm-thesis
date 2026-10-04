@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_PaymentProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PaymentProc">
+    <bpmn:participant id="Participant_SSPPool" name="SSP Organization" processRef="Process_P12345"/>
+    <bpmn:participant id="Participant_ClientPool" name="Client"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_P12345" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice" name="Payment Office">
+        <bpmn:flowNodeRef>StartEvent_Weekly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenerateReport</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AccountsReceivable" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>Task_GenerateMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ChargeFee</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_RegistryOffice" name="Registry Office">
+        <bpmn:flowNodeRef>Task_SelectPaidInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveInvoices</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event - Weekly Timer -->
+    <bpmn:startEvent id="StartEvent_Weekly" name="Every Week">
+      <bpmn:outgoing>SequenceFlow_S1</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task - Generate Payment Report -->
+    <bpmn:task id="Task_GenerateReport" name="Generate Payment Report">
+      <bpmn:incoming>SequenceFlow_S1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_T1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Splitting Paths -->
+    <bpmn:parallelGateway id="ParallelGateway_SendReports" name="Send Reports">
+      <bpmn:incoming>SequenceFlow_T1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_P1</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_P2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Parallel Path 1 - Send to Clients -->
+    <bpmn:task id="Task_SendToClients" name="Send Report &amp; Invoice to Clients">
+      <bpmn:incoming>SequenceFlow_P1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Path 2 - Send to Accounts Receivable -->
+    <bpmn:sequenceFlow id="SequenceFlow_P2" sourceRef="ParallelGateway_SendReports" targetRef="Task_GenerateMonthlyInvoice"/>
+
+    <!-- Task - Generate Monthly Invoice (Accounts Receivable) -->
+    <bpmn:task id="Task_GenerateMonthlyInvoice" name="Generate Monthly Client Invoices">
+      <bpmn:incoming>SequenceFlow_P2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_C1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Charge Fee -->
+    <bpmn:exclusiveGateway id="Gateway_ChargeFee" name="$35 per Invoice">
+      <bpmn:incoming>SequenceFlow_C1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyClient</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Notify Client -->
+    <bpmn:task id="Task_NotifyClient" name="Notify Client of Charge">
+       <bpmn:incoming>SequenceFlow_NotifyClient</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_Merge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Path 3 - Send to Registry Office -->
+    <bpmn:sequenceFlow id="SequenceFlow_P1" sourceRef="ParallelGateway_SendReports" targetRef="Task_SendToClients"/>
+
+    <!-- Task - Select Paid Invoices (Registry) -->
+    <bpmn:task id="Task_SelectPaidInvoices" name="Select Paper-Based Paid Invoices">
+      <bpmn:incoming>SequenceFlow_P3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_A1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Archive Invoices -->
+    <bpmn:task id="Task_ArchiveInvoices" name="Archive Invoices by Vendor &amp; Payment Data">
+      <bpmn:incoming>SequenceFlow_A1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_S1" sourceRef="StartEvent_Weekly" targetRef="Task_GenerateReport"/>
+    <bpmn:sequenceFlow id="SequenceFlow_T1" sourceRef="Task_GenerateReport" targetRef="ParallelGateway_SendReports"/>
+    <bpmn:sequenceFlow id="SequenceFlow_C1" sourceRef="Task_GenerateMonthlyInvoice" targetRef="Gateway_ChargeFee"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyClient" name="$35 Charge Applied" sourceRef="Gateway_ChargeFee" targetRef="Task_NotifyClient"/>
+    <bpmn:sequenceFlow id="SequenceFlow_P3" name="To Registry Office" sourceRef="ParallelGateway_SendReports" targetRef="Task_SelectPaidInvoices"/>
+    <bpmn:sequenceFlow id="SequenceFlow_A1" sourceRef="Task_SelectPaidInvoices" targetRef="Task_ArchiveInvoices"/>
+
+  </bpmn:process>
+</bpmn:definitions>

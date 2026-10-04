@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="FindJobProcess" isExecutable="false">
+    <laneSet>
+      <lane id="Lane_Applicant" name="Job Applicant">
+        <flowNodeRef>StartEvent_Application</flowNodeRef>
+        <flowNodeRef>Task_ReportApplications</flowNodeRef>
+        <flowNodeRef>Gateway_InterviewNegotiation</flowNodeRef>
+        <flowNodeRef>Task_ProbationPhase</flowNodeRef>
+        <flowNodeRef>Task_RateCompany</flowNodeRef>
+      </lane>
+      <lane id="Lane_Company" name="Companies">
+        <flowNodeRef>Gateway_ConfirmReceipt</flowNodeRef>
+        <flowNodeRef>Task_ConfirmAndRateApplication</flowNodeRef>
+        <flowNodeRef>Task_RateApplicant</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_Application">
+      <bpmn:name>Begin Job Application Reporting</bpmn:name>
+      <outgoing>SequenceFlow_ReportApplications</outgoing>
+    </startEvent>
+
+    <!-- Task 1 (Applicant) -->
+    <task id="Task_ReportApplications" name="Report job applications">
+      <incoming>SequenceFlow_ReportApplications</incoming>
+      <outgoing>SequenceFlow_CompanyConfirmation</outgoing>
+    </task>
+
+    <!-- Gateway: Company Confirmation & Rating Decision -->
+    <exclusiveGateway id="Gateway_ConfirmReceipt">
+      <bpmn:name>Company Confirms Receipt?</bpmn:name>
+      <incoming>SequenceFlow_CompanyConfirmation</incoming>
+      <outgoing>SequenceFlow_InterviewNegotiation</outgoing>
+      <outgoing>SequenceFlow_NoInterestReject</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task 2 (Company) -->
+    <task id="Task_ConfirmAndRateApplication" name="Confirm receipt &amp; rate application">
+      <incoming>SequenceFlow_CompanyConfirmation</incoming>
+      <outgoing>SequenceFlow_InterviewNegotiationDecision</outgoing>
+    </task>
+
+    <!-- Gateway: Interview Negotiation Decision -->
+    <exclusiveGateway id="Gateway_InterviewNegotiation">
+      <bpmn:name>Negotiate Interview?</bpmn:name>
+      <incoming>SequenceFlow_InterviewNegotiation</incoming>
+      <outgoing>SequenceFlow_ProbationOffer</outgoing>
+      <outgoing>SequenceFlow_NoInterviewReject</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task 3 (Applicant) -->
+    <task id="Task_ProbationPhase" name="Probation Phase">
+      <incoming>SequenceFlow_ProbationOffer</incoming>
+      <outgoing>SequenceFlow_RatingDecision</outgoing>
+    </task>
+
+    <!-- Parallel Gateway for Mutual Rating -->
+    <parallelGateway id="ParallelRatingStart">
+      <incoming>SequenceFlow_RatingDecision</incoming>
+      <outgoing>SequenceFlow_ApplicantRatesCompany</outgoing>
+      <outgoing>SequenceFlow_CompanyRatesApplicant</outgoing>
+    </parallelGateway>
+
+    <!-- Task 4 (Applicant) -->
+    <task id="Task_RateCompany" name="Rate Company">
+      <incoming>SequenceFlow_ApplicantRatesCompany</incoming>
+      <outgoing>SequenceFlow_ProbationEndCheck</outgoing>
+    </task>
+
+    <!-- Gateway: Rating Threshold Decision (C or less?) -->
+    <exclusiveGateway id="Gateway_RatingThreshold">
+      <bpmn:name>Rated C or Less?</bpmn:name>
+      <incoming>SequenceFlow_ProbationEndCheck</incoming>
+      <outgoing>SequenceFlow_ContinueOffersNoReport</outgoing>
+      <outgoing>SequenceFlow_ProcessCompletePermanentJob</outgoing>
+    </exclusiveGateway>
+
+    <!-- End Event 1: Process Complete -->
+    <endEvent id="EndEvent_Complete">
+      <bpmn:name>Process Ends (Permanent Job)</bpmn:name>
+      <incoming>SequenceFlow_ContinueOffersNoReport</incoming>
+      <incoming>SequenceFlow_ProcessCompletePermanentJob</incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_ReportApplications" sourceRef="StartEvent_Application" targetRef="Task_ReportApplications"/>
+    
+    <sequenceFlow id="SequenceFlow_CompanyConfirmation" name="Submit Application" sourceRef="Task_ReportApplications" targetRef="Gateway_ConfirmReceipt">
+      <bpmn:conditionExpression>Application Submitted</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_InterviewNegotiation" sourceRef="Gateway_ConfirmReceipt" targetRef="Task_ConfirmAndRateApplication"/>
+    
+    <sequenceFlow id="SequenceFlow_NoInterestReject" name="No Interest" sourceRef="Gateway_ConfirmReceipt" targetRef="EndEvent_Complete">
+      <bpmn:conditionExpression>Company Rejects</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_InterviewNegotiationDecision" sourceRef="Task_ConfirmAndRateApplication" targetRef="Gateway_InterviewNegotiation"/>
+    
+    <sequenceFlow id="SequenceFlow_ProbationOffer" name="Yes - Offer Probation" sourceRef="Gateway_InterviewNegotiation" targetRef="Task_ProbationPhase">
+      <bpmn:conditionExpression>Company Wants You</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_NoInterviewReject" name="No Interview Offered" sourceRef="Gateway_InterviewNegotiation" targetRef="EndEvent_Complete">
+      <bpmn:conditionExpression>No Further Interest</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_RatingDecision" sourceRef="Task_ProbationPhase" targetRef="ParallelRatingStart"/>
+    
+    <sequenceFlow id="SequenceFlow_ApplicantRatesCompany" name="Applicant Rates Company" sourceRef="ParallelRatingStart" targetRef="Task_RateCompany">
+      <bpmn:conditionExpression>Probation Completed</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_CompanyRatesApplicant" name="Company Rates Applicant" sourceRef="ParallelRatingStart" targetRef="Gateway_RatingThreshold"/>
+    
+    <sequenceFlow id="SequenceFlow_ProbationEndCheck" sourceRef="Task_RateCompany" targetRef="Gateway_RatingThreshold">
+      <bpmn:conditionExpression>Review Period Complete</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_ContinueOffersNoReport" name="Rated C or Less - Continue Offers, No Report Required" sourceRef="Gateway_RatingThreshold" targetRef="EndEvent_Complete">
+      <bpmn:conditionExpression>Rating ≤ C</bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_ProcessCompletePermanentJob" name="Rated Above C - Permanent Job Offered" sourceRef="Gateway_RatingThreshold" targetRef="EndEvent_Complete">
+      <bpmn:conditionExpression>Rating &gt; C</bpmn:conditionExpression>
+    </sequenceFlow>
+
+  </process>
+</bpmn:definitions>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SSP_Process_01">
+  <bpmn:collaboration id="Collab_SSP_Operation">
+    <bpmn:participant id="Participant_SSP" name="SSP Organization" processRef="Process_MainOperation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MainOperation" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PaymentOffice" name="Payment Office of SSP">
+        <bpmn:flowNodeRef>SSE_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_GenerateReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_PaymentSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_PayVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_SendToClients</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AR" name="Accounts Receivable Department">
+        <bpmn:flowNodeRef>TASK_GenMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_ChargeNotifyClient</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registry" name="Registry Office">
+        <bpmn:flowNodeRef>TASK_SelectPaperInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_ArchiveInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TASK_TrackPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Data Objects -->
+    <bpmn:dataObject id="Data_PaymentReport" name="Payment Report"/>
+
+    <!-- Start Event (Timer) -->
+    <bpmn:startEvent id="SSE_StartEvent">
+      <bpmn:name>Weekly Payment Report</bpmn:name>
+      <bpmn:timerEventDefinition/>
+      <bpmn:outgoing>SF_GenReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Generate Payment Report -->
+    <bpmn:task id="TASK_GenerateReport" name="Generate Payment Report">
+      <bpmn:incoming>SF_GenReport</bpmn:incoming>
+      <bpmn:outgoing>SF_SplitTasks</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="GW_PaymentSplit">
+      <bpmn:incoming>SF_SplitTasks</bpmn:incoming>
+      <bpmn:outgoing>SF_PayVendor</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendToClients</bpmn:outgoing>
+      <bpmn:outgoing>SF_SendToRegistry</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Pay Vendor -->
+    <bpmn:task id="TASK_PayVendor" name="Pay the vendor">
+      <bpmn:incoming>SF_PayVendor</bpmn:incoming>
+      <bpmn:outgoing>SF_JoinEnd_1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Send to Clients (Payment Office) -->
+    <bpmn:sequenceFlow id="SF_SendToClients" name="Send Report &amp; Invoice" sourceRef="GW_PaymentSplit" targetRef="TASK_SendToClients"/>
+
+    <!-- Task: Send to Clients -->
+    <bpmn:task id="TASK_SendToClients" name="Send report automatically to clients (incl. invoice)">
+      <bpmn:incoming>SF_SendToClients</bpmn:incoming>
+      <bpmn:outgoing>SF_JoinEnd_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 3: Send to Registry (Payment Office) -->
+    <bpmn:sequenceFlow id="SF_SendToRegistry" name="Send Report" sourceRef="GW_PaymentSplit" targetRef="TASK_SendToRegistry"/>
+
+    <!-- Task: Send to Registry -->
+    <bpmn:task id="TASK_SendToRegistry" name="Send report to Registry Office">
+      <bpmn:incoming>SF_SendToRegistry</bpmn:incoming>
+      <bpmn:outgoing>SF_JoinEnd_3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 4: AR Department Tasks -->
+    <bpmn:sequenceFlow id="SF_AR_Trigger" name="Report Received" sourceRef="TASK_SendToClients" targetRef="TASK_GenMonthlyInvoice"/>
+
+    <!-- Task: Generate Monthly Invoice -->
+    <bpmn:task id="TASK_GenMonthlyInvoice" name="Generate monthly invoice for clients">
+      <bpmn:incoming>SF_AR_Trigger</bpmn:incoming>
+      <bpmn:outgoing>SF_ChargeNotify</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Charge & Notify -->
+    <bpmn:task id="TASK_ChargeNotifyClient" name="Charge $35 per invoice and notify client">
+      <bpmn:incoming>SF_ChargeNotify</bpmn:incoming>
+      <bpmn:outgoing>SF_JoinEnd_4</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 5: Registry Office Tasks -->
+    <bpmn:sequenceFlow id="SF_Reg_Trigger" name="Report Received" sourceRef="TASK_SendToRegistry" targetRef="TASK_SelectPaperInvoices"/>
+
+    <!-- Task: Select Paper-based Invoices -->
+    <bpmn:task id="TASK_SelectPaperInvoices" name="Select paper-based invoices paid">
+      <bpmn:incoming>SF_Reg_Trigger</bpmn:incoming>
+      <bpmn:outgoing>SF_ArchiveStep1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Archive Invoices -->
+    <bpmn:task id="TASK_ArchiveInvoices" name="Archive invoices per vendor and payment data">
+      <bpmn:incoming>SF_ArchiveStep1</bpmn:incoming>
+      <bpmn:outgoing>SF_TrackPaymentStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Track Payment -->
+    <bpmn:task id="TASK_TrackPayment" name="Track down the payment">
+      <bpmn:incoming>SF_TrackPaymentStart</bpmn:incoming>
+      <bpmn:outgoing>SF_JoinEnd_5</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EVE_ProcessComplete" name="Process Cycle Complete">
+      <bpmn:incoming>SF_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="GW_ProcessJoin">
+      <bpmn:name>All Tasks Complete</bpmn:name>
+      <bpmn:incoming>SF_JoinEnd_1</bpmn:incoming>
+      <bpmn:incoming>SF_JoinEnd_2</bpmn:incoming>
+      <bpmn:incoming>SF_JoinEnd_3</bpmn:incoming>
+      <bpmn:incoming>SF_JoinEnd_4</bpmn:incoming>
+      <bpmn:incoming>SF_JoinEnd_5</bpmn:incoming>
+      <bpmn:outgoing>SF_ToEndEvent</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Flows to Join Gateway -->
+    <bpmn:sequenceFlow id="SF_JoinEnd_1" sourceRef="TASK_PayVendor" targetRef="GW_ProcessJoin"/>
+    <bpmn:sequenceFlow id="SF_JoinEnd_2" sourceRef="TASK_SendToClients" targetRef="GW_ProcessJoin"/>
+    <bpmn:sequenceFlow id="SF_JoinEnd_3" sourceRef="TASK_SendToRegistry" targetRef="GW_ProcessJoin"/>
+    <bpmn:sequenceFlow id="SF_JoinEnd_4" sourceRef="TASK_ChargeNotifyClient" targetRef="GW_ProcessJoin"/>
+    <bpmn:sequenceFlow id="SF_JoinEnd_5" sourceRef="TASK_TrackPayment" targetRef="GW_ProcessJoin"/>
+
+    <!-- Flow to End Event -->
+    <bpmn:sequenceFlow id="SF_ToEndEvent" name="All Complete" sourceRef="GW_ProcessJoin" targetRef="EVE_ProcessComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

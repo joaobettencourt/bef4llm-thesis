@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CreditProcess">
+    <bpmn:participant id="Participant_CreditCompany" name="Credit Company" processRef="Process_CreditApproval" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CreditApproval" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveApplication" name="Credit Application Received">
+      <bpmn:outgoing>SequenceFlow_StartToCollect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Collect Information -->
+    <bpmn:task id="Task_CollectInfo" name="Collect credit information from customer">
+      <bpmn:incoming>SequenceFlow_StartToCollect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToAmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Amount Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Amount" name="Amount &gt; $1M?">
+      <bpmn:incoming>SequenceFlow_ToAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighAmount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowAmount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 1: High Amount Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighAmount" name="Yes (&gt; $1M)" sourceRef="ExclusiveGateway_Amount" targetRef="Task_RequestApproval">
+      <bpmn:description>If requested amount is greater than 1M$ an approval must be requested.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow 2: Low Amount Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LowAmount" name="No (&lt;= $1M)" sourceRef="ExclusiveGateway_Amount" targetRef="Task_AssessRisk">
+      <bpmn:description>If requested amount is lower or equal to 1M$ the company assesses risk.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 2: Assess Risk -->
+    <bpmn:task id="Task_AssessRisk" name="Assess credit risk">
+      <bpmn:incoming>SequenceFlow_LowAmount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToRiskCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Risk Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Risk" name="High Risk?">
+      <bpmn:incoming>SequenceFlow_ToRiskCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HighRisk</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LowRisk</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 3: High Risk Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighRisk" name="Yes (High)" sourceRef="ExclusiveGateway_Risk" targetRef="Task_RequestApproval">
+      <bpmn:description>If risk is high, approval must be requested.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow 4: Low Risk Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LowRisk" name="No (Low)" sourceRef="ExclusiveGateway_Risk" targetRef="EndEvent_Accepted">
+      <bpmn:description>If risk is low, credit accepted.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 3: Request Approval -->
+    <bpmn:task id="Task_RequestApproval" name="Request approval from committee">
+      <bpmn:incoming>SequenceFlow_HighAmount</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_HighRisk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Approval Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision" name="Approval Result?">
+      <bpmn:incoming>SequenceFlow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AcceptedResult</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectedResult</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 5: Approval Accepted -->
+    <bpmn:sequenceFlow id="SequenceFlow_AcceptedResult" name="Accepted" sourceRef="ExclusiveGateway_Decision" targetRef="Task_SendEmail">
+      <bpmn:description>Credit could be accepted.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow 6: Approval Rejected -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedResult" name="Rejected" sourceRef="ExclusiveGateway_Decision" targetRef="Task_SendEmail">
+      <bpmn:description>Credit could be rejected.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 4: Send Email -->
+    <bpmn:task id="Task_SendEmail" name="Send email to customer">
+      <bpmn:incoming>SequenceFlow_AcceptedResult</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_RejectedResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Credit Accepted (Low Risk Path) -->
+    <bpmn:endEvent id="EndEvent_Accepted" name="Credit Accepted">
+      <bpmn:incoming>SequenceFlow_LowRisk</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2: Process Complete (After Email) -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEnd" sourceRef="Task_SendEmail" targetRef="EndEvent_Completed">
+      <bpmn:description>In both cases, email sent.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Start to Collect -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCollect" sourceRef="StartEvent_ReceiveApplication" targetRef="Task_CollectInfo">
+      <bpmn:description>Credit company collects information.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Collect to Amount Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToAmountCheck" sourceRef="Task_CollectInfo" targetRef="ExclusiveGateway_Amount">
+      <bpmn:description>Proceed to check amount.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Amount Check to Risk -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToRiskCheck" sourceRef="Task_AssessRisk" targetRef="ExclusiveGateway_Risk">
+      <bpmn:description>Risk assessment complete.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow Approval Task to Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToDecision" sourceRef="Task_RequestApproval" targetRef="ExclusiveGateway_Decision">
+      <bpmn:description>Awaiting approval result.</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

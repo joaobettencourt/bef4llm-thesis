@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderToCash">
+    <bpmn:participant id="Participant_OrderProcess" name="Order-to-Cash Process" processRef="Process_OrderToCash" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderToCash" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesAdmin" name="Sales &amp; Administration">
+        <bpmn:flowNodeRef>StartEvent_ReceiveOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformSales</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse &amp; Production">
+        <bpmn:flowNodeRef>Gateway_CheckParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderMissingParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SyncProduction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StartProduction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StoreInWarehouse</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Quality" name="Quality Control">
+        <bpmn:flowNodeRef>Task_PerformQC</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveOrder" name="Customer Order Received">
+      <bpmn:outgoing>SequenceFlow_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Process Order -->
+    <bpmn:task id="Task_ProcessOrder" name="Process Customer Order">
+      <bpmn:incoming>SequenceFlow_ProcessOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Determine Parts -->
+    <bpmn:task id="Task_DetermineParts" name="Determine Required Parts">
+      <bpmn:incoming>SequenceFlow_SendToWarehouse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Check Availability -->
+    <bpmn:exclusiveGateway id="Gateway_CheckParts" name="Parts Available?">
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartsReadyPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderMissingPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Order Missing Parts -->
+    <bpmn:task id="Task_OrderMissingParts" name="Order Missing Parts">
+      <bpmn:incoming>SequenceFlow_OrderMissingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PartsArrived</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Sync Production Start -->
+    <bpmn:parallelGateway id="Gateway_SyncProduction" name="Wait for All Parts">
+      <bpmn:incoming>SequenceFlow_PartsReadyPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PartsArrived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartProductionTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Start Production -->
+    <bpmn:task id="Task_StartProduction" name="Start Production">
+      <bpmn:incoming>SequenceFlow_StartProductionTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToQualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Quality Checks -->
+    <bpmn:task id="Task_PerformQC" name="Perform Quality Checks">
+      <bpmn:incoming>SequenceFlow_ToQualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QCComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Package and Label -->
+    <bpmn:task id="Task_PackageLabel" name="Package &amp; Label">
+      <bpmn:incoming>SequenceFlow_QCComplete</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Store in Warehouse -->
+    <bpmn:task id="Task_StoreInWarehouse" name="Return to Warehouse">
+      <bpmn:incoming>SequenceFlow_ReturnToWarehouse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifySales</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Inform Sales -->
+    <bpmn:task id="Task_InformSales" name="Inform Sales Team">
+      <bpmn:incoming>SequenceFlow_NotifySales</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SellProduct</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProductSold" name="Product Sold to Customer">
+      <bpmn:incoming>SequenceFlow_SellProduct</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessOrder" sourceRef="StartEvent_ReceiveOrder" targetRef="Task_ProcessOrder">
+      <bpmn:name>Received Order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendToWarehouse" sourceRef="Task_ProcessOrder" targetRef="Task_DetermineParts">
+      <bpmn:name>Send to Warehouse</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAvailability" sourceRef="Task_DetermineParts" targetRef="Gateway_CheckParts">
+      <bpmn:name>Determined Parts List</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PartsReadyPath" name="Yes - Available" sourceRef="Gateway_CheckParts" targetRef="Gateway_SyncProduction">
+      <bpmn:conditionExpression>${partsAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OrderMissingPath" name="No - Order Needed" sourceRef="Gateway_CheckParts" targetRef="Task_OrderMissingParts">
+      <bpmn:conditionExpression>${!partsAvailable}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PartsArrived" name="Order Complete" sourceRef="Task_OrderMissingParts" targetRef="Gateway_SyncProduction">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartProductionTask" sourceRef="Gateway_SyncProduction" targetRef="Task_StartProduction">
+      <bpmn:name>All Parts Ready</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ToQualityCheck" sourceRef="Task_StartProduction" targetRef="Task_PerformQC">
+      <bpmn:name>Production Finished</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_QCComplete" name="Passed QC" sourceRef="Task_PerformQC" targetRef="Task_PackageLabel">
+      <bpmn:conditionExpression>${qualityCheckPassed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnToWarehouse" name="Package Complete" sourceRef="Task_PackageLabel" targetRef="Task_StoreInWarehouse">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifySales" sourceRef="Task_StoreInWarehouse" targetRef="Task_InformSales">
+      <bpmn:name>In Stock</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SellProduct" name="Ready to Sell" sourceRef="Task_InformSales" targetRef="EndEvent_ProductSold">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

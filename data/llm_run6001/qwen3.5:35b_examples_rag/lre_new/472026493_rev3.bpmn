@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HardwareProcurement">
+    <bpmn:participant id="Participant_HWProcess" name="Hardware Procurement Process" processRef="Process_HW001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_HW001" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ITDept" name="IT Department">
+        <bpmn:flowNodeRef>StartEvent_RequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ITDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EditCompleteRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Management" name="Management">
+        <bpmn:flowNodeRef>Gateway_MgmtDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeRequestMgmt</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Financial" name="Financial Department">
+        <bpmn:flowNodeRef>Gateway_FinanceDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FindResources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessInvoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>Task_SendDenialEmail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessEnded1</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Request for new hardware received">
+      <bpmn:outgoing>SequenceFlow_StartToAnalyze</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Analyze Request (IT) -->
+    <bpmn:userTask id="Task_AnalyzeRequest" name="Analyse request">
+      <bpmn:incoming>SequenceFlow_StartToAnalyze</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToITDecisionGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: IT Decision (Approve/Deny) -->
+    <bpmn:exclusiveGateway id="Gateway_ITDecision" name="Request approved?">
+      <bpmn:incoming>SequenceFlow_ToITDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DeniedByIT</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovedByIT</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Denial Email -->
+    <bpmn:userTask id="Task_SendDenialEmail" name="Inform employee via email about denial">
+      <bpmn:incoming>SequenceFlow_DeniedByIT</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_ProcessEnded1" name="Process ended">
+      <bpmn:incoming>SequenceFlow_ToEndEvent1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Edit and Complete Request (IT) -->
+    <bpmn:userTask id="Task_EditCompleteRequest" name="Edit and complete request">
+      <bpmn:incoming>SequenceFlow_ApprovedByIT</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEmailSupplier</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Email Supplier for Prices -->
+    <bpmn:userTask id="Task_EmailSupplier" name="Send email to supplier asking about prices">
+      <bpmn:incoming>SequenceFlow_ToEmailSupplier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForOffer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event: Wait for Supplier Offer -->
+    <bpmn:intermediateCatchEvent id="IntermediateWaitSupplier" name="Receive supplier offer">
+      <bpmn:incoming>SequenceFlow_WaitForOffer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToFormFill</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Fill Form and Send to Management -->
+    <bpmn:userTask id="Task_FillFormSendMgmt" name="Fill form and send to management">
+      <bpmn:incoming>SequenceFlow_ToFormFill</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MgmtToAnalyzeRequest</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Management Analyze Request -->
+    <bpmn:userTask id="Task_AnalyzeRequestMgmt" name="Management analyses request">
+      <bpmn:incoming>SequenceFlow_MgmtToAnalyzeRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToMgmtDecisionGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Management Decision (Approve/Deny/Rework) -->
+    <bpmn:exclusiveGateway id="Gateway_MgmtDecision" name="Management approves?">
+      <bpmn:incoming>SequenceFlow_ToMgmtDecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovedByMgmt</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DeniedOrRework</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Gateway: Finance Decision -->
+    <bpmn:exclusiveGateway id="Gateway_FinanceDecision" name="Resources found?">
+      <bpmn:incoming>SequenceFlow_ApprovedByMgmtFinance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResourcesFound</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoResources</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Find Resources (Financial) -->
+    <bpmn:userTask id="Task_FindResources" name="Find financial resources">
+      <bpmn:incoming>SequenceFlow_ApprovedByMgmtFinance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToGatewayFinDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Prepare Order (IT) -->
+    <bpmn:userTask id="Task_PrepareOrder" name="Prepare order and send to supplier">
+      <bpmn:incoming>SequenceFlow_ApprovedByMgmt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForAcceptance</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Event: Wait for Order Acceptance -->
+    <bpmn:intermediateCatchEvent id="IntermediateWaitOrder" name="Receive order acceptance">
+      <bpmn:incoming>SequenceFlow_WaitForAcceptance</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToGatewayFinDecision</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to merge Finance and IT paths -->
+    <bpmn:exclusiveGateway id="Gateway_MergePaths" name="All conditions met?">
+      <bpmn:incoming>SequenceFlow_ResourcesFound</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_WaitForAcceptanceToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToReceiveHardware</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Receive Hardware (IT) -->
+    <bpmn:userTask id="Task_ReceiveHardware" name="Receive hardware">
+      <bpmn:incoming>SequenceFlow_ToReceiveHardware</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToProcessInvoice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Process Invoice (Financial) -->
+    <bpmn:userTask id="Task_ProcessInvoice" name="Take care of invoice">
+      <bpmn:incoming>SequenceFlow_ToProcessInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalToEndEvent2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ProcessEnded2" name="Process ended">
+      <bpmn:incoming>SequenceFlow_FinalToEndEvent2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - IT Department Path (Initial) -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAnalyze" sourceRef="StartEvent_RequestReceived" targetRef="Task_AnalyzeRequest">
+      <bpmn:description>New hardware request received</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- IT Decision Gateway Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToITDecisionGateway" sourceRef="Task_AnalyzeRequest" targetRef="Gateway_ITDecision">
+      <bpmn:description>Analyse request completed</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Denied by IT -->
+    <bpmn:sequenceFlow id="SequenceFlow_DeniedByIT" name="No - Deny Request" sourceRef="Gateway_ITDecision" targetRef="Task_SendDenialEmail">
+      <bpmn:description>Request denied</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Approved by IT -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedByIT" name="Yes - Approve Request" sourceRef="Gateway_ITDecision" targetRef="Task_EditCompleteRequest">
+      <bpmn:description>Request approved</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To End Event 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent1" sourceRef="Task_SendDenialEmail" targetRef="EndEvent_ProcessEnded1">
+      <bpmn:description>Detailed denial notification sent</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Email Supplier -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEmailSupplier" sourceRef="Task_EditCompleteRequest" targetRef="Task_EmailSupplier">
+      <bpmn:description>Edit and complete request done</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for Supplier Offer -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForOffer" sourceRef="Task_EmailSupplier" targetRef="IntermediateWaitSupplier">
+      <bpmn:description>Email sent to supplier</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Form Fill -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToFormFill" sourceRef="IntermediateWaitSupplier" targetRef="Task_FillFormSendMgmt">
+      <bpmn:description>Offer received from supplier</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Management Analyze -->
+    <bpmn:sequenceFlow id="SequenceFlow_MgmtToAnalyzeRequest" sourceRef="Task_FillFormSendMgmt" targetRef="Task_AnalyzeRequestMgmt">
+      <bpmn:description>Form sent to management</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Mgmt Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToMgmtDecisionGateway" sourceRef="Task_AnalyzeRequestMgmt" targetRef="Gateway_MgmtDecision">
+      <bpmn:description>Mgmt analysis completed</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Approved by Management -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedByMgmt" name="Yes - Approve Request" sourceRef="Gateway_MgmtDecision" targetRef="Task_PrepareOrder">
+      <bpmn:description>Mgmt approves request</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Denied/Rework by Management -->
+    <bpmn:sequenceFlow id="SequenceFlow_DeniedOrRework" name="No - Deny or Rework" sourceRef="Gateway_MgmtDecision" targetRef="EndEvent_ProcessEnded1">
+      <bpmn:description>Mgmt denies request</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Finance (Approved by Mgmt) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedByMgmtFinance" name="Forward to Financial Dept" sourceRef="Gateway_MgmtDecision" targetRef="Task_FindResources">
+      <bpmn:description>Offer forwarded to financial department</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Gateway Fin Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToGatewayFinDecision" sourceRef="Task_FindResources" targetRef="Gateway_FinanceDecision">
+      <bpmn:description>Financial resources analysis</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Resources Found -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResourcesFound" name="Yes - Resources Available" sourceRef="Gateway_FinanceDecision" targetRef="Gateway_MergePaths">
+      <bpmn:description>Financial resources found</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- No Resources -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoResources" name="No - Insufficient Funds" sourceRef="Gateway_FinanceDecision" targetRef="EndEvent_ProcessEnded1">
+      <bpmn:description>No financial resources available</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for Order Acceptance -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForAcceptance" sourceRef="Task_PrepareOrder" targetRef="IntermediateWaitOrder">
+      <bpmn:description>Order sent to supplier</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Merge Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForAcceptanceToMerge" sourceRef="IntermediateWaitOrder" targetRef="Gateway_MergePaths">
+      <bpmn:description>Order accepted by supplier</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Receive Hardware -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToReceiveHardware" name="All conditions met - Proceed to receive hardware" sourceRef="Gateway_MergePaths" targetRef="Task_ReceiveHardware">
+      <bpmn:description>All prerequisites satisfied</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- To Process Invoice -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToProcessInvoice" sourceRef="Task_ReceiveHardware" targetRef="Task_ProcessInvoice">
+      <bpmn:description>Hardware received by IT department</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final to End Event 2 -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalToEndEvent2" sourceRef="Task_ProcessInvoice" targetRef="EndEvent_ProcessEnded2">
+      <bpmn:description>Invoice processed, process complete</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

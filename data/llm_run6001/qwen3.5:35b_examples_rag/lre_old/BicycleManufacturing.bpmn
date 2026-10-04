@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1">
+  <bpmn:collaboration id="Collaboration_BicycleOrderProcess">
+    <bpmn:participant id="Participant_OrderFulfillment" name="Bicycle Manufacturing Process" processRef="Process_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFulfillment" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SalesDepartment" name="Sales Department">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AcceptRejectOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_OrderDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipToCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Storehouse" name="Storehouse">
+        <bpmn:flowNodeRef>InclusiveGateway_PartListLoop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckPartAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_PartAvailable</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Engineering" name="Engineering Department">
+        <bpmn:flowNodeRef>InclusiveGateway_PrepareAssembly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepForAssembly</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Order Received">
+      <bpmn:outgoing>SequenceFlow_Start_Decision</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task - Accept/Reject Order -->
+    <bpmn:task id="Task_AcceptRejectOrder" name="Accept or Reject Order">
+      <bpmn:incoming>SequenceFlow_Start_Decision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Decision_Gateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Accept/Reject Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_OrderDecision" name="Accept Order?">
+      <bpmn:incoming>SequenceFlow_Decision_Gateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Reject_End</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Accept_ParallelSplit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event - Order Rejected -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Order Rejected">
+      <bpmn:incoming>SequenceFlow_Reject_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway - Split to Storehouse and Engineering -->
+    <bpmn:parallelGateway id="ParallelGateway_Accepted" name="Inform Departments">
+      <bpmn:incoming>SequenceFlow_Accept_ParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Storehouse_PartListLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Engineering_PrepareAssembly</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Inclusive Gateway - Loop through Part List -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_PartListLoop" name="Process Each Item">
+      <bpmn:incoming>SequenceFlow_Storehouse_PartListLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAvailability</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task - Check Part Availability -->
+    <bpmn:task id="Task_CheckPartAvailability" name="Check Required Quantity">
+      <bpmn:incoming>SequenceFlow_CheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Availability_Decision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Part Available? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PartAvailable" name="Part Available?">
+      <bpmn:incoming>SequenceFlow_Availability_Decision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReserveItem</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BackOrderItem</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Reserve Item -->
+    <bpmn:task id="Task_ReservePart" name="Reserve Part">
+      <bpmn:incoming>SequenceFlow_ReserveItem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack_CheckNext</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Back Order Item -->
+    <bpmn:task id="Task_BackOrderPart" name="Back-Order Part">
+      <bpmn:incoming>SequenceFlow_BackOrderItem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack_CheckNext</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway - Prepare Assembly -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_PrepareAssembly" name="Prepare for Assembling">
+      <bpmn:incoming>SequenceFlow_Engineering_PrepareAssembly</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrepForAssembly_Task</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task - Prepare for Assembly -->
+    <bpmn:task id="Task_PrepForAssembly" name="Prepare Assembling">
+      <bpmn:incoming>SequenceFlow_PrepForAssembly_Task</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PreparationComplete_GatewayJoin</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway - Join Storehouse and Engineering -->
+    <bpmn:parallelGateway id="ParallelGateway_AssemblyReady" name="Assembly Ready?">
+      <bpmn:incoming>SequenceFlow_PartListComplete_GatewayJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PreparationComplete_GatewayJoin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Assembly_StartTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task - Assemble Bicycle -->
+    <bpmn:task id="Task_AssembleBicycle" name="Assemble Bicycle">
+      <bpmn:incoming>SequenceFlow_Assembly_StartTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AssemblyComplete_Shipment</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task - Ship to Customer -->
+    <bpmn:task id="Task_ShipToCustomer" name="Ship Bicycle">
+      <bpmn:incoming>SequenceFlow_AssemblyComplete_Shipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Completed_EndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event - Process Completed -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Order Fulfilled">
+      <bpmn:incoming>SequenceFlow_Completed_EndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_Start_Decision" name="" sourceRef="StartEvent_01" targetRef="Task_AcceptRejectOrder"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_Decision_Gateway" name="" sourceRef="Task_AcceptRejectOrder" targetRef="ExclusiveGateway_OrderDecision"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Reject_End" name="No - Reject Order" sourceRef="ExclusiveGateway_OrderDecision" targetRef="EndEvent_Rejected">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${orderAccepted = false}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Accept_ParallelSplit" name="Yes - Accept Order" sourceRef="ExclusiveGateway_OrderDecision" targetRef="ParallelGateway_Accepted">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${orderAccepted = true}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Storehouse_PartListLoop" name="" sourceRef="ParallelGateway_Accepted" targetRef="InclusiveGateway_PartListLoop"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_CheckAvailability" name="" sourceRef="InclusiveGateway_PartListLoop" targetRef="Task_CheckPartAvailability"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_Availability_Decision" name="" sourceRef="Task_CheckPartAvailability" targetRef="ExclusiveGateway_PartAvailable"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_ReserveItem" name="Yes - Available" sourceRef="ExclusiveGateway_PartAvailable" targetRef="Task_ReservePart">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partInStock = true}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_BackOrderItem" name="No - Not Available" sourceRef="ExclusiveGateway_PartAvailable" targetRef="Task_BackOrderPart">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${partInStock = false}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_LoopBack_CheckNext" name="" sourceRef="Task_ReservePart" targetRef="InclusiveGateway_PartListLoop"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_BackOrderToLoop" name="" sourceRef="Task_BackOrderPart" targetRef="InclusiveGateway_PartListLoop"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Engineering_PrepareAssembly" name="" sourceRef="ParallelGateway_Accepted" targetRef="InclusiveGateway_PrepareAssembly"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_PrepForAssembly_Task" name="" sourceRef="InclusiveGateway_PrepareAssembly" targetRef="Task_PrepForAssembly"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_PartListComplete_GatewayJoin" name="" sourceRef="InclusiveGateway_PartListLoop" targetRef="ParallelGateway_AssemblyReady">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${allItemsProcessed = true}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_PreparationComplete_GatewayJoin" name="" sourceRef="Task_PrepForAssembly" targetRef="ParallelGateway_AssemblyReady"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Assembly_StartTask" name="" sourceRef="ParallelGateway_AssemblyReady" targetRef="Task_AssembleBicycle"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_AssemblyComplete_Shipment" name="" sourceRef="Task_AssembleBicycle" targetRef="Task_ShipToCustomer"/>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Completed_EndEvent" name="" sourceRef="Task_ShipToCustomer" targetRef="EndEvent_Completed"/>
+</bpmn:definitions>

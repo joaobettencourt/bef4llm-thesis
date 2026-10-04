@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_MasterDataChange" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Pool_EC" name="EC (Employee)" processRef="Proc_EC"/>
+    <bpmn:participant id="Pool_INQ" name="INQ (Inquiry Manager)" processRef="Proc_INQ"/>
+    <bpmn:participant id="Pool_IP" name="IP (Information Processor)" processRef="Proc_IP"/>
+
+    <!-- Message Flow 1: EC tells INQ -->
+    <bpmn:messageFlow id="Msg_001" sourceRef="Event_EC_NotifyINQ" targetRef="Event_INQ_CatchRequest"/>
+    
+    <!-- Message Flow 2: INQ notifies IP -->
+    <bpmn:messageFlow id="Msg_002" sourceRef="Event_INQ_NotifyIP" targetRef="Event_IP_CatchNotify"/>
+
+    <!-- Message Flow 3: IP confirms changes (optional feedback loop) -->
+    <bpmn:messageFlow id="Msg_003" sourceRef="Task_EC_ConfirmReceived" targetRef="End_EC_Acknowledged"/>
+    
+    <!-- Note: For simplicity in this model, we assume the EC process ends after sending or receives confirmation via a separate flow. 
+         To keep it valid and simple based on description "IP confirms...": We will link IP Confirm to End of IP Process primarily. -->
+
+  </bpmn:collaboration>
+
+  <!-- EC Process Pool -->
+  <bpmn:process id="Proc_EC" isExecutable="false">
+    <bpmn:startEvent id="Start_EC_None" name="Master Data Change Requested">
+      <bpmn:outgoing>SFlow_EC_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EC_TellINQ" name="Tell INQ about master data change">
+      <bpmn:incoming>SFlow_EC_01</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EC_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for message to INQ -->
+    <bpmn:intermediateThrowEvent id="Event_EC_NotifyINQ" name="Notify Change Requested">
+      <bpmn:incoming>SFlow_EC_02</bpmn:incoming>
+      <bpmn:outgoing>SFlow_EC_03</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event for EC -->
+    <bpmn:endEvent id="End_EC_Acknowledged" name="Change Request Sent">
+      <bpmn:incoming>SFlow_EC_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_EC_01" sourceRef="Start_EC_None" targetRef="Task_EC_TellINQ"/>
+    <bpmn:sequenceFlow id="SFlow_EC_02" sourceRef="Task_EC_TellINQ" targetRef="Event_EC_NotifyINQ"/>
+    <bpmn:sequenceFlow id="SFlow_EC_03" sourceRef="Event_EC_NotifyINQ" targetRef="End_EC_Acknowledged"/>
+
+  </bpmn:process>
+
+  <!-- INQ Process Pool -->
+  <bpmn:process id="Proc_INQ" isExecutable="false">
+    <!-- Start Event for Message Catching (Implicitly triggered by message flow) -->
+    <bpmn:startEvent id="Start_INQ_None" name="Receive Change Request">
+      <bpmn:outgoing>SFlow_INQ_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event for message from EC -->
+    <bpmn:intermediateCatchEvent id="Event_INQ_CatchRequest" name="Change Request Received">
+      <bpmn:incoming>SFlow_INQ_01</bpmn:incoming>
+      <bpmn:outgoing>SFlow_INQ_02</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to Notify IP -->
+    <bpmn:task id="Task_INQ_NotifyIP" name="Notify IP of master data change">
+      <bpmn:incoming>SFlow_INQ_02</bpmn:incoming>
+      <bpmn:outgoing>SFlow_INQ_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event for message to IP -->
+    <bpmn:intermediateThrowEvent id="Event_INQ_NotifyIP" name="Notify Change">
+      <bpmn:incoming>SFlow_INQ_03</bpmn:incoming>
+      <bpmn:outgoing>SFlow_INQ_04</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- End Event for INQ -->
+    <bpmn:endEvent id="End_INQ_Notified" name="IP Notified">
+      <bpmn:incoming>SFlow_INQ_04</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_INQ_01" sourceRef="Start_INQ_None" targetRef="Event_INQ_CatchRequest"/>
+    <bpmn:sequenceFlow id="SFlow_INQ_02" sourceRef="Event_INQ_CatchRequest" targetRef="Task_INQ_NotifyIP"/>
+    <bpmn:sequenceFlow id="SFlow_INQ_03" sourceRef="Task_INQ_NotifyIP" targetRef="Event_INQ_NotifyIP"/>
+    <bpmn:sequenceFlow id="SFlow_INQ_04" sourceRef="Event_INQ_NotifyIP" targetRef="End_INQ_Notified"/>
+
+  </bpmn:process>
+
+  <!-- IP Process Pool -->
+  <bpmn:process id="Proc_IP" isExecutable="false">
+    <!-- Start Event for Message Catching (Implicitly triggered by message flow) -->
+    <bpmn:startEvent id="Start_IP_None" name="Receive Change Notification">
+      <bpmn:outgoing>SFlow_IP_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate Catch Event for message from INQ -->
+    <bpmn:intermediateCatchEvent id="Event_IP_CatchNotify" name="Change Notification Received">
+      <bpmn:incoming>SFlow_IP_01</bpmn:incoming>
+      <bpmn:outgoing>SFlow_IP_02</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to check if master data can be changed -->
+    <bpmn:task id="Task_IP_Check" name="Check if change possible at desired time">
+      <bpmn:incoming>SFlow_IP_02</bpmn:incoming>
+      <bpmn:outgoing>SFlow_IP_GW_Incoming</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Confirm/Reject decision -->
+    <bpmn:exclusiveGateway id="GW_IP_Decision" name="Change possible?">
+      <bpmn:incoming>SFlow_IP_GW_Incoming</bpmn:incoming>
+      <bpmn:outgoing>SFlow_IP_ConfirmPath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_IP_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Confirm -->
+    <bpmn:task id="Task_IP_Confirm" name="Confirm changes">
+      <bpmn:incoming>SFlow_IP_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_IP_05</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Reject -->
+    <bpmn:task id="Task_IP_Reject" name="Reject changes">
+      <bpmn:incoming>SFlow_IP_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SFlow_IP_06</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Confirm -->
+    <bpmn:endEvent id="End_IP_Confirmed" name="Changes Confirmed">
+      <bpmn:incoming>SFlow_IP_05</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event for Reject -->
+    <bpmn:endEvent id="End_IP_Rejected" name="Changes Rejected">
+      <bpmn:incoming>SFlow_IP_06</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_IP_01" sourceRef="Start_IP_None" targetRef="Event_IP_CatchNotify"/>
+    <bpmn:sequenceFlow id="SFlow_IP_02" sourceRef="Event_IP_CatchNotify" targetRef="Task_IP_Check"/>
+    
+    <!-- Gateway to Confirm -->
+    <bpmn:sequenceFlow id="SFlow_IP_ConfirmPath" name="Yes - Change possible" sourceRef="GW_IP_Decision" targetRef="Task_IP_Confirm">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[changePossible]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway to Reject -->
+    <bpmn:sequenceFlow id="SFlow_IP_RejectPath" name="No - Change not possible" sourceRef="GW_IP_Decision" targetRef="Task_IP_Reject">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[!changePossible]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Confirm to End -->
+    <bpmn:sequenceFlow id="SFlow_IP_05" sourceRef="Task_IP_Confirm" targetRef="End_IP_Confirmed"/>
+
+    <!-- Reject to End -->
+    <bpmn:sequenceFlow id="SFlow_IP_06" sourceRef="Task_IP_Reject" targetRef="End_IP_Rejected"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

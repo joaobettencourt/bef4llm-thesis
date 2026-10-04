@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SwitchOver">
+    <bpmn:participant id="Participant_CustomerService" name="Customer Service Dept." processRef="Process_SwitchOver"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_GridOpResponse" name="Grid Operator Response Comment"/>
+  <bpmn:message id="Message_ConfirmDoc" name="Confirmation Document"/>
+  <bpmn:message id="Message_MeterData" name="Meter Data Report"/>
+
+  <bpmn:process id="Process_SwitchOver" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CustomerService" name="Customer Service Dept.">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckErrors</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectError</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CustomerExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateNewObject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareContractDocs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CIS_AutoCheck_Task</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CISResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeResolveIssues</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegenerateDocs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendConfirmationDoc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CIS_Contract_Task</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_WaitDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_CustomerResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_DecisionType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergeAcceptance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CIS_Contract_Task_2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WaitGridOpResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ConcurrenceCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ResolveConflict</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_MeterDataReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ImportMeterData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_CompleteProcess</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Switch-over Request Initiated">
+      <bpmn:outgoing>SequenceFlow_StartToReceive</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Receive Data Task -->
+    <bpmn:task id="Task_ReceiveData" name="Transmit &amp; Receive Customer Data">
+      <bpmn:incoming>SequenceFlow_StartToReceive</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCRMEntry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- CRM Entry Task -->
+    <bpmn:task id="Task_EnterCRM" name="Enter Data into CRM System">
+      <bpmn:incoming>SequenceFlow_ToCRMEntry</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPlausibility</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check Plausibility Task -->
+    <bpmn:task id="Task_CheckData" name="Check Completeness &amp; Plausibility">
+      <bpmn:incoming>SequenceFlow_CheckPlausibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayErrors</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway Errors -->
+    <bpmn:exclusiveGateway id="Gateway_CheckErrors" name="Data Errors?">
+      <bpmn:incoming>SequenceFlow_GatewayErrors</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CorrectErrorPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Correct Error Task -->
+    <bpmn:task id="Task_CorrectError" name="Correct Errors (Simple List)">
+      <bpmn:incoming>SequenceFlow_CorrectErrorPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BackToCheckData</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackToCheckData" sourceRef="Task_CorrectError" targetRef="Gateway_CheckErrors"/>
+
+    <!-- Gateway Customer Exists -->
+    <bpmn:exclusiveGateway id="Gateway_CustomerExists" name="Customer in DB?">
+      <bpmn:incoming>SequenceFlow_GatewayErrors</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateNewObjectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create New Object Task -->
+    <bpmn:task id="Task_CreateNewObject" name="Create Customer Object (Name, Address, Gauge)">
+      <bpmn:incoming>SequenceFlow_CreateNewObjectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToContractPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Prepare Contract Docs Task -->
+    <bpmn:task id="Task_PrepareContractDocs" name="Prepare Switch-over Documents">
+      <bpmn:incoming>SequenceFlow_ToCRMEntry2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CISCheckStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Automated CIS Check Task -->
+    <bpmn:task id="CIS_AutoCheck_Task" name="Automated CIS Generation &amp; Verification">
+      <bpmn:incoming>SequenceFlow_CISCheckStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayCISResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway CIS Check Result -->
+    <bpmn:exclusiveGateway id="Gateway_CISResult" name="Generation Successful?">
+      <bpmn:incoming>SequenceFlow_GatewayCISResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeResolvePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Analyze & Resolve Issues -->
+    <bpmn:task id="Task_AnalyzeResolveIssues" name="Analyze &amp; Resolve Issues">
+      <bpmn:incoming>SequenceFlow_AnalyzeResolvePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegenerateDocsStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Regenerate Docs -->
+    <bpmn:task id="Task_RegenerateDocs" name="Regenerate Contract Documents">
+      <bpmn:incoming>SequenceFlow_RegenerateDocsStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BackToCISCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to CIS Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackToCISCheck" sourceRef="Task_RegenerateDocs" targetRef="Gateway_CISResult"/>
+
+    <!-- Send Confirmation Document Task (Positive Response) -->
+    <bpmn:task id="Task_SendConfirmationDoc" name="Send Confirmation to Customer">
+      <bpmn:incoming>SequenceFlow_GatewayCISResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestGridOpStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Grid Operator Response (Message) -->
+    <bpmn:intermediateCatchEvent id="Event_WaitGridOpResponse" name="Wait for Switch Request Check">
+      <bpmn:messageRef ref="Message_GridOpResponse"/>
+      <bpmn:incoming>SequenceFlow_RequestGridOpStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayConcurrenceCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway Concurrence Check -->
+    <bpmn:exclusiveGateway id="Gateway_ConcurrenceCheck" name="Supplier Concurrence?">
+      <bpmn:incoming>SequenceFlow_GatewayConcurrenceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResolveConflictPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Resolve Conflict Task -->
+    <bpmn:task id="Task_ResolveConflict" name="Inform Suppliers &amp; Demand Resolution">
+      <bpmn:incoming>SequenceFlow_ResolveConflictPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BackToConcurrenceCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to Concurrence Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackToConcurrenceCheck" sourceRef="Task_ResolveConflict" targetRef="Gateway_ConcurrenceCheck"/>
+
+    <!-- Create CIS Contract (No Objection) -->
+    <bpmn:task id="CIS_Contract_Task" name="Create CIS Contract">
+      <bpmn:incoming>SequenceFlow_GatewayConcurrenceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitDecisionStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway for Decision/Timer -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_WaitDecision" name="Wait 7 Days or Confirmation">
+      <bpmn:incoming>SequenceFlow_WaitDecisionStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CustomerResponsePath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Customer Response Event -->
+    <bpmn:intermediateCatchEvent id="Event_CustomerResponse" name="Customer Decision">
+      <bpmn:messageRef ref="Message_ConfirmDoc"/>
+      <bpmn:incoming>SequenceFlow_CustomerResponsePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayDecisionType</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision Type Gateway (Withdraw vs Confirm) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DecisionType" name="Withdraw?">
+      <bpmn:incoming>SequenceFlow_GatewayDecisionType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndWithdrawalPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Withdrawal -->
+    <bpmn:endEvent id="EndEvent_Withdrawal" name="Process Ended (Withdrawal)">
+      <bpmn:incoming>SequenceFlow_EndWithdrawalPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Merge Acceptance Path -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeAcceptance" name="Merge Confirmation/Timeout">
+      <bpmn:incoming>SequenceFlow_EndWithdrawalPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitMeterStart</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Wait for Meter Data (Message) -->
+    <bpmn:intermediateCatchEvent id="Event_MeterDataReceived" name="Receive Meter Data">
+      <bpmn:messageRef ref="Message_MeterData"/>
+      <bpmn:incoming>SequenceFlow_WaitMeterStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ImportMeterTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Import Meter Data Task -->
+    <bpmn:task id="Task_ImportMeterData" name="Import Meter Data to Systems">
+      <bpmn:incoming>SequenceFlow_ImportMeterTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Process -->
+    <bpmn:endEvent id="EndEvent_CompleteProcess" name="New Customer Win Complete">
+      <bpmn:incoming>SequenceFlow_EndProcessPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Corrected for Validity) -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReceive" sourceRef="StartEvent_1" targetRef="Task_ReceiveData"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToCRMEntry" sourceRef="Task_ReceiveData" targetRef="Task_EnterCRM"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPlausibility" sourceRef="Task_EnterCRM" targetRef="Task_CheckData"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayErrors" name="No Errors" sourceRef="Gateway_CheckErrors" targetRef="Gateway_CustomerExists"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CorrectErrorPath" name="Yes - Error Found" sourceRef="Gateway_CheckErrors" targetRef="Task_CorrectError"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CreateNewObjectPath" name="No - New Customer" sourceRef="Gateway_CustomerExists" targetRef="Task_PrepareContractDocs"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToCRMEntry2" name="Yes - Existing Data Used" sourceRef="Gateway_CheckErrors" targetRef="Task_PrepareContractDocs"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CISCheckStart" sourceRef="Task_PrepareContractDocs" targetRef="CIS_AutoCheck_Task"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayCISResult" name="Yes - Success" sourceRef="Gateway_CISResult" targetRef="Task_SendConfirmationDoc"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AnalyzeResolvePath" name="No - Failed" sourceRef="Gateway_CISResult" targetRef="Task_AnalyzeResolveIssues"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RegenerateDocsStart" sourceRef="Task_AnalyzeResolveIssues" targetRef="Task_RegenerateDocs"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RequestGridOpStart" sourceRef="Task_SendConfirmationDoc" targetRef="Event_WaitGridOpResponse"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayConcurrenceCheck" name="No Objection" sourceRef="Gateway_ConcurrenceCheck" targetRef="CIS_Contract_Task"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ResolveConflictPath" name="Yes - Concurrence Conflict" sourceRef="Gateway_ConcurrenceCheck" targetRef="Task_ResolveConflict"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitDecisionStart" sourceRef="CIS_Contract_Task" targetRef="InclusiveGateway_WaitDecision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CustomerResponsePath" name="Customer Response" sourceRef="InclusiveGateway_WaitDecision" targetRef="Event_CustomerResponse"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayDecisionType" sourceRef="Event_CustomerResponse" targetRef="ExclusiveGateway_DecisionType"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndWithdrawalPath" name="Yes - Withdraw" sourceRef="ExclusiveGateway_DecisionType" targetRef="EndEvent_Withdrawal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitMeterStart" sourceRef="InclusiveGateway_MergeAcceptance" targetRef="Event_MeterDataReceived"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ImportMeterTask" sourceRef="Event_MeterDataReceived" targetRef="Task_ImportMeterData"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcessPath" sourceRef="Task_ImportMeterData" targetRef="EndEvent_CompleteProcess"/>
+
+  </bpmn:process>
+</bpmn:definitions>

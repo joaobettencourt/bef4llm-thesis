@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_SEPA_Mandate_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SEPA_01">
+    <bpmn:participant id="Participant_SEPA_Process" name="SEPA Mandat Prozess" processRef="Process_SEPA_Mandate_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SEPA_Mandate_01" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_SEPA_01">
+      <bpmn:lane id="Lane_System_Automation" name="System / Automatisierung">
+        <bpmn:flowNodeRef>StartEvent_MandatEingang</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IBANPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InfoVollstaendig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_SuchePerson</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GateWay_BankVerbindungOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AktivesMandatVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_MandatsPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GateWay_GueltigkeitBedingungenErfuellt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OpenClaimsExistieren</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_ForderungenPruefen</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Employee_Manual" name="Sachbearbeiter / Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserTask_ManuellePruefungFehlendeDaten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SignaturVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_BriefErstellen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_WarteRueckmeldung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ManuellePruefungBankVerbindung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_MandatAnlegenNeu</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_BestehendesMandatBeenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ForderungenKommunizieren</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ManuellePruefungHoheForderung</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_EndEvents" name="Abschluss">
+         <bpmn:flowNodeRef>EndEvent_MandatAbgeschlossen</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>EndEvent_ProzessGestoppt</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_MandatEingang" name="SEPA Mandat Daten eingegangen">
+      <bpmn:outgoing>SequenceFlow_IBANPruefung</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IBAN Check -->
+    <bpmn:task id="Task_IBANPruefung" name="IBAN Pruefen &amp; Land ermitteln">
+      <bpmn:incoming>SequenceFlow_StartEvent</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuchePerson</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Search Person -->
+    <bpmn:serviceTask id="ServiceTask_SuchePerson" name="Suche Person im System">
+      <bpmn:incoming>SequenceFlow_SuchePerson</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InfoVollstaendigCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway Info Complete -->
+    <bpmn:exclusiveGateway id="Gateway_InfoVollstaendig" name="Alle Infos vorhanden?">
+      <bpmn:incoming>SequenceFlow_InfoVollstaendigCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManuellePruefungFehlendeDaten</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GueltigVonDatumPruefen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Missing Info Path -->
+    <bpmn:userTask id="UserTask_ManuellePruefungFehlendeDaten" name="Manuelle Pruefung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_ManuellePruefungFehlendeDaten</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SignaturCheckLoopback</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Signature Check -->
+    <bpmn:exclusiveGateway id="Gateway_SignaturVorhanden" name="Unterschrift vorhanden?">
+      <bpmn:incoming>SequenceFlow_ManuellePruefungFehlendeDaten</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BriefErstellenAutomatisch</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SignaturCheckLoopback</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Letter Creation -->
+    <bpmn:serviceTask id="ServiceTask_BriefErstellen" name="Brief zur Unterschrift anfordern">
+      <bpmn:incoming>SequenceFlow_BriefErstellenAutomatisch</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WarteRueckmeldungStart</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait Timer -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_WarteRueckmeldung" name="Warte 28 Tage">
+      <bpmn:timerEventDefinition />
+      <bpmn:incoming>SequenceFlow_WarteRueckmeldungStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RueckmeldungPruefen</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+     <!-- Feedback Check -->
+    <bpmn:exclusiveGateway id="Gateway_FeedbackErhalten" name="Rueckmeldung erhalten?">
+      <bpmn:incoming>SequenceFlow_RueckmeldungPruefen</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_SignaturCheckLoopbackFeedback</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_ProzessGestopptEnde</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Valid From Date Check -->
+    <bpmn:serviceTask id="ServiceTask_MandatsPruefung" name="Gueltig von Datum &amp; Bankverbindung pruefen">
+      <bpmn:incoming>SequenceFlow_GueltigVonDatumPruefen</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_BankVerbindungOKCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Bank Connection Check -->
+    <bpmn:exclusiveGateway id="GateWay_BankVerbindungOK" name="Bankverbindung OK?">
+      <bpmn:incoming>SequenceFlow_BankVerbindungOKCheck</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ManuellePruefungBankVerbindung</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_MandatStatusPruefen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Bank Connection Manual Task -->
+    <bpmn:userTask id="UserTask_ManuellePruefungBankVerbindung" name="Manuell Pruefen / Neu anlegen">
+      <bpmn:incoming>SequenceFlow_ManuellePruefungBankVerbindung</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_MandatStatusPruefenLoopback</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Active Mandate Check -->
+    <bpmn:serviceTask id="ServiceTask_AktivesMandatsCheck" name="Aktives SEPA-Mandat pruefen">
+      <bpmn:incoming>SequenceFlow_MandatStatusPruefen</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_Gateway_ActiveExists</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Active Mandate Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AktivesMandatVorhanden" name="Aktives Mandat vorhanden?">
+      <bpmn:incoming>SequenceFlow_Gateway_ActiveExists</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_MandatAnlegenNeuCheck</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_NeuMandatsPruefungBedingungen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- New Mandate Creation Check -->
+    <bpmn:userTask id="UserTask_MandatAnlegenNeu" name="Neues SEPA-Mandat anlegen">
+      <bpmn:incoming>SequenceFlow_MandatAnlegenNeuCheck</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_OpenClaimsPruefenStart1</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- New Mandate Conditions Check -->
+    <bpmn:serviceTask id="ServiceTask_NeuMandatsPruefungBedingungen" name="Neues Mandat gueltig und relevant?">
+      <bpmn:incoming>SequenceFlow_NeuMandatsPruefungBedingungen</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_Gateway_BedingungenErfuellt</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Conditions Gateway -->
+    <bpmn:exclusiveGateway id="GateWay_GueltigkeitBedingungenErfuellt" name="Alle Bedingungen erfuehlt?">
+      <bpmn:incoming>SequenceFlow_BedingungenErfuellt</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_MandatBeendenNeuAnlegen</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_ProzessGestopptEnde2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- End Old / Create New -->
+    <bpmn:userTask id="UserTask_BestehendesMandatBeenden" name="Bestehendes beenden &amp; Neues anlegen">
+      <bpmn:incoming>SequenceFlow_MandatBeendenNeuAnlegen</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_OpenClaimsPruefenStart2</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- Open Claims Check -->
+    <bpmn:serviceTask id="ServiceTask_ForderungenPruefen" name="Offene Forderungen pruefen">
+      <bpmn:incoming>SequenceFlow_OpenClaimsPruefenStart1</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_Gateway_ClaimsExistieren</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Claims Existence Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_OpenClaimsExistieren" name="Unbezahlte Rechnungen?">
+      <bpmn:incoming>SequenceFlow_ClaimsExistieren</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ForderungenKommunizieren</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_HoheForderungPruefenStart1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Communicate Claims -->
+    <bpmn:userTask id="UserTask_ForderungenKommunizieren" name="Rechnungen zuordnen &amp; kommunizieren">
+      <bpmn:incoming>SequenceFlow_ForderungenKommunizieren</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_HoheForderungPruefenStart2</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- High Value Check -->
+    <bpmn:exclusiveGateway id="Gateway_HoheForderung" name="Summe &gt; 5000 €?">
+      <bpmn:incoming>SequenceFlow_HoheForderungPruefenStart1</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_ManuellePruefungHoheForderung</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_MandatAbschliessenEnde</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Manual Review High Value -->
+    <bpmn:userTask id="UserTask_ManuellePruefungHoheForderung" name="Manuelle Pruefung (5000€+)">
+      <bpmn:incoming>SequenceFlow_ManuellePruefungHoheForderung</bpmn:outgoing>
+       <bpmn:outgoing>SequenceFlow_MandatAbschliessenEnde2</bpmn:outgoing>
+    </bpmn:userTask>
+
+     <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_ProzessGestoppt" name="Prozess gestoppt">
+      <bpmn:text><![CDATA[Keine Rueckmeldung]]></bpmn:text>
+       <bpmn:incoming>SequenceFlow_ProzessGestopptEnde</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <bpmn:endEvent id="EndEvent_MandatAbgeschlossen" name="SEPA Mandat abgeschlossen">
+      <bpmn:text><![CDATA[Erfolgreich]]></bpmn:text>
+       <bpmn:incoming>SequenceFlow_MandatAbschliessenEnde</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartEvent" sourceRef="StartEvent_MandatEingang" targetRef="Task_IBANPruefung" />
+    <bpmn:sequenceFlow id="SequenceFlow_SuchePerson" name="IBAN OK" sourceRef="Task_IBANPruefung" targetRef="ServiceTask_SuchePerson" />
+    <bpmn:sequenceFlow id="SequenceFlow_InfoVollstaendigCheckLoopback" name="Ja / Korrektur erfolgt" sourceRef="Gateway_SignaturVorhanden" targetRef="Gateway_InfoVollstaendig" />
+     <bpmn:sequenceFlow id="SequenceFlow_ManuellePruefungFehlendeDaten" name="Nein (Unterschrift)" sourceRef="Gateway_InfoVollstaendig" targetRef="UserTask_ManuellePruefungFehlendeDaten" />
+
+    <!-- Signature Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_SignaturCheckLoopbackFeedback" name="Ja / Korrektur erfolgt" sourceRef="Gateway_FeedbackErhalten" targetRef="ServiceTask_MandatsPruefung" />
+      <bpmn:sequenceFlow id="SequenceFlow_BriefErstellenAutomatisch" name="Nein (Keine Unterschrift)" sourceRef="Gateway_SignaturVorhanden" targetRef="ServiceTask_BriefErstellen" />
+
+    <!-- Wait Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_WarteRueckmeldungStart" sourceRef="ServiceTask_BriefErstellen" targetRef="CatchEvent_WarteRueckmeldung" />
+      <bpmn:sequenceFlow id="SequenceFlow_RueckmeldungPruefen" name="Timer 28 Tage" sourceRef="CatchEvent_WarteRueckmeldung" targetRef="Gateway_FeedbackErhalten" />
+
+    <!-- Feedback Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_ProzessGestopptEnde" name="Nein (Keine Rueckmeldung)" sourceRef="Gateway_FeedbackErhalten" targetRef="EndEvent_ProzessGestoppt" />
+
+    <!-- Valid From Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_GueltigVonDatumPruefen" name="Ja / Vollstaendig" sourceRef="Gateway_InfoVollstaendig" targetRef="ServiceTask_MandatsPruefung" />
+      <bpmn:sequenceFlow id="SequenceFlow_BankVerbindungOKCheck" sourceRef="ServiceTask_MandatsPruefung" targetRef="GateWay_BankVerbindungOK" />
+
+    <!-- Bank Connection Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_ManuellePruefungBankVerbindungOut" name="Nein / Fehler" sourceRef="GateWay_BankVerbindungOK" targetRef="UserTask_ManuellePruefungBankVerbindung" />
+      <bpmn:sequenceFlow id="SequenceFlow_MandatStatusPruefenLoopback" name="Ja (Korrektur)" sourceRef="UserTask_ManuellePruefungBankVerbindung" targetRef="GateWay_BankVerbindungOK" />
+
+    <!-- Mandate Check Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_MandatStatusPruefen" name="Ja / OK" sourceRef="GateWay_BankVerbindungOK" targetRef="ServiceTask_AktivesMandatsCheck" />
+      <bpmn:sequenceFlow id="SequenceFlow_Gateway_ActiveExists" sourceRef="ServiceTask_AktivesMandatsCheck" targetRef="Gateway_AktivesMandatVorhanden" />
+
+    <!-- Active Mandate Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_MandatAnlegenNeuCheck" name="Nein (Kein aktives)" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="UserTask_MandatAnlegenNeu" />
+      <bpmn:sequenceFlow id="SequenceFlow_NeuMandatsPruefungBedingungen" name="Ja (Aktiv vorhanden)" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="ServiceTask_NeuMandatsPruefungBedingungen" />
+
+    <!-- Conditions Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_BedingungenErfuellt" name="Ja / Gueltig" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="ServiceTask_NeuMandatsPruefungBedingungen" />
+      <bpmn:sequenceFlow id="SequenceFlow_MandatBeendenNeuAnlegen" name="Alle Bedingungen erf.?" sourceRef="GateWay_GueltigkeitBedingungenErfuellt" targetRef="UserTask_BestehendesMandatBeenden" />
+
+    <!-- Open Claims Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_OpenClaimsPruefenStart1" name="Neues Mandat angelegt (New)" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="ServiceTask_ForderungenPruefen" />
+      <bpmn:sequenceFlow id="SequenceFlow_MandatAbschliessenEnde2" name="Manuell Pruefung erfolgt" sourceRef="UserTask_ManuellePruefungHoheForderung" targetRef="EndEvent_MandatAbgeschlossen" />
+
+    <!-- Claims Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_OpenClaimsPruefenStart2" name="Neues Mandat angelegt (Existing)" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="ServiceTask_ForderungenPruefen" />
+      <bpmn:sequenceFlow id="SequenceFlow_MandatAbschliessenEnde" name="Keine Forderung / &lt; 5000€" sourceRef="Gateway_HoheForderung" targetRef="EndEvent_MandatAbgeschlossen" />
+
+    <!-- Claims Communication Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_ForderungenKommunizierenOut" name="Ja (Unbezahlte Rechnungen)" sourceRef="Gateway_OpenClaimsExistieren" targetRef="UserTask_ForderungenKommunizieren" />
+      <bpmn:sequenceFlow id="SequenceFlow_HoheForderungPruefenStart2" name="Nein / &lt; 5000€" sourceRef="UserTask_ForderungenKommunizieren" targetRef="Gateway_HoheForderung" />
+
+    <!-- High Value Path -->
+     <bpmn:sequenceFlow id="SequenceFlow_ManuellePruefungHoheForderungOut" name="Ja (&gt; 5000€)" sourceRef="Gateway_HoheForderung" targetRef="UserTask_ManuellePruefungHoheForderung" />
+
+    <!-- Loopback for Mandate Creation -->
+     <bpmn:sequenceFlow id="SequenceFlow_OpenClaimsPruefenStartLoopback" name="Neues Mandat angelegt (Alt)" sourceRef="Gateway_AktivesMandatVorhanden" targetRef="ServiceTask_ForderungenPruefen" />
+
+  </bpmn:process>
+</bpmn:definitions>

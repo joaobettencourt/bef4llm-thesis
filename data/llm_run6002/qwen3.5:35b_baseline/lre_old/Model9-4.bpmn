@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_MeetingProcess_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MeetingManagement_01">
+    <bpmn:participant id="Participant_Process" name="Meeting Management Process" processRef="Proc_MeetingProcess_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_MeetingProcess_01" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CoordinationUnit" name="Coordination Unit">
+        <bpmn:flowNodeRef>StartEvent_DatesFinalized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_QACheckPoint</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SupportOffice" name="Support Office">
+        <bpmn:flowNodeRef>Task_UpdateCalendars</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateFoldersUploadDocs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyMembers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HoldMeeting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProduceMinutes</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DatesFinalized" name="Dates Finalized">
+      <bpmn:outgoing>SequenceFlow_InitProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Support Office Tasks (Pre-Meeting) -->
+    <bpmn:task id="Task_UpdateCalendars" name="Update Group Calendars">
+      <bpmn:incoming>SequenceFlow_InitProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateFolders</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_CreateFoldersUploadDocs" name="Create Meeting Folders &amp; Upload Documents">
+      <bpmn:incoming>SequenceFlow_CreateFolders</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyMembers</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_NotifyMembers" name="Notify Committee Members (1 Week Prior)">
+      <bpmn:incoming>SequenceFlow_NotifyMembers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HoldMeetingTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_HoldMeeting" name="Hold Committee Meeting">
+      <bpmn:incoming>SequenceFlow_HoldMeetingTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProduceMinutesStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_ProduceMinutes" name="Produce Minutes &amp; Action Points">
+      <bpmn:incoming>SequenceFlow_ProduceMinutesStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendForQA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway for QA Check Logic -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_QACheckPoint">
+      <bpmn:incoming>SequenceFlow_SendForQA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteProcess</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Coordination Unit Task (QA) -->
+    <bpmn:task id="Task_QACheckMinutes" name="QA Check Minutes (&lt;5 Working Days)">
+      <bpmn:incoming>SequenceFlow_SendForQA</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompleteProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_SendMinutes" name="Send Minutes to Committee Members">
+       <bpmn:incoming>SequenceFlow_CompleteProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateRecords</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Support Office Task -->
+    <bpmn:task id="Task_UpdateRecords" name="Update Departmental Records">
+       <bpmn:incoming>SequenceFlow_UpdateRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Meeting Cycle Closed">
+       <bpmn:incoming>SequenceFlow_FinalizeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitProcess" sourceRef="StartEvent_DatesFinalized" targetRef="Task_UpdateCalendars" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateFolders" sourceRef="Task_UpdateCalendars" targetRef="Task_CreateFoldersUploadDocs" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyMembers" sourceRef="Task_CreateFoldersUploadDocs" targetRef="Task_NotifyMembers" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HoldMeetingTrigger" sourceRef="Task_NotifyMembers" targetRef="Task_HoldMeeting" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProduceMinutesStart" sourceRef="Task_HoldMeeting" targetRef="Task_ProduceMinutes" />
+    
+    <!-- Flow to QA Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendForQA" sourceRef="Task_ProduceMinutes" targetRef="InclusiveGateway_QACheckPoint" />
+
+    <!-- Gateway connects back to flow for Coordination Unit Task or directly? 
+         Logic correction: The gateway splits/merges. Since it's a check, we can model the QA task as part of the lane transition logic via sequence flows crossing lanes without explicit gateways if linear, but I will use the defined InclusiveGateway ID correctly here to merge flow back after QA Task or before QA Task depending on interpretation. 
+         Interpretation: Minutes produced -> Send for QA (CU) -> Check -> Return/Continue.
+         To keep it valid and simple based on previous error correction:
+         Flow goes from ProduceMinutes -> Gateway -> CU Task -> Support Office Tasks.
+    -->
+
+    <bpmn:sequenceFlow id="SequenceFlow_CompleteProcess" sourceRef="InclusiveGateway_QACheckPoint" targetRef="Task_SendMinutes" />
+    
+    <!-- Correction for flow logic to ensure valid path through QA task defined in Coordination Unit Lane -->
+    <!-- Re-structuring flows slightly to match the Gateway definition properly: 
+         Produce -> SendForQA (to Gateway) -> Gateway -> QACheck Task? No, usually Flow goes TO Task.
+         Let's adjust SequenceFlow_SendForQA targetRef to be InclusiveGateway_QACheckPoint which then connects to QA Check Task or vice versa.
+         Standard pattern: Process -> Gateway -> Decision/Task. 
+    -->
+
+    <!-- Corrected Flows for Logic Consistency -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendForQA" sourceRef="Task_ProduceMinutes" targetRef="InclusiveGateway_QACheckPoint" />
+    
+    <!-- The Inclusive Gateway connects to the QA Task in Coordination Unit Lane. 
+         However, since I defined Incoming/Outgoing on the gateway above:
+         Incoming from Produce Minutes. Outgoing to Send Minutes? No, must go through QA Check task first if it's a step.
+         Let's adjust flow logic for validity:
+         Gateway -> Task_QACheckMinutes (CU) -> SequenceFlow_CompleteProcess -> Task_SendMinutes --> End.
+    -->
+
+     <bpmn:sequenceFlow id="SequenceFlow_GatewayToQA" sourceRef="InclusiveGateway_QACheckPoint" targetRef="Task_QACheckMinutes" />
+     
+     <!-- Re-defining the flow from QA Check to Send Minutes -->
+     <bpmn:sequenceFlow id="SequenceFlow_CompleteProcess" sourceRef="Task_QACheckMinutes" targetRef="Task_SendMinutes" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_UpdateRecords" sourceRef="Task_SendMinutes" targetRef="Task_UpdateRecords" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeProcess" sourceRef="Task_UpdateRecords" targetRef="EndEvent_ProcessComplete" />
+
+  </bpmn:process>
+</bpmn:definitions>

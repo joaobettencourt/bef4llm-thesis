@@ -1,0 +1,1817 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ExpenseReport_Process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ExpenseProcess">
+    <bpmn:participant id="Pool_EmployeeExpenses" name="Employee Expense Process" processRef="Proc_ManageExpenses"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ManageExpenses" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_ExpenseProcess">
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_FileReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EmailResubmitTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EmailRejectionNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EmailApprovalInProgress</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System" name="System">
+        <bpmn:flowNodeRef>CheckAccountExistenceTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CreateEmployeeAccountTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Admin" name="Admin">
+        <bpmn:flowNodeRef>ReviewExpenseReportTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>DetermineAmountGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>AskSupervisorApprovalTask</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_FileReport" name="File Expense Report">
+        <bpmn:outgoing>SF_Start_AccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="EmailResubmitTask" name="Send Resubmit Email to Employee">
+      <bpmn:incoming>SF_Timer28DaysBoundary</bpmn:incoming>
+        <bpmn:outgoing>SF_EndRejectedProcess</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Account Check Task --> 
+       <bpmn:task id="CheckAccountExistenceTask" name="Check Employee Has Account">
+      <bpmn:incoming>SF_Start_AccountCheck</bpmn:incoming>
+        <bpmn:outgoing>SF_ReviewReportFlow</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Timer Boundary Event for 28 Days --> 
+       <bpmn:startEvent id="StartTimerBoundary" name="">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P28D</bpmn:timerDefinition>
+        </bpmn:startEvent>
+
+    <!-- Account Creation Task (if no account) --> 
+      <bpmn:task id="CreateEmployeeAccountTask" name="Create Employee Account">
+        <bpmn:incoming>SF_AccountNotExistsFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_ReviewReportAfterCreation</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Review Report Task --> 
+       <bpmn:task id="ReviewExpenseReportTask" name="Review Expense Report">
+        <bpmn:incoming>SF_AccountNotExistsFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_CheckAmountGateway</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway for Account Existence --> 
+     <bpmn:exclusiveGateway id="AccountExistenceGateway" name="Employee Has Account?">
+        <bpmn:incoming>SF_ReviewReportFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_AccountExistsYesFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_AccountNotExistsNoFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Gateway for Amount Check --> 
+       <bpmn:exclusiveGateway id="DetermineAmountGateway" name="Amount &gt; 200?">
+        <bpmn:incoming>SF_CheckAmountFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_ReimburseDirectlyNoFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_SupervisorApprovalYesFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Supervisor Approval Task --> 
+       <bpmn:task id="AskSupervisorApprovalTask" name="Request Supervisor Approval">
+        <bpmn:incoming>SF_SupervisorApprovalYesFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_ManagerDecisionGateway</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Manager Decision Gateway --> 
+     <bpmn:exclusiveGateway id="ManagerDecisionGateway" name="Supervisor Response?">
+        <bpmn:incoming>SF_ManagerApprovalFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_ReimburseAfterApprovalYesFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_RejectNotificationNoFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Email Notification Tasks --> 
+       <bpmn:task id="EmailRejectionNotification" name="Send Rejection Email to Employee">
+        <bpmn:incoming>SF_RejectNotificationNoFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_EndRejectedProcess</bpmn:outgoing>
+      </bpmn:task>
+
+       <bpmn:task id="EmailApprovalInProgress" name="Send Approval In Progress Email">
+        <bpmn:incoming>SF_RepeatSupervisorFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_SupervisorApprovalYesFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- End Events --> 
+       <bpmn:endEvent id="EndApprovedProcess" name="Expense Approved">
+             <bpmn:incoming>SF_ReimburseAfterApprovalYesFlow</bpmn:incoming>
+              <bpmn:outgoing>SF_EndRejectedProcessLink</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+         <bpmn:endEvent id="EndRejectedProcess" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:incoming> 
+             <bpmn:incoming>SF_EndRejectedLinkFromTimer</bpmn:outgoing/> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Flows --> 
+
+      <!-- Initial Flow from Start Event --> 
+     <bpmn:sequenceFlow id="SF_Start_AccountCheck" sourceRef="StartEvent_FileReport" targetRef="CheckAccountExistenceTask"/>
+
+       <!-- To Account Existence Gateway (after 28 days timer) -->
+       <bpmn:sequenceFlow id="SF_ReviewReportFlow" name="After Check Complete" sourceRef="CheckAccountExistenceTask" targetRef="AccountExistenceGateway">
+        </bpmn:sequenceFlow>
+
+    <!-- Account Existence Decision Flows --> 
+      <bpmn:sequenceFlow id="SF_AccountExistsYesFlow" name="Yes - Has Account" sourceRef="AccountExistenceGateway" targetRef="ReviewExpenseReportTask"/>
+       <bpmn:sequenceFlow id="SF_AccountNotExistsNoFlow" name="No - Create Account First" sourceRef="AccountExistenceGateway" targetRef="CreateEmployeeAccountTask"/>
+
+    <!-- After Account Creation Flow --> 
+      <bpmn:sequenceFlow id="SF_ReviewReportAfterCreation" sourceRef="CreateEmployeeAccountTask" targetRef="ReviewExpenseReportTask"/>
+       <bpmn:sequenceFlow id="SF_CheckAmountFlow" name="Submit for Amount Check" sourceRef="ReviewExpenseReportTask" targetRef="DetermineAmountGateway">
+        </bpmn:sequenceFlow>
+
+    <!-- Amount Decision Flows --> 
+      <bpmn:sequenceFlow id="SF_ReimburseDirectlyNoFlow" name="No - &lt;= 200" sourceRef="DetermineAmountGateway" targetRef="EndApprovedProcess"/>
+       <bpmn:sequenceFlow id="SF_SupervisorApprovalYesFlow" name="Yes - &gt; 200" sourceRef="DetermineAmountGateway" targetRef="AskSupervisorApprovalTask">
+        </bpmn:sequenceFlow>
+
+    <!-- Supervisor Decision Flows --> 
+      <bpmn:sequenceFlow id="SF_ManagerDecisionLink" name="After Approval Requested" sourceRef="AskSupervisorApprovalTask" targetRef="ManagerDecisionGateway"/>
+       <bpmn:sequenceFlow id="SF_ReimburseAfterApprovalYesFlow" name="Approved Within 7 Days" sourceRef="ManagerDecisionGateway" targetRef="EndApprovedProcess">
+        </bpmn:sequenceFlow>
+
+      <!-- Rejection Flow --> 
+     <bpmn:sequenceFlow id="SF_RejectNotificationNoFlow" name="Rejected Within 7 Days" sourceRef="ManagerDecisionGateway" targetRef="EmailRejectionNotification"/>
+       <bpmn:sequenceFlow id="SF_EndRejectedLinkFromTimer" name="After Resubmit Email" sourceRef="EmailResubmitTask" targetRef="EndRejectedProcess">
+        </bpmn:sequenceFlow>
+
+    <!-- Repeat Supervisor Flow (after 7 days timeout) --> 
+      <bpmn:sequenceFlow id="SF_RepeatSupervisorFlow" name="More Than 7 Days - Email In Progress" sourceRef="EmailApprovalInProgress" targetRef="AskSupervisorApprovalTask"/>
+       <bpmn:sequenceFlow id="SF_ManagerApprovalFlow" name="After Supervisor Response" sourceRef="ManagerDecisionGateway" targetRef="AskSupervisorApprovalTask">
+        </bpmn:sequenceFlow>
+
+    <!-- Timer Boundary Event Attachments --> 
+      <bpmn:startEvent id="StartTimerBoundary28Days" name="">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P28D</bpmn:timerDefinition>
+        </bpmn:startEvent>
+
+       <!-- Timer Boundary for 7 Days on Supervisor Approval --> 
+      <bpmn:startEvent id="StartTimerBoundary7Days" name="">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:startEvent>
+
+    <!-- Timer Boundary Event Attachments (28 days on Account Check) --> 
+      <bpmn:boundaryEvent id="BoundaryTimer_28Days" name="" attachedToRef="CheckAccountExistenceTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P28D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+    <!-- Timer Boundary Event Attachments (7 days on Supervisor Approval) --> 
+      <bpmn:boundaryEvent id="BoundaryTimer_7Days" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+    <!-- Timer Boundary Event Flows --> 
+      <bpmn:sequenceFlow id="SF_Timer28DaysBoundary" sourceRef="BoundaryTimer_28Days" targetRef="EmailResubmitTask"/>
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout7Days" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Deposit Reimbursement Task --> 
+      <bpmn:task id="DepositReimbursementTask" name="Process Bank Account Deposit">
+        <bpmn:incoming>SF_ReimburseDirectlyNoFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_EndApprovedLinkFromDeposit</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Corrected End Event Links --> 
+       <bpmn:endEvent id="EndApprovedProcess" name="Expense Approved">
+             <bpmn:incoming>SF_ReimburseAfterApprovalYesFlow</bpmn:incoming>
+              <bpmn:outgoing>SF_EndRejectedLinkFromDepositTask</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+       <bpmn:endEvent id="EndRejectedProcess" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:incoming> 
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask</bpmn:outgoing/> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Final Flow Corrections for Deposit Task --> 
+      <bpmn:sequenceFlow id="SF_ReimburseDirectlyNoFlow" name="No - &lt;= 200, Process Reimbursement" sourceRef="DetermineAmountGateway" targetRef="DepositReimbursementTask"/>
+       <bpmn:sequenceFlow id="SF_EndApprovedLinkFromDepositTask" name="After Deposit Complete" sourceRef="DepositReimbursementTask" targetRef="EndApprovedProcess">
+        </bpmn:sequenceFlow>
+
+    <!-- Final Timer Boundary Event Flows --> 
+      <bpmn:boundaryEvent id="BoundaryTimer_28Days_Final" name="" attachedToRef="CheckAccountExistenceTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P28D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+
+    <!-- Final End Event Links --> 
+      <bpmn:endEvent id="EndApprovedProcess_Fixed" name="Expense Approved">
+             <bpmn:incoming>SF_ReimburseAfterApprovalYesFlow</bpmn:outgoing/> <!-- Corrected to incoming -->
+              <bpmn:incoming>SF_EndApprovedLinkFromDepositTask</bpmn:incoming> 
+        </bpmn:endEvent>
+
+         <bpmn:endEvent id="EndRejectedProcess_Fixed" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Final_Fixed" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequenceFlow id="SF_SupervisorTimeout_7Days_Final_Flow" name="Supervisor Timeout (More Than 7 Days)" sourceRef="BoundaryTimer_7Days_SupervisorTimeout_Final" targetRef="EmailApprovalInProgress">
+        </bpmn:sequenceFlow>
+
+    <!-- Final End Event Links for Rejected Process --> 
+      <bpmn:endEvent id="EndRejectedProcess_Fixed_Final" name="Expense Rejected">
+            <bpmn:incoming>EmailRejectionNotification</bpmn:outgoing/> <!-- Corrected to incoming -->
+             <bpmn:incoming>SF_EndRejectedLinkFromTimerTask_Final_Flow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+    <!-- Final Timer Boundary Event Flows for Rejected End Events --> 
+      <bpmn:sequenceFlow id="SF_TimerBoundary_28Days_Final_Flow" sourceRef="BoundaryTimer_28Days_Final" targetRef="EmailResubmitTask"/>
+       <bpmn:boundaryEvent id="BoundaryTimer_7Days_SupervisorTimeout_Final" name="" attachedToRef="AskSupervisorApprovalTask">
+          <bpmn:timerDefinition xsi:type="bpmn:TimeDuration">P7D</bpmn:timerDefinition>
+        </bpmn:boundaryEvent>
+
+      <!-- Final Timer Boundary Event Flows for Supervisor Timeout --> 
+       <bpmn:sequence

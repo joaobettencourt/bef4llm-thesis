@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1a8j3f5">
+    <bpmn:participant id="Participant_2s4y6v0" name="Warenversand&#10;Hardware-Händler" processRef="Process_3k9m7l4" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_3k9m7l4" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_1viot5w" name="Leiter Logistik">
+        <bpmn:flowNodeRef>Task_Versicherung</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1ocseyo" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_ArtikelVersenden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Pg_ConcurrentPaths</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tk_VersandartKlaeren</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_SonderversandEntscheidung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_VersicherungPflichtig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gk_MergeVersandwege</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tk_PaketscheinAusfuellen</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1vl2igx" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>Gw_VorbereitungenAbschliessen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tk_WareVerpacken</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Tk_BereitstellenAbholung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VersandBereitgestellt</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ArtikelVersenden" name="Artikel zu versenden">
+      <bpmn:outgoing>SequenceFlow_StartToPg</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent paths -->
+    <bpmn:parallelGateway id="Pg_ConcurrentPaths">
+      <bpmn:incoming>SequenceFlow_StartToPg</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PgToVersandartKlaeren</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PgToWareVerpacken</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Clarify shipment method -->
+    <bpmn:task id="Tk_VersandartKlaeren" name="Versandart klären">
+      <bpmn:incoming>SequenceFlow_PgToVersandartKlaeren</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGwSonderversand</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for special shipping decision -->
+    <bpmn:exclusiveGateway id="Gw_SonderversandEntscheidung" name="Sonderversand?">
+      <bpmn:incoming>SequenceFlow_TkZuGwSonderversand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaSpediteur</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GwNeinVersicherung</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Inclusive Gateway for insurance path -->
+    <bpmn:inclusiveGateway id="Gw_VersicherungPflichtig">
+      <bpmn:incoming>SequenceFlow_GwNeinVersicherung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwZuVrschAbschluss</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GwZuPaketschein</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Insurance if required -->
+    <bpmn:task id="Task_Versicherung" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_GwZuVrschAbschluss</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGkMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Fill package form -->
+    <bpmn:task id="Tk_PaketscheinAusfuellen" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_GwZuPaketschein</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGkMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway for merging paths -->
+    <bpmn:inclusiveGateway id="Gw_MergeVersandwege">
+      <bpmn:incoming>SequenceFlow_GwJaSpediteur</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGkMerge</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Get 3 offers from logistic companies -->
+    <bpmn:task id="Tk_AngeboteEinholen" name="Angebote von 3 Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_GwJaSpediteur</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuAuftragErteilen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Select logistic company and place order -->
+    <bpmn:task id="Tk_AuftragErteilen" name="Spediteur beauftragen">
+      <bpmn:incoming>SequenceFlow_TkZuAuftragErteilen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaMergeVorbereitungen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for merging paths -->
+    <bpmn:exclusiveGateway id="Gk_MergeVersandwege">
+      <bpmn:incoming>SequenceFlow_TkZuGkMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaMergeVorbereitungen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Package goods -->
+    <bpmn:task id="Tk_WareVerpacken" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_PgToWareVerpacken</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGwAbschluss</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for final merge -->
+    <bpmn:exclusiveGateway id="Gw_VorbereitungenAbschliessen">
+      <bpmn:incoming>SequenceFlow_GwJaMergeVorbereitungen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuBereitstellenAbholung</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Prepare for pickup -->
+    <bpmn:task id="Tk_BereitstellenAbholung" name="Ware bereitstellen">
+      <bpmn:incoming>SequenceFlow_TkZuBereitstellenAbholung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ZuEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_VersandBereitgestellt" name="Warenversand vorbereitet">
+      <bpmn:incoming>SequenceFlow_ZuEndEvent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToPg" sourceRef="StartEvent_ArtikelVersenden" targetRef="Pg_ConcurrentPaths" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_PgToVersandartKlaeren" name="" sourceRef="Pg_ConcurrentPaths" targetRef="Tk_VersandartKlaeren" />
+
+    <bpmn:sequenceFlow id="SequenceFlow_TkZuGwSonderversand" name="" sourceRef="Tk_VersandartKlaeren" targetRef="Gw_SonderversandEntscheidung" />
+
+    <bpmn:exclusiveGateway id="Gw_SonderversandEntscheidung">
+      <bpmn:incoming>SequenceFlow_TkZuGwSonderversand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaSpediteur</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GwNeinVersicherung</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GwNeinVersicherung" name="nein" sourceRef="Gw_SonderversandEntscheidung" targetRef="Gw_VersicherungPflichtig" />
+
+    <bpmn:inclusiveGateway id="Gw_VersicherungPflichtig">
+      <bpmn:incoming>SequenceFlow_GwNeinVersicherung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwZuVrschAbschluss</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GwZuPaketschein</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GwZuVrschAbschluss" name="Versicherung erforderlich" sourceRef="Gw_VersicherungPflichtig" targetRef="Task_Versicherung" />
+
+    <bpmn:task id="Task_Versicherung">
+      <bpmn:incoming>SequenceFlow_GwZuVrschAbschluss</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGkMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GwZuPaketschein" name="immer" sourceRef="Gw_VersicherungPflichtig" targetRef="Tk_PaketscheinAusfuellen" />
+
+    <bpmn:task id="Tk_PaketscheinAusfuellen">
+      <bpmn:incoming>SequenceFlow_GwZuPaketschein</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGkMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TkZuGkMerge" sourceRef="Tk_PaketscheinAusfuellen" targetRef="Gw_MergeVersandwege" />
+
+    <bpmn:exclusiveGateway id="Gw_SonderversandEntscheidung">
+      <bpmn:incoming>SequenceFlow_TkZuGwSonderversand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaSpediteur</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GwJaSpediteur" name="ja" sourceRef="Gw_SonderversandEntscheidung" targetRef="Tk_AngeboteEinholen" />
+
+    <bpmn:task id="Tk_AngeboteEinholen">
+      <bpmn:incoming>SequenceFlow_GwJaSpediteur</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuAuftragErteilen</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TkZuAuftragErteilen" sourceRef="Tk_AngeboteEinholen" targetRef="Tk_AuftragErteilen" />
+
+    <bpmn:task id="Tk_AuftragErteilen">
+      <bpmn:incoming>SequenceFlow_TkZuAuftragErteilen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaMergeVorbereitungen</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GwJaMergeVorbereitungen" sourceRef="Tk_AuftragErteilen" targetRef="Gk_MergeVersandwege" />
+
+    <bpmn:exclusiveGateway id="Gw_VersicherungPflichtig">
+      <bpmn:incoming>SequenceFlow_TkZuGkMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaMergeVorbereitungen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PgToWareVerpacken" sourceRef="Pg_ConcurrentPaths" targetRef="Tk_WareVerpacken" />
+
+    <bpmn:task id="Tk_WareVerpacken">
+      <bpmn:incoming>SequenceFlow_PgToWareVerpacken</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TkZuGwAbschluss</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TkZuGwAbschluss" sourceRef="Tk_WareVerpacken" targetRef="Gw_VorbereitungenAbschliessen" />
+
+    <bpmn:exclusiveGateway id="Gw_SonderversandEntscheidung">
+      <bpmn:incoming>SequenceFlow_TkZuGwSonderversand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GwJaSpediteur</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TkZuBereitstellenAbholung" sourceRef="Gw_VorbereitungenAbschliessen" targetRef="Tk_BereitstellenAbholung" />
+
+    <bpmn:task id="Tk_BereitstellenAbholung">
+      <bpmn:incoming>SequenceFlow_TkZuBereitstellenAbholung</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ZuEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_VersandBereitgestellt">
+      <bpmn:incoming>SequenceFlow_ZuEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ZuEndEvent" sourceRef="Tk_BereitstellenAbholung" targetRef="EndEvent_VersandBereitgestellt" />
+  </bpmn:process>
+</bpmn:definitions>

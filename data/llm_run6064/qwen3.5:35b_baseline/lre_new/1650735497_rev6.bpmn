@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_BankAccountVerification" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_BankVerify_001">
+    <bpmn:participant id="Pool_PayPalSystem" name="PayPal Bank Verification Process" processRef="Proc_BankVerification"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Msg_DepositNotification" name="Deposit Notification"/>
+
+  <bpmn:process id="Proc_BankVerification" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_PayPalProcess">
+      <bpmn:lane id="Lane_Client_1" name="PayPal Client">
+        <bpmn:flowNodeRef>StartEvent_SelectBank</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_PayPalSystem_2" name="PayPal System">
+        <bpmn:flowNodeRef>IntermediateThrow_DepositInitiated</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckValuesMatch</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_SelectBank" name="Select Bank Account Option">
+        <bpmn:outgoing>SF_Start_EnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EnterDetails" name="Enter Bank Details (First Name, Bank Name, Account Type, BSB, Account Number)">
+      <bpmn:incoming>SF_Start_EnterDetails</bpmn:incoming>
+        <bpmn:outgoing>SF_SubmitToPayPalSystem</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Intermediate Throw Event for Deposit Initiation (Message sent to external bank) -->
+      <bpmn:intermediateThrowEvent id="IntermediateThrow_DepositInitiated" name="Make Two Random Deposits">
+          <bpmn:incoming>SF_SubmitToPayPalSystem</bpmn:incoming>
+            <bpmn:messageRef>Msg_DepositNotification</bpmn:messageRef>
+        </bpmn:outgoing>SF_ClientWaitForDeposit</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+     <!-- Client Verification Task -->
+      <bpmn:task id="Task_VerifyDeposits" name="Enter Deposit Amounts and Click Verify">
+        <bpmn:incoming>SF_ClientWaitForDeposit</bpmn:incoming>
+          <bpmn:outgoing>SF_SubmitVerificationData</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- PayPal System Validation Task -->
+       <bpmn:task id="Task_CheckValuesMatch" name="Check Values Against Client Input">
+        <bpmn:incoming>SF_ClientWaitForDeposit</bpmn:incoming>
+          <bpmn:outgoing>SF_ValidationDecisionGateway</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Decision Gateway -->
+     <bpmn:exclusiveGateway id="ExclusiveGateway_CheckValuesMatch" name="Values Match?">
+        <bpmn:incoming>SF_SubmitVerificationData</bpmn:incoming>
+          <bpmn:outgoing>SF_AccountConfirmedLink</bpmn:outgoing>
+           <bpmn:outgoing>SF_AccountRemovedLink</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+      <!-- End Events --> 
+
+        <bpmn:endEvent id="EndEvent_Confirmed" name="Bank Account Confirmed">
+             <bpmn:incoming>SF_AccountConfirmedLink</bpmn:incoming> 
+        </bpmn:endEvent>
+
+         <bpmn:endEvent id="EndEvent_NotConfirmed" name="Account Removed (Not Confirmed)">
+            <bpmn:incoming>SF_AccountRemovedLink</bpmn:incoming> 
+        </bpmn:endEvent>
+
+
+    <!-- Flows --> 
+
+      <!-- Initial Flow from Start to Enter Details --> 
+     <bpmn:sequenceFlow id="SF_Start_EnterDetails" sourceRef="StartEvent_SelectBank" targetRef="Task_EnterDetails"/>
+
+       <!-- Submit to PayPal System (Internal Process) -->
+       <bpmn:sequenceFlow id="SF_SubmitToPayPalSystem" name="Submit Bank Details" sourceRef="Task_EnterDetails" targetRef="IntermediateThrow_DepositInitiated">
+        </bpmn:sequenceFlow>
+
+
+     <!-- Notification after 3-5 days triggers client verification task -->
+       <bpmn:sequenceFlow id="SF_ClientWaitForDeposit" name="Notify Client to Check Deposits (After 3-5 Days)" sourceRef="IntermediateThrow_DepositInitiated" targetRef="Task_VerifyDeposits">
+      </bpmn:sequenceFlow>
+
+    <!-- Submit Verification Data back to PayPal System --> 
+        <bpmn:sequenceFlow id="SF_SubmitVerificationData" name="Submit Verified Amounts" sourceRef="Task_VerifyDeposits" targetRef="ExclusiveGateway_CheckValuesMatch"/>
+
+
+     <!-- Decision Flows from Gateway -->
+      <bpmn:sequenceFlow id="SF_AccountConfirmedLink" name="Yes - Match Found" sourceRef="ExclusiveGateway_CheckValuesMatch" targetRef="EndEvent_Confirmed">
+        </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SF_AccountRemovedLink" name="No - No Match" sourceRef="ExclusiveGateway_CheckValuesMatch" targetRef="EndEvent_NotConfirmed"/>
+
+
+    <!-- Message Flow to External Entity (Bank Account) --> 
+      <bpmn:messageFlow id="MsgFlow_BankDeposits" sourceRef="IntermediateThrow_DepositInitiated" targetRef="Task_VerifyDeposits">
+        <bpmn:sourceElement>IntermediateThrow_DepositInitiated</bpmn:sourceElement>
+        <bpmn:targetElement>Task_VerifyDeposits</bpmn:targetElement>
+      </bpmn:messageFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SchufaScoring">
+    <bpmn:participant id="Participant_BankProcess" name="Schufascoring-Prozess (Bank)" processRef="Process_SchufaScoring"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SchufaScoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestScore" name="Schufascoring anfordern">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Send Scoring Request Task -->
+    <bpmn:serviceTask id="ServiceTask_SendScoringRequest" name="Schufascoring an SCHUFA senden">
+      <bpmn:description>Schickt Scoringanfrage an Schufa-System</bpmn:description>
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResult</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for Result - Intermediate Catch Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_WaitForResult" name="Auf Ergebnis warten">
+      <bpmn:description>Wartet auf Antwort von Schufa-System</bpmn:description>
+      <bpmn:incoming>SequenceFlow_WaitForResult</bpmn:outgoing>SequenceFlow_CheckDelayNotification</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway for Delay Notification -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DelayCheck" name="Verzögerungsmeldung?">
+      <bpmn:description>Prüft ob Schufa Verzögerung meldet</bpmn:description>
+      <bpmn:incoming>SequenceFlow_CheckDelayNotification</bpmn:outgoing>SequenceFlow_NormalResultRoute</bpmn:outgoing>SequenceFlow_DelayedResultRoute</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Normal Result Path -->
+    <bpmn:userTask id="UserTask_DisplayNormalScore" name="Scoring-Ergebnis anzeigen">
+      <bpmn:description>Anzeige des sofort verfügbaren Scoring-Ergebnisses im Frontend</bpmn:description>
+      <bpmn:incoming>SequenceFlow_NormalResultRoute</bpmn:outgoing>SequenceFlow_EndNormalProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Delay Notification Path -->
+    <bpmn:userTask id="UserTask_ShowDelayNotification" name="Verzögerungsmeldung anzeigen">
+      <bpmn:description>Mitteilung dass Ergebnis verzögert eintreffen wird</bpmn:description>
+      <bpmn:incoming>SequenceFlow_DelayedResultRoute</bpmn:outgoing>SequenceFlow_WaitForFinalScore</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Final Score -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_WaitFinal" name="Auf finales Ergebnis warten">
+      <bpmn:description>Wartet auf Schufascoring-Level-2-Ergebnis</bpmn:description>
+      <bpmn:incoming>SequenceFlow_WaitForFinalScore</bpmn:outgoing>SequenceFlow_FinalResultRoute</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Display Final Score -->
+    <bpmn:userTask id="UserTask_DisplayFinalScore" name="Finales Scoring-Ergebnis anzeigen">
+      <bpmn:description>Anzeige des finalen Schufascoring-Level-2-Ergebnisses</bpmn:description>
+      <bpmn:incoming>SequenceFlow_FinalResultRoute</bpmn:outgoing>SequenceFlow_EndDelayedProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_NormalComplete" name="Scoring abgeschlossen (normal)">
+      <bpmn:description>Prozess erfolgreich beendet - Ergebnis sofort verfügbar</bpmn:description>
+      <bpmn:incoming>SequenceFlow_EndNormalProcess</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_DelayedComplete" name="Scoring abgeschlossen (verzögert)">
+      <bpmn:description>Prozess erfolgreich beendet - Ergebnis nach Verzögerung verfügbar</bpmn:description>
+      <bpmn:incoming>SequenceFlow_EndDelayedProcess</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" name="" sourceRef="StartEvent_RequestScore" targetRef="ServiceTask_SendScoringRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForResult" name="" sourceRef="ServiceTask_SendScoringRequest" targetRef="IntermediateEvent_WaitForResult"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDelayNotification" name="" sourceRef="IntermediateEvent_WaitForResult" targetRef="ExclusiveGateway_DelayCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NormalResultRoute" name="Keine Verzögerung" sourceRef="ExclusiveGateway_DelayCheck" targetRef="UserTask_DisplayNormalScore">
+      <bpmn:description>Ergebnis sofort verfügbar</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DelayedResultRoute" name="Verzögerungsmeldung erhalten" sourceRef="ExclusiveGateway_DelayCheck" targetRef="UserTask_ShowDelayNotification">
+      <bpmn:description>Schufa meldet Verzögerung</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForFinalScore" name="" sourceRef="UserTask_ShowDelayNotification" targetRef="IntermediateEvent_WaitFinal"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FinalResultRoute" name="" sourceRef="IntermediateEvent_WaitFinal" targetRef="UserTask_DisplayFinalScore"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndNormalProcess" name="" sourceRef="UserTask_DisplayNormalScore" targetRef="EndEvent_NormalComplete"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndDelayedProcess" name="" sourceRef="UserTask_DisplayFinalScore" targetRef="EndEvent_DelayedComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

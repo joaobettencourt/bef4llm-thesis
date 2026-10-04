@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SEPA_Process">
+    <bpmn:participant id="Participant_SEPA_Management" name="SEPA Mandat Management Prozess" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SEPA_DataReceived" name="Daten für SEPA-Mandat eingegangen">
+      <bpmn:outgoing>SequenceFlow_IBANCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IBAN Check & Country Determination -->
+    <bpmn:serviceTask id="ServiceTask_IBAN_Check" name="IBAN prüfen und Land ermitteln">
+      <bpmn:incoming>SequenceFlow_IBANCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PersonSearch</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Person Search & Validation -->
+    <bpmn:userTask id="UserTask_Person_Search" name="Person im System suchen und Daten prüfen">
+      <bpmn:incoming>SequenceFlow_PersonSearch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataValidation</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if all required info is present -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SignatureCheck" name="Unterschrift vorhanden?">
+      <bpmn:incoming>SequenceFlow_DataValidation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualReview</bpmn:outgoing> <!-- Yes - manual review -->
+      <bpmn:outgoing>SequenceFlow_LetterRequest</bpmn:outgoing> <!-- No - letter required -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Missing Data Handling (Signature Exists) -->
+    <bpmn:userTask id="UserTask_ManualReview" name="Manuelle Prüfung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_ManualReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Validations</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Missing Data Handling (No Signature) -->
+    <bpmn:sendTask id="SendTask_Letter" name="Schreiben zur Unterschrift anfordern">
+      <bpmn:incoming>SequenceFlow_LetterRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Wait for Response (28 Days) -->
+    <bpmn:receiveTask id="ReceiveTask_Wait" name="Auf Rückmeldung warten">
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Validations</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <!-- Boundary Event for Timeout -->
+    <bpmn:boundaryEvent id="BoundaryEvent_Timeout" attachedToRef="ReceiveTask_Wait">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P28D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+      <bpmn:outgoing>SequenceFlow_TimeoutEnd</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- End Event for Timeout -->
+    <bpmn:endEvent id="EndEvent_Timeout" name="Prozess gestoppt (keine Rückmeldung)">
+      <bpmn:incoming>SequenceFlow_TimeoutEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Validation Checks -->
+    <bpmn:userTask id="UserTask_Validations" name="Gültig von Datum, Ort und Bankverbindung prüfen">
+      <bpmn:incoming>SequenceFlow_ManualReview</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BankCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Bank Connection Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_BankConn" name="Bankverbindung gültig?">
+      <bpmn:incoming>SequenceFlow_BankCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MandateCheck</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>SequenceFlow_BankCreateTask</bpmn:outgoing> <!-- No - Create/Review -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_BankCreate" name="Bankverbindung neu erstellen oder prüfen">
+      <bpmn:incoming>SequenceFlow_BankCreateTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MandateCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Existing Mandate -->
+    <bpmn:serviceTask id="ServiceTask_CheckMandate" name="Prüfen ob aktives SEPA-Mandat existiert">
+      <bpmn:incoming>SequenceFlow_MandateCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MandateExistsGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Check if mandate exists -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MandateExists" name="Aktives Mandat vorhanden?">
+      <bpmn:incoming>SequenceFlow_MandateCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CreateNewMandate</bpmn:outgoing> <!-- No -->
+      <bpmn:outgoing>SequenceFlow_ValidateExisting</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Create New Mandate (No Existing) -->
+    <bpmn:userTask id="UserTask_CreateMandate" name="Neues SEPA-Mandat anlegen">
+      <bpmn:incoming>SequenceFlow_CreateNewMandate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OutstandingClaims</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check Validity (Existing Mandate) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MandateValid" name="Neues Mandat gültig und relevant?">
+      <bpmn:incoming>SequenceFlow_ValidateExisting</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UpdateMandates</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>SequenceFlow_MandateInvalidEnd</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="EndEvent_MandateInvalid" name="Mandat nicht angelegt (Ungültig)">
+      <bpmn:incoming>SequenceFlow_MandateInvalidEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Update Mandates -->
+    <bpmn:userTask id="UserTask_UpdateMandate" name="Bestehendes beenden und neues anlegen">
+      <bpmn:incoming>SequenceFlow_CreateNewMandate</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_ValidateExisting</bpmn:incoming> <!-- From Validity Check -->
+      <bpmn:outgoing>SequenceFlow_OutstandingClaims</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Outstanding Claims Check -->
+    <bpmn:serviceTask id="ServiceTask_OutstandingClaims" name="Prüfung auf offene Forderungen">
+      <bpmn:incoming>SequenceFlow_CreateNewMandate</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_UpdateMandates</bpmn:incoming> <!-- From Update Mandate -->
+      <bpmn:outgoing>SequenceFlow_AmountCheckGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Check Amount -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Amount" name="Forderungen &gt; 5.000 €?">
+      <bpmn:incoming>SequenceFlow_OutstandingClaims</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualReviewAmount</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>SequenceFlow_FinalEnd</bpmn:outgoing> <!-- No/Completed -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_ManualReviewAmount" name="Manuelle Überprüfung der Forderungen">
+      <bpmn:incoming>SequenceFlow_AmountCheckGateway</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinalEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Final End -->
+    <bpmn:endEvent id="EndEvent_Success" name="SEPA-Mandat abgeschlossen">
+      <bpmn:incoming>SequenceFlow_AmountCheckGateway</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_ManualReviewAmount</bpmn:incoming> <!-- From Manual Review -->
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_IBANCheck" sourceRef="StartEvent_SEPA_DataReceived" targetRef="ServiceTask_IBAN_Check" />
+    <bpmn:sequenceFlow id="SequenceFlow_PersonSearch" sourceRef="ServiceTask_IBAN_Check" targetRef="UserTask_Person_Search" />
+    <bpmn:sequenceFlow id="SequenceFlow_DataValidation" sourceRef="UserTask_Person_Search" targetRef="ExclusiveGateway_SignatureCheck" />
+
+    <!-- Data Complete Path (Yes) -> Validation Tasks -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ManualReviewPath" name="Alle Daten vollständig?">
+      <bpmn:incoming>SequenceFlow_DataValidation</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Validations</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ManualReview" sourceRef="ExclusiveGateway_SignatureCheck" targetRef="UserTask_ManualReview">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LetterRequest" sourceRef="ExclusiveGateway_SignatureCheck" targetRef="SendTask_Letter">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge paths to validation -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MergeValidation" name="Daten vollständig?">
+      <bpmn:incoming>SequenceFlow_ManualReview</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming> <!-- From Wait Task -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Validations" sourceRef="ExclusiveGateway_MergeValidation" targetRef="UserTask_Validations">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Bank Connection Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankCheck" sourceRef="UserTask_Validations" targetRef="ExclusiveGateway_BankConn" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MandateCheck" name="Ja" sourceRef="ExclusiveGateway_BankConn" targetRef="ServiceTask_CheckMandate">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Bank Create Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankCreateTask" name="Nein" sourceRef="ExclusiveGateway_BankConn" targetRef="UserTask_BankCreate">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Mandate Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_MandateExistsGateway" sourceRef="ServiceTask_CheckMandate" targetRef="ExclusiveGateway_MandateExists">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Create New Mandate (No Existing) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateNewMandate" name="Nein" sourceRef="ExclusiveGateway_MandateExists" targetRef="UserTask_CreateMandate">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Check Validity (Existing Mandate) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidateExisting" name="Ja" sourceRef="ExclusiveGateway_MandateExists" targetRef="ExclusiveGateway_MandateValid">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Update Mandates -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_UpdateMandatePath" name="Neues Mandat gültig?">
+      <bpmn:incoming>SequenceFlow_ValidateExisting</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UpdateMandates</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MandateInvalidEnd" name="Nein" sourceRef="ExclusiveGateway_MandateValid" targetRef="EndEvent_MandateInvalid">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Outstanding Claims Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_OutstandingClaimsPath" name="Forderungen prüfen?">
+      <bpmn:incoming>SequenceFlow_CreateNewMandate</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_UpdateMandates</bpmn:incoming> <!-- From Update Mandate -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_OutstandingClaims" sourceRef="ExclusiveGateway_MergeValidation" targetRef="ServiceTask_CheckMandate">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Check Amount -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountCheckPath" name="Forderungen &gt; 5.000 €?">
+      <bpmn:incoming>SequenceFlow_OutstandingClaims</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualReviewAmount</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalEnd" name="Nein" sourceRef="ExclusiveGateway_AmountCheckPath" targetRef="EndEvent_Success">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

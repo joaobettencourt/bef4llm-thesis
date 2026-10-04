@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Reimbursement_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Reimbursement_1">
+    <bpmn:participant id="Participant_ERICS_Inc" name="ERICS Inc." processRef="Process_Reimbursement_01" />
+    <bpmn:participant id="Participant_Customer" name="Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Reimbursement_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_SO_Rueckverguetung" name="SO:Rückvergütung">
+        <bpmn:flowNodeRef>StartEvent_NewReimbursement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectBeneficiary</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetRefundPeriod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_CheckVerbandStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectAssociationGroup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ManualCustomerSelection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_MergeAfterSelection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetThresholds</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_RefundPeriodEnd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CalculateReimbursement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrintCreditNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PayCustomer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_MergeBeforeEnd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ThrowEvent_SendNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_NewReimbursement" name="New Reimbursement Request">
+      <bpmn:outgoing>SF_CreateContact</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Create reimbursement contact -->
+    <bpmn:task id="Task_CreateContact" name="Create reimbursement contract">
+      <bpmn:incoming>SF_CreateContact</bpmn:incoming>
+      <bpmn:outgoing>SF_SelectBeneficiary</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Choose beneficiary -->
+    <bpmn:task id="Task_SelectBeneficiary" name="Select beneficiary">
+      <bpmn:incoming>SF_SelectBeneficiary</bpmn:incoming>
+      <bpmn:outgoing>SF_SetRefundPeriod</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Determine refund period -->
+    <bpmn:task id="Task_SetRefundPeriod" name="Set refund period and contract duration">
+      <bpmn:incoming>SF_SetRefundPeriod</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckVerbandStatus</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Verband status -->
+    <bpmn:exclusiveGateway id="GW_CheckVerbandStatus" name="Customer part of Verband?">
+      <bpmn:incoming>SF_CheckVerbandStatus</bpmn:incoming>
+      <bpmn:outgoing>SF_SelectAssociationGroup</bpmn:outgoing>
+      <bpmn:outgoing>SF_ManualSelectionPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4a: Select Association (Verband case) -->
+    <bpmn:task id="Task_SelectAssociationGroup" name="Select association as customer group">
+      <bpmn:incoming>SF_SelectAssociationGroup</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeAfterSelection1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4b: Manual selection (normal subsidiaries case) -->
+    <bpmn:task id="Task_ManualCustomerSelection" name="Select customers manually">
+      <bpmn:incoming>SF_ManualSelectionPath</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeAfterSelection2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Merge after selection paths -->
+    <bpmn:exclusiveGateway id="GW_MergeAfterSelection">
+      <bpmn:incoming>SF_MergeAfterSelection1</bpmn:incoming>
+      <bpmn:incoming>SF_MergeAfterSelection2</bpmn:incoming>
+      <bpmn:outgoing>SF_SetThresholdsFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Set threshold -->
+    <bpmn:task id="Task_SetThresholds" name="Set thresholds">
+      <bpmn:incoming>SF_SetThresholdsFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitForRefundPeriodEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: Wait for refund period end -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_RefundPeriodEnd" name="end of refund period">
+      <bpmn:incoming>SF_WaitForRefundPeriodEnd</bpmn:incoming>
+      <bpmn:outgoing>SF_ParallelSplitFlow</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Parallel Gateway 1: Split into parallel flows -->
+    <bpmn:parallelGateway id="GW_ParallelSplit">
+      <bpmn:incoming>SF_ParallelSplitFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_CalculateReimbursementPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_PrintCreditNotePath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 6a: Calculate and pay reimbursement -->
+    <bpmn:task id="Task_CalculateReimbursement" name="Calculate reimbursement">
+      <bpmn:incoming>SF_CalculateReimbursementPath</bpmn:incoming>
+      <bpmn:outgoing>SF_PayCustomerFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6b: Pay customer -->
+    <bpmn:task id="Task_PayCustomer" name="Pay reimbursement">
+      <bpmn:incoming>SF_PayCustomerFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeBeforeEnd1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 7a: Print and send credit note -->
+    <bpmn:task id="Task_PrintCreditNote" name="Print credit note">
+      <bpmn:incoming>SF_PrintCreditNotePath</bpmn:incoming>
+      <bpmn:outgoing>SF_SendNotificationFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event: Send notification to customer -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_SendNotification">
+      <bpmn:incoming>SF_SendNotificationFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeBeforeEnd2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Gateway 3: Merge before end -->
+    <bpmn:parallelGateway id="GW_MergeBeforeEnd">
+      <bpmn:incoming>SF_MergeBeforeEnd1</bpmn:incoming>
+      <bpmn:incoming>SF_MergeBeforeEnd2</bpmn:incoming>
+      <bpmn:outgoing>SF_EndProcessFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Reimbursement Process Complete">
+      <bpmn:incoming>SF_EndProcessFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_CreateContact" sourceRef="StartEvent_NewReimbursement" targetRef="Task_CreateContact" />
+    <bpmn:sequenceFlow id="SF_SelectBeneficiary" sourceRef="Task_CreateContact" targetRef="Task_SelectBeneficiary" />
+    <bpmn:sequenceFlow id="SF_SetRefundPeriod" sourceRef="Task_SelectBeneficiary" targetRef="Task_SetRefundPeriod" />
+    <bpmn:sequenceFlow id="SF_CheckVerbandStatus" sourceRef="Task_SetRefundPeriod" targetRef="GW_CheckVerbandStatus" />
+    <bpmn:sequenceFlow id="SF_SelectAssociationGroup" name="Customer part of Verband" sourceRef="GW_CheckVerbandStatus" targetRef="Task_SelectAssociationGroup" />
+    <bpmn:sequenceFlow id="SF_ManualSelectionPath" name="Normal subsidiaries only" sourceRef="GW_CheckVerbandStatus" targetRef="Task_ManualCustomerSelection" />
+    <bpmn:sequenceFlow id="SF_MergeAfterSelection1" sourceRef="Task_SelectAssociationGroup" targetRef="GW_MergeAfterSelection" />
+    <bpmn:sequenceFlow id="SF_MergeAfterSelection2" sourceRef="Task_ManualCustomerSelection" targetRef="GW_MergeAfterSelection" />
+    <bpmn:sequenceFlow id="SF_SetThresholdsFlow" sourceRef="GW_MergeAfterSelection" targetRef="Task_SetThresholds" />
+    <bpmn:sequenceFlow id="SF_WaitForRefundPeriodEnd" sourceRef="Task_SetThresholds" targetRef="CatchEvent_RefundPeriodEnd" />
+    <bpmn:sequenceFlow id="SF_ParallelSplitFlow" sourceRef="CatchEvent_RefundPeriodEnd" targetRef="GW_ParallelSplit" />
+    <bpmn:sequenceFlow id="SF_CalculateReimbursementPath" sourceRef="GW_ParallelSplit" targetRef="Task_CalculateReimbursement" />
+    <bpmn:sequenceFlow id="SF_PrintCreditNotePath" sourceRef="GW_ParallelSplit" targetRef="Task_PrintCreditNote" />
+    <bpmn:sequenceFlow id="SF_MergeBeforeEnd1" sourceRef="Task_PayCustomer" targetRef="GW_MergeBeforeEnd" />
+    <bpmn:sequenceFlow id="SF_SendNotificationFlow" sourceRef="Task_PrintCreditNote" targetRef="ThrowEvent_SendNotification" />
+    <bpmn:sequenceFlow id="SF_MergeBeforeEnd2" sourceRef="ThrowEvent_SendNotification" targetRef="GW_MergeBeforeEnd" />
+    <bpmn:sequenceFlow id="SF_EndProcessFlow" sourceRef="GW_MergeBeforeEnd" targetRef="EndEvent_ProcessComplete" />
+
+  </bpmn:process>
+</bpmn:definitions>

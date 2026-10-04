@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_HRProcess" name="HR Recruitment Process" processRef="Process_001"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_HRClerk" name="HR Clerk">
+        <bpmn:flowNodeRef>StartMessageEvent_Vacancy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_InfoClear</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskDepartmentForDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EventBasedGateway_SubmitWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageCatch_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PostJob</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartMessageEvent_Vacancy" name="Vacancy Reported">
+      <bpmn:message ref="Msg_VacancyReported"/>
+      <bpmn:outgoing>SequenceFlow_StartToCreate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_CreateJobDescription" name="Create Job Description">
+      <bpmn:incoming>SequenceFlow_StartToCreate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToInfoCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Check if information is clear -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_InfoClear" name="Information Clear?">
+      <bpmn:incoming>SequenceFlow_ToInfoCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClearPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotClearPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 - Ask for details if not clear -->
+    <bpmn:task id="Task_AskDepartmentForDetails" name="Ask Department Again">
+      <bpmn:incoming>SequenceFlow_NotClearPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeBackToSubmit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-based Gateway - Wait for approval or rejection -->
+    <bpmn:eventBasedGateway id="EventBasedGateway_SubmitWait" name="Await Department Response">
+      <bpmn:incoming>SequenceFlow_ClearPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToApprovedCatch</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Catch Event - Approved -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessageCatch_Approved" name="Job Description Approved">
+      <bpmn:message ref="Msg_DescriptionApproved"/>
+      <bpmn:incoming>SequenceFlow_ToApprovedCatch</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToPostJob</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 3 - Post Job -->
+    <bpmn:task id="Task_PostJob" name="Post the Job">
+      <bpmn:incoming>SequenceFlow_ToPostJob</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndNoneEvent_Posted" name="Position Posted">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCreate" sourceRef="StartMessageEvent_Vacancy" targetRef="Task_CreateJobDescription"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToInfoCheck" sourceRef="Task_CreateJobDescription" targetRef="ExclusiveGateway_InfoClear"/>
+
+    <!-- Clear path - submit for approval -->
+    <bpmn:sequenceFlow id="SequenceFlow_ClearPath" name="Information is clear" sourceRef="ExclusiveGateway_InfoClear" targetRef="EventBasedGateway_SubmitWait"/>
+
+    <!-- Not Clear path - ask department again -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotClearPath" name="Information unclear" sourceRef="ExclusiveGateway_InfoClear" targetRef="Task_AskDepartmentForDetails"/>
+
+    <!-- Merge back after asking department -->
+    <bpmn:sequenceFlow id="SequenceFlow_MergeBackToSubmit" sourceRef="Task_AskDepartmentForDetails" targetRef="EventBasedGateway_SubmitWait"/>
+
+    <!-- To Approved Catch Event (from event-based gateway) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToApprovedCatch" name="Awaiting Approval Message" sourceRef="EventBasedGateway_SubmitWait" targetRef="IntermediateMessageCatch_Approved"/>
+
+    <!-- To Post Job Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToPostJob" sourceRef="IntermediateMessageCatch_Approved" targetRef="Task_PostJob"/>
+
+    <!-- To End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEvent" sourceRef="Task_PostJob" targetRef="EndNoneEvent_Posted"/>
+
+  </bpmn:process>
+
+  <!-- Global Message Definitions -->
+  <bpmn:message id="Msg_VacancyReported" name="Vacancy Reported"/>
+  <bpmn:message id="Msg_DescriptionApproved" name="Description Approved"/>
+</bpmn:definitions>

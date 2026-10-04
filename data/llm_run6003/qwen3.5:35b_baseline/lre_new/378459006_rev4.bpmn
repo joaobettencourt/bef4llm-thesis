@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_SSP_Payment_Process">
+    <bpmn:participant name="SSP Organization" processRef="Process_WeeklyPaymentCycle"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_WeeklyPaymentCycle" isExecutable="false">
+    <bpmn:laneSet id="_LaneSets_SSP">
+      <bpmn:lane name="Payment Office" id="_Lane_PaymentOffice">
+        <bpmn:flowNodeRef>StartEvent_Timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_GenerateReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_PayVendor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_DistributeReports</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="Accounts Receivable Department" id="_Lane_AR">
+        <bpmn:flowNodeRef>_Task_SendToARDept</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_ArTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_GenerateMonthlyInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_ChargeAndNotifyClient</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane name="Registry Office" id="_Lane_Registry">
+        <bpmn:flowNodeRef>_Task_SendToRegistry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_RegTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_SelectPaidInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_ArchiveAndTrackPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="End of Week" id="StartEvent_Timer">
+      <bpmn:outgoing>_Flow_StartToGenReport</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Payment Office Tasks & Gateway -->
+    <bpmn:task name="Generate Payment Report" id="_Task_GenerateReport">
+      <bpmn:incoming>_Flow_StartToGenReport</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ReportToPayVendor</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task name="Pay Vendor" id="_Task_PayVendor">
+      <bpmn:incoming>_Flow_ReportToPayVendor</bpmn:incoming>
+      <bpmn:outgoing>_Flow_VendorPaidToDistribute</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Distribution -->
+    <bpmn:parallelGateway name="Send Reports" id="_Gateway_DistributeReports">
+      <bpmn:incoming>_Flow_VendorPaidToDistribute</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SendToClients</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_SendToRegistry</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_SendToARDept</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Payment Office -> External Clients -->
+    <bpmn:endEvent name="Clients Notified" id="_End_Clients">
+      <bpmn:incoming>_Flow_ClientsEndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Accounts Receivable Department Tasks -->
+    <bpmn:task name="Send Report to Accounts Receivable" id="_Task_SendToARDept">
+      <bpmn:incoming>_Flow_SendToARDept</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ARTriggerLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Registry Office Tasks -->
+    <bpmn:task name="Send Report to Registry" id="_Task_SendToRegistry">
+      <bpmn:incoming>_Flow_SendToRegistry</bpmn:incoming>
+      <bpmn:outgoing>_Flow_RegistryLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- AR Lane Gateway -->
+    <bpmn:exclusiveGateway name="Process AR Data" id="_Gateway_ArTrigger">
+      <bpmn:incoming>_Flow_ARTriggerLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_GenInvoiceTask</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- AR Lane Tasks -->
+    <bpmn:task name="Generate Monthly Invoice" id="_Task_GenerateMonthlyInvoice">
+      <bpmn:incoming>_Flow_GenInvoiceTask</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ChargeNotifyLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task name="Charge $35 &amp; Notify Client" id="_Task_ChargeAndNotifyClient">
+      <bpmn:incoming>_Flow_ChargeNotifyLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_AREndLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- AR End Event -->
+    <bpmn:endEvent name="AR Process Complete" id="_End_AR">
+      <bpmn:incoming>_Flow_AREndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Registry Lane Gateway -->
+    <bpmn:exclusiveGateway name="Process Payment Data" id="_Gateway_RegTrigger">
+      <bpmn:incoming>_Flow_RegistryLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_SelectInvoicesLink</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Registry Lane Tasks -->
+    <bpmn:task name="Select Paper-Based Paid Invoices" id="_Task_SelectPaidInvoices">
+      <bpmn:incoming>_Flow_SelectInvoicesLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ArchiveTrackLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task name="Archive Invoices &amp; Track Payment" id="_Task_ArchiveAndTrackPayment">
+      <bpmn:incoming>_Flow_ArchiveTrackLink</bpmn:incoming>
+      <bpmn:outgoing>_Flow_RegistryEndLink</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Registry End Event -->
+    <bpmn:endEvent name="Registry Process Complete" id="_End_Registry">
+      <bpmn:incoming>_Flow_RegistryEndLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows - Payment Office Lane -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_Timer" targetRef="_Task_GenerateReport" id="_Flow_StartToGenReport"/>
+    
+    <bpmn:sequenceFlow sourceRef="_Task_GenerateReport" targetRef="_Task_PayVendor" id="_Flow_ReportToPayVendor">
+      <bpmn:name>Then</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow sourceRef="_Task_PayVendor" targetRef="_Gateway_DistributeReports" id="_Flow_VendorPaidToDistribute"/>
+
+    <!-- Distribution Flows from Gateway -->
+    <bpmn:sequenceFlow sourceRef="_Gateway_DistributeReports" targetRef="StartEvent_Timer" id="_Flow_SendToClients">
+      <bpmn:name>To Clients</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Connect Send to Registry Task -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_DistributeReports" targetRef="_Task_SendToRegistry" id="_Flow_SendToRegistry">
+      <bpmn:name>To Registry</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Connect Send to AR Dept Task -->
+     <bpmn:sequenceFlow sourceRef="_Gateway_DistributeReports" targetRef="_Task_SendToARDept" id="_Flow_SendToARDept">
+      <bpmn:name>To Accounts Receivable</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- AR Lane Flows -->
+    <bpmn:sequenceFlow sourceRef="_Task_SendToARDept" targetRef="_Gateway_ArTrigger" id="_Flow_ARTriggerLink"/>
+    
+     <bpmn:sequenceFlow sourceRef="_Gateway_ArTrigger" targetRef="_Task_GenerateMonthlyInvoice" id="_Flow_GenInvoiceTask">
+      <bpmn:name>Process</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow sourceRef="_Task_GenerateMonthlyInvoice" targetRef="_Task_ChargeAndNotifyClient" id="_Flow_ChargeNotifyLink"/>
+
+     <bpmn:sequenceFlow sourceRef="_Task_ChargeAndNotifyClient" targetRef="_End_AR" id="_Flow_AREndLink">
+      <bpmn:name>Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Registry Lane Flows -->
+     <bpmn:sequenceFlow sourceRef="_Task_SendToRegistry" targetRef="_Gateway_RegTrigger" id="_Flow_RegistryLink"/>
+    
+     <bpmn:sequenceFlow sourceRef="_Gateway_RegTrigger" targetRef="_Task_SelectPaidInvoices" id="_Flow_SelectInvoicesLink">
+      <bpmn:name>Select</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow sourceRef="_Task_SelectPaidInvoices" targetRef="_Task_ArchiveAndTrackPayment" id="_Flow_ArchiveTrackLink"/>
+
+     <bpmn:sequenceFlow sourceRef="_Task_ArchiveAndTrackPayment" targetRef="_End_Registry" id="_Flow_RegistryEndLink">
+      <bpmn:name>Complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

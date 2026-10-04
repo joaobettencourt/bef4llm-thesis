@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OrderToCash_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrderToCash_1">
+    <bpmn:participant id="Participant_OTC_Process" name="Order to Cash Process" processRef="Process_OTC_Main_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OTC_Main_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sales" name="Sales Department">
+        <bpmn:flowNodeRef>StartEvent_CustomerOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessCustomerOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>GW_CheckPartsAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineRequiredParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderMissingParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Production" name="Production">
+        <bpmn:flowNodeRef>GW_MergeAllPartsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StartProduction</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Quality" name="Quality Control">
+        <bpmn:flowNodeRef>GW_InspectionResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PerformQualityCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Logistics" name="Logistics">
+        <bpmn:flowNodeRef>GW_PackagingDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PackageAndLabelProduct</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Sales_Final" name="Sales (Final)">
+        <bpmn:flowNodeRef>EndEvent_ProductSold</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CustomerOrder" name="Customer Order Received">
+      <bpmn:outgoing>SF_ProcessOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Sales Department Task -->
+    <bpmn:task id="Task_ProcessCustomerOrder" name="Process Customer Order">
+      <bpmn:incoming>SF_ProcessOrder</bpmn:incoming>
+      <bpmn:outgoing>SF_SendToWarehouse</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Warehouse Tasks -->
+    <bpmn:exclusiveGateway id="GW_CheckPartsAvailability" name="All Parts Available?">
+      <bpmn:incoming>SF_DetermineRequiredParts</bpmn:incoming>
+      <bpmn:outgoing>SF_ProductionStartPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_OrderMissingPartsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_DetermineRequiredParts" name="Determine Required Parts">
+      <bpmn:incoming>SF_SendToWarehouse</bpmn:incoming>
+      <bpmn:outgoing>SF_DetermineRequiredParts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Order Missing Parts -->
+    <bpmn:exclusiveGateway id="GW_MergeAllPartsAvailable">
+      <bpmn:incoming>SF_ProductionStartPath</bpmn:incoming>
+      <bpmn:incoming>SF_StockUpdatedAfterOrdering</bpmn:incoming>
+      <bpmn:outgoing>SF_StartProductionFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Production Tasks -->
+    <bpmn:task id="Task_OrderMissingParts" name="Order Missing Parts">
+      <bpmn:incoming>SF_OrderMissingPartsPath</bpmn:incoming>
+      <bpmn:outgoing>SF_StockUpdatedAfterOrdering</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Production Start -->
+    <bpmn:startEvent id="StartEvent_ProductionReady" name="(Implicit)">
+      <bpmn:outgoing>SF_StartProductionFlow</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_StartProduction" name="Start Production">
+      <bpmn:incoming>SF_StartProductionFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_QualityCheckTrigger</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Quality Control -->
+    <bpmn:exclusiveGateway id="GW_InspectionResult" name="Quality Check Passed?">
+      <bpmn:incoming>SF_QualityCheckTrigger</bpmn:incoming>
+      <bpmn:outgoing>SF_PackagingPath_Success</bpmn:outgoing>
+      <bpmn:outgoing>SF_ReworkProductionPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Quality Check Task -->
+    <bpmn:task id="Task_PerformQualityCheck" name="Perform Quality Checks">
+      <bpmn:incoming>SF_QualityCheckTrigger</bpmn:incoming>
+      <bpmn:outgoing>SF_InspectionResultFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Packaging Decision -->
+    <bpmn:exclusiveGateway id="GW_PackagingDecision" name="Packaging Required?">
+      <bpmn:incoming>SF_PackagingPath_Success</bpmn:incoming>
+      <bpmn:outgoing>SF_ReturnToWarehouseFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Packaging Task -->
+    <bpmn:task id="Task_PackageAndLabelProduct" name="Package and Label Product">
+      <bpmn:incoming>SF_PackagingPath_Success</bpmn:incoming>
+      <bpmn:outgoing>SF_ReturnToWarehouseFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Return to Warehouse -->
+    <bpmn:endEvent id="EndEvent_ProductSold" name="Product Sold">
+      <bpmn:incoming>SF_SalesInformedFinal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_ProcessOrder" sourceRef="StartEvent_CustomerOrder" targetRef="Task_ProcessCustomerOrder" />
+    <bpmn:sequenceFlow id="SF_SendToWarehouse" name="Send to Warehouse" sourceRef="Task_ProcessCustomerOrder" targetRef="GW_CheckPartsAvailability" />
+    <bpmn:sequenceFlow id="SF_DetermineRequiredParts" sourceRef="GW_CheckPartsAvailability" targetRef="Task_DetermineRequiredParts" />
+
+    <!-- Parts Availability Decision -->
+    <bpmn:sequenceFlow id="SF_ProductionStartPath" name="Yes - All Available" sourceRef="GW_CheckPartsAvailability" targetRef="GW_MergeAllPartsAvailable" />
+    <bpmn:sequenceFlow id="SF_OrderMissingPartsPath" name="No - Order Parts" sourceRef="GW_CheckPartsAvailability" targetRef="Task_OrderMissingParts" />
+
+    <!-- Production Flow -->
+    <bpmn:sequenceFlow id="SF_StartProductionFlow" sourceRef="GW_MergeAllPartsAvailable" targetRef="Task_StartProduction" />
+    <bpmn:sequenceFlow id="SF_QualityCheckTrigger" name="After Production" sourceRef="Task_StartProduction" targetRef="Task_PerformQualityCheck" />
+
+    <!-- Quality Check Flow -->
+    <bpmn:sequenceFlow id="SF_InspectionResultFlow" sourceRef="GW_CheckPartsAvailability" targetRef="GW_InspectionResult" />
+    <bpmn:sequenceFlow id="SF_PackagingPath_Success" name="Passed Inspection" sourceRef="GW_InspectionResult" targetRef="Task_PackageAndLabelProduct" />
+
+    <!-- Rework Flow -->
+    <bpmn:sequenceFlow id="SF_ReworkProductionPath" name="Failed - Rework Required" sourceRef="GW_InspectionResult" targetRef="Task_StartProduction" />
+
+    <!-- Packaging and Return to Warehouse -->
+    <bpmn:sequenceFlow id="SF_ReturnToWarehouseFlow" sourceRef="Task_PackageAndLabelProduct" targetRef="EndEvent_ProductSold" />
+
+  </bpmn:process>
+</bpmn:definitions>

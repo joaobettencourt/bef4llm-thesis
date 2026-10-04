@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Ordering_OnlineShop_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Ordering_Process_v2">
+    <bpmn:participant id="Participant_CustomerService_v2" name="E-Shop System Process" processRef="Process_Ordering_Main_01_v2" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Ordering_Main_01_v2" isExecutable="false">
+    <!-- Lane Set for logical separation of Customer vs System actions -->
+    <bpmn:laneSet id="LaneSet_CustomerSystem_v2">
+      <bpmn:lane id="Lane_CustomerActions_v2" name="Customer Actions">
+        <bpmn:flowNodeRef>Task_LoginAttempt_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LoggedInCheck_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ShoppingStopped_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectProduct_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AllProductsSelected_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SystemTasks_v2" name="System Tasks">
+        <bpmn:flowNodeRef>Task_CheckCredentials_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PaymentAddressSplit_v2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_OrderFinished_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Parallel Branch for Payment -->
+      <bpmn:lane id="Lane_PaymentProcess_v2" name="Payment Process">
+         <bpmn:flowNodeRef>Task_EnterPaymentData_v2</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>Gateway_WaitBankConfirm_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Parallel Branch for Address -->
+      <bpmn:lane id="Lane_AddressProcess_v2" name="Address Process">
+        <bpmn:flowNodeRef>Task_EnterShippingAddress_v2</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>Gateway_BillingCheck_v2</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_EnterBillingData_v2</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_Login_v2" name="Login Attempt">
+       <bpmn:outgoing>SequenceFlow_ToCheckCreds_v2</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Credentials (System) -->
+    <bpmn:task id="Task_CheckCredentials_v2" name="Wait for Login Confirmation">
+       <bpmn:incoming>SequenceFlow_ToCheckCreds_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_GatewayLoginResult_v2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway: Is login successful? -->
+    <bpmn:exclusiveGateway id="Gateway_LoggedInCheck_v2" name="Successful Login?" gatewayDirection="Diverging">
+       <bpmn:incoming>SequenceFlow_GatewayLoginResult_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_LoginSuccess_v2</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_LoginFailed_v2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- End Event: Shopping Experience Stops -->
+    <bpmn:endEvent id="EndEvent_ShoppingStopped_v2" name="Shopping Stopped">
+       <bpmn:incoming>SequenceFlow_LoginFailed_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Select Product (Customer) - Start of Loop -->
+     <bpmn:task id="Task_SelectProduct_v2" name="Select &amp; Add to Cart">
+       <bpmn:incoming>SequenceFlow_LoginSuccess_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_SaveAndCheckProducts_v2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Task: Save Product (System) -->
+      <bpmn:serviceTask id="Task_SystemSaveProduct_v2" name="Save Selected Products">
+       <bpmn:incoming>SequenceFlow_SaveAndCheckProducts_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_CheckAllSelected_v2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Gateway: All products selected? -->
+      <bpmn:exclusiveGateway id="Gateway_AllProductsSelected_v2" name="All Products Selected?" gatewayDirection="Diverging">
+       <bpmn:incoming>SequenceFlow_CheckAllSelected_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ContinueOrdering_v2</bpmn:outgoing> <!-- No, loop back -->
+         <bpmn:outgoing>SequenceFlow_OrderReadyForFinalization_v2</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+     <!-- Loop Back Flow -->
+      <bpmn:sequenceFlow id="SequenceFlow_ContinueOrdering_v2" name="No">
+       <bpmn:sourceRef>Gateway_AllProductsSelected_v2</bpmn:sourceRef>
+        <bpmn:targetRef>Task_SelectProduct_v2</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+     <!-- Order Finalization Trigger -->
+      <bpmn:task id="Task_SystemFinalizeOrder_v2" name="Finish Order">
+       <bpmn:incoming>SequenceFlow_OrderReadyForFinalization_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_PaymentAddressSplit_v2</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Parallel Split for Payment and Address -->
+      <bpmn:parallelGateway id="Gateway_PaymentAddressSplit_v2" name="" gatewayDirection="Diverging">
+       <bpmn:incoming>SequenceFlow_PaymentAddressSplit_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_StartPaymentProcess_v2</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_StartAddressEntry_v2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Payment Path -->
+      <bpmn:task id="Task_EnterPaymentData_v2" name="Enter Payment Data">
+       <bpmn:incoming>SequenceFlow_StartPaymentProcess_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_WaitBankConfirm_v2</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Wait for Bank Confirmation (System) -->
+       <bpmn:serviceTask id="Gateway_WaitBankConfirm_v2" name="Wait for Payment Confirmation">
+        <bpmn:incoming>SequenceFlow_WaitBankConfirm_v2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_PaymentConfirmed_v2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <!-- Address Path -->
+      <bpmn:task id="Task_EnterShippingAddress_v2" name="Enter Shipping Address">
+       <bpmn:incoming>SequenceFlow_StartAddressEntry_v2</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_CheckBillingDiffers_v2</bpmn:outgoing>
+    </bpmn:task>
+
+      <!-- Gateway: Billing != Shipping? -->
+       <bpmn:exclusiveGateway id="Gateway_BillingCheck_v2" name="Different Address?" gatewayDirection="Diverging">
+        <bpmn:incoming>SequenceFlow_CheckBillingDiffers_v2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_EnterIndependentBilling_v2</bpmn:outgoing> <!-- Yes -->
+          <bpmn:outgoing>SequenceFlow_AddressCompleteDirectly_v2</bpmn:outgoing> <!-- No (Same) -->
+    </bpmn:exclusiveGateway>
+
+      <!-- Task: Enter Independent Billing Data -->
+       <bpmn:task id="Task_EnterBillingData_v2" name="Enter Independent Billing Address">
+        <bpmn:incoming>SequenceFlow_EnterIndependentBilling_v2</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_AddressCompleteDirectly_v3</bpmn:outgoing> <!-- To Parallel Join -->
+    </bpmn:task>
+
+     <!-- Address Completion Convergence (Implicit) -->
+       <bpmn:parallelGateway id="ParallelJoin_AddressComplete_v2" gatewayDirection="Converging">
+        <bpmn:incoming>SequenceFlow_AddressCompleteDirectly_v2</bpmn:incoming>
+         <bpmn:incoming>SequenceFlow_AddressCompleteDirectly_v3</bpmn:incoming> <!-- From Billing Task -->
+          <bpmn:outgoing>SequenceFlow_AllAddressesEntered_v2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- Final Convergence of Payment and Address before End Event -->
+      <bpmn:parallelGateway id="ParallelJoin_FinalOrder_v2" gatewayDirection="Converging">
+       <bpmn:incoming>SequenceFlow_PaymentConfirmed_v2</bpmn:incoming>
+        <bpmn:incoming>SequenceFlow_AllAddressesEntered_v2</bpmn:incoming> <!-- From Address Path -->
+         <bpmn:outgoing>SequenceFlow_OrderFinishedEvent_v2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+     <!-- End Event: Order Finished -->
+      <bpmn:endEvent id="EndEvent_OrderFinished_v2" name="Order Finished">
+       <bpmn:incoming>SequenceFlow_OrderFinishedEvent_v2</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

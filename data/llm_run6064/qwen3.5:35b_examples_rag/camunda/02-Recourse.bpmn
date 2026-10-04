@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RecourseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Recourse">
+    <bpmn:participant id="Participant_Clerk" name="Clerk - Recourse Process" processRef="Process_Recourse"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Recourse" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_None_Event_1" name="Case for possible recourse identified">
+      <bpmn:outgoing>SequenceFlow_GetInfo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Get information about subrogation possibility -->
+    <bpmn:userTask id="Task_GetInformation" name="Get information about possible recourse">
+      <bpmn:incoming>SequenceFlow_GetInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPossibility</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if recourse is really possible -->
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_Possibility" name="Recourse possible?">
+      <bpmn:incoming>SequenceFlow_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoPossibility</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesPossibility</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No possibility - close case -->
+    <bpmn:endEvent id="End_CloseCase_NoRecourse" name="Case closed (no recourse)">
+      <bpmn:incoming>SequenceFlow_NoPossibility</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Yes possibility - send payment request and make reminder -->
+    <bpmn:userTask id="Task_SendPaymentRequest" name="Send payment request to insurant">
+      <bpmn:incoming>SequenceFlow_YesPossibility</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MakeReminder</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Make reminder (timer-based) -->
+    <bpmn:intermediateThrowEvent id="Timer_Reminder" name="Set payment deadline">
+      <bpmn:incoming>SequenceFlow_MakeReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResponse</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Wait for response (money received or disagreement) -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Response" name="Wait for insurant">
+      <bpmn:incoming>SequenceFlow_WaitForResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceived</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Money received -->
+    <bpmn:userTask id="Task_ReceiveMoney" name="Receive payment from insurant">
+      <bpmn:incoming>SequenceFlow_MoneyReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Booking</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Booking -->
+    <bpmn:userTask id="Task_Booking" name="Make booking">
+      <bpmn:incoming>SequenceFlow_Booking</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCase_MoneyReceived</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for money received -->
+    <bpmn:endEvent id="End_CloseCase_Paid" name="Case closed (paid)">
+      <bpmn:incoming>SequenceFlow_CloseCase_MoneyReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Disagreement received -->
+    <bpmn:userTask id="Task_Disagreement" name="Receive insurant disagreement">
+      <bpmn:outgoing>SequenceFlow_CheckReasoning</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check reasoning of disagreement -->
+    <bpmn:userTask id="Task_CheckDisagreement" name="Check reasoning for disagreement">
+      <bpmn:incoming>SequenceFlow_CheckReasoning</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReasonRightOrWrong</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Decision on whether reasoning is right or wrong -->
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_Disagreement" name="Disagreement valid?">
+      <bpmn:incoming>SequenceFlow_ReasonRightOrWrong</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Right</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Wrong</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reasoning right - close case -->
+    <bpmn:endEvent id="End_CloseCase_DisagreementRight" name="Case closed (disagreement valid)">
+      <bpmn:incoming>SequenceFlow_Right</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Reasoning wrong - forward to collection agency -->
+    <bpmn:userTask id="Task_CollectionAgency" name="Forward case to collection agency">
+      <bpmn:incoming>SequenceFlow_Wrong</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCase_Agency</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for wrong reasoning -->
+    <bpmn:endEvent id="End_CloseCase_DisagreementWrong" name="Case closed (collection agency)">
+      <bpmn:incoming>SequenceFlow_Wrong</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 3: Deadline reached without payment -->
+    <bpmn:userTask id="Task_CollectionAgencyDeadline" name="Forward case to collection agency (deadline)">
+      <bpmn:outgoing>SequenceFlow_CloseCase_Agency</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for deadline -->
+    <bpmn:endEvent id="End_CloseCase_Deadline" name="Case closed (deadline)">
+      <bpmn:incoming>SequenceFlow_Wrong</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GetInfo" sourceRef="Start_None_Event_1" targetRef="Task_GetInformation"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPossibility" sourceRef="Task_GetInformation" targetRef="Exclusive_Gateway_Possibility"/>
+
+    <!-- No possibility path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoPossibility" name="No - not possible" sourceRef="Exclusive_Gateway_Possibility" targetRef="End_CloseCase_NoRecourse">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[recoursePossible == false]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Yes possibility path -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesPossibility" name="Yes - possible" sourceRef="Exclusive_Gateway_Possibility" targetRef="Task_SendPaymentRequest">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[recoursePossible == true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Make reminder -->
+    <bpmn:sequenceFlow id="SequenceFlow_MakeReminder" sourceRef="Task_SendPaymentRequest" targetRef="Timer_Reminder"/>
+
+    <!-- Wait for response - parallel gateway splits to money or disagreement paths -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Response_Split">
+      <bpmn:incoming>SequenceFlow_WaitForResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceived</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DisagreementPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Money received path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MoneyReceived" sourceRef="Parallel_Gateway_Response_Split" targetRef="Task_ReceiveMoney"/>
+
+    <!-- Disagreement path (timer-based) -->
+    <bpmn:intermediateCatchEvent id="Timer_DisagreementDeadline">
+      <bpmn:incoming>SequenceFlow_WaitForResponse</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckReasoning</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Check reasoning -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisagreementPath" sourceRef="Parallel_Gateway_Response_Split" targetRef="Timer_DisagreementDeadline"/>
+
+    <!-- Decision on disagreement validity -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReasonRightOrWrong" sourceRef="Task_CheckDisagreement" targetRef="Exclusive_Gateway_Disagreement"/>
+
+    <!-- Right reasoning - close case -->
+    <bpmn:sequenceFlow id="SequenceFlow_Right" name="Yes - valid" sourceRef="Exclusive_Gateway_Disagreement" targetRef="End_CloseCase_DisagreementRight">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[disagreementValid == true]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Wrong reasoning - collection agency -->
+    <bpmn:sequenceFlow id="SequenceFlow_Wrong" name="No - invalid" sourceRef="Exclusive_Gateway_Disagreement" targetRef="Task_CollectionAgency">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[disagreementValid == false]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Booking and close -->
+    <bpmn:sequenceFlow id="SequenceFlow_Booking" sourceRef="Task_ReceiveMoney" targetRef="Task_Booking"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCase_MoneyReceived" sourceRef="Task_Booking" targetRef="End_CloseCase_Paid"/>
+
+  </bpmn:process>
+</bpmn:definitions>

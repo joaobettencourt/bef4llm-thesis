@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_BuyHardware">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_InternalProcess" name="Buying of new Hardware" processRef="Proc_HardwarePurchase" />
+    <bpmn:participant id="Pool_Supplier" name="Supplier" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_1_PriceRequest" sourceRef="Task_SendPriceInquiry" targetRef="Pool_Supplier" />
+    <bpmn:messageFlow id="Msg_2_OfferReceived" sourceRef="IntermediateCatch_WaitOffer" targetRef="Pool_InternalProcess" />
+    <bpmn:messageFlow id="Msg_3_OrderSent" sourceRef="Task_SendOrderToSupplier" targetRef="Pool_Supplier" />
+    <bpmn:messageFlow id="Msg_4_AcceptanceReceived" sourceRef="IntermediateCatch_WaitAcceptance" targetRef="Pool_InternalProcess" />
+
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_HardwarePurchase">
+
+    <!-- LaneSet -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ITDept" name="IT Department">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ApproveIT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Denied_IT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EditCompleteRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrow_SendPriceInquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatch_WaitOffer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FillFormSendMgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MgmtDecision_ReworkDeny</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Denied_Mgmt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareOrder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_SupplierAcceptanceMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Finance" name="Finance">
+        <bpmn:flowNodeRef>Gw_MgmtDecision_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FindResources</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Management" name="Management">
+        <bpmn:flowNodeRef>Gw_MgmtDecision_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AnalyzeMgmtRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Receive request for new HW">
+      <bpmn:outgoing>Seq_Start_Analyze</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- IT Analyze Request -->
+    <bpmn:task id="Task_AnalyzeRequest" name="Analyze request">
+      <bpmn:incoming>Seq_Start_Analyze</bpmn:incoming>
+      <bpmn:outgoing>Seq_Analyze_GwIT</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- IT Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gw_ApproveIT" name="Request approved?">
+      <bpmn:incoming>Seq_Analyze_GwIT</bpmn:incoming>
+      <bpmn:outgoing>Seq_IT_Deny</bpmn:outgoing>
+      <bpmn:outgoing>Seq_IT_Approve</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- IT Deny Path -->
+    <bpmn:endEvent id="EndEvent_Denied_IT" name="Inform about denial">
+       <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_IT_Deny</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- IT Edit/Complete Path -->
+    <bpmn:task id="Task_EditCompleteRequest" name="Edit and complete request">
+       <bpmn:incoming>Seq_IT_Approve</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendPriceInquiry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Price Inquiry (Throw) -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrow_SendPriceInquiry" name="Ask supplier about prices">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_SendPriceInquiry</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitOfferStart</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Wait for Offer (Catch) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_WaitOffer" name="Receive offer">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_WaitOfferStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_FillFormMgmt</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Fill Form & Send to Mgmt -->
+    <bpmn:task id="Task_FillFormSendMgmt" name="Fill form and send request">
+      <bpmn:incoming>Seq_FillFormMgmt</bpmn:incoming>
+       <bpmn:outgoing>Seq_Mgmt_AnalyzeReq</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Management Analyze Request -->
+    <bpmn:task id="Task_AnalyzeMgmtRequest" name="Analyze request">
+      <bpmn:incoming>Seq_Mgmt_AnalyzeReq</bpmn:incoming>
+       <bpmn:outgoing>Seq_Gw_MgmtDecision_Approve</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Management Decision Gateway 1 (Approved vs Not) -->
+    <bpmn:exclusiveGateway id="Gw_MgmtDecision_Approve" name="Management approved?">
+      <bpmn:incoming>Seq_Gw_MgmtDecision_Approve</bpmn:incoming>
+       <bpmn:outgoing>Seq_Mgmt_DenyPath1</bpmn:outgoing> <!-- Not Approved -->
+      <bpmn:outgoing>Seq_Mgmt_ApvedToFinanceIT</bpmn:outgoing> <!-- Approved -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Management Decision Gateway 2 (Rework vs Deny) - Only if not approved initially? Text says "In the scenario where management does not approve... it can send back for rework OR deny". This implies a second decision point or parallel logic. Let's model as sequential gateways based on text flow: Not Approved -> Rework/Deny Choice -->
+    <bpmn:exclusiveGateway id="Gw_MgmtDecision_ReworkDeny" name="Rework or Deny?">
+      <bpmn:incoming>Seq_Mgmt_DenyPath1</bpmn:incoming>
+       <bpmn:outgoing>Seq_Mgmt_ReworkToIT</bpmn:outgoing> <!-- Rework -->
+      <bpmn:outgoing>Seq_Mgmt_FinalDeny</bpmn:outgoing> <!-- Deny -->
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Management Final Denial -->
+    <bpmn:endEvent id="EndEvent_Denied_Mgmt" name="Process ended">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_Mgmt_FinalDeny</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Rework Loop -->
+    <bpmn:sequenceFlow id="Seq_Mgmt_ReworkToIT" name="Rework">
+      <bpmn:sourceRef>Gw_MgmtDecision_ReworkDeny</bpmn:sourceRef>
+       <bpmn:targetRef>Task_EditCompleteRequest</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Approved Path Split (Finance & IT) -->
+    <bpmn:parallelGateway id="Gw_FinanceIT_Split" name="Split">
+      <bpmn:incoming>Seq_Mgmt_ApvedToFinanceIT</bpmn:incoming>
+       <bpmn:outgoing>Seq_IT_PrepareOrder</bpmn:outgoing>
+      <bpmn:outgoing>Seq_Finance_FindResources</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- IT Prepare Order -->
+    <bpmn:task id="Task_PrepareOrder" name="Prepare order">
+       <bpmn:incoming>Seq_IT_PrepareOrder</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendOrderToSupplier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Order (Throw) -->
+    <bpmn:intermediateThrowEvent id="Task_SendOrderToSupplier" name="Send order to supplier">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_SendOrderToSupplier</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitAcceptanceStart</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Wait for Acceptance (Catch) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_WaitAcceptance" name="Order accepted">
+      <bpmn:messageEventDefinition />
+       <bpmn:incoming>Seq_WaitAcceptanceStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_Gw_SupplierAcceptanceMerge</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Finance Find Resources -->
+    <bpmn:task id="Task_FindResources" name="Find resources">
+       <bpmn:incoming>Seq_Finance_FindResources</bpmn:incoming>
+      <bpmn:outgoing>Seq_Gw_SupplierAcceptanceMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway (Order Accepted AND Resources Found) -->
+    <bpmn:parallelGateway id="Gw_SupplierAcceptanceMerge" name="Wait for acceptance & resources">
+      <bpmn:incoming>Seq_Gw_SupplierAcceptanceMerge</bpmn:incoming> <!-- From IT Wait Acceptance -->
+       <bpmn:incoming>Seq_Finance_FindResources</bpmn:incoming> <!-- From Finance Task -->
+      <bpmn:outgoing>Seq_ReceiveHW_Invoice</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Receive HW & Invoice Handling (IT) -> Pay Invoice (Finance?) Text says "financial department will take care of the invoice". Let's put it in Finance lane or merge. -->
+    <bpmn:task id="Task_ReceiveHW" name="Receive hardware">
+      <bpmn:incoming>Seq_ReceiveHW_Invoice</bpmn:incoming>
+       <bpmn:outgoing>Seq_PayInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Pay Invoice -->
+    <bpmn:task id="Task_PayInvoice" name="Take care of invoice">
+      <bpmn:incoming>Seq_PayInvoice</bpmn:incoming>
+       <bpmn:outgoing>Seq_End_Success</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Success" name="Process ended">
+      <bpmn:incoming>Seq_End_Success</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definitions (Consolidated for clarity) -->
+    
+    <bpmn:sequenceFlow id="Seq_Start_Analyze" sourceRef="StartEvent_1" targetRef="Task_AnalyzeRequest" />
+    <bpmn:sequenceFlow id="Seq_Analyze_GwIT" name="" sourceRef="Task_AnalyzeRequest" targetRef="Gw_ApproveIT" />
+
+    <!-- IT Decision -->
+    <bpmn:sequenceFlow id="Seq_IT_Deny" name="Deny" sourceRef="Gw_ApproveIT" targetRef="EndEvent_Denied_IT" />
+    <bpmn:sequenceFlow id="Seq_IT_Approve" name="Approve" sourceRef="Gw_ApproveIT" targetRef="Task_EditCompleteRequest" />
+
+    <!-- Price Inquiry Flow -->
+    <bpmn:sequenceFlow id="Seq_SendPriceInquiry" sourceRef="Task_EditCompleteRequest" targetRef="IntermediateThrow_SendPriceInquiry" />
+    <bpmn:sequenceFlow id="Seq_WaitOfferStart" name="" sourceRef="IntermediateThrow_SendPriceInquiry" targetRef="IntermediateCatch_WaitOffer" />
+
+    <!-- Mgmt Flow -->
+    <bpmn:sequenceFlow id="Seq_FillFormMgmt" sourceRef="IntermediateCatch_WaitOffer" targetRef="Task_FillFormSendMgmt" />
+    <bpmn:sequenceFlow id="Seq_Mgmt_AnalyzeReq" name="" sourceRef="Task_FillFormSendMgmt" targetRef="Task_AnalyzeMgmtRequest" />
+
+    <!-- Mgmt Decision Flow -->
+    <bpmn:sequenceFlow id="Seq_Gw_MgmtDecision_Approve" name="" sourceRef="Task_AnalyzeMgmtRequest" targetRef="Gw_MgmtDecision_Approve" />
+
+    <!-- Not Approved Path (Rework/Deny) -->
+    <bpmn:sequenceFlow id="Seq_Mgmt_DenyPath1" name="Not approved" sourceRef="Gw_MgmtDecision_Approve" targetRef="Gw_MgmtDecision_ReworkDeny" />
+
+    <!-- Rework vs Deny Path -->
+    <bpmn:sequenceFlow id="Seq_Mgmt_FinalDeny" name="Deny" sourceRef="Gw_MgmtDecision_ReworkDeny" targetRef="EndEvent_Denied_Mgmt" />
+
+    <!-- Approved to Parallel Split -->
+    <bpmn:sequenceFlow id="Seq_Mgmt_ApvedToFinanceIT" name="Approved" sourceRef="Gw_MgmtDecision_Approve" targetRef="Gw_FinanceIT_Split" />
+
+    <!-- Parallel Tasks (Split) -->
+    <bpmn:sequenceFlow id="Seq_IT_PrepareOrder" sourceRef="Gw_FinanceIT_Split" targetRef="Task_PrepareOrder" />
+    <bpmn:sequenceFlow id="Seq_Finance_FindResources" name="" sourceRef="Gw_FinanceIT_Split" targetRef="Task_FindResources" />
+
+    <!-- Order Sending Flow -->
+    <bpmn:sequenceFlow id="Seq_SendOrderToSupplier" sourceRef="Task_PrepareOrder" targetRef="IntermediateThrow_SendOrderToSupplier" />
+
+    <!-- Wait Acceptance Flow -->
+    <bpmn:sequenceFlow id="Seq_WaitAcceptanceStart" name="" sourceRef="IntermediateThrow_SendOrderToSupplier" targetRef="IntermediateCatch_WaitAcceptance" />
+
+    <!-- Merge & End Flow -->
+    <bpmn:sequenceFlow id="Seq_Gw_SupplierAcceptanceMerge" sourceRef="Task_FindResources" targetRef="Gw_SupplierAcceptanceMerge" /> 
+
+    <bpmn:sequenceFlow id="Seq_ReceiveHW_Invoice" sourceRef="IntermediateCatch_WaitAcceptance" targetRef="Gw_SupplierAcceptanceMerge" />
+
+    <bpmn:sequenceFlow id="Seq_PayInvoice" name="" sourceRef="Task_ReceiveHW" targetRef="Task_PayInvoice" />
+    <bpmn:sequenceFlow id="Seq_End_Success" sourceRef="Task_PayInvoice" targetRef="EndEvent_Success" />
+
+  </bpmn:process>
+</bpmn:definitions>

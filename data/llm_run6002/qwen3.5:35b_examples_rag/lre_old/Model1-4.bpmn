@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_IPOProcess" targetNamespace="http://example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_IPOApproval">
+    <bpmn:participant id="Participant_IPOInitiation" name="IPO Process" processRef="Process_IPOFlow"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_IPOFlow" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Company" name="Company">
+        <bpmn:flowNodeRef>StartEvent_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectUnderwriters</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Underwriter" name="Underwriter">
+        <bpmn:flowNodeRef>ExclusiveGateway_FactsCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProvideAdvice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitWaitRoadshow</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_SECApproval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RoadShowPricing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_JoinBeforePriceFix</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FixFinalPriceCommitment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PublicOffered</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Decision" name="Decision to go public">
+      <bpmn:outgoing>SequenceFlow_SelectUnderwriters</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Underwriters -->
+    <bpmn:task id="Task_SelectUnderwriters" name="Select underwriters">
+      <bpmn:incoming>SequenceFlow_SelectUnderwriters</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProvideAdvice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Provide Advice & Check Facts -->
+    <bpmn:task id="Task_ProvideAdvice" name="Provide advice and check facts">
+      <bpmn:incoming>SequenceFlow_ProvideAdvice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FactsCheckGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Facts Fair? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_FactsCheck" name="Facts fair and reputation OK?">
+      <bpmn:incoming>SequenceFlow_FactsCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProceedRegPrep</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Rejection (No path) -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Underwriter Declined">
+      <bpmn:incoming>SequenceFlow_Denied</bpmn:incoming> 
+    </bpmn:endEvent>
+
+    <!-- Task: Prepare Registration Statement -->
+    <bpmn:task id="Task_PrepareRegistrationStatement" name="Prepare registration statement (SEC & Blue-sky laws)">
+      <bpmn:incoming>SequenceFlow_ProceedRegPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitWaitRoadshow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitWaitRoadshow">
+      <bpmn:incoming>SequenceFlow_SplitWaitRoadshow</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitSECApproval</bpmn:outgoing> <!-- Wait for SEC -->
+      <bpmn:outgoing>SequenceFlow_RoadShowTask</bpmn:outgoing>   <!-- Road Show Task -->
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Catch Event: SEC Clearance -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_SECApproval" name="Receive SEC clearance">
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinBeforePriceFix</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Road Show -->
+    <bpmn:task id="Task_RoadShowPricing" name="Road show and firm up issue price">
+      <bpmn:incoming>SequenceFlow_RoadShowTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_JoinBeforePriceFix</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Join -->
+    <bpmn:parallelGateway id="ParallelGateway_JoinBeforePriceFix">
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_FixFinalPriceCommitment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_FixFinalPriceCommitment" name="Fix issue price and enter firm commitment">
+      <bpmn:incoming>SequenceFlow_FixFinalPriceCommitment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PublicOffered</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_PublicOffered" name="Stock offered to public">
+      <bpmn:incoming>SequenceFlow_PublicOffered</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectUnderwriters" sourceRef="StartEvent_Decision" targetRef="Task_SelectUnderwriters"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ProvideAdvice" sourceRef="Task_SelectUnderwriters" targetRef="Task_ProvideAdvice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FactsCheckGateway" sourceRef="Task_ProvideAdvice" targetRef="ExclusiveGateway_FactsCheck"/>
+    
+    <!-- Gateway Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_Denied" name="No - Facts not fair" sourceRef="ExclusiveGateway_FactsCheck" targetRef="EndEvent_Rejected">
+      <bpmn:description>Underwriter declines if facts are not presented fairly</bpmn:description>
+    </bpmn:sequenceFlow>
+    
+    <!-- Gateway Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedRegPrep" name="Yes - Proceed with registration" sourceRef="ExclusiveGateway_FactsCheck" targetRef="Task_PrepareRegistrationStatement"/>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitSECApproval" sourceRef="ParallelGateway_SplitWaitRoadshow" targetRef="IntermediateCatchEvent_SECApproval"/>
+    <bpmn:sequenceFlow id="SequenceFlow_RoadShowTask" sourceRef="ParallelGateway_SplitWaitRoadshow" targetRef="Task_RoadShowPricing"/>
+
+    <!-- Join Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_JoinBeforePriceFix" name="Join after SEC approval and Road show" sourceRef="IntermediateCatchEvent_SECApproval" targetRef="ParallelGateway_JoinBeforePriceFix">
+      <bpmn:description>Wait for clearance</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_FixFinalPriceCommitment" sourceRef="ParallelGateway_JoinBeforePriceFix" targetRef="Task_FixFinalPriceCommitment"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PublicOffered" sourceRef="Task_FixFinalPriceCommitment" targetRef="EndEvent_PublicOffered"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,1847 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OfficeSupply_Req">
+  <bpmn:collaboration id="Collab_OfficeSupply">
+    <bpmn:participant id="Participant_System" name="Office Supply Request System"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OfficeRequest" isExecutable="true">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:name>Employee</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_SubmitRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterRequirement</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:name>Immediate Supervisor</bpmn:name>
+        <bpmn:flowNodeRef>Gateway_DecisionPoint</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyReject</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Purchase" name="Purchase Department">
+        <bpmn:name>Purchase Dept.</bpmn:name>
+        <bpmn:flowNodeRef>SubProcess_VendorSelection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ValidVendor</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubmitRequest" name="Submit Office Supply Request">
+      <bpmn:outgoing>SequenceFlow_RegisterReq</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Register Requirement -->
+    <bpmn:task id="Task_RegisterRequirement" name="Register Requirement &amp; Notify Supervisor">
+      <bpmn:incoming>SequenceFlow_RegisterReq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Supervisor Decision -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionPoint" name="Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_SupervisorDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Reject -->
+    <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Change Required -->
+    <bpmn:exclusiveGateway id="Gateway_ChangeLoop" name="Review Comments">
+        <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ResubmitReq</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 3: Approved -->
+    <bpmn:subProcess id="Subprocess_Purchase" name="Purchase Process">
+      <bpmn:startEvent id="Start_SubProc" />
+      <bpmn:endEvent id="End_SubProc" />
+      
+      <!-- Internal Flow for Subprocess (Simplified) -->
+      <bpmn:task id="Task_RequestQuotations" name="Request Quotations &amp; Select Vendor">
+        <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_CheckVendorValid</bpmn:outgoing>
+      </bpmn:task>
+
+      <bpmn:exclusiveGateway id="Gateway_ValidVendor" name="Is Vendor Valid?">
+         <bpmn:incoming>SequenceFlow_CheckVendorValid</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_SelectDifferent</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_ConfirmVendor</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+       <!-- Loop for Invalid Vendor -->
+        <bpmn:task id="Task_ChangeVendor" name="Select Different Vendor">
+            <bpmn:incoming>SequenceFlow_SelectDifferent</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_CheckVendorValidLoop</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Valid Path -->
+       <bpmn:task id="Task_SendPO" name="Generate &amp; Send PO / Wait Delivery">
+         <bpmn:incoming>SequenceFlow_ConfirmVendor</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- End of Subprocess -->
+        <bpmn:endEvent id="End_SubProc" name="Fulfillment Complete">
+            <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <!-- Sequence Flows -->
+    
+    1. Start -> Register Req
+      <bpmn:sequenceFlow id="SequenceFlow_RegisterReq" sourceRef="StartEvent_SubmitRequest" targetRef="Task_RegisterRequirement">
+        <bpmn:description>Create and register the office supply request.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    2. Register Req -> Supervisor Decision Gateway
+       <bpmn:sequenceFlow id="SequenceFlow_SupervisorDecision" sourceRef="Task_RegisterRequirement" targetRef="Gateway_DecisionPoint">
+         <bpmn:description>Request received by supervisor.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    3. Decision -> Approve Path (Purchase Dept)
+       <bpmn:sequenceFlow id="SequenceFlow_ApprovePath" name="Approved" sourceRef="Gateway_DecisionPoint" targetRef="Subprocess_Purchase">
+         <bpmn:description>Request approved, proceed to purchase.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    4. Decision -> Reject Path (End)
+       <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Rejected" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyReject">
+         <bpmn:description>Request rejected by supervisor.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    5. Decision -> Change Path (Loop)
+       <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    6. Change Loop -> Resubmit (Back to Register Req)
+       <bpmn:sequenceFlow id="SequenceFlow_ResubmitReq" name="Review &amp; Update Request" sourceRef="Gateway_ChangeLoop" targetRef="Task_RegisterRequirement">
+         <bpmn:description>Employee reviews comments and updates request.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    7. Reject -> End Event (Rejected)
+       <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+          <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+        </bpmn:endEvent>
+        
+      <!-- Notification Task for Change Path -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Correcting Flow for Change Path to include Notification Task -->
+       <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Notification Task for Reject Path -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      8. Subprocess Internal Flows (Simplified for XML validity)
+        <!-- Start -> Task Request Quotations -->
+       <bpmn:sequenceFlow id="SubProc_Start_Flow" sourceRef="Start_SubProc" targetRef="Task_RequestQuotations">
+         <bpmn:description>Initiate purchase process.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+        <!-- Task -> Gateway Valid Vendor -->
+       <bpmn:sequenceFlow id="SequenceFlow_CheckVendorValid" sourceRef="Task_RequestQuotations" targetRef="Gateway_ValidVendor">
+         <bpmn:description>Select vendor.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+        <!-- Gateway -> Select Different (Invalid) -->
+       <bpmn:sequenceFlow id="SequenceFlow_SelectDifferent" name="Not Valid" sourceRef="Gateway_ValidVendor" targetRef="Task_ChangeVendor">
+         <bpmn:description>Vendor not in system.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+        <!-- Task -> Gateway (Loop) -->
+       <bpmn:sequenceFlow id="SequenceFlow_CheckVendorValidLoop" sourceRef="Task_ChangeVendor" targetRef="Gateway_ValidVendor">
+         <bpmn:description>Select different vendor.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+        <!-- Gateway -> Confirm Vendor (Valid) -->
+       <bpmn:sequenceFlow id="SequenceFlow_ConfirmVendor" name="Is Valid" sourceRef="Gateway_ValidVendor" targetRef="Task_SendPO">
+         <bpmn:description>Vendor confirmed.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+        <!-- Task -> End Subprocess -->
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="End_SubProc">
+         <bpmn:description>Wait for delivery &amp; invoice.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef="Task_NotifyChangeReq" targetRef="Gateway_ChangeLoop">
+         <bpmn:description>User reviews comments.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Reject Path Notification -->
+        <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+            <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+         </bpmn:endEvent>
+        
+      9. Finalize Order Flow (Corrected)
+       <bpmn:sequenceFlow id="SequenceFlow_FinalizeOrder" sourceRef="Task_SendPO" targetRef="EndEvent_Completed">
+          <bpmn:description>Fulfillment complete.</bpmn:description>
+        </bpmn:sequenceFlow>
+
+    <!-- End Event 1 -->
+     <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+        <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+      </bpmn:endEvent>
+      
+       <!-- Notification Task for Reject Path (Corrected) -->
+         <bpmn:task id="Task_NotifyReject" name="Send Notification (Rejected)">
+            <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- End Event 2 -->
+      <bpmn:endEvent id="EndEvent_Completed" name="Order Processed">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+      </bpmn:endEvent>
+
+    <!-- Notification Task for Change Path (Corrected) -->
+         <bpmn:task id="Task_NotifyChangeReq" name="Send Notification (Changes Required)">
+            <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+             <bpmn:outgoing>SequenceFlow_GoToReviewLoop</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Sequence Flow for Change Path Notification -->
+      <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required" sourceRef="Gateway_DecisionPoint" targetRef="Task_NotifyChangeReq">
+         <bpmn:description>Request requires changes.</bpmn:description>
+      </bpmn:sequenceFlow>
+
+       <!-- Sequence Flow for Change Loop -->
+        <bpmn:sequenceFlow id="SequenceFlow_GoToReviewLoop" sourceRef

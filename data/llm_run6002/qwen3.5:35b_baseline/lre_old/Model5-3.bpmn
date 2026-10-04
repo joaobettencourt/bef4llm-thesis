@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OfficeSupply_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OfficeSupplyProcess">
+    <bpmn:participant id="Participant_BusinessUnit" name="Office Supply Request Process" processRef="Proc_OfficeSupply_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OfficeSupply_01" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Employee" name="Employee (Requester)">
+        <bpmn:flowNodeRef>StartEvent_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewChanges</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manager" name="Supervisor">
+        <bpmn:flowNodeRef>InclusiveGateway_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Purchase" name="Purchase Department">
+        <bpmn:flowNodeRef>SubProcess_PurchaseLogic</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Request" name="Submit Office Supply Request">
+      <bpmn:outgoing>SequenceFlow_InitRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Register Requirement / Receive by Supervisor -->
+    <bpmn:task id="Task_ReceiveRequest" name="Register &amp; Review Request">
+      <bpmn:incoming>SequenceFlow_InitRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_Decision" name="Supervisor Approval">
+       <bpmn:incoming>SequenceFlow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Reject -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+       <bpmn:incoming>SequenceFlow_NotifyReject</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:task id="Task_SendNotifyReject" name="Send Notification (Rejection)">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_NotifyReject</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Change Required -->
+     <bpmn:endEvent id="EndEvent_Change" name="Revision Pending">
+      <bpmn:incoming>SequenceFlow_ReviewLoopBack</bpmn:incoming> 
+    </bpmn:endEvent>
+
+     <bpmn:task id="Task_SendNotifyChange" name="Send Notification (Changes Required)">
+      <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ToEmployeeReview</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Employee Review Task -->
+    <bpmn:task id="Task_ReviewChanges" name="Review Comments &amp; Revise">
+      <bpmn:incoming>SequenceFlow_ToEmployeeReview</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ReturnToSupervisor</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Path 3: Approve -->
+    <bpmn:subProcess id="SubProcess_PurchaseLogic" name="Purchase Department Logic">
+      <bpmn:startEvent id="StartProc_Subprocess">
+        <bpmn:outgoing>SequenceFlow_StartPurchasing</bpmn:outgoing>
+      </bpmn:startEvent>
+
+       <!-- Purchase Tasks -->
+      <bpmn:task id="Task_GenerateQuotes" name="Generate Quotations &amp; Select Vendor">
+        <bpmn:incoming>SequenceFlow_StartPurchasing</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_CheckVendorValidity</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Gateway for Validity -->
+      <bpmn:exclusiveGateway id="InclusiveGateway_VendorCheck" name="Is Vendor Valid?">
+        <bpmn:incoming>SequenceFlow_CheckVendorValidity</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_ValidPath</bpmn:outgoing>
+         <bpmn:outgoing>SequenceFlow_InvalidPath</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+       <!-- Invalid Path Loop -->
+        <bpmn:endEvent id="EndProc_VendorRetry" name="Vendor Retry">
+           <bpmn:incoming>SequenceFlow_NotifyVendorIssue</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:task id="Task_SendNotifyVendorIssue" name="Send Notification (Invalid Vendor)">
+          <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>
+           <bpmn:outgoing>SequenceFlow_ChangeDifferentVendor</bpmn:outgoing>
+        </bpmn:task>
+
+         <!-- Valid Path -->
+      <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+          <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+       </bpmn:endEvent>
+
+        <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+            <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Sequence Flows -->
+       <bpmn:sequenceFlow id="SequenceFlow_StartPurchasing" sourceRef="StartProc_Subprocess" targetRef="Task_GenerateQuotes" />
+       
+      <bpmn:exclusiveGateway id="InclusiveGateway_VendorCheck">
+         <bpmn:incoming>SequenceFlow_CheckVendorValidity</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_ValidPath</bpmn:outgoing>
+           <bpmn:outgoing>SequenceFlow_InvalidPath</bpmn:outgoing>
+       </bpmn:exclusiveGateway>
+
+      <bpmn:sequenceFlow id="SequenceFlow_CheckVendorValidity" sourceRef="Task_GenerateQuotes" targetRef="InclusiveGateway_VendorCheck" />
+
+        <!-- Invalid Loop -->
+         <bpmn:endEvent id="EndProc_Success">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Task -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send PO / Wait Delivery">
+         <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Flow -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:sequenceFlow id="SequenceFlow_ValidPath" sourceRef="InclusiveGateway_VendorCheck" targetRef="Task_GeneratePO">
+          <bpmn:name>Yes</bpmn:name>
+       </bpmn:sequenceFlow>
+
+        <!-- Invalid Path -->
+      <bpmn:endEvent id="EndProc_VendorRetry" name="Vendor Retry">
+           <bpmn:incoming>SequenceFlow_NotifyVendorIssue</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:task id="Task_SendNotifyVendorIssue" name="Send Notification (Invalid Vendor)">
+          <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>
+           <bpmn:outgoing>SequenceFlow_ChangeDifferentVendor</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Sequence Flows -->
+       <bpmn:sequenceFlow id="SequenceLoop_BackToQuotes" sourceRef="Task_ChangeDifferentVendor" targetRef="Task_GenerateQuotes">
+           <bpmn:name>No</bpmn:name>
+        </bpmn:sequenceFlow>
+
+      <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Task -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send PO / Wait Delivery">
+         <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Flow -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:sequenceFlow id="SequenceFlow_ValidPath" sourceRef="InclusiveGateway_VendorCheck" targetRef="Task_GeneratePO">
+          <bpmn:name>Yes</bpmn:name>
+       </bpmn:sequenceFlow>
+
+        <!-- Invalid Path -->
+      <bpmn:endEvent id="EndProc_VendorRetry" name="Vendor Retry">
+           <bpmn:incoming>SequenceFlow_NotifyVendorIssue</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:task id="Task_SendNotifyVendorIssue" name="Send Notification (Invalid Vendor)">
+          <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>
+           <bpmn:outgoing>SequenceFlow_ChangeDifferentVendor</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Sequence Flows -->
+       <bpmn:sequenceFlow id="SequenceLoop_BackToQuotes" sourceRef="Task_ChangeDifferentVendor" targetRef="Task_GenerateQuotes">
+           <bpmn:name>No</bpmn:name>
+        </bpmn:sequenceFlow>
+
+      <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+       </bpmn:endEvent>
+
+      <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Task -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send PO / Wait Delivery">
+         <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Flow -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:sequenceFlow id="SequenceFlow_ValidPath" sourceRef="InclusiveGateway_VendorCheck" targetRef="Task_GeneratePO">
+          <bpmn:name>Yes</bpmn:name>
+       </bpmn:sequenceFlow>
+
+        <!-- Invalid Path -->
+      <bpmn:endEvent id="EndProc_VendorRetry" name="Vendor Retry">
+           <bpmn:incoming>SequenceFlow_NotifyVendorIssue</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:task id="Task_SendNotifyVendorIssue" name="Send Notification (Invalid Vendor)">
+          <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>
+           <bpmn:outgoing>SequenceFlow_ChangeDifferentVendor</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Sequence Flows -->
+       <bpmn:sequenceFlow id="SequenceLoop_BackToQuotes" sourceRef="Task_ChangeDifferentVendor" targetRef="Task_GenerateQuotes">
+           <bpmn:name>No</bpmn:name>
+        </bpmn:sequenceFlow>
+
+      <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+       </bpmn:endEvent>
+
+      <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Task -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send PO / Wait Delivery">
+         <bpmn:incoming>SequenceFlow_ValidPath</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_FinalizeOrder</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Final Flow -->
+        <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+           <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+        </bpmn:endEvent>
+
+      <bpmn:sequenceFlow id="SequenceFlow_ValidPath" sourceRef="InclusiveGateway_VendorCheck" targetRef="Task_GeneratePO">
+          <bpmn:name>Yes</bpmn:name>
+       </bpmn:sequenceFlow>
+
+        <!-- Invalid Path -->
+      <bpmn:endEvent id="EndProc_VendorRetry" name="Vendor Retry">
+           <bpmn:incoming>SequenceFlow_NotifyVendorIssue</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:task id="Task_SendNotifyVendorIssue" name="Send Notification (Invalid Vendor)">
+          <bpmn:incoming>SequenceFlow_InvalidPath</bpmn:incoming>
+           <bpmn:outgoing>SequenceFlow_ChangeDifferentVendor</bpmn:outgoing>
+        </bpmn:task>
+
+      <!-- Sequence Flows -->
+       <bpmn:sequenceFlow id="SequenceLoop_BackToQuotes" sourceRef="Task_ChangeDifferentVendor" targetRef="Task_GenerateQuotes">
+           <bpmn:name>No</bpmn:name>
+        </bpmn:sequenceFlow>
+
+      <bpmn:endEvent id="EndProc_Success" name="Purchase Complete">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+       </bpmn:endEvent>
+
+      <bpmn:task id="Task_SendNotifySuccess" name="Send Notification (PO Sent)">
+         <bpmn:incoming>SequenceFlow_FinalizeOrder</bpmn:incoming>
+          <bpmn:outgoing>SequenceFlow_EndProc</bpmn:outgoing>
+      </bpmn

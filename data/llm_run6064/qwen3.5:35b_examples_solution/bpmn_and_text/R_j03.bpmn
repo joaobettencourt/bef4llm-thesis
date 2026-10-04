@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FridgeService_002" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_FridgeRepair_Service_v2" isExecutable="false">
+
+    <!-- Data Objects -->
+    <bpmn:dataObjectReference id="Data_Symptoms" name="Symptoms"/>
+    <bpmn:dataObjectReference id="Data_FridgeType" name="Fridge Type"/>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_NoiseDetected" name="Strange noises detected">
+      <bpmn:outgoing>Flow_ParallelSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for initial data collection -->
+    <bpmn:parallelGateway id="Parallel_DataCollection">
+      <bpmn:incoming>Flow_ParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_SymptomsTask</bpmn:outgoing>
+      <bpmn:outgoing>Flow_FridgeTypeTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Tasks for initial data collection -->
+    <bpmn:userTask id="User_DescribeSymptoms" name="Describe symptoms">
+      <bpmn:incoming>Flow_SymptomsTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_ParallelConverge1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="User_CollectFridgeType" name="Collect fridge type data">
+      <bpmn:incoming>Flow_FridgeTypeTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_ParallelConverge1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway to converge data collection -->
+    <bpmn:parallelGateway id="Parallel_DataCollectionComplete">
+      <bpmn:incoming>Flow_ParallelConverge1</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendReport</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Send report to service center -->
+    <bpmn:userTask id="User_SendReport" name="Send symptoms and fridge type">
+      <bpmn:incoming>Flow_SendReport</bpmn:incoming>
+      <bpmn:outgoing>Flow_SelectFacility</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Central service selects facility -->
+    <bpmn:serviceTask id="Service_SelectFacility" name="Select local service facility">
+      <bpmn:incoming>Flow_SelectFacility</bpmn:incoming>
+      <bpmn:outgoing>Flow_ScheduleAppointment</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Schedule appointment -->
+    <bpmn:serviceTask id="Service_ScheduleAppointment" name="Schedule repair appointment">
+      <bpmn:incoming>Flow_ScheduleAppointment</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitArrival</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for service facility arrival -->
+    <bpmn:intermediateCatchEvent id="Intermediate_WaitArrival" name="Wait until service arrives">
+      <bpmn:incoming>Flow_WaitArrival</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepairTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Repair the fridge -->
+    <bpmn:userTask id="User_RepairFridge" name="Repair the fridge">
+      <bpmn:incoming>Flow_RepairTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_PartsCheckGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if additional parts needed -->
+    <bpmn:exclusiveGateway id="Exclusive_AdditionalPartsNeeded">
+      <bpmn:incoming>Flow_PartsCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepairConfirmed</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CheckStock</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- If parts needed, check stock -->
+    <bpmn:exclusiveGateway id="Exclusive_PartsInStock">
+      <bpmn:incoming>Flow_CheckStock</bpmn:incoming>
+      <bpmn:outgoing>Flow_CollectParts</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OrderAdditionalParts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Collect parts from warehouse -->
+    <bpmn:userTask id="User_CollectParts" name="Collect additional parts">
+      <bpmn:incoming>Flow_CollectParts</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConvergeRepairLoop1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Order additional parts -->
+    <bpmn:serviceTask id="Service_OrderAdditionalParts" name="Order additional parts">
+      <bpmn:incoming>Flow_OrderAdditionalParts</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitForPartsArrival</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for parts to arrive -->
+    <bpmn:intermediateCatchEvent id="Intermediate_PartsArrived" name="Additional parts arrived">
+      <bpmn:incoming>Flow_WaitForPartsArrival</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConvergeRepairLoop2</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Converge after parts collection or waiting -->
+    <bpmn:parallelGateway id="Parallel_RepairConvergence">
+      <bpmn:incoming>Flow_ConvergeRepairLoop1</bpmn:incoming>
+      <bpmn:incoming>Flow_ConvergeRepairLoop2</bpmn:incoming>
+      <bpmn:outgoing>Flow_PartsCheckGatewayRetry</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Back to parts check -->
+    <bpmn:sequenceFlow id="Flow_PartsCheckGatewayRetry" sourceRef="Parallel_RepairConvergence" targetRef="Exclusive_AdditionalPartsNeeded"/>
+
+    <!-- Repair confirmed - proceed to confirmation -->
+    <bpmn:userTask id="User_ConfirmRepairOK" name="Confirm fridge is OK">
+      <bpmn:incoming>Flow_PartsCheckGatewayRetry</bpmn:incoming>
+      <bpmn:outgoing>Flow_RatingDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Decision to rate -->
+    <bpmn:exclusiveGateway id="Exclusive_SubmitRating">
+      <bpmn:incoming>Flow_RatingDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_NoRatingEnd1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ProceedToRate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Rate service facility -->
+    <bpmn:userTask id="User_RateService" name="Rate service facility">
+      <bpmn:incoming>Flow_ProceedToRate</bpmn:incoming>
+      <bpmn:outgoing>Flow_EvaluateRating</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Evaluate rating -->
+    <bpmn:serviceTask id="Service_EvaluateRating" name="Evaluate Rating">
+      <bpmn:incoming>Flow_EvaluateRating</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndProcess1</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End events -->
+    <bpmn:endEvent id="End_NoRating" name="Repair process over">
+      <bpmn:incoming>Flow_NoRatingEnd1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_RatingComplete" name="Process complete">
+      <bpmn:incoming>Flow_EndProcess1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ParallelSplit" sourceRef="Start_NoiseDetected" targetRef="Parallel_DataCollection"/>
+    <bpmn:sequenceFlow id="Flow_SymptomsTask" sourceRef="Parallel_DataCollection" targetRef="User_DescribeSymptoms"/>
+    <bpmn:sequenceFlow id="Flow_FridgeTypeTask" sourceRef="Parallel_DataCollection" targetRef="User_CollectFridgeType"/>
+    <bpmn:sequenceFlow id="Flow_ParallelConverge1" sourceRef="User_DescribeSymptoms" targetRef="Parallel_DataCollectionComplete"/>
+    <bpmn:sequenceFlow id="Flow_SendReport" sourceRef="Parallel_DataCollectionComplete" targetRef="User_SendReport"/>
+    <bpmn:sequenceFlow id="Flow_SelectFacility" sourceRef="User_SendReport" targetRef="Service_SelectFacility"/>
+    <bpmn:sequenceFlow id="Flow_ScheduleAppointment" sourceRef="Service_SelectFacility" targetRef="Service_ScheduleAppointment"/>
+    <bpmn:sequenceFlow id="Flow_WaitArrival" sourceRef="Service_ScheduleAppointment" targetRef="Intermediate_WaitArrival"/>
+    <bpmn:sequenceFlow id="Flow_RepairTask" sourceRef="Intermediate_WaitArrival" targetRef="User_RepairFridge"/>
+    <bpmn:sequenceFlow id="Flow_PartsCheckGateway" sourceRef="User_RepairFridge" targetRef="Exclusive_AdditionalPartsNeeded"/>
+
+    <!-- Parts needed branch -->
+    <bpmn:sequenceFlow id="Flow_CheckStock" name="Yes, parts needed" sourceRef="Exclusive_AdditionalPartsNeeded" targetRef="Exclusive_PartsInStock"/>
+    
+    <!-- No additional parts - repair confirmed -->
+    <bpmn:sequenceFlow id="Flow_RepairConfirmed" name="No more repairs needed" sourceRef="Exclusive_AdditionalPartsNeeded" targetRef="User_ConfirmRepairOK"/>
+
+    <!-- Parts in stock decision -->
+    <bpmn:sequenceFlow id="Flow_CollectParts" name="Yes, parts available" sourceRef="Exclusive_PartsInStock" targetRef="User_CollectParts"/>
+    
+    <!-- Order additional parts -->
+    <bpmn:sequenceFlow id="Flow_OrderAdditionalParts" name="No, order needed" sourceRef="Exclusive_PartsInStock" targetRef="Service_OrderAdditionalParts"/>
+
+    <!-- Wait for parts arrival -->
+    <bpmn:sequenceFlow id="Flow_WaitForPartsArrival" sourceRef="Service_OrderAdditionalParts" targetRef="Intermediate_PartsArrived"/>
+
+    <!-- Converge after repair loop completion -->
+    <bpmn:sequenceFlow id="Flow_ConvergeRepairLoop1" name="" sourceRef="User_CollectParts" targetRef="Parallel_RepairConvergence"/>
+    
+    <!-- Parts arrived convergence -->
+    <bpmn:sequenceFlow id="Flow_ConvergeRepairLoop2" name="" sourceRef="Intermediate_PartsArrived" targetRef="Parallel_RepairConvergence"/>
+
+    <!-- Retry parts check after loop completion (Already defined as Flow_PartsCheckGatewayRetry above) -->
+
+    <!-- Rating decision flow -->
+    <bpmn:sequenceFlow id="Flow_RatingDecision" name="" sourceRef="User_ConfirmRepairOK" targetRef="Exclusive_SubmitRating"/>
+
+    <!-- No rating path to end -->
+    <bpmn:sequenceFlow id="Flow_NoRatingEnd1" name="Do not submit a rating" sourceRef="Exclusive_SubmitRating" targetRef="End_NoRating"/>
+
+    <!-- Rating submission flow -->
+    <bpmn:sequenceFlow id="Flow_ProceedToRate" name="Submit a rating" sourceRef="Exclusive_SubmitRating" targetRef="User_RateService"/>
+
+    <!-- Evaluate and end -->
+    <bpmn:sequenceFlow id="Flow_EvaluateRating" name="" sourceRef="User_RateService" targetRef="Service_EvaluateRating"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

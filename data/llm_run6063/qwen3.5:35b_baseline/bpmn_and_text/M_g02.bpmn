@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LegoMachine_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant name="Custom Lego Machine Process" processRef="Process_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_OrderFulfillment">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Design &amp; Procurement Team">
+        <bpmn:flowNodeRef>StartEvent_Build</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DevelopDesign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderSets</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Sorting Team (Children)">
+        <bpmn:flowNodeRef>Task_SortParts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane name="Engineering &amp; Assembly">
+        <bpmn:flowNodeRef>Gateway_CheckMoreSubcomponents</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BuildSubcomponent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrderIndividualParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TestResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RedesignRebuild</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssembleMachine</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Build" name="Build Custom Machine">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Design Phase -->
+    <bpmn:task id="Task_DevelopDesign" name="Develop Basic Design">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Procurement Phase -->
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_DevelopDesign" targetRef="Task_OrderSets"/>
+    
+    <bpmn:task id="Task_OrderSets" name="Order Lego Brick Sets">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sorting Phase -->
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="Task_OrderSets" targetRef="Task_SortParts"/>
+    
+    <bpmn:task id="Task_SortParts" name="Sort Parts into Containers">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckMoreSubcomponents</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Subcomponent Loop Start -->
+    <bpmn:exclusiveGateway name="More Subcomponents?" id="Gateway_CheckMoreSubcomponents">
+      <bpmn:incoming>SequenceFlow_CheckMoreSubcomponents</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Build Subcomponent Flow (Yes Path) -->
+    <bpmn:sequenceFlow id="SequenceFlow_04" name="More to build" sourceRef="Gateway_CheckMoreSubcomponents" targetRef="Gateway_CheckStock"/>
+    
+    <!-- Check Stock Logic -->
+    <bpmn:exclusiveGateway name="Parts Available?" id="Gateway_CheckStock">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BuildOK</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Reorder Logic (No Path) -->
+    <bpmn:sequenceFlow id="SequenceFlow_Reorder" name="Reorder Parts" sourceRef="Gateway_CheckStock" targetRef="Task_OrderIndividualParts"/>
+    
+    <bpmn:task id="Task_OrderIndividualParts" name="Order Individual Parts">
+      <bpmn:incoming>SequenceFlow_Reorder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToBuild</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Back to Build -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuildOK" name="Parts OK" sourceRef="Gateway_CheckStock" targetRef="Task_BuildSubcomponent"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MergeToBuild" sourceRef="Task_OrderIndividualParts" targetRef="Task_BuildSubcomponent"/>
+
+    <!-- Build Task -->
+    <bpmn:task id="Task_BuildSubcomponent" name="Build Subcomponent">
+      <bpmn:incoming>SequenceFlow_BuildOK</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MergeToBuild</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TestCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Testing Phase -->
+    <bpmn:sequenceFlow id="SequenceFlow_TestCheck" sourceRef="Task_BuildSubcomponent" targetRef="Gateway_TestResult"/>
+    
+    <bpmn:exclusiveGateway name="Test Successful?" id="Gateway_TestResult">
+      <bpmn:incoming>SequenceFlow_TestCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackToSubcomponents</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Redesign Loop (No Path) -->
+    <bpmn:sequenceFlow id="Sequence_Redesign" name="Failed - Redesign/Rebuild" sourceRef="Gateway_TestResult" targetRef="Task_RedesignRebuild"/>
+    
+    <bpmn:task id="Task_RedesignRebuild" name="Redesign &amp; Rebuild Subcomponent">
+      <bpmn:incoming>Sequence_Redesign</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BackToStockCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Back to Stock Check for Redone Items -->
+    <bpmn:sequenceFlow id="SequenceFlow_BackToStockCheck" sourceRef="Task_RedesignRebuild" targetRef="Gateway_CheckStock"/>
+
+    <!-- End of Subcomponents (Yes Path from CheckMore) -->
+    <bpmn:exclusiveGateway name="All Done?" id="Gateway_CheckMoreSubcomponents"> 
+      <!-- Note: This ID was used above. In BPMN, a gateway can have multiple outgoing flows defined in sequenceFlows. I need to ensure the 'No' path is also defined here properly -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceLoopExit" name="All Subcomponents Done" sourceRef="Gateway_CheckMoreSubcomponents" targetRef="Task_AssembleMachine"/>
+
+    <!-- Assembly Phase -->
+    <bpmn:task id="Task_AssembleMachine" name="Assemble Machine">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming> 
+          <!-- Correction: SequenceFlow_04 was used for 'Yes' path from CheckMoreSubcomponents. I need to ensure the targetRef matches correctly in definition -->
+    </bpmn:task>
+
+    <!-- Correcting Flow Logic for Assembly Entry Point (Using unique ID) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AssemblyEntry" sourceRef="Gateway_CheckMoreSubcomponents" targetRef="Task_AssembleMachine"/> 
+      <!-- Note: In the XML above, I defined Gateway_CheckMoreSubcomponents twice in my thought process. Here is one definition with two outgoing flows -->
+    
+    <bpmn:endEvent id="EndEvent_Completed" name="Completed">
+      <bpmn:incoming>SequenceFlow_AssemblyEntry</bpmn:incoming> <!-- Wait, Assembly Task must be before End Event -->
+    </bpmn:endEvent>
+
+    <!-- Correcting Flow to Assemble Machine then End -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEnd" sourceRef="Task_AssembleMachine" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

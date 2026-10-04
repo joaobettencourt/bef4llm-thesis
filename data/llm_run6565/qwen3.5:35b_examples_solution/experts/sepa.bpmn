@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_SEPA_Mandat">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Pool_Process" name="SEPA Mandat Bearbeitung" processRef="Process_SEPA_Management"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SEPA_Management" isExecutable="false">
+    
+    <!-- Lane Set for separation of automated and manual tasks -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_AutoProcessing" name="Automatische Verarbeitung">
+        <bpmn:flowNodeRef>StartEvent_DataReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IBANCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineCountry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_SearchPerson</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ValidationComplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SendTask_RequestSignature</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ReceiveTask_SignatureReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ValidFromCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CheckBankConnection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CreateNewMandat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MandatExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CheckExistingMandatValidity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_EndOldCreateNew</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OutstandingClaimsCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SendTask_CommunicateInvoices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountThreshold</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_ManualProcessing" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserTask_CheckMissingData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ReviewBankConnection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ManualCheckHighAmounts</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DataReceived" name="Daten für SEPA-Mandat eingegangen">
+      <bpmn:outgoing>SequenceFlow_StartToIBAN</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway 1: IBAN Check -->
+    <bpmn:exclusiveGateway id="Gateway_IBANCheck" name="Liegt eine IBAN vor?">
+      <bpmn:incoming>SequenceFlow_StartToIBAN</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesIBAN</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 1: Determine Country -->
+    <bpmn:serviceTask id="Task_DetermineCountry" name="Land anhand IBAN ermitteln">
+      <bpmn:incoming>SequenceFlow_YesIBAN</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToSearchPerson</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 2: Search Person -->
+    <bpmn:serviceTask id="ServiceTask_SearchPerson" name="Suche nach zugehöriger Person im System">
+      <bpmn:incoming>SequenceFlow_ToSearchPerson</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToValidationCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 2: Validation Check -->
+    <bpmn:exclusiveGateway id="Gateway_ValidationComplete" name="Sind alle Informationen vollständig?">
+      <bpmn:incoming>SequenceFlow_ToValidationCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AllValid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Branch A: Missing Signature -->
+    <bpmn:userTask id="UserTask_CheckMissingData" name="Manuelle Prüfung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_MissingSig</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualCheckDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Branch B: Missing Signature (Automatic) -->
+    <bpmn:sendTask id="SendTask_RequestSignature" name="Schreiben zur Unterschrift anfordern">
+      <bpmn:incoming>SequenceFlow_MissingSig</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WaitForResponse</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Boundary Event for 28 Days Wait -->
+    <bpmn:boundaryEvent id="Boundary_28Days" attachedToRef="SendTask_RequestSignature">
+      <bpmn:timerEventDefinition xsi:type="bpmn:tFormalExpression">P28D</bpmn:timerEventDefinition>
+      <bpmn:outgoing>SequenceFlow_TimeExpired</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- Receive Task for Response -->
+    <bpmn:receiveTask id="ReceiveTask_SignatureReceived" name="Rückmeldung zur Unterschrift">
+      <bpmn:incoming>SequenceFlow_WaitForResponse</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ResponseReceivedToValidation</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <!-- Gateway 3: Valid From Date Check -->
+    <bpmn:exclusiveGateway id="Gateway_ValidFromCheck" name="Liegt ein 'Gültig von'-Datum vor?">
+      <bpmn:incoming>SequenceFlow_AllValid</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HasDate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Check Bank Connection -->
+    <bpmn:serviceTask id="ServiceTask_CheckBankConnection" name="Prüfe gültige Bankverbindung">
+      <bpmn:incoming>SequenceFlow_HasDate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BankValid</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Branch C: Bank Connection Missing/Error -->
+    <bpmn:userTask id="UserTask_ReviewBankConnection" name="Manuelle Prüfung der Bankverbindung">
+      <bpmn:incoming>SequenceFlow_BankError</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualCheckDone2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 4: Existing Mandate Check -->
+    <bpmn:exclusiveGateway id="Gateway_MandatExists" name="Existiert aktives SEPA-Mandat?">
+      <bpmn:incoming>SequenceFlow_BankValid</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoActiveMandat</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Create New Mandate -->
+    <bpmn:serviceTask id="ServiceTask_CreateNewMandat" name="Neues SEPA-Mandat anlegen">
+      <bpmn:incoming>SequenceFlow_NoActiveMandat</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToOutstandingCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task 6: Check Existing Mandate Validity -->
+    <bpmn:exclusiveGateway id="ServiceTask_CheckExistingMandatValidity" name="Ist neues Mandat gültig und relevant?">
+      <bpmn:incoming>SequenceFlow_HasActive</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ValidConditionsMet</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7: End Old Create New -->
+    <bpmn:serviceTask id="ServiceTask_EndOldCreateNew" name="Bestehendes beenden, neues anlegen">
+      <bpmn:incoming>SequenceFlow_ValidConditionsMet</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToOutstandingCheck2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 5: Outstanding Claims -->
+    <bpmn:exclusiveGateway id="Gateway_OutstandingClaimsCheck" name="Prüfung auf offene Forderungen">
+      <bpmn:incoming>SequenceFlow_ToOutstandingCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoInvoices</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8: Communicate Invoices -->
+    <bpmn:sendTask id="SendTask_CommunicateInvoices" name="Offene Forderungen zuweisen und kommunizieren">
+      <bpmn:incoming>SequenceFlow_InvoicesExist</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToAmountCheck</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <!-- Gateway 6: Amount Threshold -->
+    <bpmn:exclusiveGateway id="Gateway_AmountThreshold" name="Höhe der Forderungen &gt; 5.000 €?">
+      <bpmn:incoming>SequenceFlow_ToAmountCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HighAmounts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 9: Manual Check High Amounts -->
+    <bpmn:userTask id="UserTask_ManualCheckHighAmounts" name="Manuelle Überprüfung der hohen Forderungen">
+      <bpmn:incoming>SequenceFlow_HighAmounts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_ProcessStopped" name="Prozess gestoppt (keine Rückmeldung)">
+      <bpmn:incoming>SequenceFlow_TimeExpired</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ProcessCompleted" name="SEPA-Mandat abgeschlossen">
+      <bpmn:incoming>SequenceFlow_FinalizeProcess</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToIBAN" sourceRef="StartEvent_DataReceived" targetRef="Gateway_IBANCheck"/>
+    
+    <!-- IBAN Check Logic (Simplified for XML structure) -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesIBAN" name="Ja, IBAN vorhanden" sourceRef="Gateway_IBANCheck" targetRef="Task_DetermineCountry">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extIBAN.value != null}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Search Person -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSearchPerson" sourceRef="Task_DetermineCountry" targetRef="ServiceTask_SearchPerson"/>
+    
+    <!-- Validation Check Logic (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToValidationCheck" name="Alle Daten prüfen" sourceRef="ServiceTask_SearchPerson" targetRef="Gateway_ValidationComplete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extSignature.value != null &amp;&amp; extIBAN.value != null}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Missing Signature Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_MissingSig" name="Fehlende Unterschrift" sourceRef="Gateway_ValidationComplete" targetRef="SendTask_RequestSignature">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extUnterschriftVorhanden.value == false}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Manual Check Path (if signature exists but other data missing) -->
+    <bpmn:sequenceFlow id="SequenceFlow_MissingOtherData" name="Fehlende Daten, Unterschrift vorhanden" sourceRef="Gateway_ValidationComplete" targetRef="UserTask_CheckMissingData">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extUnterschriftVorhanden.value == true}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for Response -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForResponse" sourceRef="SendTask_RequestSignature" targetRef="ReceiveTask_SignatureReceived"/>
+    
+    <!-- Loop back to validation on response (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResponseReceivedToValidation" name="Rückmeldung erhalten" sourceRef="ReceiveTask_SignatureReceived" targetRef="Gateway_ValidationComplete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extUnterschriftVorhanden.value == true}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Time Expired Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimeExpired" sourceRef="Boundary_28Days" targetRef="EndEvent_ProcessStopped"/>
+
+    <!-- Manual Check Done Loop back (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManualCheckDone" name="Daten angepasst" sourceRef="UserTask_CheckMissingData" targetRef="Gateway_ValidFromCheck">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extUnterschriftVorhanden.value == true}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Valid From Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_AllValid" name="Alle Daten vollständig" sourceRef="Gateway_ValidationComplete" targetRef="Gateway_ValidFromCheck"/>
+    
+    <!-- Has Date Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasDate" name="Ja, Datum vorhanden" sourceRef="Gateway_ValidFromCheck" targetRef="ServiceTask_CheckBankConnection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extGueltigVon.value != null}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Bank Connection Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankValid" sourceRef="ServiceTask_CheckBankConnection" targetRef="Gateway_MandatExists"/>
+    
+    <!-- Bank Error Path (Manual) -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankError" name="Fehler / Fehlende Verbindung" sourceRef="ServiceTask_CheckBankConnection" targetRef="UserTask_ReviewBankConnection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extBankverbindung.value == null}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Manual Check Done Loop back (Simplified) -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManualCheckDone2" name="Verbindung geprüft/angelegt" sourceRef="UserTask_ReviewBankConnection" targetRef="Gateway_MandatExists"/>
+
+    <!-- Mandate Existence Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoActiveMandat" name="Kein aktives Mandat" sourceRef="Gateway_MandatExists" targetRef="ServiceTask_CreateNewMandat">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extAktiv.value == false}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Has Active Mandate Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasActive" name="Aktives Mandat vorhanden" sourceRef="Gateway_MandatExists" targetRef="ServiceTask_CheckExistingMandatValidity">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extAktiv.value == true}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Valid Conditions Met Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidConditionsMet" name="Neues Mandat gültig/aktuell" sourceRef="ServiceTask_CheckExistingMandatValidity" targetRef="ServiceTask_EndOldCreateNew">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${intGueltigVon.value &gt; intBestehendesGuetligVon}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Outstanding Claims Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToOutstandingCheck" sourceRef="ServiceTask_CreateNewMandat" targetRef="Gateway_OutstandingClaimsCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToOutstandingCheck2" name="Nach Mandatsanlage prüfen" sourceRef="ServiceTask_EndOldCreateNew" targetRef="Gateway_OutstandingClaimsCheck"/>
+
+    <!-- Invoices Exist Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_InvoicesExist" name="Offene Forderungen vorhanden" sourceRef="Gateway_OutstandingClaimsCheck" targetRef="SendTask_CommunicateInvoices">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extForderungsbetrag.value > 0}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No Invoices Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoInvoices" name="Keine offenen Forderungen" sourceRef="Gateway_OutstandingClaimsCheck" targetRef="Gateway_AmountThreshold">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extForderungsbetrag.value == 0}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount Threshold Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToAmountCheck" sourceRef="SendTask_CommunicateInvoices" targetRef="Gateway_AmountThreshold"/>
+
+    <!-- High Amounts Path (Manual) -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighAmounts" name="Über 5.000 €" sourceRef="Gateway_AmountThreshold" targetRef="UserTask_ManualCheckHighAmounts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extForderungsbetrag.value > 5000}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Amounts Path (Auto Complete) -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalizeProcess" name="Unter 5.000 € / Manuell geprüft" sourceRef="Gateway_AmountThreshold" targetRef="EndEvent_ProcessCompleted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${extForderungsbetrag.value <= 5000}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_BillProcessing_02" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="CollabBillProcess_02">
+    <bpmn:participant id="Participant_MPOO" name="MPOO (Meter Point Owner)" processRef="Proc_SendBills_MPOO" />
+    <bpmn:participant id="Participant_MSPO" name="MSPO (Measurement Service Provider)" processRef="Proc_SendBills_MSPO" />
+    <bpmn:participant id="Participant_Authority" name="GO/MPON Authority" processRef="Proc_Examination_01" />
+  </bpmn:collaboration>
+
+  <!-- Process for MPOO -->
+  <bpmn:process id="Proc_SendBills_MPOO">
+    <bpmn:startEvent id="StartMPOO_EquipmentBill" name="Equipment Acquisition Bill Ready">
+      <bpmn:messageFlowRef>MessageEquipToAuthority</bpmn:messageFlowRef>
+      <bpmn:outgoing>SequenceSendEquip</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndMPOO_Waiting" name="Waiting for Response">
+      <bpmn:incoming>SequenceWaitResponse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceSendEquip" sourceRef="StartMPOO_EquipmentBill" targetRef="EndMPOO_Waiting">
+      <!-- Logic handled by message flow to Authority -->
+    </bpmn:sequenceFlow>
+    
+    <bpmn:messageFlow id="MessageEquipToAuthority" name="Equipment Acquisition Bill">
+       <bpmn:sourceRef>StartMPOO_EquipmentBill</bpmn:sourceRef>
+       <bpmn:targetRef>TaskReceiveAllBills_Authority</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:process>
+
+  <!-- Process for MSPO -->
+  <bpmn:process id="Proc_SendBills_MSPO">
+    <bpmn:startEvent id="StartMSPO_BillReady" name="Bill Ready (Metering/Measurement)">
+      <bpmn:messageFlowRef>MessageGeneralToAuthority</bpmn:messageFlowRef>
+      <bpmn:outgoing>SequenceSendGeneral</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndMSPO_Waiting" name="Waiting for Response">
+       <bpmn:incoming>SequenceWaitResponse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceSendGeneral" sourceRef="StartMSPO_BillReady" targetRef="EndMSPO_Waiting" />
+
+    <bpmn:messageFlow id="MessageGeneralToAuthority" name="Bill for Operations/Readings">
+       <bpmn:sourceRef>StartMSPO_BillReady</bpmn:sourceRef>
+       <bpmn:targetRef>TaskReceiveAllBills_Authority</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:process>
+
+  <!-- Process for Examination Authority (GO/MPON) -->
+  <bpmn:process id="Proc_Examination_01">
+    
+    <!-- Receive Bill Start Event -->
+    <bpmn:startEvent id="StartReceiveBill" name="Bill Received from MPOO or MSPO">
+      <bpmn:messageFlowRef>MessageGeneralToAuthority</bpmn:messageFlowRef>
+      <bpmn:outgoing>SequenceRouteBillType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway to Route Bill Type -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_RouteBill" name="Determine Bill Type">
+      <bpmn:incoming>SequenceRouteBillType</bpmn:incoming>
+      <bpmn:outgoing>SeqExamineMeteringOps</bpmn:outgoing>
+      <bpmn:outgoing>SeqExamineMeasurement</bpmn:outgoing>
+      <bpmn:outgoing>SeqExamineAdditionalReadings</bpmn:outgoing>
+      <bpmn:outgoing>SeqExamineEquipment</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Examination Tasks -->
+    <bpmn:task id="Task_ExamineMeteringOps" name="Examine bill for metering point operations">
+      <bpmn:incoming>SeqExamineMeteringOps</bpmn:incoming>
+      <bpmn:outgoing>SequenceToDecisionPoint1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ExamineMeasurement" name="Examine bill for measurement continuation">
+       <bpmn:incoming>SeqExamineMeasurement</bpmn:incoming>
+      <bpmn:outgoing>SequenceToDecisionPoint2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ExamineAdditionalReadings" name="Examine bill for additional readings">
+       <bpmn:incoming>SeqExamineAdditionalReadings</bpmn:incoming>
+      <bpmn:outgoing>SequenceToDecisionPoint3</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ExamineEquipment" name="Examine bill for equipment acquisition">
+       <bpmn:incoming>SeqExamineEquipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceToDecisionPoint4</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway (Confirm vs Reject) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision" name="Invoice Valid?">
+      <bpmn:incoming>SequenceToDecisionPoint1</bpmn:incoming>
+      <bpmn:incoming>SequenceToDecisionPoint2</bpmn:incoming>
+      <bpmn:incoming>SequenceToDecisionPoint3</bpmn:incoming>
+      <bpmn:incoming>SequenceToDecisionPoint4</bpmn:incoming>
+      <bpmn:outgoing>SeqConfirmInvoice</bpmn:outgoing>
+      <bpmn:outgoing>SeqRejectInvoice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Confirmation Task -->
+    <bpmn:task id="Task_ConfirmPayment" name="Confirm invoice with payment advice">
+       <bpmn:incoming>SeqConfirmInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceSendConfirmation</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Rejection Task -->
+    <bpmn:task id="Task_RejectInvoice" name="Reject invoice">
+       <bpmn:incoming>SeqRejectInvoice</bpmn:incoming>
+      <bpmn:outgoing>SequenceSendRejection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_Confirmed" name="Confirmation Sent">
+       <bpmn:incoming>SequenceSendConfirmation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Rejected" name="Rejection Sent">
+       <bpmn:incoming>SequenceSendRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceRouteBillType" sourceRef="StartReceiveBill" targetRef="InclusiveGateway_RouteBill" />
+    
+    <bpmn:sequenceFlow id="SeqExamineMeteringOps" name="For Metering Point Operations" sourceRef="InclusiveGateway_RouteBill" targetRef="Task_ExamineMeteringOps" />
+    
+    <bpmn:sequenceFlow id="SeqExamineMeasurement" name="For Measurement Continuation" sourceRef="InclusiveGateway_RouteBill" targetRef="Task_ExamineMeasurement" />
+    
+    <bpmn:sequenceFlow id="SeqExamineAdditionalReadings" name="For Additional Readings" sourceRef="InclusiveGateway_RouteBill" targetRef="Task_ExamineAdditionalReadings" />
+
+    <bpmn:sequenceFlow id="SeqExamineEquipment" name="For Equipment Acquisition" sourceRef="InclusiveGateway_RouteBill" targetRef="Task_ExamineEquipment" />
+    
+    <!-- Merge to Decision -->
+    <bpmn:sequenceFlow id="SequenceToDecisionPoint1" sourceRef="Task_ExamineMeteringOps" targetRef="ExclusiveGateway_Decision" />
+    <bpmn:sequenceFlow id="SequenceToDecisionPoint2" sourceRef="Task_ExamineMeasurement" targetRef="ExclusiveGateway_Decision" />
+    <bpmn:sequenceFlow id="SequenceToDecisionPoint3" sourceRef="Task_ExamineAdditionalReadings" targetRef="ExclusiveGateway_Decision" />
+    <bpmn:sequenceFlow id="SequenceToDecisionPoint4" sourceRef="Task_ExamineEquipment" targetRef="ExclusiveGateway_Decision" />
+
+    <!-- Decision Outcomes -->
+    <bpmn:sequenceFlow id="SeqConfirmInvoice" name="Approve/Confirm" sourceRef="ExclusiveGateway_Decision" targetRef="Task_ConfirmPayment" />
+    
+    <bpmn:sequenceFlow id="SeqRejectInvoice" name="Reject Invoice" sourceRef="ExclusiveGateway_Decision" targetRef="Task_RejectInvoice" />
+
+    <!-- Send Results -->
+    <bpmn:sequenceFlow id="SequenceSendConfirmation" sourceRef="Task_ConfirmPayment" targetRef="End_Confirmed">
+      <bpmn:messageFlowRef>MessageConfirmToSender</bpmn:messageFlowRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceSendRejection" sourceRef="Task_RejectInvoice" targetRef="End_Rejected">
+       <bpmn:messageFlowRef>MessageRejectToSender</bpmn:messageFlowRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Flows for Results -->
+  <bpmn:message id="MessageConfirmToSender" name="Confirmation with Payment Advice">
+     <bpmn:name>Confirmation</bpmn:name>
+  </bpmn:message>
+
+  <bpmn:messageFlow id="MsgSendConf_MPOO" sourceRef="Task_ConfirmPayment" targetRef="Participant_MPOO">
+    <!-- Connects to MPOO waiting state -->
+  </bpmn:messageFlow>
+
+   <bpmn:messageFlow id="MsgSendConf_MSPO" sourceRef="Task_RejectInvoice" targetRef="Participant_MSPO">
+     <!-- Connects to MSPO waiting state -->
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

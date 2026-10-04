@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Participant_001" name="Account Defaulters Process" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <!-- Start Event with Timer -->
+    <bpmn:startEvent id="Start_MorningTrigger">
+      <bpmn:name>Weekday Morning</bpmn:name>
+      <bpmn:outgoing>SeqFlow_StartToBackup</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_BackupDB">
+      <bpmn:name>Backup DB &amp; Check Defaulters Table</bpmn:name>
+      <bpmn:incoming>SeqFlow_StartToBackup</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CheckRecords</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gate_NewRecords">
+      <bpmn:name>New Records Found?</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckRecords</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_NoNewRecsToCRM</bpmn:outgoing> <!-- No new records -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 (If no new records) -->
+    <bpmn:task id="Task_CheckCRMR">
+      <bpmn:name>Check CRM for Returns</bpmn:name>
+      <bpmn:incoming>SeqFlow_NoNewRecsToCRM</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ReturnsExist?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gate_Returns">
+      <bpmn:name>New Returns Exist?</bpmn:name>
+      <bpmn:incoming>SeqFlow_ReturnsExist?</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_RegisterAccounts</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 (If returns exist) -->
+    <bpmn:task id="Task_Register">
+      <bpmn:name>Register Defaulting Accounts &amp; Customers</bpmn:name>
+      <bpmn:incoming>SeqFlow_RegisterAccounts</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_AdvisedCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 -->
+    <bpmn:exclusiveGateway id="Gate_Advised">
+      <bpmn:name>Codes Previously Advised?</bpmn:name>
+      <bpmn:incoming>SeqFlow_AdvisedCheck</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ProduceTable</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 (If not advised) -->
+    <bpmn:task id="Task_ProduceReport">
+      <bpmn:name>Produce Table &amp; Send Management</bpmn:name>
+      <bpmn:incoming>SeqFlow_ProduceTable</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ReportDoneToDeadline1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Deadline Check 1 (2:30 PM) -->
+    <bpmn:intermediateCatchEvent id="Timer_Deadline1">
+      <bpmn:name>Check Deadline 2:30 pm</bpmn:name>
+      <bpmn:incoming>SeqFlow_ReportDoneToDeadline1</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task Alert Supervisor -->
+    <bpmn:task id="Task_AlertSupervisor">
+      <bpmn:name>Alert Supervisor (2:30 pm)</bpmn:name>
+      <bpmn:incoming>SeqFlow_Timeout1</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ContinueToCRMCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Continue Flow -->
+    <bpmn:task id="Task_CheckCRM2">
+      <bpmn:name>Check CRM for Returns (Again)</bpmn:name>
+      <bpmn:incoming>SeqFlow_ContinueToCRMCheck</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_Reconcile?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 -->
+    <bpmn:exclusiveGateway id="Gate_Returns2">
+      <bpmn:name>New Returns Exist (Again)?</bpmn:name>
+      <bpmn:incoming>SeqFlow_Reconcile?</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_YesReconcile</bpmn:outgoing> <!-- Yes -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5 (If returns exist) -->
+    <bpmn:task id="Task_Reconcile">
+      <bpmn:name>Reconcile with Defaulters Table</bpmn:name>
+      <bpmn:incoming>SeqFlow_YesReconcile</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ToDeadline2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Deadline Check 2 (4:00 PM) -->
+    <bpmn:intermediateCatchEvent id="Timer_Deadline2">
+      <bpmn:name>Check Deadline 4:00 pm</bpmn:name>
+      <bpmn:incoming>SeqFlow_ToDeadline2</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task Alert Supervisor Message -->
+    <bpmn:task id="Task_AlertSupervisorMsg">
+      <bpmn:name>Send Message to Supervisor</bpmn:name>
+      <bpmn:incoming>SeqFlow_Timeout2</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessCompleted">
+      <bpmn:name>Process Completed</bpmn:name>
+      <bpmn:incoming>SeqFlow_EndProcess</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToBackup" sourceRef="Start_MorningTrigger" targetRef="Task_BackupDB">
+      <bpmn:name>To Backup</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_CheckRecords" sourceRef="Task_BackupDB" targetRef="Gate_NewRecords">
+      <bpmn:name>Check Records</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_NoNewRecsToCRM" sourceRef="Gate_NewRecords" targetRef="Task_CheckCRMR">
+      <bpmn:name>No New Records</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ReturnsExist?" sourceRef="Task_CheckCRMR" targetRef="Gate_Returns">
+      <bpmn:name>To Returns Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_RegisterAccounts" sourceRef="Gate_Returns" targetRef="Task_Register">
+      <bpmn:name>New Returns Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_AdvisedCheck" sourceRef="Task_Register" targetRef="Gate_Advised">
+      <bpmn:name>To Advised Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ProduceTable" sourceRef="Gate_Advised" targetRef="Task_ProduceReport">
+      <bpmn:name>Codes Not Advised</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_ReportDoneToDeadline1" sourceRef="Task_ProduceReport" targetRef="Timer_Deadline1">
+      <bpmn:name>To Deadline 2:30</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Timeout Flow for Deadline 1 -->
+    <bpmn:sequenceFlow id="SeqFlow_Timeout1" sourceRef="Timer_Deadline1" targetRef="Task_AlertSupervisor">
+      <bpmn:name>If Late</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Continue Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_ContinueToCRMCheck" sourceRef="Task_AlertSupervisor" targetRef="Task_CheckCRM2">
+      <bpmn:name>To CRM Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Continue Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_Reconcile?" sourceRef="Task_CheckCRM2" targetRef="Gate_Returns2">
+      <bpmn:name>To Reconcile Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Continue Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_YesReconcile" sourceRef="Gate_Returns2" targetRef="Task_Reconcile">
+      <bpmn:name>New Returns Found</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Continue Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_ToDeadline2" sourceRef="Task_Reconcile" targetRef="Timer_Deadline2">
+      <bpmn:name>To Deadline 4:00</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Timeout Flow for Deadline 2 -->
+    <bpmn:sequenceFlow id="SeqFlow_Timeout2" sourceRef="Timer_Deadline2" targetRef="Task_AlertSupervisorMsg">
+      <bpmn:name>If Late</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_EndProcess" sourceRef="Task_AlertSupervisorMsg" targetRef="End_ProcessCompleted">
+      <bpmn:name>To Completion</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ClaimsProcess_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ClaimsNotification">
+    <bpmn:participant id="Participant_Organization" name="Claims Notification Process" processRef="Proc_ClaimsNotification"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimsNotification" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ClaimReceived" name="Claim Received">
+      <bpmn:outgoing>SeqFlow_CheckInsured</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check if claimant is insured -->
+    <bpmn:task id="Task_CheckInsurance" name="Check Claimant Insurance Status">
+      <bpmn:incoming>SeqFlow_CheckInsured</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_InsuranceDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Is claimant insured? -->
+    <bpmn:exclusiveGateway id="Gate_IsInsured" name="Claimant Insured?">
+      <bpmn:incoming>SeqFlow_InsuranceDecision</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ProceedToSeverity</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2: Reject claim -->
+    <bpmn:task id="Task_RejectClaim" name="Inform Claimant of Rejection">
+      <bpmn:incoming>SeqFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_EndRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_ClaimRejected" name="Claim Rejected">
+      <bpmn:incoming>SeqFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 3: Evaluate severity -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+      <bpmn:incoming>SeqFlow_ProceedToSeverity</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SeverityDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Simple or Complex claim -->
+    <bpmn:exclusiveGateway id="Gate_ClaimType" name="Claim Type">
+      <bpmn:incoming>SeqFlow_SeverityDecision</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_SendForms</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Send forms -->
+    <bpmn:task id="Task_SendForms" name="Send Relevant Forms to Claimant">
+      <bpmn:incoming>SeqFlow_SendForms</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_FormsReturned</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Check completeness -->
+    <bpmn:task id="Task_CheckCompleteness" name="Check Forms for Completeness">
+      <bpmn:incoming>SeqFlow_FormsReturned</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CompletenessDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Are forms complete? -->
+    <bpmn:exclusiveGateway id="Gate_FormsComplete" name="Forms Complete?">
+      <bpmn:incoming>SeqFlow_CompletenessDecision</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_RegisterClaim</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_UpdateRequest</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6: Register claim -->
+    <bpmn:task id="Task_RegisterClaim" name="Register Claim in Claims Management System">
+      <bpmn:incoming>SeqFlow_RegisterClaim</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_EndRegistered</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="End_ClaimRegistered" name="Claims Notification Process Complete">
+      <bpmn:incoming>SeqFlow_EndRegistered</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 7: Request update on incomplete forms -->
+    <bpmn:task id="Task_RequestUpdate" name="Inform Claimant to Update Forms">
+      <bpmn:incoming>SeqFlow_UpdateRequest</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_FormsReturnedAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SeqFlow_CheckInsured" sourceRef="Start_ClaimReceived" targetRef="Task_CheckInsurance">
+      <bpmn:name>To Insurance Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_InsuranceDecision" sourceRef="Task_CheckInsurance" targetRef="Gate_IsInsured"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_RejectPath" name="No - Not Insured" sourceRef="Gate_IsInsured" targetRef="Task_RejectClaim">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_EndRejected" sourceRef="Task_RejectClaim" targetRef="End_ClaimRejected"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_ProceedToSeverity" name="Yes - Insured" sourceRef="Gate_IsInsured" targetRef="Task_EvaluateSeverity">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_SeverityDecision" sourceRef="Task_EvaluateSeverity" targetRef="Gate_ClaimType"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_SendForms" name="Send Forms" sourceRef="Gate_ClaimType" targetRef="Task_SendForms">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_FormsReturned" sourceRef="Task_SendForms" targetRef="Task_CheckCompleteness"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_CompletenessDecision" sourceRef="Task_CheckCompleteness" targetRef="Gate_FormsComplete"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_RegisterClaim" name="Yes - Complete" sourceRef="Gate_FormsComplete" targetRef="Task_RegisterClaim">
+      <bpmn:name>Yes</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_EndRegistered" sourceRef="Task_RegisterClaim" targetRef="End_ClaimRegistered"/>
+
+    <bpmn:sequenceFlow id="SeqFlow_UpdateRequest" name="No - Incomplete" sourceRef="Gate_FormsComplete" targetRef="Task_RequestUpdate">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_FormsReturnedAgain" sourceRef="Task_RequestUpdate" targetRef="Task_CheckCompleteness"/>
+
+  </bpmn:process>
+</bpmn:definitions>

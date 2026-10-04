@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_AccountCreation_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_Customer" name="Bank Customer" processRef="Process_Customer_1" />
+    <bpmn:participant id="Pool_PostOffice" name="Post Office" processRef="Process_PostOffice_1" />
+    <bpmn:participant id="Pool_Bank" name="The Bank" processRef="Process_Bank_1" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_Cust_TO_PO" sourceRef="End_Customer_SendDocs" targetRef="Start_PostOffice_Request">
+      <bpmn:name>Account Request Documents</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_Bank_TO_Cust_Accept" sourceRef="Task_Officer_MailAccept" targetRef="End_Customer_AccountCreated">
+      <bpmn:name>Account Documents</bpmn:name>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="Msg_Bank_TO_Cust_Reject" sourceRef="Task_Officer_MailReject" targetRef="End_Customer_RefusalReceived">
+      <bpmn:name>Letter of Refusal</bpmn:name>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Process_Customer_1" isExecutable="false">
+    <bpmn:startEvent id="Start_Customer_VisitWeb" name="Visit Website">
+      <bpmn:outgoing>Seq_FillData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Customer_GeneratePDF" name="Fill Data &amp; Generate PDF">
+      <bpmn:incoming>Seq_FillData</bpmn:incoming>
+      <bpmn:outgoing>Seq_PrintSend</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_Customer_SendDocs" name="Documents Sent">
+      <bpmn:incoming>Seq_PrintSend</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Events for responses -->
+    <bpmn:endEvent id="End_Customer_AccountCreated" name="Account Created">
+      <bpmn:incoming>Msg_Bank_TO_Cust_Accept</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Customer_RefusalReceived" name="Refusal Received">
+      <bpmn:incoming>Msg_Bank_TO_Cust_Reject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_FillData" sourceRef="Start_Customer_VisitWeb" targetRef="Task_Customer_GeneratePDF">
+      <bpmn:name>Visit Website</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_PrintSend" sourceRef="Task_Customer_GeneratePDF" targetRef="End_Customer_SendDocs">
+      <bpmn:name>Print &amp; Send Documents</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Post Office Process -->
+  <bpmn:process id="Process_PostOffice_1" isExecutable="false">
+    <bpmn:startEvent id="Start_PostOffice_Request" name="Receive Request Documents">
+      <bpmn:outgoing>Seq_CheckIdentity</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Officer_CheckID" name="Check Customer Identity">
+      <bpmn:incoming>Seq_CheckIdentity</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendToBank</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckIdentity" sourceRef="Start_PostOffice_Request" targetRef="Task_Officer_CheckID">
+      <bpmn:name>Check Identity</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_SendToBank" sourceRef="Task_Officer_CheckID" targetRef="End_PostOffice_Sent">
+      <bpmn:name>Mail to Bank</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:endEvent id="End_PostOffice_Sent" name="Request Mailed to Bank">
+      <bpmn:incoming>Seq_SendToBank</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_Bank_1" isExecutable="false">
+    <bpmn:startEvent id="Start_Bank_RequestReceived" name="Receive Account Request">
+      <bpmn:outgoing>Seq_CheckData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Officer_CheckData" name="Check Customer Data">
+      <bpmn:incoming>Seq_CheckData</bpmn:incoming>
+      <bpmn:outgoing>GW_Decision_Incoming</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="GW_AccountDecision" name="Accept Request?">
+      <bpmn:incoming>GW_Decision_Incoming</bpmn:incoming>
+      <bpmn:outgoing>Seq_Accept_MailDocs</bpmn:outgoing>
+      <bpmn:outgoing>Seq_Reject_MailRefusal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Accept Path -->
+    <bpmn:endEvent id="End_Bank_Accept" name="Account Created">
+      <bpmn:incoming>Msg_Bank_TO_Cust_Accept</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Reject Path -->
+    <bpmn:endEvent id="End_Bank_Reject" name="Request Rejected">
+      <bpmn:incoming>Msg_Bank_TO_Cust_Reject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task for mailing acceptance documents -->
+    <bpmn:task id="Task_Officer_MailAccept" name="Mail Account Documents">
+      <bpmn:incoming>Seq_Accept_MailDocs</bpmn:incoming>
+      <bpmn:outgoing>GW_Decision_Incoming2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for mailing rejection letter -->
+    <bpmn:task id="Task_Officer_MailReject" name="Mail Letter of Refusal">
+      <bpmn:incoming>Seq_Reject_MailRefusal</bpmn:incoming>
+      <bpmn:outgoing>GW_Decision_Incoming3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckData" sourceRef="Start_Bank_RequestReceived" targetRef="Task_Officer_CheckData">
+      <bpmn:name>Check Data</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="GW_Decision_Incoming" sourceRef="Task_Officer_CheckData" targetRef="GW_AccountDecision">
+      <bpmn:name>Review Request</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_Accept_MailDocs" name="Accept - Mail Documents" sourceRef="GW_AccountDecision" targetRef="Task_Officer_MailAccept">
+      <bpmn:name>If accepted</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_Reject_MailRefusal" name="Reject - Mail Refusal" sourceRef="GW_AccountDecision" targetRef="Task_Officer_MailReject">
+      <bpmn:name>If rejected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

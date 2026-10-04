@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_BillingProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="MessageBillReceived"/>
+
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_BillingSystem" name="Billing System Process" processRef="Process_BillProc"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_BillProc" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MPOO" name="MPOO">
+        <bpmn:flowNodeRef>Task_SendBillMeteringOps</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendBillEquipAcq</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_MSPO" name="MSPO">
+        <bpmn:flowNodeRef>Task_SendBillTempCont</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendBillAddReadings</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_GO" name="GO">
+        <bpmn:flowNodeRef>InclusiveGateway_RouteToExamine</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExamineBillMeteringOps</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExamineBillTempCont</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExamineBillAddReadings</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <bpmn:lane id="Lane_MPON" name="MPON">
+         <bpmn:flowNodeRef>InclusiveGateway_RouteToExamineEquip</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>Task_ExamineBillEquipAcq_GO</bpmn:flowNodeRef>
+       </bpmn:lane>
+
+      <!-- Shared Decision Logic -->
+      <bpmn:lane id="Lane_Admin" name="Administration">
+        <bpmn:flowNodeRef>InclusiveGateway_DecisionConfirmReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPaymentAdvice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendRejection</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_BillReceived" name="Bill Received">
+      <bpmn:messageRef>MessageBillReceived</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Routing Gateway 1 -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_RouteToExamine" name="Route to GO Examination">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MeteringOpsPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_TempContPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AddReadingsPath</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+     <!-- Routing Gateway 2 (Equip Acq) -->
+     <bpmn:exclusiveGateway id="InclusiveGateway_RouteToExamineEquip" name="Route to Equip Examination">
+       <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_EquipPath_GO</bpmn:outgoing>
+     </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows from Start to Routing Gateways (Simplified Logic) -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_BillReceived" targetRef="InclusiveGateway_RouteToExamine"/>
+    
+    <!-- Paths for GO Examination Tasks -->
+    <bpmn:task id="Task_ExamineBillMeteringOps" name="Examine Bill (MPOO - Metering Ops)">
+      <bpmn:incoming>SequenceFlow_MeteringOpsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision_GO1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MeteringOpsPath" sourceRef="InclusiveGateway_RouteToExamine" targetRef="Task_ExamineBillMeteringOps"/>
+
+    <bpmn:task id="Task_ExamineBillTempCont" name="Examine Bill (MSPO - Temp Cont)">
+      <bpmn:incoming>SequenceFlow_TempContPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision_GO2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TempContPath" sourceRef="InclusiveGateway_RouteToExamine" targetRef="Task_ExamineBillTempCont"/>
+
+    <bpmn:task id="Task_ExamineBillAddReadings" name="Examine Bill (MSPO - Add Readings)">
+      <bpmn:incoming>SequenceFlow_AddReadingsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToDecision_GO3</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddReadingsPath" sourceRef="InclusiveGateway_RouteToExamine" targetRef="Task_ExamineBillAddReadings"/>
+
+     <!-- Path for Equip Acq (GO or MPON) -->
+     <bpmn:task id="Task_ExamineBillEquipAcq_GO" name="Examine Bill (MPOO - Equip Acq)">
+       <bpmn:incoming>SequenceFlow_EquipPath_GO</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_ToDecision_EQUIP</bpmn:outgoing>
+     </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_DecisionConfirmReject" name="Invoice Outcome">
+      <bpmn:incoming>SequenceFlow_ToDecision_GO1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToDecision_GO2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToDecision_GO3</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToDecision_EQUIP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Response Tasks -->
+    <bpmn:task id="Task_SendPaymentAdvice" name="Send Payment Advice">
+       <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndConfirm</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:endEvent id="EndEvent_Confirmed" name="Invoice Confirmed">
+       <bpmn:incoming>SequenceFlow_EndConfirm</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_SendRejection" name="Reject Invoice">
+       <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndReject</bpmn:outgoing>
+    </bpmn:task>
+
+     <bpmn:endEvent id="EndEvent_Rejected" name="Invoice Rejected">
+       <bpmn:incoming>SequenceFlow_EndReject</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Connections to Decision -->
+     <bpmn:sequenceFlow id="SequenceFlow_ToDecision_GO1" sourceRef="Task_ExamineBillMeteringOps" targetRef="InclusiveGateway_DecisionConfirmReject"/>
+     <bpmn:sequenceFlow id="SequenceFlow_ToDecision_GO2" sourceRef="Task_ExamineBillTempCont" targetRef="InclusiveGateway_DecisionConfirmReject"/>
+     <bpmn:sequenceFlow id="SequenceFlow_ToDecision_GO3" sourceRef="Task_ExamineBillAddReadings" targetRef="InclusiveGateway_DecisionConfirmReject"/>
+     <bpmn:sequenceFlow id="SequenceFlow_EquipPath_GO" sourceRef="StartEvent_BillReceived" targetRef="Task_ExamineBillEquipAcq_GO"/> <!-- Simplified routing for Equip Acq -->
+     <bpmn:sequenceFlow id="SequenceFlow_ToDecision_EQUIP" sourceRef="Task_ExamineBillEquipAcq_GO" targetRef="InclusiveGateway_DecisionConfirmReject"/>
+
+    <!-- Decision Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm with Payment Advice" sourceRef="InclusiveGateway_DecisionConfirmReject" targetRef="Task_SendPaymentAdvice">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Invoice" sourceRef="InclusiveGateway_DecisionConfirmReject" targetRef="Task_SendRejection"/>
+
+    <!-- End Connections -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndConfirm" sourceRef="Task_SendPaymentAdvice" targetRef="EndEvent_Confirmed"/>
+     <bpmn:sequenceFlow id="SequenceFlow_EndReject" sourceRef="Task_SendRejection" targetRef="EndEvent_Rejected"/>
+
+  </bpmn:process>
+</bpmn:definitions>

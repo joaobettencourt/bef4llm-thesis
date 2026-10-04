@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_PaymentProcess">
+    <bpmn:participant id="Participant_OnlineShop" name="Online Shop Payment Process" processRef="Process_PaymentFlow"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_PaymentFlow" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_AddCreditCard" name="Add Credit Card Request">
+      <bpmn:outgoing>Sequence_InputDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- User Task: Input Details -->
+    <bpmn:userTask id="UserInput_CreditDetails" name="Enter credit card details and billing address">
+      <bpmn:incoming>Sequence_ReturnToInput</bpmn:incoming>
+      <bpmn:outgoing>Sequence_CheckAddress</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Check Billing Address -->
+    <bpmn:serviceTask id="ServiceCheck_Billing" name="Verify billing address">
+      <bpmn:incoming>Sequence_CheckAddress</bpmn:incoming>
+      <bpmn:outgoing>Gateway_AddressDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway 1: Address Correct? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Address" name="Address correct?">
+      <bpmn:incoming>Gateway_AddressDecision</bpmn:incoming>
+      <bpmn:outgoing>Sequence_ReturnToInputFlow</bpmn:outgoing>
+      <bpmn:outgoing>Sequence_ContinueButton</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows for Gateway 1 -->
+    <bpmn:sequenceFlow id="Sequence_CheckAddress" sourceRef="UserInput_CreditDetails" targetRef="ServiceCheck_Billing"/>
+    
+    <bpmn:sequenceFlow id="Sequence_ReturnToInputFlow" name="No - Incorrect">
+      <bpmn:sourceRef>ExclusiveGateway_Address</bpmn:sourceRef>
+      <bpmn:name>If incorrect, go back to user for modification.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Back -->
+    <bpmn:sequenceFlow id="Sequence_ReturnToInput" sourceRef="ExclusiveGateway_Address" targetRef="UserInput_CreditDetails"/>
+
+    <bpmn:sequenceFlow id="Sequence_CheckAddressResult" name="Yes - Correct">
+      <bpmn:sourceRef>ServiceCheck_Billing</bpmn:sourceRef>
+      <bpmn:name>If correct, continue.</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- User Task: Click Continue -->
+    <bpmn:userTask id="UserClick_Continue" name="Click 'continue' button">
+      <bpmn:incoming>Sequence_CheckAddressResult</bpmn:incoming>
+      <bpmn:outgoing>ServiceVerify_CC</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Verify with Authority -->
+    <bpmn:serviceTask id="ServiceVerify_CCAuthority" name="Verify Credit Card">
+      <bpmn:description>Contacting Credit Card Authority for validation.</bpmn:description>
+      <bpmn:incoming>Sequence_ContinueButton</bpmn:incoming>
+      <bpmn:outgoing>Gateway_VerificationResult</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Sequence Flow to Gateway 2 -->
+    <bpmn:sequenceFlow id="Sequence_ContinueButton" sourceRef="UserClick_Continue" targetRef="ServiceVerify_CCAuthority"/>
+
+    <!-- Gateway 2: Verification Result? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Verification" name="Validation result">
+      <bpmn:incoming>Gateway_VerificationResult</bpmn:incoming>
+      <bpmn:outgoing>Sequence_FlowCancelled</bpmn:outgoing>
+      <bpmn:outgoing>Task_AddCard_SuccessFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Verification Task -->
+    <bpmn:sequenceFlow id="Sequence_CheckVerification" sourceRef="ServiceVerify_CCAuthority" targetRef="ExclusiveGateway_Verification"/>
+
+    <!-- End Event 1: Cancelled -->
+    <bpmn:endEvent id="End_Cancelled" name="Addition cancelled">
+      <bpmn:incoming>Sequence_FlowCancelled</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to Cancelled End -->
+    <bpmn:sequenceFlow id="Sequence_FlowCancelled" sourceRef="ExclusiveGateway_Verification" targetRef="End_Cancelled"/>
+
+    <!-- Task 1: Add Credit Card (Success) -->
+    <bpmn:userTask id="UserAdd_CreditCard_Success" name="Credit card added">
+      <bpmn:incoming>Sequence_FlowAdded</bpmn:incoming>
+      <bpmn:outgoing>End_AddedFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flow to Add Task -->
+    <bpmn:sequenceFlow id="Sequence_FlowAdded" sourceRef="ExclusiveGateway_Verification" targetRef="UserAdd_CreditCard_Success"/>
+
+    <!-- End Event 2: Success -->
+    <bpmn:endEvent id="End_Added" name="Credit card added">
+      <bpmn:incoming>End_AddedFlow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to Added End -->
+    <bpmn:sequenceFlow id="Sequence_EndSuccess" sourceRef="UserAdd_CreditCard_Success" targetRef="End_Added"/>
+
+  </bpmn:process>
+</bpmn:definitions>

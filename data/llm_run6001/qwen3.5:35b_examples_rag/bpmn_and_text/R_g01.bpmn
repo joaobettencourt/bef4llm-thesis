@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_DIY_Repair_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_DIY_Smartphone">
+    <bpmn:participant id="Participant_DiyProcess" name="DIY Smartphone Repair Process" processRef="Process_DIY_Repair"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_DIY_Repair" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="DIY Repair Request">
+      <bpmn:outgoing>SF_StartToInput</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- User Task: Input Data -->
+    <bpmn:userTask id="UserTask_InputData" name="Enter Model &amp; Issue Details">
+      <bpmn:incoming>SF_StartToInput</bpmn:incoming>
+      <bpmn:outgoing>SF_InputToList</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Tool Generates List -->
+    <bpmn:serviceTask id="ServiceTask_GetList" name="Generate Material &amp; Ordering Choices">
+      <bpmn:incoming>SF_InputToList</bpmn:incoming>
+      <bpmn:outgoing>SF_ListToDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway: Check Inventory Needs -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NeedMaterials" name="Need to Buy/Borrow?">
+      <bpmn:incoming>SF_ListToDecision</bpmn:incoming>
+      <bpmn:outgoing>SF_GatherResourcesYes</bpmn:outgoing>
+      <bpmn:outgoing>SF_HaveAllNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- User Task: Gather Resources -->
+    <bpmn:userTask id="UserTask_GatherResources" name="Contact Friends / Order Parts">
+      <bpmn:incoming>SF_GatherResourcesYes</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeToInstructions</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Inclusive Gateway: Merge Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_Merge" name="Merge Resources">
+      <bpmn:incoming>SF_HaveAllNo</bpmn:incoming>
+      <bpmn:incoming>SF_MergeToInstructions</bpmn:incoming>
+      <bpmn:outgoing>SF_ToInstructions</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- User Task: Receive Instructions -->
+    <bpmn:userTask id="UserTask_ReceiveInstr" name="Get Repair Instructions">
+      <bpmn:incoming>SF_ToInstructions</bpmn:incoming>
+      <bpmn:outgoing>SF_StartRepairAction</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- User Task: Perform Repair -->
+    <bpmn:userTask id="UserTask_PerformRepair" name="Perform Screen Repair">
+      <bpmn:incoming>SF_StartRepairAction</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway: Did it work? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_WorkedOut" name="Did Repair Work?">
+      <bpmn:incoming>SF_CheckSuccess</bpmn:incoming>
+      <bpmn:outgoing>SF_SendReviewYes</bpmn:outgoing>
+      <bpmn:outgoing>SF_SentToExpertNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- User Task: Send Review -->
+    <bpmn:userTask id="UserTask_SendReview" name="Send Review / Video">
+      <bpmn:incoming>SF_SendReviewYes</bpmn:incoming>
+      <bpmn:outgoing>SF_EndSuccess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event: Success -->
+    <bpmn:endEvent id="EndEvent_Success" name="DIY Repair Complete">
+      <bpmn:incoming>SF_EndSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- User Task: Contact Expert -->
+    <bpmn:userTask id="UserTask_SentToExpert" name="Send to Expert / Service Center">
+      <bpmn:incoming>SF_SentToExpertNo</bpmn:incoming>
+      <bpmn:outgoing>SF_EndFailure</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event: Failure -->
+    <bpmn:endEvent id="EndEvent_Expert" name="Requires Expert Help">
+      <bpmn:incoming>SF_EndFailure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToInput" sourceRef="StartEvent_1" targetRef="UserTask_InputData"/>
+    <bpmn:sequenceFlow id="SF_InputToList" name="Submit Data" sourceRef="UserTask_InputData" targetRef="ServiceTask_GetList"/>
+    <bpmn:sequenceFlow id="SF_ListToDecision" sourceRef="ServiceTask_GetList" targetRef="ExclusiveGateway_NeedMaterials"/>
+    
+    <!-- Diverging Paths from Need Materials -->
+    <bpmn:sequenceFlow id="SF_GatherResourcesYes" name="Need Items" sourceRef="ExclusiveGateway_NeedMaterials" targetRef="UserTask_GatherResources">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${needItems == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Direct path for "Have All" to Merge Gateway -->
+    <bpmn:sequenceFlow id="SF_HaveAllNo" name="Already Have Items" sourceRef="ExclusiveGateway_NeedMaterials" targetRef="InclusiveGateway_Merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${needItems == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Converging Path -->
+    <bpmn:sequenceFlow id="SF_MergeToInstructions" sourceRef="UserTask_GatherResources" targetRef="InclusiveGateway_Merge"/>
+    
+    <!-- Continue to Instructions -->
+    <bpmn:sequenceFlow id="SF_ToInstructions" name="Proceed with Repair" sourceRef="InclusiveGateway_Merge" targetRef="UserTask_ReceiveInstr"/>
+
+    <!-- Execution Flow -->
+    <bpmn:sequenceFlow id="SF_StartRepairAction" sourceRef="UserTask_ReceiveInstr" targetRef="UserTask_PerformRepair"/>
+    
+    <!-- Outcome Decision -->
+    <bpmn:sequenceFlow id="SF_CheckSuccess" name="Check Result" sourceRef="UserTask_PerformRepair" targetRef="ExclusiveGateway_WorkedOut"/>
+
+    <!-- Success Path -->
+    <bpmn:sequenceFlow id="SF_SendReviewYes" name="Worked Out" sourceRef="ExclusiveGateway_WorkedOut" targetRef="UserTask_SendReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${success == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Failure Path -->
+    <bpmn:sequenceFlow id="SF_SentToExpertNo" name="Failed Repair" sourceRef="ExclusiveGateway_WorkedOut" targetRef="UserTask_SentToExpert">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${success == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flows -->
+    <bpmn:sequenceFlow id="SF_EndSuccess" sourceRef="UserTask_SendReview" targetRef="EndEvent_Success"/>
+    <bpmn:sequenceFlow id="SF_EndFailure" name="Handover to Expert" sourceRef="UserTask_SentToExpert" targetRef="EndEvent_Expert"/>
+
+  </bpmn:process>
+</bpmn:definitions>

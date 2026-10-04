@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RegressProcess">
+    <bpmn:participant id="Pool_Sachbearbeiter" name="Regressnahme Sachbearbeiter" processRef="Proc_Regress"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Regress" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="Regressverdacht gemeldet">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>Seq_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Case -->
+    <bpmn:task id="Task_CheckCase" name="Fall prüfen">
+      <bpmn:description>Prüfen ob Regress möglich ist</bpmn:description>
+      <bpmn:incoming>Seq_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_CaseDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway: Is regression possible? -->
+    <bpmn:exclusiveGateway id="Gw_RegressionPossible" name="Regress möglich?">
+      <bpmn:incoming>Seq_CaseDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendPaymentRequest</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CloseCaseNoRegression</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for YES path -->
+    <bpmn:sequenceFlow id="Seq_SendPaymentRequest" name="Ja" sourceRef="Gw_RegressionPossible" targetRef="Task_SendPayment"/>
+
+    <!-- Task: Send Payment Request -->
+    <bpmn:task id="Task_SendPayment" name="Zahlungsaufforderung an VN schicken">
+      <bpmn:description>Send payment request to policyholder</bpmn:description>
+      <bpmn:incoming>Seq_SendPaymentRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for NO path -->
+    <bpmn:sequenceFlow id="Seq_CloseCaseNoRegression" name="Nein" sourceRef="Gw_RegressionPossible" targetRef="Task_CloseCase1"/>
+
+    <!-- Task: Close Case (no regression) -->
+    <bpmn:task id="Task_CloseCase1" name="Vorgang schließen">
+      <bpmn:description>Close case when no regression possible</bpmn:description>
+      <bpmn:incoming>Seq_CloseCaseNoRegression</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_NoRegression" name="Vorgang geschlossen">
+      <bpmn:description>No regression case closed</bpmn:description>
+      <bpmn:incoming>Seq_CloseCaseToEnd1</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Task to End -->
+    <bpmn:sequenceFlow id="Seq_CloseCaseToEnd1" sourceRef="Task_CloseCase1" targetRef="End_NoRegression"/>
+
+    <!-- Set on Follow-up Review (Wiedervorlage) -->
+    <bpmn:task id="Task_SetFollowup" name="Vorgang auf Wiedervorlage setzen">
+      <bpmn:description>Set case for follow-up review</bpmn:description>
+      <bpmn:incoming>Seq_SendPaymentToFollowup</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Send Payment to Follow-up -->
+    <bpmn:sequenceFlow id="Seq_SendPaymentToFollowup" sourceRef="Task_SendPayment" targetRef="Task_SetFollowup"/>
+
+    <!-- Event-Based Gateway for waiting on multiple events -->
+    <bpmn:eventBasedGateway id="Gw_EventWait">
+      <bpmn:description>Waits for: Payment received, Objection received, or Follow-up deadline</bpmn:description>
+      <bpmn:incoming>Seq_FollowupToEventGate</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Sequence Flow to Event-Based Gateway -->
+    <bpmn:sequenceFlow id="Seq_FollowupToEventGate" sourceRef="Task_SetFollowup" targetRef="Gw_EventWait"/>
+
+    <!-- Intermediate Catch Event: Objection Received (Message) -->
+    <bpmn:intermediateCatchEvent id="Evt_ObjectiveReceived">
+      <bpmn:name>Widerspruch erhalten</bpmn:description>Policyholder objection received via message</bpmn:description>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>Seq_GwToObjection</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow from Gateway to Objection Event -->
+    <bpmn:sequenceFlow id="Seq_GwToObjection" sourceRef="Gw_EventWait" targetRef="Evt_ObjectiveReceived"/>
+
+    <!-- Task: Check Objection Justification -->
+    <bpmn:task id="Task_CheckObjection">
+      <bpmn:name>Widerspruch prüfen</bpmn:description>Evaluate if objection is justified</bpmn:description>
+      <bpmn:incoming>Seq_ObjectiveToCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Objection Event to Check Task -->
+    <bpmn:sequenceFlow id="Seq_ObjectiveToCheck" sourceRef="Evt_ObjectiveReceived" targetRef="Task_CheckObjection"/>
+
+    <!-- Exclusive Gateway: Is objection justified? -->
+    <bpmn:exclusiveGateway id="Gw_Justified">
+      <bpmn:name>Gerechtfertigt?</bpmn:description>Decision on whether objection is valid</bpmn:description>
+      <bpmn:incoming>Seq_CheckToDecide</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Check to Decision -->
+    <bpmn:sequenceFlow id="Seq_CheckToDecide" sourceRef="Task_CheckObjection" targetRef="Gw_Justified"/>
+
+    <!-- Task: Close Case (justified objection) -->
+    <bpmn:task id="Task_CloseCase2">
+      <bpmn:name>Vorgang schließen</bpmn:description>Close case when objection is justified</bpmn:description>
+      <bpmn:incoming>Seq_JustifiedToClose</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Justified path -->
+    <bpmn:sequenceFlow id="Seq_JustifiedToClose" name="Ja" sourceRef="Gw_Justified" targetRef="Task_CloseCase2"/>
+
+    <!-- End Event 2 (justified objection) -->
+    <bpmn:endEvent id="End_JustifiedObjection">
+      <bpmn:name>Vorgang geschlossen</bpmn:description>Case closed due to justified objection</bpmn:description>
+      <bpmn:incoming>Seq_CloseToJustifiedEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Close Task to End -->
+    <bpmn:sequenceFlow id="Seq_CloseToJustifiedEnd" sourceRef="Task_CloseCase2" targetRef="End_JustifiedObjection"/>
+
+    <!-- Intermediate Catch Event: Follow-up Deadline (Timer) -->
+    <bpmn:intermediateCatchEvent id="Evt_FollowupDeadline">
+      <bpmn:name>Wiedervorlage fällig</bpmn:description>Follow-up deadline expired without payment or objection</bpmn:description>
+      <bpmn:timerEventDefinition/>
+      <bpmn:incoming>Seq_GwToTimer</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow from Gateway to Timer Event -->
+    <bpmn:sequenceFlow id="Seq_GwToTimer" sourceRef="Gw_EventWait" targetRef="Evt_FollowupDeadline"/>
+
+    <!-- Task: Hand over to Collection Agency (from timer) -->
+    <bpmn:task id="Task_HandoverCollection">
+      <bpmn:name>Vorgang an Inkasso-Dienstleister geben</bpmn:description>Hand case to collection agency service provider</bpmn:description>
+      <bpmn:incoming>Seq_TimerToHandover</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Timer Event to Hand-over Task -->
+    <bpmn:sequenceFlow id="Seq_TimerToHandover" sourceRef="Evt_FollowupDeadline" targetRef="Task_HandoverCollection"/>
+
+    <!-- Intermediate Catch Event: Money Received (Message) -->
+    <bpmn:intermediateCatchEvent id="Evt_MoneyReceived">
+      <bpmn:name>Geld eingegangen</bpmn:description>Payment received from policyholder via message</bpmn:description>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>Seq_GwToMoney</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence Flow from Gateway to Money Event -->
+    <bpmn:sequenceFlow id="Seq_GwToMoney" sourceRef="Gw_EventWait" targetRef="Evt_MoneyReceived"/>
+
+    <!-- Task: Book Receipt of Payment -->
+    <bpmn:task id="Task_BookReceipt">
+      <bpmn:name>Geldeingang verbuchen</bpmn:description>Record the received payment in system</bpmn:description>
+      <bpmn:incoming>Seq_MoneyToBook</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Money Event to Book Task -->
+    <bpmn:sequenceFlow id="Seq_MoneyToBook" sourceRef="Evt_MoneyReceived" targetRef="Task_BookReceipt"/>
+
+    <!-- Task: Close Case (after payment) -->
+    <bpmn:task id="Task_CloseCase3">
+      <bpmn:name>Vorgang schließen</bpmn:description>Close case after booking receipt of payment</bpmn:description>
+      <bpmn:incoming>Seq_BookToClose</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Book Task to Close Task -->
+    <bpmn:sequenceFlow id="Seq_BookToClose" sourceRef="Task_BookReceipt" targetRef="Task_CloseCase3"/>
+
+    <!-- End Event 3 (payment received) -->
+    <bpmn:endEvent id="End_PaymentReceived">
+      <bpmn:name>Vorgang geschlossen</bpmn:description>Case closed after payment booking</bpmn:description>
+      <bpmn:incoming>Seq_CloseToPaymentEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Close Task to End -->
+    <bpmn:sequenceFlow id="Seq_CloseToPaymentEnd" sourceRef="Task_CloseCase3" targetRef="End_PaymentReceived"/>
+
+    <!-- Exclusive Gateway Decision for Non-Justified Objection (to Collection) -->
+    <bpmn:exclusiveGateway id="Gw_NonJustified">
+      <bpmn:name>Nein</bpmn:description>If objection not justified, hand to collection agency</bpmn:description>
+      <bpmn:incoming>Seq_DecideToNonJustified</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for Non-justified path -->
+    <bpmn:sequenceFlow id="Seq_NonJustifiedPath" name="Nein" sourceRef="Gw_Justified" targetRef="Task_HandoverCollection"/>
+
+    <!-- End Event 4 (handed to collection) -->
+    <bpmn:endEvent id="End_CollectionHanded">
+      <bpmn:name>Vorgang offen</bpmn:description>Case handed over, process continues externally</bpmn:description>
+      <bpmn:incoming>Seq_HandoverToEnd</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Hand-over Task to End -->
+    <bpmn:sequenceFlow id="Seq_HandoverToEnd" sourceRef="Task_HandoverCollection" targetRef="End_CollectionHanded"/>
+
+  </bpmn:process>
+</bpmn:definitions>

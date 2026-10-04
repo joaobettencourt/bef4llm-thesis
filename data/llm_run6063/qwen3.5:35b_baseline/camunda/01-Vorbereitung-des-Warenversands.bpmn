@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_ComputerHardwareShop" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_01">
+    <bpmn:participant id="Participant_ShopProcess" name="Computer Hardware Shop Process" processRef="Proc_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_OrderFulfillment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Secretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_QtyDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GetOffers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectCarrier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_InsuranceCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_LogisticsManager" name="Logistikleiter">
+        <bpmn:flowNodeRef>Task_LogisticsInsure</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_WarehouseWorker" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>InclusiveGateway_QtyDecision</bpmn:flowNodeRef> <!-- Moved to Secretary lane in logic, but referenced here for flow -->
+        <bpmn:flowNodeRef>Task_PackGoods</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_01" name="Ware versenden">
+      <bpmn:outgoing>SequenceFlow_Initiate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway Split (Admin vs Packing) -->
+    <bpmn:parallelGateway id="ParallelGateway_Split" name="Vorbereitungen">
+      <bpmn:incoming>SequenceFlow_Initiate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminWorkStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PackGoodsStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Quantity Decision (Exclusive Gateway) -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_QtyDecision" name="Große Menge?">
+      <bpmn:incoming>SequenceFlow_AdminWorkStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpecialHandling</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NormalShipping</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Get Offers (Special Handling) -->
+    <bpmn:task id="Task_GetOffers" name="Angebote von Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_SpecialHandling</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SelectCarrierStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Select Carrier (Special Handling) -->
+    <bpmn:task id="Task_SelectCarrier" name="Spediteur auswählen und beauftragen">
+      <bpmn:incoming>SequenceFlow_SelectCarrierStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AdminDone_Special</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Fill Form (Normal Shipping) -->
+    <bpmn:task id="Task_FillForm" name="Paketschein ausfüllen">
+      <bpmn:incoming>SequenceFlow_NormalShipping</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckInsuranceStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Insurance Check Gateway -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_InsuranceCheck" name="Versicherung nötig?">
+      <bpmn:incoming>SequenceFlow_CheckInsuranceStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SkipInsure</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Logistics Manager Insures -->
+    <bpmn:task id="Task_LogisticsInsure" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_SkipInsure</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AdminDone_Normal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Admin Paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_AdminMerge" name="Vorbereitungen abgeschlossen">
+      <bpmn:incoming>SequenceFlow_AdminDone_Special</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_AdminDone_Normal</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Pack Goods (Warehouse) -->
+    <bpmn:task id="Task_PackGoods" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_PackGoodsStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WarehouseReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Join Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_FinalJoin" name="Alle Vorbereitungen">
+      <bpmn:incoming>SequenceFlow_AdminDone_MergeOut</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_WarehouseReady</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_PreparePickup" name="Ware zur Abholung bereitstellen">
+      <bpmn:incoming>SequenceFlow_FinalJoinOut</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_01" name="Zur Abholung bereitgestellt">
+      <bpmn:incoming>SequenceFlow_ToEndEvent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Initiate" sourceRef="StartEvent_01" targetRef="ParallelGateway_Split"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminWorkStart" name="Admin Work Start" sourceRef="ParallelGateway_Split" targetRef="InclusiveGateway_QtyDecision"/>
+
+    <!-- Large Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SpecialHandling" name="Große Menge?" sourceRef="InclusiveGateway_QtyDecision" targetRef="Task_GetOffers">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[largeQuantity]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Small Quantity Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NormalShipping" name="Kleine Menge?" sourceRef="InclusiveGateway_QtyDecision" targetRef="Task_FillForm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[smallQuantity]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Special Handling Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectCarrierStart" sourceRef="Task_GetOffers" targetRef="Task_SelectCarrier"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AdminDone_Special" name="Special Done" sourceRef="Task_SelectCarrier" targetRef="InclusiveGateway_AdminMerge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[carrierSelected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Normal Shipping Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckInsuranceStart" sourceRef="Task_FillForm" targetRef="InclusiveGateway_InsuranceCheck"/>
+
+    <!-- Insurance Check Decision -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipInsure" name="Versicherung nötig?" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="Task_LogisticsInsure">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[insuranceRequired]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Insurance Skip Path (No insurance needed) -->
+    <bpmn:sequenceFlow id="SequenceFlow_AdminDone_Normal" name="Normal Done" sourceRef="InclusiveGateway_InsuranceCheck" targetRef="InclusiveGateway_AdminMerge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[noInsuranceRequired]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Admin Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_AdminDone_MergeOut" sourceRef="InclusiveGateway_AdminMerge" targetRef="ParallelGateway_FinalJoin"/>
+
+    <!-- Packing Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_PackGoodsStart" name="Pack Goods Start" sourceRef="ParallelGateway_Split" targetRef="Task_PackGoods"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WarehouseReady" name="Packing Ready" sourceRef="Task_PackGoods" targetRef="ParallelGateway_FinalJoin"/>
+
+    <!-- Final Join to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalJoinOut" sourceRef="ParallelGateway_FinalJoin" targetRef="Task_PreparePickup"/>
+
+  </bpmn:process>
+</bpmn:definitions>

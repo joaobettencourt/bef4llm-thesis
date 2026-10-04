@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LANParty_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LANParty">
+    <bpmn:participant name="LAN Party Organizer" processRef="Process_LANPartyPlanning"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_LANPartyPlanning">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="Organizer">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendInvitations</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectGamePreferences</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_SplitPrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AppointDate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DateConfirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelJoin_MergePrep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckGameAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_GamesMissing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DownloadGames</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CalculateBeerRequirement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BeerEnough</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BuyMissingBeer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PartyStarts</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Plan LAN Party">
+      <bpmn:outgoing>SequenceFlow_SendInvites</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Send Invitations -->
+    <bpmn:task id="Task_SendInvitations" name="Send invitations to friends">
+      <bpmn:incoming>SequenceFlow_SendInvites</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectGames</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Collect Game Preferences -->
+    <bpmn:task id="Task_CollectGamePreferences" name="Find out games they want to play">
+      <bpmn:incoming>SequenceFlow_CollectGames</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitPrep</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Date Negotiation and Game Prep -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitPrep">
+      <bpmn:incoming>SequenceFlow_SplitPrep</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AppointDatePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckGamesPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Date Negotiation Loop -->
+    <bpmn:task id="Task_AppointDate" name="Appoint a date">
+      <bpmn:incoming>SequenceFlow_AppointDatePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAgreement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check if >=8 agree -->
+    <bpmn:exclusiveGateway id="Gateway_DateConfirmed" name="8+ Agree?">
+      <bpmn:incoming>SequenceFlow_CheckAgreement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesDate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoDate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop back if not enough agree -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoDate" name="No (Less than 8)" sourceRef="Gateway_DateConfirmed" targetRef="Task_AppointDate"/>
+
+    <!-- Path to Merge after Date Confirmed -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesDate" name="Yes (8+ Agree)" sourceRef="Gateway_DateConfirmed" targetRef="ParallelJoin_MergePrep"/>
+
+    <!-- Path 2: Game Availability Check -->
+    <bpmn:task id="Task_CheckGameAvailability" name="Check if all games are available">
+      <bpmn:incoming>SequenceFlow_CheckGamesPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GamesDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Check if games missing -->
+    <bpmn:exclusiveGateway id="Gateway_GamesMissing" name="Games Missing?">
+      <bpmn:incoming>SequenceFlow_GamesDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DownloadYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DownloadNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Download Games if missing -->
+    <bpmn:task id="Task_DownloadGames" name="Download missing games">
+      <bpmn:incoming>SequenceFlow_DownloadYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GamesReady</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Game Check Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_DownloadNo" name="All Available" sourceRef="Gateway_GamesMissing" targetRef="ParallelJoin_MergePrep"/>
+    <bpmn:sequenceFlow id="SequenceFlow_GamesReady" sourceRef="Task_DownloadGames" targetRef="ParallelJoin_MergePrep"/>
+
+    <!-- Parallel Join -->
+    <bpmn:parallelGateway id="ParallelJoin_MergePrep">
+      <bpmn:incoming>SequenceFlow_YesDate</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_DownloadNo</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_GamesReady</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CalcBeer</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 4: Beer Requirement -->
+    <bpmn:task id="Task_CalculateBeerRequirement" name="Find out beer requirement">
+      <bpmn:incoming>SequenceFlow_CalcBeer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BeerDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Beer Check -->
+    <bpmn:exclusiveGateway id="Gateway_BeerEnough" name="Beer Enough?">
+      <bpmn:incoming>SequenceFlow_BeerDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BuyYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_EnoughNoBuy</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5: Buy Beer -->
+    <bpmn:task id="Task_BuyMissingBeer" name="Buy missing beer">
+      <bpmn:incoming>SequenceFlow_BuyYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Beer Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnoughNoBuy" name="Yes, Enough" sourceRef="Gateway_BeerEnough" targetRef="EndEvent_PartyStarts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ToParty" sourceRef="Task_BuyMissingBeer" targetRef="EndEvent_PartyStarts"/>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_PartyStarts" name="Enjoy LAN Party">
+      <bpmn:incoming>SequenceFlow_EnoughNoBuy</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ToParty</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

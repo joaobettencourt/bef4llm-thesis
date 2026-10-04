@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_IPO_Process">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Participant_Underwriting" name="IPO Underwriting Process" processRef="Process_IPO"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_IPO" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_DecisionToGoPublic" name="Decision to Go Public">
+      <bpmn:outgoing>Seq_SelectUnderwriters</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Select Underwriters -->
+    <bpmn:task id="Task_SelectUnderwriters" name="Select Underwriters">
+      <bpmn:incoming>Seq_SelectUnderwriters</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckFacts</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Facts -->
+    <bpmn:exclusiveGateway id="Gw_FactsCheck" name="Facts Presented Fairly?">
+      <bpmn:incoming>Seq_CheckFacts</bpmn:incoming>
+      <bpmn:outgoing>Seq_ProceedUnderwriting</bpmn:outgoing>
+      <bpmn:outgoing>Seq_DenyDeal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1: Decline Deal -->
+    <bpmn:endEvent id="End_Decline" name="Decline Deal">
+      <bpmn:incoming>Seq_DenyDeal</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 2: Parallel Split (SEC + Road Show) -->
+    <bpmn:parallelGateway id="Gw_SplitParallel" name="Start SEC &amp; Roadshow">
+      <bpmn:incoming>Seq_ProceedUnderwriting</bpmn:incoming>
+      <bpmn:outgoing>Seq_FileRegistration</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ArrangeRoadShow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 2: Prepare Registration Statement -->
+    <bpmn:task id="Task_PrepareRegStatement" name="Prepare Registration Statement">
+      <bpmn:incoming>Seq_FileRegistration</bpmn:incoming>
+      <bpmn:outgoing>Seq_SubmitToSEC</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event: Submit to SEC -->
+    <bpmn:intermediateThrowEvent id="Evt_SubmitSEC" name="Submit to SEC">
+      <bpmn:incoming>Seq_SubmitToSEC</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 3: Arrange Road Show -->
+    <bpmn:task id="Task_ArrangeRoadShow" name="Arrange Road Show">
+      <bpmn:incoming>Seq_ArrangeRoadShow</bpmn:incoming>
+      <bpmn:outgoing>Seq_RoadshowComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: SEC Approval -->
+    <bpmn:intermediateCatchEvent id="Evt_SECApproval" name="Receive SEC Clearance">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Seq_WaitForSEC</bpmn:incoming>
+      <bpmn:outgoing>Seq_FixPriceTrigger</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway 3: Join (Road Show + SEC Approval) -->
+    <bpmn:parallelGateway id="Gw_JoinBeforeFix" name="Join Before Fix Price">
+      <bpmn:incoming>Seq_RoadshowComplete</bpmn:incoming>
+      <bpmn:incoming>Seq_FixPriceTrigger</bpmn:incoming>
+      <bpmn:outgoing>Seq_FixIssuePriceFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 4: Fix Issue Price -->
+    <bpmn:task id="Task_FixIssuePrice" name="Fix Issue Price">
+      <bpmn:incoming>Seq_FixIssuePriceFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckReasonNotProceed</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4: Check Reason Not Proceed -->
+    <bpmn:exclusiveGateway id="Gw_ReasonNotProceed" name="Reason Not Proceed?">
+      <bpmn:incoming>Seq_CheckReasonNotProceed</bpmn:incoming>
+      <bpmn:outgoing>Seq_CommitBuyStockFlow</bpmn:outgoing>
+      <bpmn:outgoing>Seq_StopProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 2: Stop IPO -->
+    <bpmn:endEvent id="End_StopIPO">
+      <bpmn:incoming>Seq_StopProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 5: Enter Firm Commitment to Buy Stock -->
+    <bpmn:task id="Task_EnterCommitment" name="Enter Firm Commitment">
+      <bpmn:incoming>Seq_CommitBuyStockFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_OfferPublicFlow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Offer Stock to Public -->
+    <bpmn:task id="Task_OfferStock" name="Offer Stock to Public">
+      <bpmn:incoming>Seq_OfferPublicFlow</bpmn:incoming>
+      <bpmn:outgoing>Seq_FinalIPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3: IPO Completed -->
+    <bpmn:endEvent id="End_IPOCompleted" name="IPO Processed">
+      <bpmn:incoming>Seq_FinalIPO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_SelectUnderwriters" sourceRef="Start_DecisionToGoPublic" targetRef="Task_SelectUnderwriters"/>
+    
+    <bpmn:sequenceFlow id="Seq_CheckFacts" sourceRef="Task_SelectUnderwriters" targetRef="Gw_FactsCheck"/>
+    
+    <bpmn:sequenceFlow id="Seq_ProceedUnderwriting" name="Yes - Proceed" sourceRef="Gw_FactsCheck" targetRef="Gw_SplitParallel"/>
+    
+    <bpmn:sequenceFlow id="Seq_DenyDeal" name="No - Decline" sourceRef="Gw_FactsCheck" targetRef="End_Decline"/>
+    
+    <bpmn:sequenceFlow id="Seq_FileRegistration" sourceRef="Gw_SplitParallel" targetRef="Task_PrepareRegStatement"/>
+    
+    <bpmn:sequenceFlow id="Seq_ArrangeRoadShow" name="Start Roadshow" sourceRef="Gw_SplitParallel" targetRef="Task_ArrangeRoadShow"/>
+    
+    <bpmn:sequenceFlow id="Seq_SubmitToSEC" sourceRef="Task_PrepareRegStatement" targetRef="Evt_SubmitSEC"/>
+    
+    <bpmn:sequenceFlow id="Seq_WaitForSEC" name="Await SEC Approval" sourceRef="Evt_SubmitSEC" targetRef="Evt_SECApproval"/>
+    
+    <bpmn:sequenceFlow id="Seq_RoadshowComplete" sourceRef="Task_ArrangeRoadShow" targetRef="Gw_JoinBeforeFix"/>
+    
+    <bpmn:sequenceFlow id="Seq_FixPriceTrigger" name="SEC Approved" sourceRef="Evt_SECApproval" targetRef="Gw_JoinBeforeFix"/>
+    
+    <bpmn:sequenceFlow id="Seq_FixIssuePriceFlow" sourceRef="Gw_JoinBeforeFix" targetRef="Task_FixIssuePrice"/>
+    
+    <bpmn:sequenceFlow id="Seq_CheckReasonNotProceed" name="Check Reason Not Proceed" sourceRef="Task_FixIssuePrice" targetRef="Gw_ReasonNotProceed"/>
+    
+    <bpmn:sequenceFlow id="Seq_CommitBuyStockFlow" name="No - Continue" sourceRef="Gw_ReasonNotProceed" targetRef="Task_EnterCommitment"/>
+    
+    <bpmn:sequenceFlow id="Seq_StopProcess" name="Yes - Stop" sourceRef="Gw_ReasonNotProceed" targetRef="End_StopIPO"/>
+    
+    <bpmn:sequenceFlow id="Seq_OfferPublicFlow" sourceRef="Task_EnterCommitment" targetRef="Task_OfferStock"/>
+    
+    <bpmn:sequenceFlow id="Seq_FinalIPO" name="Offer to Public Complete" sourceRef="Task_OfferStock" targetRef="End_IPOCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

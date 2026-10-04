@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LeadProcessing" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_LeadProcess">
+    <bpmn:participant id="Participant_LeadProc" name="Lead Processing System" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Manager" name="Manager">
+        <bpmn:flowNodeRef>StartEvent_Process</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckLeads</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectTop5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MoreLeads</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SalesAssistant" name="Sales Assistant">
+        <bpmn:flowNodeRef>Task_CallContactPerson</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Interested</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Process" name="Process Starts">
+      <bpmn:outgoing>SeqFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Manager Tasks -->
+    <bpmn:task id="Task_CheckLeads" name="Check open leads">
+      <bpmn:incoming>SeqFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CheckToSelect</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectTop5" name="Select top five leads">
+      <bpmn:incoming>SeqFlow_CheckToSelect</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToGateway_MoreLeads</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Loop Control (More Leads?) -->
+    <bpmn:exclusiveGateway id="Gateway_MoreLeads" name="More leads?">
+      <bpmn:incoming>SeqFlow_ToGateway_MoreLeads</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CallContactPerson</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sales Assistant Tasks & Gateway -->
+    <bpmn:task id="Task_CallContactPerson" name="Call contact person">
+      <bpmn:incoming>SeqFlow_CallContactPerson</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_ToInterestedGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway (Interested?) -->
+    <bpmn:exclusiveGateway id="Gateway_Interested" name="Interested?">
+      <bpmn:incoming>SeqFlow_ToInterestedGateway</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_No_NextLead</bpmn:outgoing> <!-- Not interested, check next -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Manager Task (Process Lead) -->
+    <bpmn:task id="Task_ProcessLead" name="Process lead">
+      <bpmn:name>Process lead</bpmn:name>
+      <bpmn:incoming>SeqFlow_Yes_SendNoteToManager</bpmn:incoming> <!-- Note sent implicitly via flow -->
+      <bpmn:outgoing>SeqFlow_Processed_NextLeadCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="All leads processed">
+      <bpmn:incoming>SeqFlow_NoMoreLeads_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Manager Flow -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToCheck" sourceRef="StartEvent_Process" targetRef="Task_CheckLeads">
+      <bpmn:name>To Check Leads</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SeqFlow_CheckToSelect" sourceRef="Task_CheckLeads" targetRef="Task_SelectTop5">
+      <bpmn:name>Select Top 5</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Entry -->
+    <bpmn:sequenceFlow id="SeqFlow_ToGateway_MoreLeads" sourceRef="Task_SelectTop5" targetRef="Gateway_MoreLeads">
+      <bpmn:name>To Check Leads</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Start to Call -->
+    <bpmn:sequenceFlow id="SeqFlow_CallContactPerson" sourceRef="Gateway_MoreLeads" targetRef="Task_CallContactPerson">
+      <bpmn:name>To Contact Person</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Call to Decision -->
+    <bpmn:sequenceFlow id="SeqFlow_ToInterestedGateway" sourceRef="Task_CallContactPerson" targetRef="Gateway_Interested">
+      <bpmn:name>To Interested Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Not Interested -> Loop Back -->
+    <bpmn:sequenceFlow id="SeqFlow_No_NextLead" sourceRef="Gateway_Interested" targetRef="Gateway_MoreLeads">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Interested -> Process Lead (Implicit Note Sent) -->
+    <bpmn:exclusiveGateway id="Gateway_InterestedYesPath" name="Interested? Yes Path">
+        <bpmn:incoming>SeqFlow_ToInterestedGateway</bpmn:incoming>
+        <bpmn:outgoing>SeqFlow_Yes_SendNoteToManager</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Note Sent to Manager -->
+    <bpmn:sequenceFlow id="SeqFlow_Yes_SendNoteToManager" sourceRef="Gateway_InterestedYesPath" targetRef="Task_ProcessLead">
+      <bpmn:name>Send Note & Process</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- After Processing -> Check More Leads -->
+    <bpmn:sequenceFlow id="SeqFlow_Processed_NextLeadCheck" sourceRef="Task_ProcessLead" targetRef="Gateway_MoreLeads">
+      <bpmn:name>To Next Lead</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+  
+</definitions>

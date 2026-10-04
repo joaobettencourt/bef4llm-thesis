@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_001">
+    <bpmn:participant id="Participant_ProcessSys" name="Account Defaulters Processing System" processRef="Process_001" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_001" isExecutable="false">
+    
+    <!-- Start Event - Weekday morning timer -->
+    <bpmn:startEvent id="StartEvent_MorningBackup" name="Weekday Morning Backup">
+      <bpmn:outgoing>SequenceFlow_StartToDB</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+
+    <!-- Task 1 - Database backup -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup database">
+      <bpmn:incoming>SequenceFlow_StartToDB</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DBToCheckDefaulters</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 - Check for new records in Account Defaulters table -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckNewRecords">
+      <bpmn:name>New Records?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DBToCheckDefaulters</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoNewRecords</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 - Check CRM for returns -->
+    <bpmn:task id="Task_CheckCRMReturns" name="Check CRM system">
+      <bpmn:incoming>SequenceFlow_NoNewRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CRMToDecision1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 - Check if new returns exist -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NewReturnsExist">
+      <bpmn:name>New Returns?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CRMToDecision1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesNewReturns</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 - Register defaulting accounts and customers -->
+    <bpmn:task id="Task_RegisterDefaulters" name="Register defaulting accounts &amp; customers">
+      <bpmn:incoming>SequenceFlow_YesNewReturns</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegToCheckAdvised</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3 - Check if client codes previously advised -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PreviouslyAdvised">
+      <bpmn:name>Previously Advised?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RegToCheckAdvised</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotAdvised</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4 - Produce table and send to account management -->
+    <bpmn:task id="Task_ProduceTable" name="Produce defaulting accounts table">
+      <bpmn:incoming>SequenceFlow_NotAdvised</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TableToSend</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 - Send to account management -->
+    <bpmn:task id="Task_SendTable" name="Send table to account management">
+      <bpmn:incoming>SequenceFlow_TableToSend</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToCheckCRM2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event - 2:30 PM timer for first deadline -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_14h30" name="Time Limit">
+      <bpmn:name>2:30 pm</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendToCheckCRM2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_T14h30ToAlertSupervisor</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 6 - Alert supervisor for first deadline -->
+    <bpmn:task id="Task_AlertSupervisor1" name="Alert supervisor">
+      <bpmn:name>Send alert</bpmn:name>
+      <bpmn:incoming>SequenceFlow_T14h30ToAlertSupervisor</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AlertToCheckCRM2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 7 - Check CRM system again -->
+    <bpmn:task id="Task_CheckCRMReturns2" name="Check new returns filed?">
+      <bpmn:name>Check CRM for returns</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendToCheckCRM2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CRM2ToDecision2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 - Check if new returns exist (second check) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_NewReturnsExist2">
+      <bpmn:name>New Returns?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CRM2ToDecision2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_YesNewReturns2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8 - Reconcile with existing account defaulters table -->
+    <bpmn:task id="Task_ReconcileDefaulters" name="Reconcile accounts">
+      <bpmn:name>Reconcile with account defaulters</bpmn:name>
+      <bpmn:incoming>SequenceFlow_YesNewReturns2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReconcileToCheckCRM3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event - 4:00 PM timer for second deadline -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_16h00" name="Time Limit">
+      <bpmn:name>4:00 pm</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ReconcileToCheckCRM3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_T16h00ToAlertSupervisor2</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 9 - Alert supervisor for second deadline -->
+    <bpmn:task id="Task_AlertSupervisor2" name="Alert supervisor">
+      <bpmn:name>Send alert</bpmn:name>
+      <bpmn:incoming>SequenceFlow_T16h00ToAlertSupervisor2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AlertToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Process Completed">
+      <bpmn:name>Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_AlertToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToDB" sourceRef="StartEvent_MorningBackup" targetRef="Task_BackupDatabase" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_DBToCheckDefaulters" name="" sourceRef="Task_BackupDatabase" targetRef="ExclusiveGateway_CheckNewRecords" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoNewRecords" name="No new records" sourceRef="ExclusiveGateway_CheckNewRecords" targetRef="Task_CheckCRMReturns" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CRMToDecision1" name="" sourceRef="Task_CheckCRMReturns" targetRef="ExclusiveGateway_NewReturnsExist" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesNewReturns" name="Yes, new returns exist" sourceRef="ExclusiveGateway_NewReturnsExist" targetRef="Task_RegisterDefaulters" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RegToCheckAdvised" name="" sourceRef="Task_RegisterDefaulters" targetRef="ExclusiveGateway_PreviouslyAdvised" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NotAdvised" name="Not previously advised" sourceRef="ExclusiveGateway_PreviouslyAdvised" targetRef="Task_ProduceTable" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TableToSend" name="" sourceRef="Task_ProduceTable" targetRef="Task_SendTable" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendToCheckCRM2" name="" sourceRef="Task_SendTable" targetRef="ExclusiveGateway_NewReturnsExist2" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CRM2ToDecision2" name="" sourceRef="Task_CheckCRMReturns2" targetRef="ExclusiveGateway_NewReturnsExist2" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_YesNewReturns2" name="Yes, new returns exist" sourceRef="ExclusiveGateway_NewReturnsExist2" targetRef="Task_ReconcileDefaulters" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_T14h30ToAlertSupervisor" name="" sourceRef="IntermediateTimer_14h30" targetRef="Task_AlertSupervisor1" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReconcileToCheckCRM3" name="" sourceRef="Task_ReconcileDefaulters" targetRef="ExclusiveGateway_NewReturnsExist2" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_T16h00ToAlertSupervisor2" name="" sourceRef="IntermediateTimer_16h00" targetRef="Task_AlertSupervisor2" />
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AlertToEndEvent" name="" sourceRef="Task_AlertSupervisor2" targetRef="EndEvent_Completed" />
+
+  </bpmn:process>
+</bpmn:definitions>

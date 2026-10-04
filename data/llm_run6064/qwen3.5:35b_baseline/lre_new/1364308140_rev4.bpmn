@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_Ordnung_Auftrag_Process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrderProcess">
+    <bpmn:participant id="Pool_SO_AngebotAuftrag" name="SO: Angebot/Auftrag" processRef="Proc_ManageOrder"/>
+    <bpmn:participant id="Pool_AddressManagement" name="Address Management" processRef="Proc_AddressCheck"/>
+  </bpmn:collaboration>
+
+  <!-- Process for SO: Angebot/Auftrag -->
+  <bpmn:process id="Proc_ManageOrder" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_SubsidiaryOrderReceived" name="Receive Subsidiary Order">
+      <bpmn:outgoing>SF_Start_PrepareGoods</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for concurrent activities -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Concurrent" name="Concurrent Activities Start">
+      <bpmn:incoming>SF_Start_PrepareGoods</bpmn:incoming>
+      <bpmn:outgoing>SF_PreparesForShipment</bpmn:outgoing>
+      <bpmn:outgoing>SF_ShipGoods</bpmn:outgoing>
+      <bpmn:outgoing>SF_PrepareInvoicing</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 1: Prepare goods for shipment -->
+    <bpmn:task id="Task_PreparesForShipment" name="Prepare Goods">
+      <bpmn:incoming>SF_PreparesForShipment</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Ship goods -->
+    <bpmn:task id="Task_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>SF_ShipGoods</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Prepare invoicing -->
+    <bpmn:task id="Task_PrepareInvoicing" name="Prepare Invoicing">
+      <bpmn:incoming>SF_PrepareInvoicing</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToGateway1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to check customer type and relationship -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CustomerCheck" name="Customer Type &amp; Relationship Check">
+      <bpmn:incoming>SF_GoToGateway1</bpmn:incoming>
+        <bpmn:outgoing>SF_PathSubsidiaryNotModeled</bpmn:outgoing>
+          <bpmn:outgoing>SF_PathIndependentOrModeled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path for subsidiary not yet modeled -->
+    <bpmn:sequenceFlow id="SF_PathSubsidiaryNotModeled" name="Yes - Subsidiary &amp; Not Modeled" sourceRef="ExclusiveGateway_CustomerCheck" targetRef="Task_AddParentCompanyAddress"/>
+
+    <!-- Path for independent or already modeled -->
+    <bpmn:sequenceFlow id="SF_PathIndependentOrModeled" name="No - Independent &amp; Or Already Modeled" sourceRef="ExclusiveGateway_CustomerCheck" targetRef="Task_CreateInvoiceDirectly"/>
+
+    <!-- Task for Address Management (external call) -->
+    <bpmn:task id="Task_AddParentCompanyAddress" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>SF_PathSubsidiaryNotModeled</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToCreateInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for creating invoice (direct path) -->
+    <bpmn:task id="Task_CreateInvoiceDirectly" name="Create Invoice">
+      <bpmn:incoming>SF_PathIndependentOrModeled</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToGateway2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for creating invoice (after address update) -->
+    <bpmn:task id="Task_CreateInvoiceAfterAddress" name="Create Invoice">
+      <bpmn:incoming>SF_GoToCreateInvoice</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToGateway2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to merge invoice creation paths -->
+    <bpmn:parallelGateway id="Parallel_Gateway_InvoiceMerge" name="Invoice Creation Complete">
+      <bpmn:incoming>SF_GoToCreateInvoice</bpmn:incoming>
+        <bpmn:incoming>SF_GoToGateway2</bpmn:incoming>
+          <bpmn:outgoing>SF_SendInvoice</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final Task -->
+    <bpmn:task id="Task_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>SF_SendInvoice</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderComplete" name="Order Process Complete">
+      <bpmn:incoming>SF_GoToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Main Flow -->
+    <bpmn:sequenceFlow id="SF_Start_PrepareGoods" sourceRef="StartEvent_SubsidiaryOrderReceived" targetRef="Parallel_Gateway_Concurrent"/>
+    
+    <bpmn:sequenceFlow id="SF_PreparesForShipment" name="Prepare Goods for Shipment" sourceRef="Parallel_Gateway_Concurrent" targetRef="Task_PreparesForShipment"/>
+    
+    <bpmn:sequenceFlow id="SF_ShipGoods" name="Ship Goods" sourceRef="Parallel_Gateway_Concurrent" targetRef="Task_ShipGoods"/>
+    
+    <bpmn:sequenceFlow id="SF_PrepareInvoicing" name="Prepare Invoicing" sourceRef="Parallel_Gateway_Concurrent" targetRef="Task_PrepareInvoicing"/>
+
+    <!-- Flows to Gateway 1 -->
+    <bpmn:sequenceFlow id="SF_GoToGateway1" sourceRef="Task_PreparesForShipment" targetRef="ExclusiveGateway_CustomerCheck"/>
+    
+    <bpmn:sequenceFlow id="SF_ShipGoodsComplete" name="" sourceRef="Task_ShipGoods" targetRef="Parallel_Gateway_InvoiceMerge"/>
+
+    <!-- Flows from Gateway 1 -->
+    <bpmn:sequenceFlow id="SF_PathSubsidiaryNotModeled2" sourceRef="ExclusiveGateway_CustomerCheck" targetRef="Task_AddParentCompanyAddress"/>
+    
+    <bpmn:sequenceFlow id="SF_GoToCreateInvoice" name="" sourceRef="Task_AddParentCompanyAddress" targetRef="Parallel_Gateway_InvoiceMerge"/>
+
+    <!-- Flows from Gateway 2 -->
+    <bpmn:sequenceFlow id="SF_SendInvoice" sourceRef="Parallel_Gateway_InvoiceMerge" targetRef="Task_SendInvoice"/>
+    
+    <bpmn:sequenceFlow id="SF_GoToEndEvent" name="" sourceRef="Task_SendInvoice" targetRef="EndEvent_OrderComplete"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

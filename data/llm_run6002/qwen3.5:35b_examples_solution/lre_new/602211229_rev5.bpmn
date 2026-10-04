@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ReimbursementProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_1">
+    <bpmn:participant id="Pool_ERICS" name="ERICS Company" processRef="Proc_Reimbursement" />
+    <bpmn:participant id="Pool_Customer" name="Customer" />
+    <bpmn:messageFlow id="MsgFlow_CreditNote" sourceRef="ThrowEvent_SendCreditNote" targetRef="Pool_Customer" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Reimbursement" isExecutable="false">
+    <bpmn:startEvent id="Start_ReceiveRequest" name="Reimbursement request received">
+      <bpmn:outgoing>Flow_CreateContact</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_ReimbursementProcess" name="ERICS Reimbursement Process">
+        <bpmn:flowNodeRef>CreateContactTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SelectBeneficiaryTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>DeterminePeriodTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CustomerType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SelectAssociationTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SelectManualTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MergeCustomerSelection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SetThresholdTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_PeriodEnd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>PrintCreditNoteTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CalculateReimbursementTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>PayReimbursementTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ParallelMerge</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Create reimbursement contact -->
+    <bpmn:task id="CreateContactTask" name="Create reimbursement contract">
+      <bpmn:incoming>Flow_CreateContact</bpmn:incoming>
+      <bpmn:outgoing>Flow_SelectBeneficiary</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Select beneficiary -->
+    <bpmn:task id="SelectBeneficiaryTask" name="Choose beneficiary">
+      <bpmn:incoming>Flow_SelectBeneficiary</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeterminePeriod</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Determine refund period -->
+    <bpmn:task id="DeterminePeriodTask" name="Set refund period and contract duration">
+      <bpmn:incoming>Flow_DeterminePeriod</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckCustomerType</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Check customer type -->
+    <bpmn:exclusiveGateway id="Gw_CustomerType" name="Verband or normal subsidiaries?">
+      <bpmn:incoming>Flow_CheckCustomerType</bpmn:incoming>
+      <bpmn:outgoing>Seq_SelectAssociation</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ManualSelection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Association path -->
+    <bpmn:task id="SelectAssociationTask" name="Select association as customer group">
+      <bpmn:incoming>Seq_SelectAssociation</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeCustomerSelection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Manual selection path -->
+    <bpmn:task id="SelectManualTask" name="Select customers manually">
+      <bpmn:incoming>Seq_ManualSelection</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeCustomerSelection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge after customer selection -->
+    <bpmn:exclusiveGateway id="Gw_MergeCustomerSelection">
+      <bpmn:incoming>Flow_MergeCustomerSelection</bpmn:incoming>
+      <bpmn:outgoing>Flow_SetThreshold</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Set threshold -->
+    <bpmn:task id="SetThresholdTask" name="Set threshold">
+      <bpmn:incoming>Flow_SetThreshold</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitPeriodEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for refund period end -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_PeriodEnd" name="Refund period ended">
+      <bpmn:incoming>Flow_WaitPeriodEnd</bpmn:incoming>
+      <bpmn:outgoing>Flow_ParallelSplit</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Parallel split for credit note and payment -->
+    <bpmn:parallelGateway id="Gw_ParallelSplit">
+      <bpmn:incoming>Flow_ParallelSplit</bpmn:incoming>
+      <bpmn:outgoing>Seq_PrintCreditNote</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CalculateReimbursement</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Print credit note path -->
+    <bpmn:task id="PrintCreditNoteTask" name="Print and send credit note">
+      <bpmn:incoming>Seq_PrintCreditNote</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendMessageToCustomer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send message to customer -->
+    <bpmn:intermediateThrowEvent id="ThrowEvent_SendCreditNote" name="Send credit note">
+      <bpmn:incoming>Flow_SendMessageToCustomer</bpmn:incoming>
+      <bpmn:outgoing>Seq_MergeBeforeEnd</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Calculate reimbursement path -->
+    <bpmn:task id="CalculateReimbursementTask" name="Calculate reimbursement">
+      <bpmn:incoming>Seq_CalculateReimbursement</bpmn:incoming>
+      <bpmn:outgoing>Flow_PayReimbursement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Pay reimbursement -->
+    <bpmn:task id="PayReimbursementTask" name="Pay reimbursement">
+      <bpmn:incoming>Flow_PayReimbursement</bpmn:incoming>
+      <bpmn:outgoing>Seq_MergeBeforeEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel merge before end -->
+    <bpmn:parallelGateway id="Gw_ParallelMerge">
+      <bpmn:incoming>Seq_SendMessageToCustomer</bpmn:incoming>
+      <bpmn:incoming>Seq_MergeBeforeEnd</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndProcess</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Reimbursement process complete">
+      <bpmn:incoming>Flow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="Flow_CreateContact" sourceRef="Start_ReceiveRequest" targetRef="CreateContactTask" />
+    <bpmn:sequenceFlow id="Flow_SelectBeneficiary" sourceRef="CreateContactTask" targetRef="SelectBeneficiaryTask" />
+    <bpmn:sequenceFlow id="Flow_DeterminePeriod" sourceRef="SelectBeneficiaryTask" targetRef="DeterminePeriodTask" />
+    <bpmn:sequenceFlow id="Flow_CheckCustomerType" sourceRef="DeterminePeriodTask" targetRef="Gw_CustomerType" />
+
+    <!-- Gateway conditions -->
+    <bpmn:sequenceFlow id="Seq_SelectAssociation" name="Verband member">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customer.isVerbandMember}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ManualSelection" name="Normal subsidiaries">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!customer.isVerbandMember}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge paths -->
+    <bpmn:sequenceFlow id="Flow_MergeCustomerSelection" sourceRef="SelectAssociationTask" targetRef="Gw_MergeCustomerSelection" />
+    <bpmn:sequenceFlow id="Flow_SetThreshold" sourceRef="Gw_MergeCustomerSelection" targetRef="SetThresholdTask" />
+
+    <!-- Wait for period -->
+    <bpmn:sequenceFlow id="Flow_WaitPeriodEnd" sourceRef="SetThresholdTask" targetRef="CatchEvent_PeriodEnd" />
+
+    <!-- Parallel split paths -->
+    <bpmn:sequenceFlow id="Seq_PrintCreditNote" sourceRef="Gw_ParallelSplit" targetRef="PrintCreditNoteTask" />
+    <bpmn:sequenceFlow id="Seq_CalculateReimbursement" sourceRef="Gw_ParallelSplit" targetRef="CalculateReimbursementTask" />
+
+    <!-- Message flow to customer -->
+    <bpmn:sequenceFlow id="Flow_SendMessageToCustomer" sourceRef="PrintCreditNoteTask" targetRef="ThrowEvent_SendCreditNote" />
+
+    <!-- Merge before end -->
+    <bpmn:sequenceFlow id="Seq_MergeBeforeEnd" sourceRef="CalculateReimbursementTask" targetRef="Gw_ParallelMerge" />
+    <bpmn:sequenceFlow id="Seq_SendMessageToCustomer" sourceRef="ThrowEvent_SendCreditNote" targetRef="Gw_ParallelMerge" />
+
+    <!-- End -->
+    <bpmn:sequenceFlow id="Flow_EndProcess" sourceRef="Gw_ParallelMerge" targetRef="End_ProcessComplete" />
+
+  </bpmn:process>
+</bpmn:definitions>

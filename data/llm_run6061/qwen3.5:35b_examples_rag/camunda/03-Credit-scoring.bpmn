@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_CreditScoring_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CreditScoring">
+    <bpmn:participant id="Participant_BankingSystem" name="Banking System Process" processRef="Process_BankingCreditScore_1"/>
+    <bpmn:participant id="Participant_Agency" name="Credit Scoring Agency (Schufa)" processRef="Process_AgencyScoring_2"/>
+  </bpmn:collaboration>
+
+  <!-- Banking System Process -->
+  <bpmn:process id="Process_BankingCreditScore_1" isExecutable="false">
+    <bpmn:startEvent id="Start_ClerkRequest" name="Clerk Request Credit Score">
+      <bpmn:outgoing>SequenceFlow_RequestInitiated</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to send request to agency -->
+    <bpmn:serviceTask id="Service_SendRequest" name="Send Scoring Request to Agency">
+      <bpmn:incoming>SequenceFlow_RequestInitiated</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_WaitForResponse</bpmn:outgoing/>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway for waiting -->
+    <bpmn:parallelGateway id="Parallel_GatewayWaitStart">
+      <bpmn:incoming>SequenceFlow_WaitForResponse</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_CatchImmediate</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_CatchDelay</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Catch Event for immediate response -->
+    <bpmn:intermediateCatchEvent id="Intermediate_ImmediateResult" name="Receive Immediate Result">
+      <bpmn:messageEventDefinition messageRef="Message_ScoringResult"/>
+      <bpmn:incoming>SequenceFlow_CatchImmediate</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_DisplayImmediate</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Intermediate Catch Event for delay notification -->
+    <bpmn:intermediateCatchEvent id="Intermediate_DelayNotification" name="Receive Delay Notification">
+      <bpmn:messageEventDefinition messageRef="Message_DelayInfo"/>
+      <bpmn:incoming>SequenceFlow_CatchDelay</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ShowDelayMsg</bpmn:outgoing/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to display result -->
+    <bpmn:userTask id="UserDisplayResult" name="Present Scoring Result">
+      <bpmn:incoming>SequenceFlow_DisplayImmediate</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ProcessComplete</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- Task to display delay message -->
+    <bpmn:userTask id="UserDisplayDelay" name="Show Delay Message">
+      <bpmn:incoming>SequenceFlow_ShowDelayMsg</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_WaitForResultLater</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- Gateway for result handling -->
+    <bpmn:exclusiveGateway id="Gateway_ResultHandling" name="Response&#10;Received?">
+      <bpmn:incoming>SequenceFlow_WaitForResultLater</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_DisplayImmediateFromWait</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Credit Score&#10;Process Complete">
+      <bpmn:incoming>SequenceFlow_ProcessComplete</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestInitiated" sourceRef="Start_ClerkRequest" targetRef="Service_SendRequest">
+      <bpmn:name>Clerk&#10;Action</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForResponse" sourceRef="Service_SendRequest" targetRef="Parallel_GatewayWaitStart"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CatchImmediate" sourceRef="Parallel_GatewayWaitStart" targetRef="Intermediate_ImmediateResult"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CatchDelay" sourceRef="Parallel_GatewayWaitStart" targetRef="Intermediate_DelayNotification"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayImmediate" sourceRef="Intermediate_ImmediateResult" targetRef="UserDisplayResult"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ShowDelayMsg" sourceRef="Intermediate_DelayNotification" targetRef="UserDisplayDelay"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForResultLater" sourceRef="UserDisplayDelay" targetRef="Gateway_ResultHandling"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayImmediateFromWait" sourceRef="Gateway_ResultHandling" targetRef="End_ProcessComplete">
+      <bpmn:name>Result&#10;Arrived</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Agency Process (External System) -->
+  <bpmn:process id="Process_AgencyScoring_2" isExecutable="false">
+    <bpmn:startEvent id="Start_RequestReceived" name="Request&#10;Received">
+      <bpmn:messageEventDefinition messageRef="Message_ScoringRequest"/>
+      <bpmn:outgoing>SequenceFlow_StartProcessing</bpmn:outgoing/>
+    </bpmn:startEvent>
+
+    <!-- Task for Level 1 Scoring -->
+    <bpmn:userTask id="UserLevel1Scoring" name="Perform Quick&#10;Scoring (Level 1)">
+      <bpmn:incoming>SequenceFlow_StartProcessing</bpmn:outgoing/>
+      <bpmn:outgoing>Gateway_ScoringDecisionIn</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- Gateway for scoring decision -->
+    <bpmn:exclusiveGateway id="Gateway_ScoringDecision" name="Result&#10;Ready?">
+      <bpmn:incoming>SequenceFlow_Level1Complete</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ImmediateResponse</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_DelayRequired</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Level 2 Scoring (delayed) -->
+    <bpmn:userTask id="UserLevel2Scoring" name="Perform Extended&#10;Scoring (Level 2)">
+      <bpmn:incoming>SequenceFlow_DelayRequired</bpmn:outgoing/>
+      <bpmn:outgoing>Gateway_Level2CompleteIn</bpmn:outgoing/>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ScoringDone" name="Scoring&#10;Completed">
+      <bpmn:incoming>SequenceFlow_ResultSentBack</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartProcessing" sourceRef="Start_RequestReceived" targetRef="UserLevel1Scoring"/>
+    
+    <bpmn:parallelGateway id="Parallel_GatewayWait">
+      <bpmn:incoming>SequenceFlow_Level2CompleteIn</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ResultSentBack</bpmn:outgoing/>
+    </bpmn:parallelGateway>
+
+  </bpmn:process>
+
+  <!-- Message Flows between Banking System and Agency -->
+  <bpmn:message id="Message_ScoringRequest" name="Credit Scoring Request"/>
+  <bpmn:message id="Message_ScoringResult" name="Scoring Result"/>
+  <bpmn:message id="Message_DelayInfo" name="Delay Notification"/>
+
+  <!-- Message Flow: Banking sends request to Agency -->
+  <bpmn:messageFlow id="MessageFlow_RequestToAgency" sourceRef="Service_SendRequest" targetRef="Start_RequestReceived">
+    <bpmn:name>Send&#10;Scoring Request</bpmn:name>
+  </bpmn:messageFlow>
+
+  <!-- Message Flow: Agency sends immediate result -->
+  <bpmn:messageFlow id="MessageFlow_ResultToBanking" sourceRef="Gateway_ScoringDecision" targetRef="Intermediate_ImmediateResult">
+    <bpmn:name>Return&#10;Scoring Result</bpmn:name>
+  </bpmn:messageFlow>
+
+  <!-- Message Flow: Agency sends delay notification -->
+  <bpmn:messageFlow id="MessageFlow_DelayToBanking" sourceRef="Gateway_ScoringDecision" targetRef="Intermediate_DelayNotification">
+    <bpmn:name>Delay&#10;Information</bpmn:name>
+  </bpmn:messageFlow>
+
+  <!-- Message Flow: Agency sends final result after Level 2 -->
+  <bpmn:messageFlow id="MessageFlow_FinalResultToBanking" sourceRef="UserLevel2Scoring" targetRef="Gateway_ResultHandling">
+    <bpmn:name>Final&#10;Scoring Result</bpmn:name>
+  </bpmn:messageFlow>
+
+  <!-- Internal Sequence Flows -->
+  <bpmn:sequenceFlow id="SequenceFlow_Level1Complete" sourceRef="UserLevel1Scoring" targetRef="Gateway_ScoringDecision"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_ImmediateResponse" sourceRef="Gateway_ScoringDecision" targetRef="End_ScoringDone">
+    <bpmn:name>Yes</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SequenceFlow_DelayRequired" sourceRef="Gateway_ScoringDecision" targetRef="UserLevel2Scoring"/>
+  
+  <bpmn:parallelGateway id="Parallel_GatewayWait">
+    <bpmn:incoming>SequenceFlow_Level1Complete</bpmn:outgoing/>
+    <bpmn:outgoing>SequenceFlow_ResultSentBack</bpmn:outgoing/>
+  </bpmn:parallelGateway>
+
+  <bpmn:sequenceFlow id="SequenceFlow_Level2CompleteIn" sourceRef="UserLevel2Scoring" targetRef="Parallel_GatewayWait"/>
+  
+  <bpmn:sequenceFlow id="SequenceFlow_ResultSentBack" sourceRef="Parallel_GatewayWait" targetRef="End_ScoringDone"/>
+
+</bpmn:definitions>

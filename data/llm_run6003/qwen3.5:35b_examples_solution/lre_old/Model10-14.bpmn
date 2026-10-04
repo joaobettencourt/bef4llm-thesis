@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_MPOO" name="MPOO" processRef="Process_MPOO"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO"/>
+    <bpmn:participant id="Participant_MSPO" name="MSPO" processRef="Process_MSPO"/>
+    <bpmn:participant id="Participant_MPON" name="MPON" processRef="Process_MPON"/>
+
+    <!-- Message Flows from MPOO -->
+    <bpmn:messageFlow id="MessageFlow_MPOO_GO_1" sourceRef="Task_MPOO_SendBillTempContinuation_Operations" targetRef="IntermediateCatchEvent_GO_TempOps"/>
+    <bpmn:messageFlow id="MessageFlow_MPOO_MPON_2" sourceRef="Task_MPOO_SendBillEquipmentAcquisition" targetRef="IntermediateCatchEvent_MPON_Equipment"/>
+
+    <!-- Message Flows from MSPO -->
+    <bpmn:messageFlow id="MessageFlow_MSPO_GO_1" sourceRef="Task_MSPO_SendBillTempContinuation_Measurement" targetRef="IntermediateCatchEvent_GO_TempMeasurement"/>
+    <bpmn:messageFlow id="MessageFlow_MSPO_GO_2" sourceRef="Task_MSPO_SendBillAdditionalReadings" targetRef="IntermediateCatchEvent_GO_AdditionalReadings"/>
+
+    <!-- Message Flows from GO/MPON to MPOO/MSPO -->
+    <bpmn:messageFlow id="MessageFlow_GO_MPOO_Confirm" sourceRef="Task_GO_ConfirmInvoice" targetRef="StartMPOO_1"/>
+    <bpmn:messageFlow id="MessageFlow_MPON_MPOO_Reject" sourceRef="Task_MPON_RejectInvoice" targetRef="StartMSPO_1"/>
+  </bpmn:collaboration>
+
+  <!-- MPOO Process -->
+  <bpmn:process id="Process_MPOO" isExecutable="false">
+    <bpmn:startEvent id="StartMPOO_1" name="Bill Creation Requested">
+      <bpmn:outgoing>SequenceFlow_StartToDecision</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_MPOO_SendBillTempContinuation_Operations" name="Send Bill for Temporary Continuation (Operations)">
+      <bpmn:incoming>SequenceFlow_StartToSendOps</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_MPOO_GO_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_MPOO_SendBillEquipmentAcquisition" name="Send Bill for Equipment Acquisition">
+      <bpmn:incoming>SequenceFlow_StartToEquip</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_MPOO_MPON_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndMPOO_Confirm" name="Invoice Confirmed">
+      <bpmn:incoming>SequenceFlow_ReceiveConfirmation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndMPOO_Reject" name="Invoice Rejected">
+      <bpmn:incoming>SequenceFlow_ReceiveRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_MPOO_Decision" name="Bill Type Selection">
+      <bpmn:incoming>SequenceFlow_StartToDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartToSendOps</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartToEquip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToDecision" sourceRef="StartMPOO_1" targetRef="Gateway_MPOO_Decision"/>
+  </bpmn:process>
+
+  <!-- GO Process -->
+  <bpmn:process id="Process_GO" isExecutable="false">
+    <bpmn:startEvent id="StartGO_MessageOps" name="Receive Bill (Temp Ops)">
+      <bpmn:outgoing>SequenceFlow_OpsToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="IntermediateCatchEvent_GO_TempOps" name="Examine Bill">
+      <bpmn:incoming>MessageFlow_MPOO_GO_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OpsToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:startEvent id="StartGO_Measurement" name="Receive Bill (Measurement)">
+      <bpmn:outgoing>SequenceFlow_MeasToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="IntermediateCatchEvent_GO_TempMeasurement" name="Examine Bill">
+      <bpmn:incoming>MessageFlow_MSPO_GO_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MeasToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:startEvent id="StartGO_AdditionalReadings" name="Receive Bill (Additional Readings)">
+      <bpmn:outgoing>SequenceFlow_ReadingsToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="IntermediateCatchEvent_GO_AdditionalReadings" name="Examine Bill">
+      <bpmn:incoming>MessageFlow_MSPO_GO_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReadingsToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndGO_Confirm" name="Invoice Confirmed">
+      <bpmn:incoming>MessageFlow_GO_MPOO_Confirm</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndGO_Reject" name="Invoice Rejected">
+      <bpmn:incoming>SequenceFlow_SendRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_GO_Decision" name="Confirm or Reject">
+      <bpmn:incoming>SequenceFlow_OpsToDecision</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_MeasToDecision</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ReadingsToDecision</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_GO_MPOO_Confirm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendRejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_OpsToDecision" sourceRef="IntermediateCatchEvent_GO_TempOps" targetRef="Gateway_GO_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MeasToDecision" sourceRef="IntermediateCatchEvent_GO_TempMeasurement" targetRef="Gateway_GO_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReadingsToDecision" sourceRef="IntermediateCatchEvent_GO_AdditionalReadings" targetRef="Gateway_GO_Decision"/>
+
+    <!-- Task for Confirm Invoice -->
+    <bpmn:userTask id="Task_GO_ConfirmInvoice" name="Confirm Invoice with Payment Advice">
+      <bpmn:incoming>SequenceFlow_SendConfirmation</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_GO_MPOO_Confirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task for Reject Invoice -->
+    <bpmn:userTask id="Task_GO_RejectInvoice" name="Reject Invoice">
+      <bpmn:incoming>SequenceFlow_SendRejection</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_GO_MPOO_Confirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows for Confirm/Reject -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendConfirmation" sourceRef="Gateway_GO_Decision" targetRef="Task_GO_ConfirmInvoice"/>
+  </bpmn:process>
+
+  <!-- MSPO Process -->
+  <bpmn:process id="Process_MSPO" isExecutable="false">
+    <bpmn:startEvent id="StartMSPO_1" name="Bill Creation Requested">
+      <bpmn:outgoing>SequenceFlow_StartToDecision</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_MSPO_SendBillTempContinuation_Measurement" name="Send Bill for Temporary Continuation (Measurement)">
+      <bpmn:incoming>SequenceFlow_StartToSendMeas</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_MSPO_GO_1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndMSPO_Confirm" name="Invoice Confirmed">
+      <bpmn:incoming>SequenceFlow_ReceiveConfirmation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndMSPO_Reject" name="Invoice Rejected">
+      <bpmn:incoming>MessageFlow_MPON_MPOO_Confirm</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="Task_MSPO_SendBillAdditionalReadings" name="Send Bill for Additional Readings">
+      <bpmn:outgoing>MessageFlow_MSPO_GO_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSendMeas" sourceRef="StartMSPO_1" targetRef="Task_MSPO_SendBillTempContinuation_Measurement"/>
+  </bpmn:process>
+
+  <!-- MPON Process -->
+  <bpmn:process id="Process_MPON" isExecutable="false">
+    <bpmn:startEvent id="StartMPON_1" name="Receive Equipment Bill Requested">
+      <bpmn:outgoing>SequenceFlow_EquipToExamine</bpmn:incoming>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="IntermediateCatchEvent_MPON_Equipment" name="Examine Bill (Equipment Acquisition)">
+      <bpmn:incoming>MessageFlow_MPOO_MPON_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EquipToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndMPON_Confirm" name="Invoice Confirmed">
+      <bpmn:incoming>MessageFlow_MPON_MPOO_Confirm</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndMPON_Reject" name="Invoice Rejected">
+      <bpmn:incoming>SequenceFlow_ReceiveRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway for MPON Decision -->
+    <bpmn:exclusiveGateway id="Gateway_MPON_Decision" name="Confirm or Reject Equipment Bill">
+      <bpmn:incoming>SequenceFlow_EquipToDecision</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_MPON_MPOO_Confirm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReceiveRejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Confirm Invoice -->
+    <bpmn:userTask id="Task_MPON_ConfirmInvoice" name="Confirm Invoice with Payment Advice">
+      <bpmn:incoming>SequenceFlow_SendConfirmationMPON</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_MPON_MPOO_Confirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task for Reject Invoice -->
+    <bpmn:userTask id="Task_MPON_RejectInvoice" name="Reject Invoice">
+      <bpmn:incoming>SequenceFlow_SendRejectionMPON</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_GO_MPOO_Confirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EquipToDecision" sourceRef="IntermediateCatchEvent_MPON_Equipment" targetRef="Gateway_MPON_Decision"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendConfirmationMPON" sourceRef="Gateway_MPON_Decision" targetRef="Task_MPON_ConfirmInvoice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendRejectionMPON" sourceRef="Gateway_MPON_Decision" targetRef="Task_MPON_RejectInvoice"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

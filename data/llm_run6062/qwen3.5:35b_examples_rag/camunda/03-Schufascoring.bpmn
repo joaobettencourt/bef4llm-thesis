@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_SchufaRequest" name="Schufascoringanfrage"/>
+  <bpmn:message id="Message_Level1Result" name="Scoringergebnis Level 1"/>
+  <bpmn:message id="Message_DelayNotification" name="Verzögerungsmeldung Schufa"/>
+  <bpmn:message id="Message_FinalResult" name="Finale Scoringergebnisse"/>
+
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Bank" name="Schufascoring-Prozess bei der Bank" processRef="Process_SchufaScoring" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SchufaScoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartRequestScoring" name="Vertriebsmitarbeiter startet Scoringanfrage">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task to send request -->
+    <bpmn:serviceTask id="SendSchufaRequest" name="Scoringanfrage an Schufasystem senden">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_Split</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Parallel Gateway to split paths -->
+    <bpmn:parallelGateway id="ParallelGateway_Split">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel1Result</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WaitDelayNotification</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Immediate Result (Level 1) -->
+    <bpmn:intermediateCatchEvent id="WaitLevel1Result" name="Warten auf Level-1-Ergebnis">
+      <bpmn:messageEventDefinition messageRef="Message_Level1Result"/>
+      <bpmn:incoming>SequenceFlow_WaitLevel1Result</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayImmediateResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- User Task to display result -->
+    <bpmn:userTask id="DisplayImmediateResult" name="Scoringergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DisplayImmediateResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess1</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path 2: Delay Notification (Level 2) -->
+    <bpmn:intermediateCatchEvent id="WaitDelayNotification" name="Warten auf Verzögerungsmeldung">
+      <bpmn:messageEventDefinition messageRef="Message_DelayNotification"/>
+      <bpmn:incoming>SequenceFlow_WaitDelayNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyUser</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- User Task to notify user -->
+    <bpmn:userTask id="NotifyUser" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_NotifyUser</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitFinalResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Final Result after Delay Notification -->
+    <bpmn:intermediateCatchEvent id="WaitFinalResult" name="Warten auf finales Ergebnis">
+      <bpmn:messageEventDefinition messageRef="Message_FinalResult"/>
+      <bpmn:incoming>SequenceFlow_WaitFinalResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayFinalResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- User Task to display final result -->
+    <bpmn:userTask id="DisplayFinalResult" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DisplayFinalResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndProcess1" name="Scoring abgeschlossen (Level 1)">
+      <bpmn:incoming>SequenceFlow_DisplayImmediateResult</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndProcess2" name="Scoring abgeschlossen (Level 2)">
+      <bpmn:incoming>SequenceFlow_EndProcess2</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartRequestScoring" targetRef="SendSchufaRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel1Result" name="Ergebnis-Level-1-Weg" sourceRef="ParallelGateway_Split" targetRef="WaitLevel1Result"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayImmediateResult" sourceRef="DisplayImmediateResult" targetRef="EndProcess1"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitDelayNotification" name="Verzögerungs-Weg" sourceRef="ParallelGateway_Split" targetRef="WaitDelayNotification"/>
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyUser" sourceRef="NotifyUser" targetRef="WaitFinalResult"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayFinalResult" sourceRef="DisplayFinalResult" targetRef="EndProcess2"/>
+
+  </bpmn:process>
+</bpmn:definitions>

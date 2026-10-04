@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1a2b3c" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ProvisionProcess">
+    <bpmn:participant id="Pool_Team" name="Provision Team" processRef="Process_Team_1" />
+    <bpmn:participant id="Pool_Customer" name="Customer" processRef="Process_Customer_1" />
+  </bpmn:collaboration>
+
+  <!-- Process for Provision Team -->
+  <bpmn:process id="Process_Team_1" isExecutable="true">
+    <bpmn:startEvent id="Start_EventReceiveRequest" name="Receive Request from Customer">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Flow_IdentifyParts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_IdentifyParts" name="Identify Necessary Parts">
+      <bpmn:incoming>Flow_IdentifyParts</bpmn:incoming>
+      <bpmn:outgoing>Flow_QuestionsCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gate_Questions" name="Any Questions?">
+      <bpmn:incoming>Flow_QuestionsCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_NoQuestions</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AskInfo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:intermediateThrowEvent id="Task_SendAskInfo" name="Send Request for More Information">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_AskInfo</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitMoreInfo</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:intermediateCatchEvent id="Task_CatchMoreInfo" name="Receive More Information">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Flow_WaitMoreInfo</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckAvailability</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_CheckAvailability" name="Check Parts Availability">
+      <bpmn:incoming>Flow_NoQuestions</bpmn:incoming>
+      <bpmn:incoming>Flow_WaitMoreInfo</bpmn:incoming>
+      <bpmn:outgoing>Gate_PartsAvailable_Flow</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gate_PartsAvailable" name="All Parts Available?">
+      <bpmn:incoming>Gate_PartsAvailable_Flow</bpmn:incoming>
+      <bpmn:outgoing>Path_SupplyItems</bpmn:outgoing>
+      <bpmn:outgoing>Path_OrderDaisuki</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_SupplyItems" name="Supply Items to Customer">
+      <bpmn:incoming>Path_SupplyItems</bpmn:incoming>
+      <bpmn:outgoing>Wait_Payment_Available</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_RecordPetition" name="Record Petition">
+      <bpmn:incoming>Path_OrderDaisuki</bpmn:incoming>
+      <bpmn:outgoing>Flow_OrderDaisuki</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_OrderDaisuki" name="Order from Daisuki">
+      <bpmn:incoming>Flow_OrderDaisuki</bpmn:incoming>
+      <bpmn:outgoing>Wait_CollectPartsFromSupplier</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:intermediateCatchEvent id="Task_WaitCollect" name="Wait Parts Collection">
+      <bpmn:messageEventDefinition />
+      <bpmn:incoming>Wait_CollectPartsFromSupplier</bpmn:incoming>
+      <bpmn:outgoing>Contact_Customer_Flow</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_ContactCustomer" name="Contact Customer After Collection">
+      <bpmn:incoming>Contact_Customer_Incoming</bpmn:incoming>
+      <bpmn:outgoing>Wait_Payment_Unavailable</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_EventFinalPayment" name="Process Complete">
+      <bpmn:incoming>Wait_Payment_Available</bpmn:incoming>
+      <bpmn:incoming>Wait_Payment_Unavailable</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_IdentifyParts" sourceRef="Start_EventReceiveRequest" targetRef="Task_IdentifyParts">
+      <bpmn:name>Process Start</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_QuestionsCheck" sourceRef="Task_IdentifyParts" targetRef="Gate_Questions">
+      <bpmn:name>To Questions Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NoQuestions" name="No (Proceed)" sourceRef="Gate_Questions" targetRef="Task_CheckAvailability">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!hasQuestion}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_AskInfo" name="Yes (Ask Info)" sourceRef="Gate_Questions" targetRef="Task_SendAskInfo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasQuestion}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_WaitMoreInfo" sourceRef="Task_SendAskInfo" targetRef="Task_CatchMoreInfo">
+      <bpmn:name>Awaiting Response</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_CheckAvailability" sourceRef="Task_CatchMoreInfo" targetRef="Task_CheckAvailability">
+      <bpmn:name>After Info Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Gate_PartsAvailable_Flow" name="Check Result" sourceRef="Task_CheckAvailability" targetRef="Gate_PartsAvailable">
+      <bpmn:name>To Availability Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Path_SupplyItems" name="Yes (Available)" sourceRef="Gate_PartsAvailable" targetRef="Task_SupplyItems">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${available}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Path_OrderDaisuki" name="No (Not Available)" sourceRef="Gate_PartsAvailable" targetRef="Task_RecordPetition">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!available}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Wait_Payment_Available" name="Supply Complete" sourceRef="Task_SupplyItems" targetRef="End_EventFinalPayment">
+      <bpmn:name>To Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_OrderDaisuki" name="Petition First" sourceRef="Path_OrderDaisuki" targetRef="Task_RecordPetition">
+      <bpmn:name>Petition Flow</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Wait_CollectPartsFromSupplier" name="Order Placed" sourceRef="Task_OrderDaisuki" targetRef="Task_WaitCollect">
+      <bpmn:name>To Collection Wait</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Contact_Customer_Incoming" name="Parts Collected" sourceRef="Task_WaitCollect" targetRef="Task_ContactCustomer">
+      <bpmn:name>Contact Flow</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Wait_Payment_Unavailable" name="Contact Complete" sourceRef="Task_ContactCustomer" targetRef="End_EventFinalPayment">
+      <bpmn:name>To Payment End</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Process for Customer -->
+  <bpmn:process id="Process_Customer_1" isExecutable="true">
+    <bpmn:startEvent id="Start_SendRequest" name="Send Request to Team">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Flow_RequestSent</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_SendPayment" name="Send Final Payment">
+      <bpmn:incoming>Catch_PaymentMsg_Flow</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Customer Side -->
+    <bpmn:sequenceFlow id="Flow_RequestSent" sourceRef="Start_SendRequest" targetRef="End_SendPayment">
+      <bpmn:name>Initial Request</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Catch_PaymentMsg_Flow" name="Final Payment Received" sourceRef="Task_ContactCustomer" targetRef="End_SendPayment">
+      <bpmn:name>To Customer End</bpmn:name>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Message Flows in Collaboration -->
+  <bpmn:messageFlow id="Message_Request_1" sourceRef="Start_SendRequest" targetRef="Start_EventReceiveRequest">
+     <bpmn:name>Purchase Request</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="Message_AskInfo_1" sourceRef="Task_SendAskInfo" targetRef="End_SendPayment">
+    <bpmn:name>Request More Info</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="Message_Final_Payment" sourceRef="Start_EventReceiveRequest" targetRef="End_SendPayment">
+    <bpmn:name>Final Payment Received</bpmn:name>
+  </bpmn:messageFlow>
+</bpmn:definitions>

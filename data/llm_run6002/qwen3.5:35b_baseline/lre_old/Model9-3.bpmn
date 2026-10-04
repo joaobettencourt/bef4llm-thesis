@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TownPlanning_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ScheduleProcess">
+    <bpmn:participant id="Participant_Authority" name="Town Planning Authority" processRef="Proc_Authority_01" />
+    <bpmn:participant id="Participant_Members" name="Committee Members" processRef="Proc_Members_02" />
+  </bpmn:collaboration>
+
+  <!-- Process for Town Planning Authority -->
+  <bpmn:process id="Proc_Authority_01" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CoordUnit" name="Coordination Unit">
+        <bpmn:flowNodeRef>StartEvent_Initiation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DraftSchedule</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecheckConflicts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateThrow_SendEmail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatch_ReceiveAdvice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_DecideConflict</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SupportOfficer" name="Support Officer">
+        <bpmn:flowNodeRef>Task_CheckDates</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Initiation" name="Annual Schedule Initiation">
+      <bpmn:outgoing>SequenceFlow_Draft</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Drafting (Coordination Unit) -->
+    <bpmn:task id="Task_DraftSchedule" name="Draft schedule &amp; add dates">
+      <bpmn:incoming>SequenceFlow_Draft</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSupport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Support Officer Check -->
+    <bpmn:task id="Task_CheckDates" name="Check dates &amp; suggest modifications">
+      <bpmn:incoming>SequenceFlow_ToSupport</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Recheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Rechecking (Coordination Unit) -->
+    <bpmn:task id="Task_RecheckConflicts" name="Recheck dates &amp; look for conflicts">
+      <bpmn:incoming>SequenceFlow_Recheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEmail</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Throw Event (Send Email) -->
+    <bpmn:intermediateThrowEvent id="IntermediateThrow_SendEmail" name="Send Final Schedule">
+      <bpmn:incoming>SequenceFlow_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitAdvice</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Intermediate Catch Event (Wait for Advice) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_ReceiveAdvice" name="Receive Conflict Advice">
+      <bpmn:incoming>SequenceFlow_WaitAdvice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideConflict</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway for Feedback Loop -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_DecideConflict">
+      <bpmn:incoming>SequenceFlow_DecideConflict</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoop_BackToRecheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceEnd_Finalize</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Finalized" name="Schedule Finalized">
+      <bpmn:incoming>SequenceEnd_Finalize</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Internal -->
+    <bpmn:sequenceFlow id="SequenceFlow_Draft" sourceRef="StartEvent_Initiation" targetRef="Task_DraftSchedule" />
+    <bpmn:sequenceFlow id="SequenceFlow_ToSupport" sourceRef="Task_DraftSchedule" targetRef="Task_CheckDates" />
+    <bpmn:sequenceFlow id="SequenceFlow_Recheck" sourceRef="Task_CheckDates" targetRef="Task_RecheckConflicts" />
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmail" sourceRef="Task_RecheckConflicts" targetRef="IntermediateThrow_SendEmail" />
+    <bpmn:sequenceFlow id="SequenceFlow_WaitAdvice" sourceRef="IntermediateThrow_SendEmail" targetRef="IntermediateCatch_ReceiveAdvice" />
+    
+    <!-- Gateway Logic -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_DecideConflict"> 
+      <!-- Note: Using Exclusive for decision logic, ID kept consistent with flowNodeRef above but name implies inclusive/exclusive. Correcting to ExclusiveGateway in definition below if needed, keeping Inclusive as per previous thought block or switching to Exclusive for clarity on Yes/No -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceLoop_BackToRecheck" sourceRef="InclusiveGateway_DecideConflict" targetRef="Task_RecheckConflicts">
+      <!-- Condition: Conflicts Found / Need Modification -->
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceEnd_Finalize" name="No Conflicts" sourceRef="InclusiveGateway_DecideConflict" targetRef="EndEvent_Finalized" />
+
+  </bpmn:process>
+
+  <!-- Process for Committee Members (External) -->
+  <bpmn:process id="Proc_Members_02" isExecutable="true">
+    <!-- Start Event triggered by Message Flow from Authority -->
+    <bpmn:startEvent id="StartMessage_ScheduleReceived" name="Receive Schedule">
+      <bpmn:outgoing>SequenceFlow_CheckDiaries</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for Committee Members -->
+    <bpmn:task id="Task_CommitteeCheck" name="Check diaries &amp; advise conflicts">
+      <bpmn:incoming>SequenceFlow_CheckDiaries</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendAdvice</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDiaries" sourceRef="StartMessage_ScheduleReceived" targetRef="Task_CommitteeCheck" />
+  </bpmn:process>
+
+  <!-- Message Flows between Pools -->
+  <bpmn:messageFlow id="Msg_SendSchedule" name="Send Schedule of Dates">
+    <bpmn:sourceRef>IntermediateThrow_SendEmail</bpmn:sourceRef>
+    <bpmn:targetRef>StartMessage_ScheduleReceived</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="Msg_ReceiveAdvice" name="Advise Conflicts">
+    <bpmn:sourceRef>Task_CommitteeCheck</bpmn:sourceRef>
+    <bpmn:targetRef>IntermediateCatch_ReceiveAdvice</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReportProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseReport">
+    <bpmn:participant id="Participant_EmployeeService" name="Employee Expense Service Department" processRef="Process_ExpenseReportProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseReportProcessing" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ExpenseReportFiled" name="Employee files expense report">
+      <bpmn:outgoing>SequenceFlow_StartToParallel</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Account Check and Timer -->
+    <bpmn:parallelGateway id="ParallelGateway_AccountCheckTimer" name="">
+      <bpmn:incoming>SequenceFlow_StartToParallel</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToAccountCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Timer28DaysStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 28 days account check timeout -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimerEvent_28DaysAccountTimeout" name="28 days">
+      <bpmn:incoming>SequenceFlow_Timer28DaysStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Timeout28DaysTriggered</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Does employee have account? -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_HasEmployeeAccount" name="Does employee have account?">
+      <bpmn:incoming>SequenceFlow_ToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateAccountPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ReviewReportPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Create employee account -->
+    <bpmn:userTask id="Task_CreateEmployeeAccount" name="Create employee account">
+      <bpmn:incoming>SequenceFlow_CreateAccountPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountToReview</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Review expense report -->
+    <bpmn:userTask id="Task_ReviewExpenseReport" name="Review expense report">
+      <bpmn:incoming>SequenceFlow_ReviewReportPath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToAmountCheckGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exclusive Gateway - Amount threshold check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AmountThreshold" name="Expense amount &gt; $200?">
+      <bpmn:incoming>SequenceFlow_ToAmountCheckGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DirectDepositPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SupervisorApprovalPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Process direct deposit reimbursement -->
+    <bpmn:userTask id="Task_ProcessDirectReimbursement" name="Process direct deposit reimbursement">
+      <bpmn:incoming>SequenceFlow_DirectDepositPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEventSmallAmount</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Reimbursed small amount -->
+    <bpmn:endEvent id="EndEvent_ReimbursedSmallAmount" name="Process ended - Reimbursement completed">
+      <bpmn:incoming>SequenceFlow_ToEndEventSmallAmount</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task - Request supervisor approval -->
+    <bpmn:userTask id="Task_RequestSupervisorApproval" name="Request supervisor approval for reimbursement">
+      <bpmn:incoming>SequenceFlow_SupervisorApprovalPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSupervisorTimerStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Timer - 7 days supervisor approval timeout -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimerEvent_Supervisor7DaysTimeout" name="7 days">
+      <bpmn:incoming>SequenceFlow_ToSupervisorTimerStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Timeout7DaysTriggered</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Supervisor decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_SupervisorDecision" name="Supervisor decision?">
+      <bpmn:incoming>SequenceFlow_Timeout7DaysTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovedPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RejectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Send approval in progress email -->
+    <bpmn:userTask id="Task_SendApprovalInProgressEmail" name="Send approval in progress email to employee">
+      <bpmn:incoming>SequenceFlow_Timeout7DaysTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToSupervisorRequestLoopback</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Rejected -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Process ended - Request rejected">
+      <bpmn:incoming>SequenceFlow_SendRejectionEmailPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task - Send reimbursement deposit to employee bank account -->
+    <bpmn:userTask id="Task_SendReimbursementDeposit" name="Send reimbursement deposit to employee bank account">
+      <bpmn:incoming>SequenceFlow_ApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEventLargeAmount</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Reimbursed large amount -->
+    <bpmn:endEvent id="EndEvent_ReimbursedLargeAmount" name="Process ended - Reimbursement completed">
+      <bpmn:incoming>SequenceFlow_ToEndEventLargeAmount</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task - Send rejection notification email to employee -->
+    <bpmn:userTask id="Task_SendRejectionEmailToEmployee" name="Send rejection notification email to employee">
+      <bpmn:incoming>SequenceFlow_RejectedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEventRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event - Stopped 28 days -->
+    <bpmn:endEvent id="EndEvent_Stopped28Days" name="Process stopped - Resubmit required">
+      <bpmn:incoming>SequenceFlow_Timeout28DaysTriggered</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task - Send resubmit email to employee -->
+    <bpmn:userTask id="Task_SendResubmitEmailToEmployee" name="Send resubmit email to employee">
+      <bpmn:incoming>SequenceFlow_Timeout28DaysTriggered</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToEndEventStopped</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Parallel Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToParallel" sourceRef="StartEvent_ExpenseReportFiled" targetRef="ParallelGateway_AccountCheckTimer"/>
+
+    <!-- Parallel Gateway to Account Check and Timer start -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToAccountCheck" name="" sourceRef="ParallelGateway_AccountCheckTimer" targetRef="ExclusiveGateway_HasEmployeeAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Timer28DaysStart" name="" sourceRef="ParallelGateway_AccountCheckTimer" targetRef="IntermediateTimerEvent_28DaysAccountTimeout"/>
+
+    <!-- Account Check Gateway paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateAccountPath" name="No - Create account first" sourceRef="ExclusiveGateway_HasEmployeeAccount" targetRef="Task_CreateEmployeeAccount">
+      <bpmn:description>Employee does not have an existing account</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewReportPath" name="Yes - Account exists" sourceRef="ExclusiveGateway_HasEmployeeAccount" targetRef="Task_ReviewExpenseReport">
+      <bpmn:description>Employee already has an account</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Create account to Review report -->
+    <bpmn:sequenceFlow id="SequenceFlow_AccountToReview" sourceRef="Task_CreateEmployeeAccount" targetRef="Task_ReviewExpenseReport"/>
+
+    <!-- Review Report to Amount Check Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToAmountCheckGateway" name="" sourceRef="Task_ReviewExpenseReport" targetRef="ExclusiveGateway_AmountThreshold"/>
+
+    <!-- Direct Deposit Path (amount ≤ $200) -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectDepositPath" name="No - Amount ≤ $200" sourceRef="ExclusiveGateway_AmountThreshold" targetRef="Task_ProcessDirectReimbursement">
+      <bpmn:description>Expense amount does not exceed 200</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor Approval Path (amount &gt; $200) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApprovalPath" name="Yes - Amount &gt; $200" sourceRef="ExclusiveGateway_AmountThreshold" targetRef="Task_RequestSupervisorApproval">
+      <bpmn:description>Expense amount exceeds 200, requires supervisor approval</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Direct deposit to end event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEventSmallAmount" sourceRef="Task_ProcessDirectReimbursement" targetRef="EndEvent_ReimbursedSmallAmount"/>
+
+    <!-- Request supervisor approval to timer start -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSupervisorTimerStart" name="" sourceRef="Task_RequestSupervisorApproval" targetRef="IntermediateTimerEvent_Supervisor7DaysTimeout">
+      <bpmn:description>Wait for supervisor response within 7 days</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor decision paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedPath" name="Supervisor approved" sourceRef="ExclusiveGateway_SupervisorDecision" targetRef="Task_SendReimbursementDeposit">
+      <bpmn:description>Supervisor approves the reimbursement request</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedPath" name="Supervisor rejected" sourceRef="ExclusiveGateway_SupervisorDecision" targetRef="Task_SendRejectionEmailToEmployee">
+      <bpmn:description>Supervisor rejects the reimbursement request</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Approval in progress email to loop back -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToSupervisorRequestLoopback" sourceRef="Task_SendApprovalInProgressEmail" targetRef="Task_RequestSupervisorApproval"/>
+
+    <!-- Rejection notification to end event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEventRejected" name="" sourceRef="Task_SendRejectionEmailToEmployee" targetRef="EndEvent_Rejected">
+      <bpmn:description>Send rejection email then process ends</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Reimbursement deposit to end event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEventLargeAmount" sourceRef="Task_SendReimbursementDeposit" targetRef="EndEvent_ReimbursedLargeAmount"/>
+
+    <!-- 28 days timeout trigger path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Timeout28DaysTriggered" name="" sourceRef="IntermediateTimerEvent_28DaysAccountTimeout" targetRef="Task_SendResubmitEmailToEmployee">
+      <bpmn:description>Process stopped after 28 days without account check completion</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Resubmit email to end event -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToEndEventStopped" sourceRef="Task_SendResubmitEmailToEmployee" targetRef="EndEvent_Stopped28Days"/>
+
+  </bpmn:process>
+</bpmn:definitions>

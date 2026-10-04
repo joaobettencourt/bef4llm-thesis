@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseProc">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Process" processRef="Process_Expense01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Expense01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_EmployeeDept" name="Employee Department">
+        <bpmn:flowNodeRef>StartEvent_FileReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAccountExistence</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_HRDept" name="HR Department">
+        <bpmn:flowNodeRef>Gateway_AccountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateAccount</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FinanceDept" name="Finance Department">
+        <bpmn:flowNodeRef>Task_ReviewReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AmountCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_FileReport" name="File Expense Report">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Account Existence Task (with 28 day timer) -->
+    <bpmn:task id="Task_CheckAccountExistence" name="Check Employee Account">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event - 28 days -->
+    <bpmn:intermediateCatchEvent id="Timer_28Days" name="28 Days">
+      <bpmn:incoming>SequenceFlow_TimerStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResubmitEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Account Exists? -->
+    <bpmn:exclusiveGateway id="Gateway_AccountCheck" name="Account Exists">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HasAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Task -->
+    <bpmn:task id="Task_CreateAccount" name="Create Employee Account">
+      <bpmn:incoming>SequenceFlow_NoAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountCreated</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Review Report Task -->
+    <bpmn:task id="Task_ReviewReport" name="Review Expense Report">
+      <bpmn:incoming>SequenceFlow_HasAccount</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AccountCreated</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway - Amount > $200 -->
+    <bpmn:exclusiveGateway id="Gateway_AmountCheck" name="Amount &gt; 200">
+      <bpmn:incoming>SequenceFlow_AmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UnderLimit</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ExceedsLimit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reimburse Task -->
+    <bpmn:task id="Task_Reimburse" name="Deposit to Bank Account">
+      <bpmn:incoming>SequenceFlow_UnderLimit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ask Supervisor Approval Task -->
+    <bpmn:task id="Task_SupervisorApproval" name="Request Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_ExceedsLimit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovalTimerStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event - 7 days for supervisor -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 Days">
+      <bpmn:incoming>SequenceFlow_ApprovalTimerStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorResponseReceived</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Exclusive Gateway - Supervisor Decision -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor Response">
+      <bpmn:incoming>SequenceFlow_Approved</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Rejected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OverdueResponse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Approval Email Task -->
+    <bpmn:task id="Task_SendApprovalEmail" name="Send In Progress Email">
+      <bpmn:incoming>SequenceFlow_OverdueResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackToSupervisor</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Rejection Notification Task -->
+    <bpmn:task id="Task_SendRejectionEmail" name="Send Rejection Email">
+      <bpmn:incoming>SequenceFlow_Rejected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Resubmit Email Task -->
+    <bpmn:task id="Task_SendResubmitEmail" name="Send Resubmit Email">
+      <bpmn:incoming>SequenceFlow_ResubmitEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess3</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Reimbursement Complete">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_EndProcess2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Stopped" name="Process Stopped">
+      <bpmn:incoming>SequenceFlow_EndProcess3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_FileReport" targetRef="Task_CheckAccountExistation"/>
+    
+    <bpmn:parallelGateway id="ParallelTimerSplit">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AccountCheckPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_02" sourceRef="Task_CheckAccountExistence" targetRef="ParallelTimerSplit"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TimerStart" sourceRef="ParallelTimerSplit" targetRef="Timer_28Days"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCheckPath" sourceRef="ParallelTimerSplit" targetRef="Gateway_AccountCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResubmitEmail" sourceRef="Timer_28Days" targetRef="Task_SendResubmitEmail"/>
+    
+    <bpmn:parallelGateway id="ParallelMergeEnds">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_EndProcess2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_HasAccount" sourceRef="Gateway_AccountCheck" targetRef="Task_ReviewReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccount" sourceRef="Gateway_AccountCheck" targetRef="Task_CreateAccount"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCreated" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AmountCheck" sourceRef="Task_ReviewReport" targetRef="Gateway_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_UnderLimit" name="≤ $200" sourceRef="Gateway_AmountCheck" targetRef="Task_Reimburse"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ExceedsLimit" name="&gt; $200" sourceRef="Gateway_AmountCheck" targetRef="Task_SupervisorApproval"/>
+
+    <bpmn:parallelGateway id="ParallelSupervisorTimer">
+      <bpmn:incoming>SequenceFlow_ApprovalTimerStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalTimerStart" sourceRef="Task_SupervisorApproval" targetRef="ParallelSupervisorTimer"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_04" name="" sourceRef="ParallelSupervisorTimer" targetRef="Timer_7Days"/>
+
+    <bpmn:parallelGateway id="ParallelDecisionMerge">
+      <bpmn:incoming>SequenceFlow_SupervisorResponseReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ApprovedPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorResponseReceived" sourceRef="Timer_7Days" targetRef="ParallelDecisionMerge"/>
+    
+    <bpmn:exclusiveGateway id="GatewaySupervisorApproved">
+      <bpmn:incoming>SequenceFlow_ApprovedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SupervisorResponseReceived2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_05" name="" sourceRef="ParallelDecisionMerge" targetRef="GatewaySupervisorApproved"/>
+    
+    <bpmn:parallelGateway id="ParallelApprovalLoop">
+      <bpmn:incoming>SequenceFlow_SupervisorResponseReceived2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Approved</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_06" name="" sourceRef="ParallelApprovalLoop" targetRef="Task_SendRejectionEmail"/>
+    
+    <bpmn:exclusiveGateway id="GatewaySupervisorRejected">
+      <bpmn:incoming>SequenceFlow_Approved</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_07" name="" sourceRef="ParallelApprovalLoop" targetRef="Task_SendRejectionEmail"/>
+    
+    <bpmn:parallelGateway id="ParallelEndMerge">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_08</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Approved" sourceRef="Task_SendApprovalEmail" targetRef="ParallelEndMerge"/>
+    
+    <bpmn:exclusiveGateway id="GatewaySupervisorOverdue">
+      <bpmn:incoming>SequenceFlow_RejectedPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_09</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_10" name="" sourceRef="ParallelEndMerge" targetRef="Task_SendApprovalEmail"/>
+    
+    <bpmn:parallelGateway id="ParallelLoopBack">
+      <bpmn:incoming>SequenceFlow_SupervisorResponseReceived2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:sequenceFlow id="SequenceLoopBackToSupervisor" sourceRef="Task_SendApprovalEmail" targetRef="ParallelTimerSplit"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OrderProcess_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_Order_1">
+    <bpmn:participant id="Pool_Process" name="Order Fulfillment Process" processRef="Proc_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Main" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Staf f" name="Staff">
+        <bpmn:flowNodeRef>StartEvent_OrderReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAvailability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StaffOrderProducts</bvmn:flowNodeRef> <!-- Fixed namespace -->
+        <bpmn:flowNodeRef>Task_WaitForDelivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecheckInventory</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ProductsReady</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectProducts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreparePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef> <!-- Shared Gateway -->
+        <bpmn:flowNodeRef>Task_InformDelay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformUnavailableItems</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Courier" name="Courier Company">
+         <bvmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef> <!-- Shared Gateway -->
+        <bpmn:flowNodeRef>Task_InformClientDelay</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <bpmn:lane id="Lane_Driver" name="Driver">
+         <bvmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef> <!-- Shared Gateway -->
+        <bpmn:flowNodeRef>Task_PickupPackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <bpmn:lane id="Lane_System" name="System">
+         <bvmn:flowNodeRef>Gateway_ItemsAvailable</bpmn:flowNodeRef> <!-- Shared Gateway -->
+        <bpmn:flowNodeRef>Task_CentralizedRouting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DeliveryComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_OrderReview" name="Receive Order">
+        <bpmn:outgoing>SF_Start_CheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CheckAvailability" name="Check Item Availability">
+      <bpmn:incoming>SF_Start_CheckAvailability</bpmn:incoming>
+        <bpmn:outgoing>SF_Gateway_ItemsAvailable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway to check if items available -->
+    <bpmn:exclusiveGateway id="Gateway_ItemsAvailable" name="All Items Available?">
+      <bpmn:incoming>SF_Gateway_ItemsAvailable</bpmn:incoming>
+        <bpmn:outgoing>SF_StaffOrderProductsFlow</bpmn:outgoing>
+       <bpmn:outgoing>SF_InformUnavailableItemsFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Staff Task - Order Products -->
+      <bpmn:task id="Task_StaffOrderProducts" name="Inform Customer &amp; Order Missing Products">
+        <bpmn:incoming>SF_StaffOrderProductsFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_WaitForDeliveryStart</bpmn:outgoing>
+      </bpmn:task>
+
+     <!-- Wait Task -->
+       <bpmn:task id="Task_WaitForDelivery" name="Wait for Delivery (x days)">
+        <bpmn:incoming>SF_WaitForDeliveryStart</bpmn:incoming>
+          <bpmn:outgoing>SF_RecheckInventoryFlow</bpmn:outgoing>
+      </bpmn:task>
+
+     <!-- Re-check Inventory -->
+       <bpmn:task id="Task_RecheckInventory" name="Recheck Product Availability">
+        <bpmn:incoming>SF_RecheckInventoryFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_Gateway_ProductsReady</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Second Gateway for Products OK -->
+     <bpmn:exclusiveGateway id="Gateway_ProductsReady" name="All Products Ready?">
+        <bpmn:incoming>SF_RecheckInventoryFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_CollectProductsFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_StaffOrderMoreFlow</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+      <!-- Collect Products -->
+        <bpmn:task id="Task_CollectProducts" name="Recollect All Products">
+             <bpmn:incoming>SF_CollectProductsFlow</bpmn:incoming>
+            <bpmn:outgoing>SF_PreparePackageStart</bpmn:outgoing>
+        </bpmn:task>
+
+       <!-- Prepare Package --> 
+         <bpmn:task id="Task_PreparePackage" name="Prepare Package">
+             <bpmn:incoming>SF_PreparePackageStart</bpmn:incoming>
+            <bpmn:outgoing>SF_InformCourierFlow</bpmn:outgoing>
+        </bpmn:task>
+
+    <!-- End Events --> 
+
+         <bpmn:endEvent id="EndEvent_DeliveryComplete" name="Delivery Complete">
+             <bpmn:incoming>SF_SystemUpdateStakeholders</bpmn:incoming> 
+            <bpmn:outgoing>SF_CollectProductsFlow</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+       <bpmn:endEvent id="EndEvent_OrderRejected" name="Order Cancelled">
+             <bpmn:incoming>SF_StaffOrderMoreFlow</bpmn:incoming> 
+            <bpmn:outgoing>SF_InformUnavailableItemsFlow</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Flows --> 
+
+      <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_CheckAvailability" sourceRef="StartEvent_OrderReview" targetRef="Task_CheckAvailability"/>
+
+       <!-- To Gateway (Items Available Check) -->
+       <bpmn:sequenceFlow id="SF_Gateway_ItemsAvailable" name="Check Availability Result" sourceRef="Task_CheckAvailability" targetRef="Gateway_ItemsAvailable">
+        </bpmn:sequenceFlow>
+
+    <!-- Staff Order Products Flow --> 
+     <bpmn:sequenceFlow id="SF_StaffOrderProductsFlow" name="Items Missing" sourceRef="Gateway_ItemsAvailable" targetRef="Task_StaffOrderProducts"/>
+
+       <!-- Wait for Delivery Flow -->
+        <bpmn:sequenceFlow id="SF_WaitForDeliveryStart" name="Wait Period Start" sourceRef="Task_StaffOrderProducts" targetRef="Task_WaitForDelivery">
+      </bpmn:sequenceFlow>
+
+    <!-- Recheck Inventory Flow --> 
+     <bpmn:sequenceFlow id="SF_RecheckInventoryFlow" name="After Delivery Wait" sourceRef="Task_WaitForDelivery" targetRef="Task_RecheckInventory"/>
+
+       <!-- Products OK to Collect -->
+        <bpmn:sequenceFlow id="SF_CollectProductsFlow" name="All Ready" sourceRef="Gateway_ProductsReady" targetRef="Task_CollectProducts">
+      </bpmn:sequenceFlow>
+
+    <!-- Inform Customer About Delay Flow (Customer Lane) --> 
+     <bpmn:task id="Task_InformDelay" name="Inform Customer of Potential Delay">
+        <bpmn:incoming>SF_StaffOrderProductsFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_WaitForDeliveryStart</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Inform Unavailable Items Flow --> 
+     <bpmn:sequenceFlow id="SF_InformUnavailableItemsFlow" name="Item Discontinued" sourceRef="Gateway_ItemsAvailable" targetRef="Task_InformUnavailableItems"/>
+
+       <bpmn:task id="Task_InformUnavailableItems" name="Inform Customer of Unavailable Items">
+        <bpmn:incoming>SF_InformUnavailableItemsFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_OrderCancelledEnd</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Courier Informed Flow --> 
+     <bpmn:sequenceFlow id="SF_InformCourierFlow" name="Package Ready" sourceRef="Task_PreparePackage" targetRef="Gateway_CourierInformed"/>
+
+       <bpmn:exclusiveGateway id="Gateway_CourierInformed" name="Inform Courier?">
+        <bpmn:incoming>SF_InformCourierFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_StaffOrderMoreFlow</bpmn:outgoing> 
+           <bpmn:outgoing>SF_CourierDelayNotification</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+    <!-- Courier Delay Notification --> 
+     <bpmn:task id="Task_InformClientDelay" name="Inform Client of Potential Delivery Delay">
+        <bpmn:incoming>SF_CourierDelayNotification</bpmn:incoming>
+          <bpmn:outgoing>SF_PickupPackageFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Pickup Package Flow --> 
+     <bpmn:sequenceFlow id="SF_PickupPackageFlow" name="Driver Available" sourceRef="Task_InformClientDelay" targetRef="Gateway_DriverPickup"/>
+
+       <bpmn:exclusiveGateway id="Gateway_DriverPickup" name="Ready for Pickup?">
+        <bpmn:incoming>SF_PickupPackageFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_CentralizedRoutingStart</bpmn:outgoing> 
+           <bpmn:outgoing>SF_StaffOrderMoreFlow</bpmn:outgoing> <!-- Reorder if not ready -->
+      </bpmn:exclusiveGateway>
+
+    <!-- Centralized Routing Task (System Lane) --> 
+     <bpmn:task id="Task_CentralizedRouting" name="Determine Best Delivery Route">
+        <bpmn:incoming>SF_CentralizedRoutingStart</bpmn:incoming>
+          <bpmn:outgoing>SF_DriverDeliverFlow</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Driver Deliver Flow --> 
+     <bpmn:sequenceFlow id="SF_DriverDeliverFlow" name="Route Determined" sourceRef="Task_CentralizedRouting" targetRef="EndEvent_DeliveryComplete"/>
+
+       <!-- System Update Stakeholders -->
+        <bpmn:task id="Task_SystemUpdateStakeholders" name="Notify All Stakeholders">
+             <bpmn:incoming>SF_DriverDeliverFlow</bpmn:incoming>
+            <bpmn:outgoing>SF_EndEventDeliveryCompleteLink</bpmn:outgoing>
+        </bpmn:task>
+
+    <!-- Final End Event Link --> 
+     <bpmn:sequenceFlow id="SF_EndEventDeliveryCompleteLink" name="Update Complete" sourceRef="Task_SystemUpdateStakeholders" targetRef="EndEvent_DeliveryComplete"/>
+
+
+       <!-- Order Cancelled Flow (from unavailable items) -->
+        <bpmn:task id="Task_OrderCancelledEnd" name="Cancel Order">
+             <bpmn:incoming>SF_InformUnavailableItemsFlow</bpmn:incoming>
+            <bpmn:outgoing>SF_EndEventOrderRejectedLink</bpmn:outgoing>
+        </bpmn:task>
+
+    <!-- Final End Event Link --> 
+     <bpmn:sequenceFlow id="SF_EndEventOrderRejectedLink" name="Cancel Complete" sourceRef="Task_OrderCancelledEnd" targetRef="EndEvent_OrderRejected"/>
+
+
+       <!-- Staff Order More Flow (from Gateway_ProductsOK) -->
+        <bpmn:task id="Task_StaffOrderMoreProducts" name="Place Additional Orders">
+             <bpmn:incoming>SF_StaffOrderMoreFlow</bpmn:incoming>
+            <bpmn:outgoing>SF_WaitForDeliveryStart</bpmn:outgoing>
+        </bpmn:task>
+
+    <!-- Final End Event Link --> 
+     <bpmn:endEvent id="EndEvent_OrderRejected" name="Order Cancelled">
+             <bpmn:incoming>SF_EndEventOrderRejectedLink</bpmn:incoming> 
+            <bpmn:outgoing>SF_StaffOrderMoreFlow</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Final End Event Link for Delivery Complete --> 
+     <bpmn:endEvent id="EndEvent_DeliveryComplete" name="Delivery Complete">
+             <bpmn:incoming>SF_EndEventDeliveryCompleteLink</bpmn:incoming> 
+            <bpmn:outgoing>SF_CollectProductsFlow</bpmn:outgoing> <!-- Corrected to incoming -->
+        </bpmn:endEvent>
+
+    <!-- Additional Sequence Flows for Complete Flow --> 
+
+     <bpmn:sequenceFlow id="SF_StaffOrderMoreFlow" name="Still Missing Items" sourceRef="Gateway_ProductsReady" targetRef="Task_StaffOrderMoreProducts"/>
+
+
+  </bpmn:process>
+</bpmn:definitions>

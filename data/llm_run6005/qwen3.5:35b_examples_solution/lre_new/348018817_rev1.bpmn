@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ExpenseProcess">
+  <bpmn:message id="Message_SupervisorApproval"/>
+  <bpmn:message id="Message_SupervisorRejection"/>
+
+  <bpmn:process id="Process_ExpenseReport" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_FileReport" name="Employee files expense report">
+      <bpmn:outgoing>SequenceFlow_StartToCheckAccount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if employee has account -->
+    <bpmn:task id="Task_CheckAccount" name="Check if employee has an account">
+      <bpmn:incoming>SequenceFlow_StartToCheckAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AccountDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Account Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Account" name="Has account?">
+      <bpmn:incoming>SequenceFlow_AccountDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_HasAccountYes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoAccountTimer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer Event: 28 days check -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_28Days" name="Wait for account creation (max 28 days)">
+      <bpmn:incoming>SequenceFlow_NoAccountTimer</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send resubmit email -->
+    <bpmn:task id="Task_SendResubmitEmail" name="Send 'resubmit' email to employee">
+      <bpmn:incoming>SequenceFlow_TimerToResubmitEmail</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ResubmitToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event: Process stopped -->
+    <bpmn:endEvent id="EndEvent_ProcessStopped" name="Process stopped">
+      <bpmn:incoming>SequenceFlow_ResubmitToEnd</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <!-- Task: Review report (when employee has account) -->
+    <bpmn:task id="Task_ReviewReport" name="Review expense report">
+      <bpmn:incoming>SequenceFlow_HasAccountYes</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_AmountDecision</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Task: Create account (when employee doesn't have one) -->
+    <bpmn:task id="Task_CreateAccount" name="Create new employee account">
+      <bpmn:incoming>SequenceFlow_NoAccount</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_AccountCreatedToReview</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Gateway: Amount Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Amount" name="Amount &gt; 200?">
+      <bpmn:incoming>SequenceFlow_ReviewToDecision</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_LowAmountDeposit</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_HighAmountApproval</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Deposit reimbursement (low amount) -->
+    <bpmn:task id="Task_DepositLow" name="Deposit to employee bank account">
+      <bpmn:incoming>SequenceFlow_LowAmountDeposit</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_DirectToEnd</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- End Event: Process ended (low amount) -->
+    <bpmn:endEvent id="EndEvent_Deposited" name="Reimbursement deposited">
+      <bpmn:incoming>SequenceFlow_DirectToEnd</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Task: Ask supervisor for approval (high amount) -->
+    <bpmn:task id="Task_SupervisorApproval" name="Ask supervisor for approval">
+      <bpmn:incoming>SequenceFlow_HighAmountApproval</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_ApprovalWaitStart</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Gateway after supervisor task -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Supervisor" name="Supervisor response">
+      <bpmn:incoming>SequenceFlow_ApprovalWaitStart</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_7DaysTimer</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_AppealEmailApproval</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RejectEmail</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer Event: 7 days for supervisor response -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimer_7Days" name="Wait for approval (max 7 days)">
+      <bpmn:incoming>SequenceFlow_7DaysTimer</bpmn:outgoing/>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send in-progress email -->
+    <bpmn:task id="Task_SendInProgressEmail" name="Send 'approval in progress' email">
+      <bpmn:incoming>SequenceFlow_TimerToInProgressEmail</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RepeatApprovalLoop</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Message Event: Approval email from supervisor -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_Approval" name="Approval received">
+      <bpmn:incoming>SequenceFlow_AppealEmailApproval</bpmn:outgoing/>
+      <bpmn:messageEventDefinition messageRef="Message_SupervisorApproval"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Deposit reimbursement (high amount) -->
+    <bpmn:task id="Task_DepositHigh" name="Deposit to employee bank account">
+      <bpmn:incoming>SequenceFlow_ApprovedToDepositHigh</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_HighToEnd</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- Message Event: Reject email from supervisor -->
+    <bpmn:intermediateCatchEvent id="IntermediateMessage_Reject" name="Rejection received">
+      <bpmn:incoming>SequenceFlow_RejectEmail</bpmn:outgoing/>
+      <bpmn:messageEventDefinition messageRef="Message_SupervisorRejection"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send rejection notification -->
+    <bpmn:task id="Task_SendRejectNotification" name="Send 'request rejected' email">
+      <bpmn:incoming>SequenceFlow_RejectToNotificationTask</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_RejectToEnd</bpmn:outgoing/>
+    </bpmn:task>
+
+    <!-- End Event: Process ended (rejection) -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request rejected">
+      <bpmn:incoming>SequenceFlow_RejectToEnd</bpmn:outgoing/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Account Decision Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheckAccount" sourceRef="StartEvent_FileReport" targetRef="Task_CheckAccount"/>
+    <bpmn:sequenceFlow id="SequenceFlow_AccountDecision" sourceRef="Task_CheckAccount" targetRef="ExclusiveGateway_Account"/>
+
+    <!-- Account Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_HasAccountYes" sourceRef="ExclusiveGateway_Account" targetRef="Task_ReviewReport">
+      <bpmn:name>Has account</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Creation Path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AccountCreationDecision" name="Account created?">
+      <bpmn:incoming>SequenceFlow_NoAccountTimer</bpmn:outgoing/>
+      <bpmn:outgoing>SequenceFlow_After28DaysNoCreate</bpmn:outgoing/>
+    </bpmn:exclusiveGateway>
+
+    <!-- Timer Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccountTimer" sourceRef="ExclusiveGateway_Account" targetRef="IntermediateTimer_28Days"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToResubmitEmail" sourceRef="IntermediateTimer_28Days" targetRef="Task_SendResubmitEmail">
+      <bpmn:name>After 28 days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Created Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoAccount" sourceRef="ExclusiveGateway_AccountCreationDecision" targetRef="Task_CreateAccount"/>
+    <bpmn:sequenceFlow id="SequenceFlow_After28DaysNoCreate" sourceRef="ExclusiveGateway_AccountCreationDecision" targetRef="Task_SendResubmitEmail">
+      <bpmn:name>No account after 28 days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Review Report Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AmountDecision" sourceRef="Task_ReviewReport" targetRef="ExclusiveGateway_Amount">
+      <bpmn:name>Check amount</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_LowAmountDeposit" sourceRef="ExclusiveGateway_Amount" targetRef="Task_DepositLow">
+      <bpmn:name>&lt;= 200</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- High Amount Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighAmountApproval" sourceRef="ExclusiveGateway_Amount" targetRef="Task_SupervisorApproval">
+      <bpmn:name>&gt; 200</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Deposit Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectToEnd" sourceRef="Task_DepositLow" targetRef="EndEvent_Deposited">
+      <bpmn:name>Deposit complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor Approval Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalWaitStart" sourceRef="Task_SupervisorApproval" targetRef="ExclusiveGateway_Supervisor">
+      <bpmn:name>Request approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor Response Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_7DaysTimer" sourceRef="ExclusiveGateway_Supervisor" targetRef="IntermediateTimer_7Days">
+      <bpmn:name>No response in 7 days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Approval Message Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AppealEmailApproval" sourceRef="ExclusiveGateway_Supervisor" targetRef="IntermediateMessage_Approval">
+      <bpmn:name>Supervisor approves</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Reject Message Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectEmail" sourceRef="ExclusiveGateway_Supervisor" targetRef="IntermediateMessage_Reject">
+      <bpmn:name>Supervisor rejects</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- High Amount Deposit Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedToDepositHigh" sourceRef="IntermediateMessage_Approval" targetRef="Task_DepositHigh">
+      <bpmn:name>Approval received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- High Amount End Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_HighToEnd" sourceRef="Task_DepositHigh" targetRef="EndEvent_Deposited">
+      <bpmn:name>Deposit complete</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Reject Notification Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectToNotificationTask" sourceRef="IntermediateMessage_Reject" targetRef="Task_SendRejectNotification">
+      <bpmn:name>Rejection received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Reject End Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ResubmitToEnd" sourceRef="Task_SendResubmitEmail" targetRef="EndEvent_ProcessStopped">
+      <bpmn:name>Send rejection notice</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

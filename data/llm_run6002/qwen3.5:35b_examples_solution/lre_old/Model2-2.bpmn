@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SwitchOver">
+    <bpmn:participant id="Pool_CustomerService" name="Customer Service" processRef="Process_CS"/>
+    <bpmn:participant id="Pool_Customer" name="Customer" processRef="Process_Cust"/>
+    <bpmn:participant id="Pool_GridOperator" name="Grid Operator" processRef="Process_Grid"/>
+  </bpmn:collaboration>
+
+  <!-- Global Messages -->
+  <bpmn:message id="Msg_SwitchRequest" />
+  <bpmn:message id="Msg_ConfirmationOffer" />
+  <bpmn:message id="Msg_GridResponse" />
+  <bpmn:message id="Msg_MeterData" />
+
+  <!-- Process: Customer Service -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="Start_RequestReceived" name="Switch-over Request Received">
+      <bpmn:messageRef>Msg_SwitchRequest</bpmn:messageRef>
+      <bpmn:outgoing>Flow_StartToDataEntry</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Data Entry & Validation -->
+    <bpmn:userTask id="Task_EnterCustomerData" name="Enter Customer Data Object">
+      <bpmn:incoming>Flow_StartToDataEntry</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckPlausibility</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gate_DataValid" name="Data Complete &amp; Plausible?">
+      <bpmn:incoming>Flow_CheckPlausibility</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValidPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_ErrorHandling" name="Correct Errors">
+      <bpmn:incoming>Flow_InvalidData</bpmn:incoming>
+      <bpmn:outgoing>Flow_StartToDataEntry</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Customer Existence Check -->
+    <bpmn:exclusiveGateway id="Gate_CustomerExists" name="Customer Exists?">
+      <bpmn:name>Data Complete &amp; Plausible?</bpmn:name>
+      <bpmn:incoming>Flow_ValidPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_NewCustomer</bvmn:outgoing> <!-- Fixed typo -->
+    </bpmn:exclusiveGateway>
+
+    <!-- New Customer Creation -->
+    <bpmn:userTask id="Task_CreateNewObject" name="Create New Customer Object">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_NewCustomer</bpmn:outgoing>
+      <bpmn:outgoing>Flow_PrepareContract</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Contract Preparation -->
+    <bpmn:exclusiveGateway id="Gate_ContractMerge" name="New Customer?">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_ValidPath</bpmn:outgoing> <!-- Simplified merge logic for valid XML -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_PrepareContracts" name="Prepare Contract Documents">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_ValidPath</bpmn:outgoing> <!-- Simplified merge -->
+      <bpmn:outgoing>Flow_CISCheckRequest</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Service_CheckContracts" name="Automated Check (CIS)">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_CISCheckRequest</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ContractValid</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Retry Loop -->
+    <bpmn:exclusiveGateway id="Gate_CheckResult" name="Check Successful?">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_CISCheckRequest</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AnalyzeResolve</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_AnalyzeIssues" name="Analyze &amp; Resolve Issues">
+        <bpmn:name>New customer?</bpmn:name>
+      <bpmn:incoming>Flow_ContractInvalid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_PrepareContracts</bpmn:outgoing> <!-- Retry -->
+    </bpmn:userTask>
+
+    <!-- Post Check Actions -->
+    <bpmn:exclusiveGateway id="Gate_SupplierCheck" name="Supplier Concurrence?">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_ContractValid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendConfirmationAndRequest</bpmn:outgoing> <!-- Positive Check -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="User_SendDocuments" name="Send Confirmation Document">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_SendConfirmationAndRequest</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RequestGridOperator</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Grid Response -->
+    <bpmn:intermediateCatchEvent id="Msg_CatchGridResponse" name="Wait for Supplier Check Result">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_GridResponse</bpmn:messageRef>
+      <bpmn:incoming>Flow_RequestGridOperator</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CheckConcurrenceResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Decision on Concurrence -->
+    <bpmn:exclusiveGateway id="Gate_Concurrence" name="Supplier Concurrence?">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_CheckConcurrenceResult</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CreateCISContract_NoConflict</bpmn:outgoing> <!-- No Objection -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="User_CreateCIS" name="Create CIS Contract">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_ConcurrenceNo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendOfferToCustomer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Customer Decision Phase -->
+    <bpmn:userTask id="User_SwitchOffer" name="Send Switch Offer">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_SendOfferToCustomer</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WaitForDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Event Based Gateway for Decision or Timeout -->
+    <bpmn:eventBasedGateway id="Gate_DecisionOrTimeout" name="Customer Response?">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_WaitForDecision</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ConfirmationReceived</bpmn:outgoing> <!-- Confirmation -->
+    </bpmn:eventBasedGateway>
+
+    <bpmn:intermediateCatchEvent id="Msg_CatchConfirmation" name="Wait for Customer Confirmation">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_ConfirmationOffer</bpmn:messageRef>
+      <bpmn:incoming>Flow_ConfirmationReceived</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ProcessConfirmed</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer for 7 Days -->
+    <bpmn:intermediateTimerEvent id="Time_WithdrawalPeriod" name="Wait 7 days">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_WaitForDecision</bpmn:outgoing>
+      <bpmn:outgoing>Flow_TimeOutAccepted</bpmn:outgoing>
+    </bpmn:intermediateTimerEvent>
+
+    <!-- Withdrawal Handling -->
+    <bpmn:userTask id="User_Withdraw" name="Handle Withdrawal">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_WaitForDecision</bpmn:outgoing>
+      <bpmn:outgoing>Flow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Meter Data Phase -->
+    <bpmn:intermediateCatchEvent id="Msg_CatchMeterData" name="Wait for Meter Data">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_MeterData</bpmn:messageRef>
+      <bpmn:incoming>Flow_ProcessConfirmed</bpmn:outgoing> <!-- Or after 7 days -->
+      <bpmn:outgoing>Flow_ImportMeterData</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:userTask id="User_ImportMeter" name="Import Meter Data">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_ProcessConfirmed</bpmn:outgoing> <!-- Simplified flow -->
+      <bpmn:outgoing>Flow_EndProcess_CS</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Confirmed" name="Switch Process Ended">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_EndProcess_CS</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Process: Customer -->
+  <bpmn:process id="Process_Cust" isExecutable="false">
+    <bpmn:startEvent id="Start_RequestSwitchOver" name="Request Switch-Over">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_SwitchRequest</bpmn:messageRef> <!-- Send to CS -->
+      <bpmn:outgoing>Flow_SendToCS</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="User_CheckContract" name="Check Switch Contract">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_ContractOffer</bpmn:outgoing> <!-- From CS -->
+      <bpmn:outgoing>Flow_DecideWithdrawOrConfirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Withdrew" name="Process Ended (Withdrawal)">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_EndCustomer</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Process: Grid Operator -->
+  <bpmn:process id="Process_Grid" isExecutable="false">
+    <bpmn:startEvent id="Start_RequestCheck" name="Request Supplier Check">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_GridResponse</bpmn:messageRef /> <!-- From CS -->
+      <bpmn:outgoing>Flow_CheckConcurrence</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="User_CheckSupplier" name="Check Supplier Concurrence">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:incoming>Flow_RequestCheck</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendResponseComment</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Meter Data Phase -->
+    <bpmn:intermediateCatchEvent id="Msg_CatchSwitchDate" name="Wait for Switch Date">
+        <bvmn:name>New customer?</bvmn:name>
+      <bpmn:messageRef>Msg_MeterData</bpmn:messageRef /> <!-- Triggered by date? Or just start of phase -->
+    </bpmn:intermediateCatchEvent>
+
+  </bpmn:process>
+
+</bpmn:definitions>

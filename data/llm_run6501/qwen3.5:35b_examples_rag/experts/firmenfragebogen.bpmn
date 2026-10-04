@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1a2b3c" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Fragenbogen">
+    <bpmn:participant id="Participant_Process" name="Fragenbogenbearbeitung" processRef="Process_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_01" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_Fragenbogen">
+      <bpmn:lane id="Lane_System" name="Maschinelle Bearbeitung">
+        <bpmn:flowNodeRef>StartEvent_Eingang</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PartnerSuche</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Zuordnung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DatenPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Problem1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Meldezeitraum</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ZeitenVorhanden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KontaktdatenPruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Problem2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manual" name="Manuelle Bearbeitung">
+        <bpmn:flowNodeRef>UserTask_ManuellePruefung</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Problem1</bpmn:flowNodeRef> <!-- Shared Gateway for routing -->
+        <bpmn:flowNodeRef>Gateway_Problem2</bpmn:flowNodeRef> <!-- Shared Gateway for routing -->
+        <bpmn:flowNodeRef>UserTask_MitarbeiterBearbeitung</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_Eingang" name="Fragenbogen eingegangen">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_PartnerSuche" name="Partnerunternehmen suchen &amp; erfassen">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Zuordnung" name="Eindeutige Zuordnung möglich?">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03a</bpmn:outgoing> <!-- Ja -->
+      <bpmn:outgoing>SequenceFlow_04a</bpmn:outgoing> <!-- Nein/Unklar -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_ManuellePruefung" name="Manuelle Prüfung durch Sachbearbeiter">
+      <bpmn:incoming>SequenceFlow_04a</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_DatenPruefung" name="Unternehmensdaten prüfen (Betriebsnummer, U1-Verfahren, Insolvenzrücklage)">
+      <bpmn:incoming>SequenceFlow_03a</bpmn:incoming> <!-- From Auto Success -->
+      <bpmn:incoming>SequenceFlow_05</bpmn:incoming>  <!-- From Manual Check Merge -->
+      <bpmn:outgoing>SequenceFlow_06</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Problem1" name="Problem bei Prüfung?">
+      <bpmn:incoming>SequenceFlow_06</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_07a</bpmn:outgoing> <!-- Ja -->
+      <bpmn:outgoing>SequenceFlow_08</bpmn:outgoing>  <!-- Nein -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_MitarbeiterBearbeitung" name="Zuständiger Mitarbeiter zur weiteren Bearbeitung">
+      <bpmn:incoming>SequenceFlow_07a</bpmn:incoming> <!-- From Problem Gateway -->
+      <bpmn:outgoing>SequenceFlow_09</bpmn:outgoing>  <!-- Back to flow or End? Assuming loop/resolve -->
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_Meldezeitraum" name="Meldezeitraum &amp; Umlageversicherungszeiten prüfen">
+      <bpmn:incoming>SequenceFlow_08</bpmn:incoming> <!-- From Data Check OK -->
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ZeitenVorhanden" name="Umlageversicherungszeiten vorhanden?">
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11a</bpmn:outgoing> <!-- Ja -->
+      <bpmn:outgoing>SequenceFlow_12a</bpmn:outgoing> <!-- Nein (Neu anlegen) -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_ZeitenPruefen" name="Bestehende Zeiten überprüfen">
+      <bpmn:incoming>SequenceFlow_11a</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_ZeitenAnlegen" name="Umlageversicherungszeiten neu anlegen">
+      <bpmn:incoming>SequenceFlow_12a</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Problem2" name="Problem bei Prüfung?">
+       <!-- Merging logic for exceptions from Data Check and Reporting Period -->
+      <bpmn:incoming>SequenceFlow_07a</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_14a</bpmn:outgoing> <!-- Ja (to Manual) -->
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_MitarbeiterBearbeitung2" name="Zuständiger Mitarbeiter zur weiteren Bearbeitung">
+      <bpmn:incoming>SequenceFlow_14a</bpmn:incoming> <!-- From Problem Gateway -->
+       <bpmn:outgoing>SequenceFlow_09</bpmn:outgoing>  <!-- Merge back to flow logic (simplified) -->
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_KontaktdatenPruefung" name="Kontaktdaten prüfen (Telefon, Fax, Adresse)">
+      <bpmn:incoming>SequenceFlow_13</bpmn:incoming> <!-- From Reporting Period Merge -->
+       <bpmn:outgoing>SequenceFlow_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+     <bpmn:endEvent id="EndEvent_Erfolg" name="Fragenbogen bearbeitet">
+      <bpmn:incoming>SequenceFlow_16</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_Eingang" targetRef="Task_PartnerSuche"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_02" name="Automatische Suche abgeschlossen" sourceRef="Task_PartnerSuche" targetRef="Gateway_Zuordnung"/>
+
+    <!-- Auto Success Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_03a" name="Ja, eindeutig zuordenbar" sourceRef="Gateway_Zuordnung" targetRef="Task_DatenPruefung"/>
+
+    <!-- Manual Check Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_04a" name="Nein/Unklar - Weiterleitung an Sachbearbeiter" sourceRef="Gateway_Zuordnung" targetRef="UserTask_ManuellePruefung"/>
+    
+    <!-- Merge after manual check to Data Verification -->
+    <bpmn:sequenceFlow id="SequenceFlow_05" sourceRef="UserTask_ManuellePruefung" targetRef="Task_DatenPruefung"/>
+
+    <!-- Exception Handling from Data Check (Simplified routing) -->
+     <bpmn:sequenceFlow id="SequenceFlow_06" name="Daten geprüft" sourceRef="Task_DatenPruefung" targetRef="Gateway_Problem1"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_07a" name="Ja, Problem erkannt" sourceRef="Gateway_Problem1" targetRef="UserTask_MitarbeiterBearbeitung"/>
+
+     <!-- Exception Handling from Reporting Period Check (Simplified routing) -->
+      <bpmn:sequenceFlow id="SequenceFlow_14a" name="Problem bei Prüfung/Umlagezeiten" sourceRef="Gateway_ZeitenVorhanden" targetRef="UserTask_MitarbeiterBearbeitung2"/>
+
+    <!-- Continue after Data Verification OK -->
+     <bpmn:sequenceFlow id="SequenceFlow_08" name="Nein, keine Probleme" sourceRef="Gateway_Problem1" targetRef="Task_Meldezeitraum"/>
+
+    <!-- Reporting Period Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="Task_Meldezeitraum" targetRef="Gateway_ZeitenVorhanden"/>
+    
+     <bpmn:sequenceFlow id="SequenceFlow_13" name="Prüfung abgeschlossen" sourceRef="Task_ZeitenAnlegen" targetRef="Task_KontaktdatenPruefung"/> <!-- Merge from Create -->
+    <bpmn:sequenceFlow id="SequenceFlow_15" sourceRef="Task_ZeitenPruefen" targetRef="Task_KontaktdatenPruefung"/>
+
+     <bpmn:sequenceFlow id="SequenceFlow_09" name="Bearbeitung abgeschlossen &amp; Fortsetzung" sourceRef="UserTask_MitarbeiterBearbeitung" targetRef="Gateway_Problem1"/> <!-- Loop back to check flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_16" name="Alle Daten geprüft und angelegt" sourceRef="Task_KontaktdatenPruefung" targetRef="EndEvent_Erfolg"/>
+
+  </bpmn:process>
+</bpmn:definitions>

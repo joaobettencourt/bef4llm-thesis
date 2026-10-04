@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="_Collab_UncollectedBagProcess">
+    <bpmn:participant name="CVS System" processRef="Process_NotCollectedBagHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_NotCollectedBagHandling" isExecutable="false">
+    
+    <!-- LaneSet for Organizational Structure -->
+    <bpmn:laneSet id="_LaneSets_01">
+      <bpmn:lane name="Operations Team" id="_Lane_OpsTeam">
+        <bpmn:flowNodeRef>StartEvent_NotCollectedBagIdentified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_CheckRetryCount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_IsLimitExceeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Task_ContactCustomerByPhone</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>_Gateway_CustomerOutcome</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Not Collected Bag Identified" id="StartEvent_NotCollectedBagIdentified">
+      <bpmn:outgoing>_Flow_CheckRetryCount</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Retries -->
+    <bpmn:task name="Check Resolution Retry Count" id="_Task_CheckRetryCount">
+      <bpmn:incoming>_Flow_CheckRetryCount</bpmn:incoming>
+      <bpmn:outgoing>_Flow_IsLimitExceededGateInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Threshold -->
+    <bpmn:exclusiveGateway name="Retries &gt; Specified Number?" id="_Gateway_IsLimitExceeded">
+      <bpmn:incoming>_Flow_IsLimitExceededGateInbound</bpmn:incoming>
+      <bpmn:outgoing>_Flow_ReturnToProductionYes</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_ContactCustomerNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2a: Return for Disassembly (High Retry) -->
+    <bpmn:task name="Return Bag to Production Area for Disassemble" id="_Task_ReturnToProductionForDisassemble">
+      <bpmn:incoming>_Flow_ReturnToProductionYes</bpmn:incoming>
+      <bpmn:incoming>_Flow_WithdrawnToDisassemble</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- End Event 1: Disassembly Complete -->
+    <bpmn:endEvent name="Bag Returned for Disassemble" id="_End_BagDisassembled">
+      <bpmn:incoming>_Flow_DisassembleToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 2b: Contact Customer (Low Retry) -->
+    <bpmn:task name="Contact Customer by Phone and Remind Pickup" id="_Task_ContactCustomerByPhone">
+      <bpmn:incoming>_Flow_ContactCustomerNo</bpmn:incoming>
+      <bpmn:outgoing>_Flow_CustomerOutcomeGateInbound</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Customer Outcome -->
+    <bpmn:exclusiveGateway name="Customer Response?" id="_Gateway_CustomerOutcome">
+      <bpmn:incoming>_Flow_CustomerOutcomeGateInbound</bpmn:incoming>
+      <bpmn:outgoing>_Flow_WithdrawnToDisassemble</bpmn:outgoing>
+      <bpmn:outgoing>_Flow_IncreaseRetryCountToEnd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Increase Retry Count (Promise or Unsuccessful) -->
+    <bpmn:task name="Increase Retry Count on Bag Label" id="_Task_IncreaseRetryCountOnLabel">
+      <bpmn:incoming>_Flow_IncreaseRetryCountToEnd</bpmn:incoming>
+      <bpmn:outgoing>_Flow_RetryUpdateToEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 2: Retry Count Updated -->
+    <bpmn:endEvent name="Retry Count Increased" id="_End_RetryCountUpdated">
+      <bpmn:incoming>_Flow_RetryUpdateToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definition -->
+    
+    <!-- Start to Check Retries -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_NotCollectedBagIdentified" targetRef="_Task_CheckRetryCount" id="_Flow_CheckRetryCount"/>
+    
+    <!-- Check Retries to Gateway 1 -->
+    <bpmn:sequenceFlow sourceRef="_Task_CheckRetryCount" targetRef="_Gateway_IsLimitExceeded" id="_Flow_IsLimitExceededGateInbound">
+      <bpmn:name>Check Retry Count</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 YES Path (High Retry) -> Disassemble Task -->
+    <bpmn:sequenceFlow sourceRef="_Gateway_IsLimitExceeded" targetRef="_Task_ReturnToProductionForDisassemble" id="_Flow_ReturnToProductionYes">
+      <bpmn:name>Retries &gt; Threshold</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 1 NO Path (Low Retry) -> Contact Customer -->
+    <bpmn:sequenceFlow sourceRef="_Gateway_IsLimitExceeded" targetRef="_Task_ContactCustomerByPhone" id="_Flow_ContactCustomerNo">
+      <bpmn:name>Retries &le; Threshold</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Contact Customer to Gateway 2 -->
+    <bpmn:sequenceFlow sourceRef="_Task_ContactCustomerByPhone" targetRef="_Gateway_CustomerOutcome" id="_Flow_CustomerOutcomeGateInbound"/>
+
+    <!-- Gateway 2 Outcome A (Withdrawn) -> Disassemble Task (Merge with High Retry Path) -->
+    <bpmn:sequenceFlow sourceRef="_Gateway_CustomerOutcome" targetRef="_Task_ReturnToProductionForDisassemble" id="_Flow_WithdrawnToDisassemble">
+      <bpmn:name>Success + Withdraw</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 2 Outcome B (Promise or Unsuccessful) -> Increase Retry Count -->
+    <bpmn:sequenceFlow sourceRef="_Gateway_CustomerOutcome" targetRef="_Task_IncreaseRetryCountOnLabel" id="_Flow_IncreaseRetryCountToEnd">
+      <bpmn:name>Promise Pick Up / Failed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Disassemble Task to End Event 1 -->
+    <bpmn:sequenceFlow sourceRef="_Task_ReturnToProductionForDisassemble" targetRef="_End_BagDisassembled" id="_Flow_DisassembleToEnd"/>
+
+    <!-- Increase Retry Count Task to End Event 2 -->
+    <bpmn:sequenceFlow sourceRef="_Task_IncreaseRetryCountOnLabel" targetRef="_End_RetryCountUpdated" id="_Flow_RetryUpdateToEnd"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_claimProcess_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_claimHandling">
+    <bpmn:participant id="Participant_mainClaimProc" name="Claim Handling Process" processRef="Process_claimProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_questionnaireResponse" name="Questionnaire Response Message"/>
+
+  <bpmn:process id="Process_claimProcessing" isExecutable="false">
+    <!-- Lane for Claim Handler -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_handler" name="Claim Handler">
+        <bpmn:flowNodeRef>StartEvent_0</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_sendQuestionnaire</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_eventBased</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CatchEvent_message</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_sendReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_0" name="Claim Received">
+      <bpmn:outgoing>SequenceFlow_initiate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Questionnaire -->
+    <bpmn:task id="Task_sendQuestionnaire" name="Send questionnaire to claimant">
+      <bpmn:incoming>SequenceFlow_initiate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-Based Gateway for waiting -->
+    <bpmn:eventBasedGateway id="Gateway_eventBased" name="Wait for Response">
+      <bpmn:incoming>SequenceFlow_toGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_timerPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_messagePath</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Timer Event (5 days) -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_timer" name="After 5 Days">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeDateExpression"/>
+      <bpmn:incoming>SequenceFlow_timerPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toReminderTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Message Catch Event (Questionnaire Response) -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_message" name="Filled questionnaire received">
+      <bpmn:messageRef ref="Message_questionnaireResponse"/>
+      <bpmn:incoming>SequenceFlow_messagePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toEnd</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task: Send Reminder -->
+    <bpmn:task id="Task_sendReminder" name="Send reminder to claimant">
+      <bpmn:incoming>SequenceFlow_toReminderTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBack_01</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_completed" name="Questionnaire Received">
+      <bpmn:incoming>SequenceFlow_toEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_initiate" sourceRef="StartEvent_0" targetRef="Task_sendQuestionnaire">
+      <bpmn:name>Claim Received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_toGateway" sourceRef="Task_sendQuestionnaire" targetRef="Gateway_eventBased"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_timerPath" name="Timer Path (5 Days)" sourceRef="Gateway_eventBased" targetRef="CatchEvent_timer">
+      <bpmn:name>Wait for 5 days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_messagePath" name="Message Path (Response)" sourceRef="Gateway_eventBased" targetRef="CatchEvent_message">
+      <bpmn:name>Wait for response</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_toReminderTask" name="5 Days Elapsed" sourceRef="CatchEvent_timer" targetRef="Task_sendReminder"/>
+
+    <bpmn:sequenceFlow id="SequenceLoopBack_01" name="Return to Waiting State" sourceRef="Task_sendReminder" targetRef="Gateway_eventBased">
+      <bpmn:name>Send reminder and wait again</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_toEnd" name="Questionnaire Received" sourceRef="CatchEvent_message" targetRef="EndEvent_completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

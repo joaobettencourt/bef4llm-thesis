@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_productionOrderProc" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_1v5l1xs">
+    <bpmn:participant id="Participant_mainProcess" name="Production Order Process" processRef="Process_productionOrder"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_productionOrder" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_masterProduction" name="Master Individual Production">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_determineParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_enterPPSData</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_employee" name="Employee">
+        <bpmn:flowNodeRef>Task_produceOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_qualityInspector" name="Quality Inspector">
+        <bpmn:flowNodeRef>Task_reviewQuality</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1egehkn</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:name>New Order from Sales Department</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_initiateOrderProcess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_determineParts" name="Determine necessary parts, quantities and delivery date">
+      <bpmn:incoming>SequenceFlow_initiateOrderProcess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_enterPPSData</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_enterPPSData" name="Enter production planning data (manual transfer to ERP)">
+      <bpmn:incoming>SequenceFlow_enterPPSData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_checkPartsAvailability</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_partsCheck" name="Parts Missing?">
+      <bpmn:incoming>SequenceFlow_checkPartsAvailability</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_procureMissingParts</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_proceedToProduction</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_procureParts" name="Procure missing parts">
+      <bpmn:incoming>SequenceFlow_procureMissingParts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_proceedToProductionAfterProcurement</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 (Merge) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_merge" name="Ready for Production?">
+      <bpmn:incoming>SequenceFlow_proceedToProductionAfterProcurement</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_proceedToProduction</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_startImplementation</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Intermediate Event -->
+    <bpmn:intermediateThrowEvent id="IntermediateEvent_productionNotice" name="Ready to start production">
+      <bpmn:incoming>SequenceFlow_startImplementation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_produceOrderStart</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Task 4 -->
+    <bpmn:task id="Task_produceOrder" name="Implement order (production)">
+      <bpmn:incoming>SequenceFlow_produceOrderStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_qualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5 -->
+    <bpmn:task id="Task_reviewQuality" name="Review order quality">
+      <bpmn:incoming>SequenceFlow_qualityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_processFinished</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1egehkn" name="Production process finished">
+      <bpmn:name>Process of production is finished</bpmn:name>
+      <bpmn:incoming>SequenceFlow_processFinished</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_initiateOrderProcess" sourceRef="StartEvent_1" targetRef="Task_determineParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_enterPPSData" name="Enter PPS data" sourceRef="Task_determineParts" targetRef="Task_enterPPSData">
+      <bpmn:name>Information present</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_checkPartsAvailability" name="Check parts availability" sourceRef="Task_enterPPSData" targetRef="ExclusiveGateway_partsCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_procureMissingParts" name="Yes - Parts missing" sourceRef="ExclusiveGateway_partsCheck" targetRef="Task_procureParts">
+      <bpmn:name>Procurement necessary</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_proceedToProductionAfterProcurement" name="All parts available after procurement" sourceRef="Task_procureParts" targetRef="ExclusiveGateway_merge"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_proceedToProduction" name="No - All parts available" sourceRef="ExclusiveGateway_partsCheck" targetRef="ExclusiveGateway_merge">
+      <bpmn:name>No procurement needed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_startImplementation" name="Production scheduled notice received" sourceRef="ExclusiveGateway_merge" targetRef="IntermediateEvent_productionNotice"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_produceOrderStart" name="Ready to start production" sourceRef="IntermediateEvent_productionNotice" targetRef="Task_produceOrder">
+      <bpmn:name>Production scheduled notice received</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_qualityCheck" name="Quality check required" sourceRef="Task_produceOrder" targetRef="Task_reviewQuality">
+      <bpmn:name>Production completed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_processFinished" name="Process complete" sourceRef="Task_reviewQuality" targetRef="EndEvent_1egehkn"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

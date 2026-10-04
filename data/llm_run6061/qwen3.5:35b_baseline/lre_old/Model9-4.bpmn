@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CommitteeProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CommitteeMeeting">
+    <bpmn:participant id="Participant_MainSystem" name="Committee Meeting Process" processRef="Process_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CoordinationUnit" name="Coordination Unit">
+        <bpmn:flowNodeRef>StartEvent_DatesFinalized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QACheckMinutes</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SupportOfficer" name="Support Officer">
+        <bpmn:flowNodeRef>Task_UpdateCalendars</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateMeetingFolders</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UploadDocuments</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProduceMinutes</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_CommitteeMembers" name="Committee Members">
+        <bpmn:flowNodeRef>Task_ReadDocuments</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_HoldMeeting</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DatesFinalized" name="Dates Finalized">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Support Officer Tasks (Parallel) -->
+    <bpmn:task id="Task_UpdateCalendars" name="Update Group Calendars">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Calendar, Folders, Documents -->
+    <bpmn:parallelGateway id="ParallelGateway_Split1">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task for Meeting Folders -->
+    <bpmn:task id="Task_CreateMeetingFolders" name="Create Meeting Folders">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Document Upload -->
+    <bpmn:task id="Task_UploadDocuments" name="Ensure Documents Uploaded">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_DatesFinalized" targetRef="Task_UpdateCalendars"/>
+    <bpmn:sequenceFlow id="SequenceFlow_02" name="" sourceRef="Task_UpdateCalendars" targetRef="ParallelGateway_Split1"/>
+
+    <!-- Message Flow for Committee Notification -->
+    <bpmn:messageFlow id="MessageFlow_CommitteeAdvice">
+      <bpmn:name>Meeting Advice (7 days before)</bpmn:name>
+      <bpmn:sourceRef>Task_UploadDocuments</bpmn:sourceRef>
+      <bpmn:targetRef>Event_HoldMeeting</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Committee Members Task -->
+    <bpmn:task id="Task_ReadDocuments" name="Read Related Documents">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_CommitteeAdvice</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MeetingStart</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Meeting Event -->
+    <bpmn:startEvent id="Event_HoldMeeting" name="Hold Committee Meeting">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_MeetingStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MinutesPrep</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Support Officer Minutes Production -->
+    <bpmn:task id="Task_ProduceMinutes" name="Produce Minutes with Action Points">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_MinutesPrep</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_QACheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- QA Check Gateway (5 working days) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_QATimeframe">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_MinutesPrep</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendMinutes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- QA Check Task -->
+    <bpmn:task id="Task_QACheckMinutes" name="QA Check Minutes (5 working days)">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendMinutes</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FinalUpdate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Minutes to Committee -->
+    <bpmn:message id="Message_MinutesSent" name="Send Minutes">
+      <bpmn:name></bpmn:name>
+    </bpmn:message>
+
+    <!-- Final Update Task -->
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Process Complete"/>
+
+    <!-- Sequence Flows for QA and Completion -->
+    <bpmn:sequenceFlow id="SequenceFlow_MinutesPrep" sourceRef="Task_ProduceMinutes" targetRef="ExclusiveGateway_QATimeframe"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendMinutes" name="" sourceRef="ExclusiveGateway_QATimeframe" targetRef="EndEvent_ProcessComplete"/>
+
+  </bpmn:process>
+</bpmn:definitions>

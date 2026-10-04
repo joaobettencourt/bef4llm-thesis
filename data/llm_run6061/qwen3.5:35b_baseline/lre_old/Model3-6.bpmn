@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_ClaimsProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_InsuranceClaims">
+    <bpmn:participant id="Participant_MainSystem" name="Claims Management Department" processRef="Proc_ClaimFlow"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimFlow" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Admin" name="Claims Administration">
+        <bpmn:flowNodeRef>StartEvent_ClaimReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckInsuranceStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XORGateway_IsInsured</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClaimRejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Processing" name="Claims Processing">
+        <bpmn:flowNodeRef>XORGateway_SeverityType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EvaluateSeverity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendSimpleForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendComplexForms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateEvent_WaitReturn</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+       <!-- Loop Handling -->
+       <bpmn:lane id="Lane_Admin" name="Claims Administration">
+         <bpmn:flowNodeRef>XORGateway_IsComplete</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>Task_CheckCompleteness</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>EndEvent_ProcessEnded</bpmn:flowNodeRef>
+       </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ClaimReceived" name="Claim Received">
+      <bpmn:name></bpmn:name>
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_CheckInsuranceStatus" name="Check Claimant Insured">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="XORGateway_IsInsured" name="Is Claimant Insured?">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProcessPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_ClaimRejected" name="Claim Rejected">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_ClaimReceived" targetRef="Task_CheckInsuranceStatus"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="No" sourceRef="XORGateway_IsInsured" targetRef="EndEvent_ClaimRejected">
+      <bpmn:name></bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessPath" sourceRef="XORGateway_IsInsured" targetRef="Task_EvaluateSeverity"/>
+
+    <!-- Task 2 -->
+    <bpmn:task id="Task_EvaluateSeverity" name="Evaluate Claim Severity">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_ProcessPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_03</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="XORGateway_SeverityType" name="Claim Type">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendSimplePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SendComplexPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow 3 -->
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="Task_EvaluateSeverity" targetRef="XORGateway_SeverityType"/>
+
+    <!-- Tasks for Forms -->
+    <bpmn:task id="Task_SendSimpleForms" name="Send Simple Claim Forms">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendSimplePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToWait1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SendComplexForms" name="Send Complex Claim Forms">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendComplexPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeToWait2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendSimplePath" name="Simple Claim" sourceRef="XORGateway_SeverityType" targetRef="Task_SendSimpleForms"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendComplexPath" name="Complex Claim" sourceRef="XORGateway_SeverityType" targetRef="Task_SendComplexForms"/>
+
+    <!-- Intermediate Event Wait Return -->
+    <bpmn:startEvent id="IntermediateEvent_WaitReturn">
+      <bpmn:name></bpmn:name>
+       <bpmn:incoming>SequenceFlow_MergeToWait1</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_MergeToWait2</bpmn:incoming>
+    </bpmn:startEvent>
+
+     <!-- Correction for Intermediate Event Type -->
+      <bpmn:messageIntermediateCatchEvent id="IntermediateEvent_WaitReturn" name="Forms Returned">
+        <bpmn:name></bpmn:name>
+       <bpmn:incoming>SequenceFlow_MergeToWait1</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_MergeToWait2</bpmn:incoming>
+      </bpmn:messageIntermediateCatchEvent>
+
+    <!-- Sequence Flows to Wait Event -->
+     <bpmn:sequenceFlow id="SequenceFlow_MergeToWait1" sourceRef="Task_SendSimpleForms" targetRef="IntermediateEvent_WaitReturn"/>
+     <bpmn:sequenceFlow id="SequenceFlow_MergeToWait2" sourceRef="Task_SendComplexForms" targetRef="IntermediateEvent_WaitReturn"/>
+
+    <!-- Task Check Completeness -->
+    <bpmn:task id="Task_CheckCompleteness" name="Check Forms for Completeness">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_FromWait</bpmn:outgoing> 
+       <!-- Fixing outgoing tag -->
+    </bpmn:task>
+
+     <!-- Correct Task Definition -->
+     <bpmn:task id="Task_CheckCompleteness" name="Check Forms for Completeness">
+        <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_FromWait</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Wait -->
+     <bpmn:sequenceFlow id="SequenceFlow_FromWait" sourceRef="IntermediateEvent_WaitReturn" targetRef="Task_CheckCompleteness"/>
+
+    <!-- Gateway 3 (Complete?) -->
+    <bpmn:exclusiveGateway id="XORGateway_IsComplete" name="Is Complete?">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_UpdatePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Sequence Flow 4 -->
+     <bpmn:sequenceFlow id="SequenceFlow_04" sourceRef="Task_CheckCompleteness" targetRef="XORGateway_IsComplete"/>
+
+    <!-- Task Register Claim (End Path) -->
+    <bpmn:task id="Task_RegisterClaim" name="Register in Claims System">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_RegisterPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_05</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_ProcessEnded" name="Process Ended">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_05</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow Register -->
+     <bpmn:sequenceFlow id="SequenceFlow_RegisterPath" name="Yes" sourceRef="XORGateway_IsComplete" targetRef="Task_RegisterClaim"/>
+     
+     <!-- Sequence Flow to End -->
+     <bpmn:sequenceFlow id="SequenceFlow_05" sourceRef="Task_RegisterClaim" targetRef="EndEvent_ProcessEnded"/>
+
+    <!-- Task Inform Update (Loop Path) -->
+    <bpmn:task id="Task_InformUpdate" name="Inform Claimant to Update Forms">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_UpdatePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitUpdated</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Intermediate Event Wait Updated -->
+    <bpmn:messageIntermediateCatchEvent id="IntermediateEvent_WaitUpdated" name="Forms Returned (Update)">
+       <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitUpdated</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack</bpmn:outgoing>
+    </bpmn:messageIntermediateCatchEvent>
+
+     <!-- Sequence Flow Update -->
+     <bpmn:sequenceFlow id="SequenceFlow_UpdatePath" name="No" sourceRef="XORGateway_IsComplete" targetRef="Task_InformUpdate"/>
+     
+     <!-- Loop Back to Check Completeness -->
+     <bpmn:sequenceFlow id="SequenceFlow_WaitUpdated" sourceRef="Task_InformUpdate" targetRef="IntermediateEvent_WaitUpdated"/>
+
+    </process>
+</definitions>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_MaternityLeave_01" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab_Maternity_01">
+    <bpmn:participant id="Participant_Parent" name="Parent" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_SocialSecurity" name="Social Security Office" processRef="Process_SS"/>
+    <bpmn:participant id="Participant_Company" name="Company/Employer" processRef="Process_Comp"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_RequestLeave" name="Request Maternity Leave Planning">
+      <bpmn:outgoing>SF_FetchModels</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask id="Task_FetchModels" name="Fetch Information About Models (Duration, Split Options)">
+      <bpmn:incoming>SF_FetchModels</bpmn:incoming>
+      <bpmn:outgoing>SF_SelectModel</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SelectPlan" name="Select Leave Model">
+      <bpmn:incoming>SF_SelectModel</bpmn:incoming>
+      <bpmn:outgoing>SF_CollectInfo</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_CollectInfo" name="Collect Relevant Information">
+      <bpmn:incoming>SF_CollectInfo</bpmn:incoming>
+      <bpmn:outgoing>SF_NotifySSCompany</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_NotifySSCompany" name="Notify Social Security &amp; Company">
+      <bpmn:incoming>SF_NotifySSCompany</bpmn:incoming>
+      <bpmn:outgoing>SF_GatherInfoFromCompanies</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:task id="Task_GatherCompInfo" name="Gather Information from Companies">
+      <bpmn:incoming>SF_GatherInfoFromCompanies</bpmn:incoming>
+      <bpmn:outgoing>SF_EndPeriodDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway -->
+    <bpmn:exclusiveGateway id="GW_DecideExtension" name="End of Period - Extend Leave?">
+      <bpmn:incoming>SF_EndPeriodDecision</bpmn:incoming>
+      <bpmn:outgoing>SF_ExtendYes</bpmn:outgoing>
+      <bpmn:outgoing>SF_ExtendNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_LeaveComplete" name="Maternity Leave Completed">
+      <bpmn:incoming>SF_ExtendNo</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows with proper attributes -->
+    <bpmn:sequenceFlow id="SF_FetchModels" sourceRef="Start_RequestLeave" targetRef="Task_FetchModels"/>
+    
+    <bpmn:sequenceFlow id="SF_SelectModel" name="Select Model" sourceRef="Task_FetchModels" targetRef="Task_SelectPlan"/>
+    
+    <bpmn:sequenceFlow id="SF_CollectInfo" sourceRef="Task_SelectPlan" targetRef="Task_CollectInfo"/>
+    
+    <bpmn:sequenceFlow id="SF_NotifySSCompany" name="Submit Application" sourceRef="Task_CollectInfo" targetRef="Task_NotifySSCompany"/>
+    
+    <bpmn:sequenceFlow id="SF_GatherInfoFromCompanies" sourceRef="Task_NotifySSCompany" targetRef="Task_GatherCompInfo"/>
+    
+    <bpmn:sequenceFlow id="SF_EndPeriodDecision" name="End of Period" sourceRef="Task_GatherCompInfo" targetRef="GW_DecideExtension"/>
+
+    <!-- Extension Decision Flows -->
+    <bpmn:sequenceFlow id="SF_ExtendYes" name="Yes - Extend Leave" sourceRef="GW_DecideExtension" targetRef="Task_NotifySSCompany">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[extendLeave]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SF_ExtendNo" name="No - Complete Period" sourceRef="GW_DecideExtension" targetRef="End_LeaveComplete"/>
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Msg_ApplicationSubmitted" name="Maternity Leave Application"/>
+  <bpmn:message id="Msg_CompanyConfirmation" name="Employment Confirmation"/>
+
+</bpmn:definitions>

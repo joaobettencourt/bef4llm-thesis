@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collab_ShippingProcess_001">
+    <participant id="Participant_ComputerHardwareShop_001" name="Computer Hardware Shop Shipping Process" processRef="Proc_ShippingLogic_001"/>
+  </collaboration>
+
+  <process id="Proc_ShippingLogic_001" isExecutable="false">
+    
+    <!-- LaneSet Configuration -->
+    <laneSet id="LaneSet_ShippingProcess_001">
+      <lane id="Lane_Secretary_001" name="Sekretariat (Secretary)">
+        <flowNodeRef>StartEvent_GoodsToShip_001</flowNodeRef>
+        <flowNodeRef>Task_DetermineShipmentMethod_001</flowNodeRef>
+        <flowNodeRef>Gateway_LargeQuantityCheck_001</flowNodeRef>
+        <flowNodeRef>Task_GetFreightQuotes_001</flowNodeRef>
+        <flowNodeRef>Task_SelectAndOrderCarrier_001</flowNodeRef>
+        <flowNodeRef>Task_FillPackageForm_001</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_LogisticsManager_001" name="Logistikleiter (Logistics Manager)">
+        <flowNodeRef>Gateway_InsuranceRequiredCheck_001</flowNodeRef>
+        <flowNodeRef>Task_CompleteInsurance_001</flowNodeRef>
+      </lane>
+
+      <lane id="Lane_WarehouseWorker_001" name="Lagerarbeiter (Warehouse Worker)">
+        <flowNodeRef>Task_PackGoods_001</flowNodeRef>
+        <flowNodeRef>EndEvent_GoodsReadyForPickup_001</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_GoodsToShip_001" name="Ware versendet werden soll">
+      <outgoing>Sequence_DetermineShipmentMethod_001</outgoing>
+    </startEvent>
+
+    <!-- Task: Secretary determines shipment method -->
+    <task id="Task_DetermineShipmentMethod_001" name="Klärt wer Versand übernimmt">
+      <incoming>Sequence_DetermineShipmentMethod_001</incoming>
+      <outgoing>Sequence_LargeQuantityCheckOut_001</outgoing>
+    </task>
+
+    <!-- Gateway: Large Quantity Check -->
+    <exclusiveGateway id="Gateway_LargeQuantityCheck_001" name="Große Mengen?">
+      <incoming>Sequence_DetermineShipmentMethod_Out_001</incoming>
+      <outgoing>Sequence_SpecialShippingOut_001</outgoing>
+      <outgoing>Sequence_StandardPostOut_001</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence: Determine Shipment Method -->
+    <sequenceFlow id="Sequence_DetermineShipmentMethod_001" sourceRef="StartEvent_GoodsToShip_001" targetRef="Task_DetermineShipmentMethod_001">
+      <bpmn:name>Anfrage Eingang</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Task to Gateway -->
+    <sequenceFlow id="Sequence_DetermineShipmentMethod_Out_001" sourceRef="Task_DetermineShipmentMethod_001" targetRef="Gateway_LargeQuantityCheck_001">
+      <bpmn:name>Versand ermittelt</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Parallel Gateway for Large Quantity Path -->
+    <parallelGateway id="Parallel_Gateway_SpecialShippingStart_001" name="Sonderversand:">
+      <incoming>Sequence_LargeQuantityCheckOut_001</incoming>
+      <outgoing>Sequence_GetQuotesIn_001</outgoing>
+    </parallelGateway>
+
+    <!-- Sequence: Large Quantity Path -->
+    <sequenceFlow id="Sequence_SpecialShippingOut_001" sourceRef="Gateway_LargeQuantityCheck_001" targetRef="Parallel_Gateway_SpecialShippingStart_001">
+      <bpmn:name>Große Mengen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Standard Post Path -->
+    <sequenceFlow id="Sequence_StandardPostOut_001" sourceRef="Gateway_LargeQuantityCheck_001" targetRef="Task_FillPackageForm_001">
+      <bpmn:name>Kleine Mengen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Get Freight Quotes (Large Quantity) -->
+    <task id="Task_GetFreightQuotes_001" name="Angebote von 3 Spediteuren einholen">
+      <incoming>Sequence_LargeQuantityCheckOut_Special_001</incoming>
+      <outgoing>Sequence_SelectCarrierIn_001</outgoing>
+    </task>
+
+    <!-- Task: Select and Order Carrier (Large Quantity) -->
+    <task id="Task_SelectAndOrderCarrier_001" name="Spediteur auswählen und beauftragen">
+      <incoming>Sequence_GetFreightQuotesOut_001</incoming>
+      <outgoing>Sequence_SpecialShippingCompleteIn_001</outgoing>
+    </task>
+
+    <!-- Sequence: Get Quotes -->
+    <sequenceFlow id="Sequence_LargeQuantityCheckOut_Special_001" sourceRef="Parallel_Gateway_SpecialShippingStart_001" targetRef="Task_GetFreightQuotes_001">
+      <bpmn:name>Angebote einholen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Select Carrier -->
+    <sequenceFlow id="Sequence_GetFreightQuotesOut_001" sourceRef="Task_GetFreightQuotes_001" targetRef="Task_SelectAndOrderCarrier_001">
+      <bpmn:name>Auswahl und Auftrag</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Special Shipping Complete -->
+    <sequenceFlow id="Sequence_SpecialShippingCompleteIn_001" sourceRef="Task_SelectAndOrderCarrier_001" targetRef="Gateway_JoinPreparations_001">
+      <bpmn:name>Sonderversand abgeschlossen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Fill Package Form (Standard Post) -->
+    <task id="Task_FillPackageForm_001" name="Paketschein ausfüllen">
+      <incoming>Sequence_StandardPostOut_001</incoming>
+      <outgoing>Sequence_InsuranceCheckIn_001</outgoing>
+    </task>
+
+    <!-- Gateway: Insurance Required Check (Logistics Manager) -->
+    <exclusiveGateway id="Gateway_InsuranceRequiredCheck_001" name="Versicherung erforderlich?">
+      <incoming>Sequence_FillPackageFormOut_001</incoming>
+      <outgoing>Sequence_CompleteInsuranceIn_001</outgoing>
+      <outgoing>Sequence_SkipInsuranceIn_001</outgoing>
+    </exclusiveGateway>
+
+    <!-- Sequence: Fill Package Form -->
+    <sequenceFlow id="Sequence_FillPackageFormOut_001" sourceRef="Task_FillPackageForm_001" targetRef="Gateway_InsuranceRequiredCheck_001">
+      <bpmn:name>Versicherung prüfen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Complete Insurance (Logistics Manager) -->
+    <task id="Task_CompleteInsurance_001" name="Versicherung abschließen">
+      <incoming>Sequence_CompleteInsuranceIn_001</incoming>
+      <outgoing>Sequence_SkipInsuranceOut_001</outgoing>
+    </task>
+
+    <!-- Sequence: Complete Insurance -->
+    <sequenceFlow id="Sequence_CompleteInsuranceIn_001" sourceRef="Gateway_InsuranceRequiredCheck_001" targetRef="Task_CompleteInsurance_001">
+      <bpmn:name>Versicherung erforderlich</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Skip Insurance -->
+    <sequenceFlow id="Sequence_SkipInsuranceIn_001" sourceRef="Gateway_InsuranceRequiredCheck_001" targetRef="Parallel_Gateway_JoinPreparations_001">
+      <bpmn:name>Versicherung nicht erforderlich</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Insurance Complete -->
+    <sequenceFlow id="Sequence_SkipInsuranceOut_001" sourceRef="Task_CompleteInsurance_001" targetRef="Parallel_Gateway_JoinPreparations_001">
+      <bpmn:name>Versicherung abgeschlossen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Parallel Gateway: Join Preparations -->
+    <parallelGateway id="Parallel_Gateway_JoinPreparations_001" name="Alle Vorbereitungen:">
+      <incoming>Sequence_SpecialShippingCompleteIn_001</incoming>
+      <bpmn:incoming>Sequence_FillPackageFormOut_001</bpmn:incoming>
+      <outgoing>Sequence_WarehousePackStartJoin_001</outgoing>
+    </parallelGateway>
+
+    <!-- Parallel Gateway for Warehouse Packing Start -->
+    <parallelGateway id="Parallel_Gateway_PackStart_001" name="Verpacken:">
+      <incoming>Sequence_DetermineShipmentMethod_Out2_001</incoming>
+      <outgoing>Sequence_WarehousePackIn_001</outgoing>
+    </parallelGateway>
+
+    <!-- Sequence: Determine Shipment Method to Parallel Pack Start -->
+    <sequenceFlow id="Sequence_DetermineShipmentMethod_Out2_001" sourceRef="Task_DetermineShipmentMethod_001" targetRef="Parallel_Gateway_PackStart_001">
+      <bpmn:name>Vorbereitung starten</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Task: Pack Goods (Warehouse Worker - Parallel Path) -->
+    <task id="Task_PackGoods_001" name="Ware verpacken">
+      <incoming>Sequence_WarehousePackIn_001</incoming>
+      <outgoing>Sequence_GoodsReadyForPickupOut_001</outgoing>
+    </task>
+
+    <!-- Sequence: Warehouse Packing Start -->
+    <sequenceFlow id="Sequence_WarehousePackIn_001" sourceRef="Parallel_Gateway_PackStart_001" targetRef="Task_PackGoods_001">
+      <bpmn:name>Packen starten</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Pack Goods Complete -->
+    <sequenceFlow id="Sequence_WarehousePackIn_FinalJoinOut_001" sourceRef="Parallel_Gateway_JoinPreparations_001" targetRef="Task_PackGoods_001">
+      <bpmn:name>Vorbereitungen abgeschlossen</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Sequence: Pack Goods Complete -->
+    <sequenceFlow id="Sequence_GoodsReadyForPickupOut_001" sourceRef="Task_PackGoods_001" targetRef="EndEvent_GoodsReadyForPickup_001">
+      <bpmn:name>Paket fertig</bpmn:name>
+    </sequenceFlow>
+
+    <!-- End Event -->
+    <endEvent id="EndEvent_GoodsReadyForPickup_001" name="Ware zur Abholung bereitgestellt">
+      <incoming>Sequence_WarehousePackIn_FinalJoinOut_001</incoming>
+    </endEvent>
+
+  </process>
+</bpmn:definitions>

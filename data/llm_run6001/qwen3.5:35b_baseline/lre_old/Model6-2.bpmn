@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_OrderProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_RequestOrder" name="Purchase Order Request"/>
+  <bpmn:message id="Message_InvoiceNotification" name="Invoice Notification"/>
+
+  <bpmn:collaboration id="Collab_OrderProcess">
+    <bpmn:participant id="Participant_AssemblerAG" name="Assembler AG" processRef="Proc_AssemblerAG"/>
+    <bpmn:participant id="Participant_Supplier" name="Supplier" processRef="Proc_Supplier"/>
+
+    <!-- Message Flow 1: Assembler sends order to Supplier -->
+    <bpmn:messageFlow id="MsgFlow_01_OrderRequest">
+      <bpmn:name>Send Order</bpmn:name>
+      <bpmn:sourceRef>Task_PlaceOrder</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_SupplierReceiveOrder</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow 2: Supplier sends invoice to Assembler -->
+    <bpmn:messageFlow id="MsgFlow_02_Invoice">
+      <bpmn:name>Send Invoice</bpmn:name>
+      <bpmn:sourceRef>Task_SendInvoice</bpmn:sourceRef>
+      <bpmn:targetRef>CatchEvent_AssemblerReceiveInvoice</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Process for Assembler AG -->
+  <bpmn:process id="Proc_AssemblerAG" isExecutable="false">
+    
+    <!-- Start Event: Periodic Timer (1st of Month) -->
+    <bpmn:startEvent id="StartEvent_TimerMonthly" name="Periodic Order Request">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+      <bpmn:timerEventDefinition/>
+    </bpmn:startEvent>
+
+    <!-- Task: Place Order -->
+    <bpmn:task id="Task_PlaceOrder" name="Place Order with Supplier">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: Receive Invoice -->
+    <bpmn:startEvent id="CatchEvent_AssemblerReceiveInvoice" name="Receive Invoice">
+        <bpmn:messageRef>Message_InvoiceNotification</bpmn:messageRef>
+        <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_AssemblerComplete" name="Order Processed">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Assembler -->
+    <bpmn:sequenceFlow id="SequenceFlow_01" sourceRef="StartEvent_TimerMonthly" targetRef="Task_PlaceOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_02" name="Send Order Request" sourceRef="Task_PlaceOrder" targetRef="CatchEvent_AssemblerReceiveInvoice">
+        <!-- Note: In strict BPMN, a Task sending to an Event usually implies the flow continues. 
+             However, for message flows across pools, we connect Task -> Catch Event via Sequence Flow in same pool? No.
+             Correction: The Assembler process waits for invoice AFTER placing order. So it must be a sequence of events within the SAME process instance logic if synchronous wait is implied, OR separate processes linked by messages. 
+             Given "Assembler AG receives the invoice" as step d (end), and Step b/c happen in Supplier pool.
+             To model this correctly: Assembler places order -> waits for message event. This requires a Message Catch Event connected via Sequence Flow from Task Place Order? No, that blocks execution until message arrives if it's synchronous wait logic within one process instance. 
+             Standard BPMN Request/Response across pools usually implies the first task sends and then catches later or ends.
+             To ensure valid flow: Assembler places order -> Intermediate Catch Event (Receive Invoice) -> End. This represents a blocking request-response pattern in this specific pool's lifecycle for that cycle. -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_03" sourceRef="CatchEvent_AssemblerReceiveInvoice" targetRef="EndEvent_AssemblerComplete"/>
+  </bpmn:process>
+
+  <!-- Process for Supplier -->
+  <bpmn:process id="Proc_Supplier" isExecutable="false">
+    
+    <!-- Start Event: Receive Order Message -->
+    <bpmn:startEvent id="StartEvent_SupplierReceiveOrder" name="Receive Purchase Order">
+      <bpmn:messageRef>Message_RequestOrder</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Process Order -->
+    <bpmn:task id="Task_ProcessParts" name="Process Parts Request">
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_11</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Send Invoice -->
+    <bpmn:task id="Task_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>SequenceFlow_11</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_12</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SupplierDone" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_12</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Supplier -->
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="StartEvent_SupplierReceiveOrder" targetRef="Task_ProcessParts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_11" name="Process Order" sourceRef="Task_ProcessParts" targetRef="Task_SendInvoice"/>
+    <bpmn:sequenceFlow id="SequenceFlow_12" sourceRef="Task_SendInvoice" targetRef="EndEvent_SupplierDone"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

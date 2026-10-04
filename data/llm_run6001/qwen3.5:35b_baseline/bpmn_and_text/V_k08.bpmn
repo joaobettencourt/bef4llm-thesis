@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OnlineShopOrdering" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_OrderProcess">
+    <bpmn:participant id="Participant_EshopSystem" name="E-Shop System" processRef="Process_OrderFulfillment" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OrderFulfillment" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_Login</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SelectProduct</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_AddToCart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SaveProduct</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckAllSelected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_EnterPaymentData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_EnterAddress</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BillingDifferent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_EnterBillingAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="System">
+        <bpmn:flowNodeRef>IntermediateCatchEvent_WaitLoginConfirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LoginSuccess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SystemFinalizeOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Login" name="Login to E-Shop">
+      <bpmn:outgoing>SequenceFlow_InitiateLogin</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Wait for Login Confirmation (System Side) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_WaitLoginConfirm" name="Wait&#10;Confirmation">
+      <bpmn:incoming>SequenceFlow_InitiateLogin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Login Success Check -->
+    <bpmn:exclusiveGateway id="Gateway_LoginSuccess" name="Login&#10;Successful?">
+      <bpmn:incoming>SequenceFlow_CheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FailPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Failed Login -->
+    <bpmn:endEvent id="End_EventLoginFailed" name="Access&#10;Denied">
+      <bpmn:incoming>SequenceFlow_FailPath</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Product Selection Loop Tasks (Customer Side) -->
+    <bpmn:userTask id="UserTask_SelectProduct" name="Select Products">
+      <bpmn:incoming>SequenceFlow_SuccessPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_AddToCart" name="Add to Cart">
+      <bpmn:incoming>SequenceFlow_ToCart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SaveProduct</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_SaveProduct" name="Save Product">
+      <bpmn:incoming>SequenceFlow_SaveProduct</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAllSelected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if All Products Selected -->
+    <bpmn:exclusiveGateway id="Gateway_CheckAllSelected" name="All&#10;Products&#10;Selected?">
+      <bpmn:incoming>SequenceFlow_CheckAllSelected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartPaymentShipping</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Loop Back Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_LoopBack" name="No" sourceRef="Gateway_CheckAllSelected" targetRef="UserTask_SelectProduct">
+      <bpmn:name>No</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split for Payment and Shipping -->
+    <bpmn:parallelGateway id="ParallelGateway_StartPaymentShipping" name="Prepare&#10;Order">
+      <bpmn:incoming>SequenceFlow_StartPaymentShipping</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ShippingPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Payment Path -->
+    <bpmn:userTask id="UserTask_EnterPaymentData" name="Enter&#10;Payment Data">
+      <bpmn:incoming>SequenceFlow_PaymentPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitBankConfirm</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Bank Confirmation -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatchEvent_BankConfirmation" name="Wait&#10;for&#10;Payment">
+      <bpmn:incoming>SequenceFlow_WaitBankConfirm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PaymentReady</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Shipping Path -->
+    <bpmn:userTask id="UserTask_EnterAddress" name="Enter&#10;Shipping Address">
+      <bpmn:incoming>SequenceFlow_ShippingPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckBillingDiff</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if Billing Different -->
+    <bpmn:exclusiveGateway id="Gateway_BillingDifferent" name="Billing&#10;Address&#10;Same?">
+      <bpmn:incoming>SequenceFlow_CheckBillingDiff</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterBillingTask</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ShippingReady</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Enter Billing Address Task -->
+    <bpmn:userTask id="UserTask_EnterBillingAddress" name="Enter&#10;Independent&#10;Billing">
+      <bpmn:incoming>SequenceFlow_EnterBillingTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ShippingReadyMerge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Merge Shipping Paths -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeShipping" name="">
+       <bpmn:incoming>SequenceFlow_EnterBillingTask</bpmn:incoming>
+       <bpmn:incoming>SequenceFlow_ShippingReady</bpmn:incoming>
+       <bpmn:outgoing>SequenceFlow_AllAddressDone</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Merge Payment and Shipping Paths -->
+    <bpmn:parallelGateway id="ParallelGateway_MergeAll" name="">
+      <bpmn:incoming>SequenceFlow_PaymentReady</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_AllAddressDone</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SystemFinalizeOrder</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- System Finalization -->
+    <bpmn:userTask id="UserTask_SystemFinalizeOrder" name="System&#10;Finishes Order">
+      <bpmn:incoming>SequenceFlow_SystemFinalizeOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_EventCompleted" name="Order&#10;Finished">
+      <bpmn:incoming>SequenceFlow_OrderCompleted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows Definitions -->
+    
+    <!-- Login Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_InitiateLogin" name="Login Initiated" sourceRef="StartEvent_Login" targetRef="IntermediateCatchEvent_WaitLoginConfirm">
+      <bpmn:name>Login Initiated</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Login Check Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResult" name="Login Confirmed" sourceRef="IntermediateCatchEvent_WaitLoginConfirm" targetRef="Gateway_LoginSuccess">
+      <bpmn:name>Login Confirmed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Login Success Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessPath" name="Yes" sourceRef="Gateway_LoginSuccess" targetRef="UserTask_SelectProduct">
+      <bpmn:name>Successful</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Login Fail Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_FailPath" name="No" sourceRef="Gateway_LoginSuccess" targetRef="End_EventLoginFailed">
+      <bpmn:name>Login Failed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToCart" name="Select Product" sourceRef="UserTask_SelectProduct" targetRef="UserTask_AddToCart">
+       <bpmn:name>Select Product</bpmn:name>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SaveProduct" name="Add to Cart" sourceRef="UserTask_AddToCart" targetRef="UserTask_SaveProduct">
+      <bpmn:name>Add to Cart</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Check All Selected Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAllSelected" name="Save Product" sourceRef="UserTask_SaveProduct" targetRef="Gateway_CheckAllSelected">
+      <bpmn:name>Save Product</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Parallel Split Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartPaymentShipping" name="All Selected" sourceRef="Gateway_CheckAllSelected" targetRef="ParallelGateway_StartPaymentShipping">
+      <bpmn:name>All Selected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Payment Path Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentPath" name="Start Payment" sourceRef="ParallelGateway_StartPaymentShipping" targetRef="UserTask_EnterPaymentData">
+      <bpmn:name>Start Payment</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitBankConfirm" name="Data Entered" sourceRef="UserTask_EnterPaymentData" targetRef="IntermediateCatchEvent_BankConfirmation">
+       <bpmn:name>Data Entered</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Shipping Path Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ShippingPath" name="Start Address" sourceRef="ParallelGateway_StartPaymentShipping" targetRef="UserTask_EnterAddress">
+      <bpmn:name>Start Address</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Check Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckBillingDiff" name="Enter Address" sourceRef="UserTask_EnterAddress" targetRef="Gateway_BillingDifferent">
+      <bpmn:name>Enter Address</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Different Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterBillingTask" name="No (Diff)" sourceRef="Gateway_BillingDifferent" targetRef="UserTask_EnterBillingAddress">
+      <bpmn:name>Different</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Billing Same Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ShippingReady" name="Yes (Same)" sourceRef="Gateway_BillingDifferent" targetRef="ParallelGateway_MergeShipping">
+      <bpmn:name>Same</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ShippingReadyMerge" name="" sourceRef="UserTask_EnterBillingAddress" targetRef="ParallelGateway_MergeShipping">
+      <bpmn:name>Billing Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AllAddressDone" name="Address Done" sourceRef="ParallelGateway_MergeShipping" targetRef="ParallelGateway_MergeAll">
+      <bpmn:name>Address Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PaymentReady" name="Bank Confirmed" sourceRef="IntermediateCatchEvent_BankConfirmation" targetRef="ParallelGateway_MergeAll">
+       <bpmn:name>BanK Confirmed</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Finalization Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SystemFinalizeOrder" name="All Steps Done" sourceRef="ParallelGateway_MergeAll" targetRef="UserTask_SystemFinalizeOrder">
+      <bpmn:name>All Steps Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderCompleted" name="Finish Order" sourceRef="UserTask_SystemFinalizeOrder" targetRef="End_EventCompleted">
+       <bpmn:name>Finish Order</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

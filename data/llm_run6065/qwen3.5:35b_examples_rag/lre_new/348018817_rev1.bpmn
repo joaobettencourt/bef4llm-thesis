@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_ExpenseReport" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_ExpenseProcess">
+    <bpmn:participant id="Participant_EmployeeExpenses" name="Employee Expense Process" processRef="Process_Expense"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Expense" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartFileReport" name="File expense report">
+      <bpmn:outgoing>bpmn:SequenceFlow_StartToGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for timer and main flow -->
+    <bpmn:parallelGateway id="Parallel_Gateway_Main" name="">
+      <bpmn:incoming>bpmn:SequenceFlow_StartToGateway</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TimerPath</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_AccountCheck</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer for 28 days - check if account exists -->
+    <bpmn:intermediateCatchEvent id="Timer_28Days" name="28 Days">
+      <bpmn:incoming>bpmn:SequenceFlow_TimerPath</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TimerToTask</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task for resubmit email -->
+    <bpmn:userTask id="Task_ResubmitEmail" name="Send resubmit email">
+      <bpmn:incoming>bpmn:SequenceFlow_TimerToTask</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_28DaysEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for timeout -->
+    <bpmn:endEvent id="End_Timeout" name="Process stopped">
+      <bpmn:incoming>bpmn:SequenceFlow_28DaysEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Account Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AccountCheck" name="Employee has account?">
+      <bpmn:incoming>bpmn:SequenceFlow_AccountCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_CreateAccount</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_ReviewReport</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for creating account -->
+    <bpmn:userTask id="Task_CreateAccount" name="Create employee account">
+      <bpmn:incoming>bpmn:SequenceFlow_CreateAccount</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_AccountToReview</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task for reviewing report -->
+    <bpmn:userTask id="Task_ReviewReport" name="Review expense report">
+      <bpmn:incoming>bpmn:SequenceFlow_ReviewReport</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_AccountToReview</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_AmountCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Amount Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Amount" name="Amount exceeds $200?">
+      <bpmn:incoming>bpmn:SequenceFlow_AmountCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ReimburseDirect</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_SupervisorApproval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Direct Reimbursement Task -->
+    <bpmn:userTask id="Task_ReimburseDirect" name="Deposit reimbursement to bank account">
+      <bpmn:incoming>bpmn:SequenceFlow_ReimburseDirect</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_DirectEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for direct reimbursement -->
+    <bpmn:endEvent id="End_ReimburseDirect" name="Process ended">
+      <bpmn:incoming>bpmn:SequenceFlow_DirectEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Supervisor Approval Task with 7 day timer -->
+    <bpmn:userTask id="Task_SupervisorApproval" name="Ask supervisor for approval">
+      <bpmn:incoming>bpmn:SequenceFlow_SupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_7DaysTimer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Timer for 7 days supervisor response -->
+    <bpmn:intermediateCatchEvent id="Timer_Supervisor" name="7 Days">
+      <bpmn:incoming>bpmn:SequenceFlow_7DaysTimer</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_DecisionGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SupervisorDecision" name="Supervisor decision?">
+      <bpmn:incoming>bpmn:SequenceFlow_DecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ApprovedWithin7Days</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_RejectedWithin7Days</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_NoResponseAfter7Days</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Approved Path -->
+    <bpmn:userTask id="Task_ReimburseApproved" name="Deposit reimbursement to bank account">
+      <bpmn:incoming>bpmn:SequenceFlow_ApprovedWithin7Days</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ApprovedEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for approved -->
+    <bpmn:endEvent id="End_Approved" name="Process ended">
+      <bpmn:incoming>bpmn:SequenceFlow_ApprovedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Rejected Path -->
+    <bpmn:userTask id="Task_RejectionEmail" name="Send rejection notification email">
+      <bpmn:incoming>bpmn:SequenceFlow_RejectedWithin7Days</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RejectedEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event for rejected -->
+    <bpmn:endEvent id="End_Rejected" name="Request rejected">
+      <bpmn:incoming>bpmn:SequenceFlow_RejectedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- No Response Path (after 7 days) -->
+    <bpmn:userTask id="Task_InProgressEmail" name="Send approval in progress email">
+      <bpmn:incoming>bpmn:SequenceFlow_NoResponseAfter7Days</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceLoopBackToSupervisor</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToGateway" name="" sourceRef="StartFileReport" targetRef="Parallel_Gateway_Main"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_TimerPath" name="Timer path (28 days)" sourceRef="Parallel_Gateway_Main" targetRef="Timer_28Days">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${timerActive}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AccountCheck" name="" sourceRef="Parallel_Gateway_Main" targetRef="Gateway_AccountCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToTask" name="28 days elapsed without account check" sourceRef="Timer_28Days" targetRef="Task_ResubmitEmail">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${!accountExists}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_28DaysEnd" name="" sourceRef="Task_ResubmitEmail" targetRef="End_Timeout"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateAccount" name="No account exists" sourceRef="Gateway_AccountCheck" targetRef="Task_CreateAccount">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${!hasAccount}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewReport" name="Has account, review report" sourceRef="Gateway_AccountCheck" targetRef="Task_ReviewReport">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${hasAccount}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AccountToReview" name="" sourceRef="Task_CreateAccount" targetRef="Task_ReviewReport"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AmountCheck" name="" sourceRef="Task_ReviewReport" targetRef="Gateway_Amount"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReimburseDirect" name="Amount ≤ $200" sourceRef="Gateway_Amount" targetRef="Task_ReimburseDirect">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${amount <= 200}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SupervisorApproval" name="Amount > $200, ask supervisor" sourceRef="Gateway_Amount" targetRef="Task_SupervisorApproval">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${amount > 200}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DirectEnd" name="" sourceRef="Task_ReimburseDirect" targetRef="End_ReimburseDirect"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_7DaysTimer" name="" sourceRef="Task_SupervisorApproval" targetRef="Timer_Supervisor">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${supervisorRequestSent}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DecisionGateway" name="" sourceRef="Timer_Supervisor" targetRef="Gateway_SupervisorDecision"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedWithin7Days" name="Approved within 7 days" sourceRef="Gateway_SupervisorDecision" targetRef="Task_ReimburseApproved">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${approved && time <= 7days}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedWithin7Days" name="Rejected within 7 days" sourceRef="Gateway_SupervisorDecision" targetRef="Task_RejectionEmail">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${rejected && time <= 7days}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoResponseAfter7Days" name="No response after 7 days" sourceRef="Gateway_SupervisorDecision" targetRef="Task_InProgressEmail">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${noResponse && time > 7days}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceLoopBackToSupervisor" name="" sourceRef="Task_InProgressEmail" targetRef="Task_SupervisorApproval"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovedEnd" name="" sourceRef="Task_ReimburseApproved" targetRef="End_Approved"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RejectedEnd" name="" sourceRef="Task_RejectionEmail" targetRef="End_Rejected"/>
+  </bpmn:process>
+</bpmn:definitions>

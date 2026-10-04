@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_MPO_SP_PU_GO">
+    <bpmn:participant id="Participant_MPO" name="MPO" processRef="Process_MPO"/>
+    <bpmn:participant id="Participant_SP_PU_GO" name="SP/PU/GO" processRef="Process_SP_PU_GO"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_RequestChange" sourceRef="StartEvent_01_MPO" targetRef="Task_MPOReviewRequest"/>
+    <bpmn:messageFlow id="MessageFlow_RejectNotification" sourceRef="Task_ReportFailure" targetRef="EndEvent_SP_PU_GO_Failure"/>
+    <bpmn:messageFlow id="MessageFlow_SuccessNotification" sourceRef="Task_ReportSuccess" targetRef="EndEvent_SP_PU_GO_Success"/>
+  </bpmn:collaboration>
+
+  <!-- MPO Process -->
+  <bpmn:process id="Process_MPO" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_01_MPO" name="Change Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_MPOReviewRequest" name="Review Change Request">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_StartToReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision" name="Confirm Request?">
+      <bpmn:incoming>SequenceFlow_ReviewToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 - Reject Path -->
+    <bpmn:task id="Task_ReportFailure" name="Report Implementation Failure">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FailureToSP_PU_GO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3 - Confirm Path -->
+    <bpmn:task id="Task_PerformChange" name="Perform Measuring Point Change">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ChangeToReportSuccess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4 - Confirm Path -->
+    <bpmn:task id="Task_ReportSuccess" name="Report Implementation Success">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ChangeToReportSuccess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessToSP_PU_GO</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_MPO_Failure" name="Change Rejected">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_FailureToSP_PU_GO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_MPO_Success" name="Change Completed">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_SuccessToSP_PU_GO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToReview" sourceRef="StartEvent_01_MPO" targetRef="Task_MPOReviewRequest"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewToGateway" name="After Review" sourceRef="Task_MPOReviewRequest" targetRef="ExclusiveGateway_Decision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Request" sourceRef="ExclusiveGateway_Decision" targetRef="Task_ReportFailure">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${rejectDecision}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm Request" sourceRef="ExclusiveGateway_Decision" targetRef="Task_PerformChange">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${confirmDecision}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ChangeToReportSuccess" sourceRef="Task_PerformChange" targetRef="Task_ReportSuccess"/>
+
+  </bpmn:process>
+
+  <!-- SP/PU/GO Process -->
+  <bpmn:process id="Process_SP_PU_GO" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_02_MPO" name="Request Change Sent">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToEnd</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_SP_PU_GO_Failure" name="Change Rejected">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_FailureToSP_PU_GO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_SP_PU_GO_Success" name="Change Completed">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_SuccessToSP_PU_GO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToEnd" sourceRef="StartEvent_02_MPO" targetRef="ExclusiveGateway_Decision_SP"/>
+    
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision_SP">
+      <bpmn:incoming>SequenceFlow_StartToEnd</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FailurePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SuccessPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FailurePath" name="Receive Rejection Notification" sourceRef="ExclusiveGateway_Decision_SP" targetRef="EndEvent_SP_PU_GO_Failure"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessPath" name="Receive Success Notification" sourceRef="ExclusiveGateway_Decision_SP" targetRef="EndEvent_SP_PU_GO_Success"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

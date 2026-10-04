@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_SchufaScoring" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0schufascoring">
+    <bpmn:participant id="Participant_BankSystem" name="Bank System - Schufascoring Process" processRef="Process_SchufaScoring" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SchufaScoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Schufascoring Requested">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to send scoring request -->
+    <bpmn:task id="Task_SendScoringRequest" name="Send Scoring Request to Schufa">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel1Result</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event for waiting Level 1 result -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_Level1Wait" name="Waiting for Level 1 Result">
+      <bpmn:incoming>SequenceFlow_WaitLevel1Result</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckDelayNotification</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to check if delay notification received -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DelayCheck" name="Delay Notification?">
+      <bpmn:incoming>SequenceFlow_CheckDelayNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoDelayPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DelayPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No Delay Path - Immediate Result -->
+    <bpmn:endEvent id="EndEvent_ImmediateResult" name="Scoring Completed (Level 1)">
+      <bpmn:incoming>SequenceFlow_NoDelayPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Delay Path - Level 2 Scoring -->
+    <bpmn:task id="Task_Level2Scoring" name="Perform Level 2 Scoring">
+      <bpmn:incoming>SequenceFlow_DelayPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel2Result</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event for waiting Level 2 result -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_Level2Wait" name="Waiting for Final Result">
+      <bpmn:incoming>SequenceFlow_WaitLevel2Result</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendFinalNotification</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to send final notification -->
+    <bpmn:task id="Task_FinalizeProcess" name="Send Final Result Notification">
+      <bpmn:incoming>SequenceFlow_SendFinalNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for delayed completion -->
+    <bpmn:endEvent id="EndEvent_Finalized" name="Scoring Completed (Level 2)">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows with proper attributes -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_RequestReceived" targetRef="Task_SendScoringRequest">
+      <bpmn:bpmndi:name>Schufascoring Request</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel1Result" sourceRef="Task_SendScoringRequest" targetRef="IntermediateEvent_Level1Wait">
+      <bpmn:bpmndi:name>Send to Schufa</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDelayNotification" sourceRef="IntermediateEvent_Level1Wait" targetRef="ExclusiveGateway_DelayCheck">
+      <bpmn:bpmndi:name>Result Received</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <!-- No Delay Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoDelayPath" sourceRef="ExclusiveGateway_DelayCheck" targetRef="EndEvent_ImmediateResult">
+      <bpmn:bpmndi:name>No - Immediate Result</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Delay Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_DelayPath" sourceRef="ExclusiveGateway_DelayCheck" targetRef="Task_Level2Scoring">
+      <bpmn:bpmndi:name>Yes - Delay Notification</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Level 2 Scoring Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel2Result" sourceRef="Task_Level2Scoring" targetRef="IntermediateEvent_Level2Wait">
+      <bpmn:bpmndi:name>Perform Final Scoring</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Notification Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendFinalNotification" sourceRef="IntermediateEvent_Level2Wait" targetRef="Task_FinalizeProcess">
+      <bpmn:bpmndi:name>Result Available</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Process Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="Task_FinalizeProcess" targetRef="EndEvent_Finalized">
+      <bpmn:bpmndi:name>Final Notification Sent</bpmn:bpmndi:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_ScoringRequest" name="Scoring Request">
+    <bpmn:properties>
+      <bpmn:property id="Property_CustomerID" />
+      <bpmn:property id="Property_RequestTimestamp" />
+    </bpmn:properties>
+  </bpmn:message>
+
+  <bpmn:message id="Message_FinalScore" name="Final Score Result">
+    <bpmn:properties>
+      <bpmn:property id="Property_ScoreValue" />
+      <bpmn:property id="Property_Level1Result" />
+      <bpmn:property id="Property_Level2Result" />
+    </bpmn:properties>
+  </bpmn:message>
+
+</bpmn:definitions>

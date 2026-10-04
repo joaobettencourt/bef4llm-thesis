@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_ServiceDegradation">
+    <bpmn:participant id="Pool_CustomerService" name="Customer Service (TELECO)" processRef="Process_CS"/>
+    <bpmn:participant id="Pool_Customers" name="Customers" processRef="Process_Cust"/>
+    <bpmn:participant id="Pool_ServiceManagement" name="Service Management" processRef="Process_SM"/>
+    <bpmn:participant id="Pool_ResourceProvisioning" name="Resource Provisioning" processRef="Process_RP"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="StartCS_CustomerPerceivesDegraded">
+      <bpmn:name>Customer perceives service degraded</bpmn:name>
+      <bpmn:outgoing>SeqFlow_SendProblemParamsToSM</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndCS_PremiumProcess">
+      <bpmn:name>Premium customer - extra process linked</bpmn:name>
+      <bpmn:incoming>SeqFlow_PremiumCustomerLink</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndCS_ProcessComplete">
+      <bpmn:name>Process completed - report sent to customer</bpmn:name>
+      <bpmn:incoming>SeqFlow_CS_FinalReportSent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_EnterProblemReport">
+      <bpmn:name>Enter problem report into system T</bpmn:name>
+      <bpmn:incoming>SeqFlow_SendProblemParamsToSM</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CompareSLA</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_DetermineMeasures">
+      <bpmn:name>Determine counter measures and priorities</bpmn:name>
+      <bpmn:incoming>SeqFlow_CompareSLA</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CheckSignificanceImpact</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_Reprioritize">
+      <bpmn:name>Re-prioritize measures if needed</bpmn:name>
+      <bpmn:incoming>SeqFlow_RePrioritizeMeasures</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateDetailedReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_CreateProblemReport">
+      <bpmn:name>Create detailed problem report (contract + actions)</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckSignificanceImpact</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendToServiceManagement</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_UndertakeCorrectiveActions">
+      <bpmn:name>Undertake corrective actions (minor)</bpmn:name>
+      <bpmn:incoming>SeqFlow_MinorCorrectionsRequired</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateResolutionReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_SendServicePerformance">
+      <bpmn:name>Send actual service performance to Customer Service</bpmn:name>
+      <bpmn:incoming>SeqFlow_NoProblemDetected</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CS_FinalReportSent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_CreateCustomerReport">
+      <bpmn:name>Create report for customer about performance and resolution</bpmn:name>
+      <bpmn:incoming>SeqFlow_CS_FinalReportSent</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendToCustomer</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_ReportSLAViolation">
+      <bpmn:name>Report SLA violation rebate to Billing &amp; Collections</bpmn:name>
+      <bpmn:incoming>SeqFlow_CS_FinalReportSent</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_BillingAdjustmentComplete</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskCS_SendToCustomer">
+      <bpmn:name>Send report to customer</bpmn:name>
+      <bpmn:incoming>SeqFlow_CS_FinalReportSent</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CustomerReceivesFinalReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="GateCS_PremiumCustomer">
+      <bpmn:name>Premium customer?</bpmn:name>
+      <bpmn:incoming>SeqFlow_CompareSLA</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_PremiumProcessLink</bpmn:outgoing>
+    </bpmn:endGateway>
+
+    <bpmn:exclusiveGateway id="GateCS_SignificantReprioritize">
+      <bpmn:name>Affects measures?</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckSignificanceImpact</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_RePrioritizeMeasures</bpmn:outgoing>
+    </bpmn:endGateway>
+
+    <bpmn:exclusiveGateway id="GateCS_MeasureDecision">
+      <bpmn:name>No impact?</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckSignificanceImpact</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateDetailedReport</bpmn:outgoing>
+    </bpmn:endGateway>
+
+    <!-- Message flows -->
+    <bpmn:message id="Msg_DetailedProblemReport" name="Detailed Problem Report"/>
+  </bpmn:process>
+
+  <!-- Customer Process (simplified) -->
+  <bpmn:process id="Process_Cust" isExecutable="false">
+    <bpmn:startEvent id="StartCustomer_PerceiveDegraded">
+      <bpmn:name>Service degradation perceived</bpmn:name>
+      <bpmn:outgoing>SeqFlow_SendProblemParamsToCS</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndCustomer_ReceiveReport">
+      <bpmn:name>Received service performance report</bpmn:name>
+      <bpmn:incoming>SeqFlow_CustomerReceivesFinalReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Service Management Process -->
+  <bpmn:process id="Process_SM" isExecutable="false">
+    <bpmn:startEvent id="StartSM_ReceiveProblemReport">
+      <bpmn:name>Receive detailed problem report</bpmn:name>
+      <bpmn:outgoing>SeqFlow_InvestigateAnalyzable</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndSM_ProcessComplete">
+      <bpmn:name>Process completed - final report sent to Customer Service</bpmn:name>
+      <bpmn:incoming>SeqFlow_SM_FinalReportSent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_InvestigateLevel">
+      <bpmn:name>Investigate if analyzable at this level or RP</bpmn:name>
+      <bpmn:incoming>SeqFlow_InvestigateAnalyzable</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_AnalyzableDecision</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_PerformAnalysis">
+      <bpmn:name>Analyze problem and create trouble report</bpmn:name>
+      <bpmn:incoming>SeqFlow_AnalyzableDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateTroubleReportSM</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_PrepareFinalStatus">
+      <bpmn:name>Prepare final status report based on received information</bpmn:name>
+      <bpmn:incoming>SeqFlow_CreateTroubleReportSM</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_DetermineCounterMeasures</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_UndertakeCorrectiveActions">
+      <bpmn:name>Undertake corrective actions (minor)</bpmn:name>
+      <bpmn:incoming>SeqFlow_MinorCorrectionsRequired</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateResolutionReportSM</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_SendServicePerformance">
+      <bpmn:name>Send actual service performance to Customer Service</bpmn:name>
+      <bpmn:incoming>SeqFlow_NoProblemDetected</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SM_FinalReportSent</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_CreateResolutionReport">
+      <bpmn:name>Create problem resolution report</bpmn:name>
+      <bpmn:incoming>SeqFlow_MinorCorrectionsRequired</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendToCustomerService</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskSM_CreateRestorationRequest">
+      <bpmn:name>Create request for automatic resource restoration</bpmn:name>
+      <bpmn:incoming>SeqFlow_AutomaticRestorationRequired</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendRestorationRequestToRP</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="GateSM_AnalyzableHere">
+      <bpmn:name>Analyzable here?</bpmn:name>
+      <bpmn:incoming>SeqFlow_AnalyzableDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendToRP_NotAnalyzable</bpmn:outgoing>
+    </bpmn:endGateway>
+
+    <bpmn:exclusiveGateway id="GateSM_MeasureType">
+      <bpmn:name>No problem / Minor corrections / Automatic restoration?</bpmn:name>
+      <bpmn:incoming>SeqFlow_DetermineCounterMeasures</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_NoProblemDetected</bpmn:outgoing>
+    </bpmn:endGateway>
+
+  </bpmn:process>
+
+  <!-- Resource Provisioning Process -->
+  <bpmn:process id="Process_RP" isExecutable="false">
+    <bpmn:startEvent id="StartRP_WaitForDetailedReport">
+      <bpmn:name>Wait for detailed problem report</bpmn:name>
+      <bpmn:outgoing>SeqFlow_CheckPossibleProblems</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:startEvent id="StartRP_WaitForRestorationRequest">
+      <bpmn:name>Wait for restoration request (2 days timeout)</bpmn:name>
+      <bpmn:outgoing>SeqFlow_RestorationReceived</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndRP_ProcessTerminated">
+      <bpmn:name>Process terminated - timeout exceeded</bpmn:name>
+      <bpmn:incoming>SeqFlow_TimeoutExceeded</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndRP_ProcessComplete">
+      <bpmn:name>Trouble-shooting report sent to Service Management - process ends</bpmn:name>
+      <bpmn:incoming>SeqFlow_SendTroubleShootingReportToSM</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskRP_CheckPossibleProblems">
+      <bpmn:name>Check for possible problems in detailed problem report</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckPossibleProblems</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_ProblemDetectedDecision</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskRP_AnalyzeProblem">
+      <bpmn:name>Analyze problem causes in detail</bpmn:name>
+      <bpmn:incoming>SeqFlow_ProblemDetectedDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateTroubleReportRP</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskRP_TrackErrors">
+      <bpmn:name>Track all possible errors after restoration request received</bpmn:name>
+      <bpmn:incoming>SeqFlow_RestorationReceived</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_UndertakeCorrectiveActionsRP</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="TaskRP_UndertakeCorrectiveActions">
+      <bpmn:name>Undertake corrective actions based on tracked errors</bpmn:name>
+      <bpmn:incoming>SeqFlow_ProblemDetectedDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateTroubleReportRP</bpmn:outgoing>
+    </bpmn:endTask>
+
+    <bpmn:task id="TaskRP_UndertakeCorrectiveActionsRP">
+      <bpmn:name>Undertake corrective actions based on tracked errors (restoration)</bpmn:name>
+      <bpmn:incoming>SeqFlow_UndertakeCorrectiveActionsRP</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateTroubleShootingReportRP</bpmn:outgoing>
+    </bpmn:endTask>
+
+    <bpmn:task id="TaskRP_SendNotification">
+      <bpmn:name>Create notification of normal service execution</bpmn:name>
+      <bpmn:incoming>SeqFlow_NoProblemDetectedDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateStatusReportRP</bpmn:outgoing>
+    </bpmn:endTask>
+
+    <bpmn:task id="TaskRP_SendTroubleShootingReport">
+      <bpmn:name>Create trouble-shooting report and send to Service Management</bpmn:name>
+      <bpmn:incoming>SeqFlow_CreateTroubleShootingReportRP</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_SendTroubleShootingReportToSM</bpmn:outgoing>
+    </bpmn:endTask>
+
+    <bpmn:task id="TaskRP_AnalyzeProblem">
+      <bpmn:name>Analyze problem causes in detail (from detailed report)</bpmn:name>
+      <bpmn:incoming>SeqFlow_ProblemDetectedDecision</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_CreateTroubleReportRP</bpmn:outgoing>
+    </bpmn:endTask>
+
+    <bpmn:exclusiveGateway id="GateRP_ProblemDetected">
+      <bpmn:name>Problem detected?</bpmn:name>
+      <bpmn:incoming>SeqFlow_CheckPossibleProblems</bpmn:outgoing>
+      <bpmn:outgoing>SeqFlow_NoProblemDetectedDecision</bpmn:outgoing>
+    </bpmn:endGateway>
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:message id="Msg_DetailedProblemReport" name="Detailed Problem Report"/>
+  <bpmn:message id="Msg_RestorationRequest" name="Restoration Request"/>
+  <bpmn:message id="Msg_TroubleShootingReport" name="Trouble-Shooting Report"/>
+
+</definitions>

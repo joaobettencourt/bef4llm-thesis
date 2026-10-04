@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_MeterExchange_01">
+  <bpmn:collaboration id="Collab_EquipmentChange">
+    <bpmn:participant id="Participant_Operators" name="Meter Point Operators (MPON/MPOO)" processRef="Process_OperatorFlow"/>
+    <bpmn:participant id="Participant_GO" name="Grid Operator (GO)" processRef="Process_GOPerformance"/>
+    <bpmn:participant id="Participant_MSP" name="Market Service Provider (MSP)" processRef="Process_Notification"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MsgFlow_01" sourceRef="Task_SendToGO" targetRef="Event_CatchDataFromOperators"/>
+    <bpmn:messageFlow id="MsgFlow_02" sourceRef="Task_NotifyMSP" targetRef="Event_CatchNotificationFromGO"/>
+
+  </bpmn:collaboration>
+
+  <!-- Process for Operators (MPON/MPOO) -->
+  <bpmn:process id="Process_OperatorFlow">
+    <bpmn:startEvent id="Start_InitiateChange" name="Equipment Change Intention Initiated">
+      <bpmn:outgoing>Sequence_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Lane Set for MPON and MPOO -->
+    <bpmn:laneSet id="LaneSet_Operators">
+      <bpmn:lane id="Lane_MPON" name="MPON">
+        <bpmn:name>MPON</bpmn:name>
+        <bpmn:flowNodeRef>Task_NotifyIntentions</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DismountDecision</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_MPOO" name="MPOO">
+        <bpmn:name>MPOO</bpmn:name>
+        <bpmn:flowNodeRef>Task_NotifyIntentions</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <bpmn:task id="Task_NotifyIntentions" name="Notify MPOO of Intentions">
+      <bpmn:incoming>Sequence_01</bpmn:incoming>
+      <bpmn:outgoing>Sequence_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision on Self Dismounting -->
+    <bpmn:exclusiveGateway id="Gateway_DismountDecision" name="Self-Dismount?">
+      <bpmn:incoming>Sequence_02</bpmn:incoming>
+      <bpmn:outgoing>Sequence_03</bpmn:outgoing> <!-- Yes -->
+      <bpmn:outgoing>Sequence_04</bpmn:outgoing> <!-- No -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Paths for Dismounting Decision (Merged later) -->
+    <bpmn:task id="Task_AnnounceDismount" name="Announce Self-Dismount">
+      <bpmn:incoming>Sequence_03</bpmn:incoming>
+      <bpmn:outgoing>Sequence_Merge1</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_NoDismount" name="Notify No Self-Dismount">
+      <bpmn:incoming>Sequence_04</bpmn:incoming>
+      <bpmn:outgoing>Sequence_Merge2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Paths -->
+    <bpmn:parallelGateway id="Gateway_DismountMerge" name="Merge Dismount Path">
+      <bpmn:incoming>Sequence_Merge1</bpmn:incoming>
+      <bpmn:incoming>Sequence_Merge2</bpmn:incoming>
+      <bpmn:outgoing>Sequence_05</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Physical Tasks -->
+    <bpmn:task id="Task_FinalReading" name="Perform Final Reading">
+      <bpmn:incoming>Sequence_05</bpmn:incoming>
+      <bpmn:outgoing>Sequence_06</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_DismountOld" name="Dismount Old Equipment">
+      <bpmn:incoming>Sequence_06</bpmn:incoming>
+      <bpmn:outgoing>Sequence_07</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_MountNew" name="Mount New Device">
+      <bpmn:incoming>Sequence_07</bpmn:incoming>
+      <bpmn:outgoing>Sequence_08</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ReadMeterCount" name="Read Meter Count">
+      <bpmn:incoming>Sequence_08</bpmn:incoming>
+      <bpmn:outgoing>Sequence_SendData</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Data to GO -->
+    <bpmn:endEvent id="End_OperatorFlow" name="Operator Tasks Complete">
+        <bpmn:incoming>Sequence_SendData</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Intermediate Throw Event for Message Flow (Optional but good practice) -->
+    <bpmn:intermediateThrowEvent id="Task_SendToGO" name="Send Values to GO">
+        <bpmn:incoming>Sequence_SendData</bpmn:incoming>
+        <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+
+  </bpmn:process>
+
+
+  <!-- Process for Grid Operator (GO) -->
+  <bpmn:process id="Process_GOPerformance">
+    
+    <!-- Start Event triggered by Message from Operators -->
+    <bpmn:startEvent id="Start_CatchDataFromOperators" name="Receive Equipment Data">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Sequence_GO_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to Process Info -->
+    <bpmn:task id="Task_ProcessData" name="Process Device Changes & Data">
+        <bpmn:incoming>Sequence_GO_01</bpmn:incoming>
+        <bpmn:outgoing>Sequence_GO_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Notify MSP -->
+    <bpmn:endEvent id="End_GOPerformance" name="MSP Notified">
+      <bpmn:incoming>Sequence_GO_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_NotifyMSP" name="Notify MSP of Changes & Data">
+        <bpmn:incoming>Sequence_GO_02</bpmn:incoming>
+        <bpmn:messageEventDefinition /> <!-- Or just task before message flow -->
+        <bpmn:outgoing>Sequence_GO_03</bpmn:outgoing>
+    </bpmn:task>
+
+  </bpmn:process>
+
+
+  <!-- Process for Market Service Provider (MSP) - Receiving End -->
+  <bpmn:process id="Process_Notification">
+    
+    <!-- Catch Event from GO -->
+    <bpmn:startEvent id="Start_CatchNotificationFromGO" name="Receive Notification">
+      <bpmn:messageEventDefinition />
+      <bpmn:outgoing>Sequence_MSP_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Notification" name="Notification Received">
+        <bpmn:incoming>Sequence_MSP_01</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+
+</bpmn:definitions>

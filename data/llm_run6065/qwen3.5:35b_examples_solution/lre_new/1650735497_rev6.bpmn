@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz">
+  <bpmn:collaboration id="Collaboration_BankAccountAddition">
+    <bpmn:participant id="Participant_PayPalSystem" name="PayPal System" processRef="Process_Main"/>
+    <bpmn:participant id="Participant_Client" name="PayPal Client" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_PayPalSystem">
+        <bpmn:flowNodeRef>IntermediateThrowEvent_SubmitDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MakeDeposits</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>MessageFlow_DepositInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_NotifyClient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompareValues</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CheckMatch</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LinkAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Confirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RemoveDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Unconfirmed</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_PayPalClient">
+        <bpmn:flowNodeRef>StartEvent_OptionSelected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterBankDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClickContinue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatchEvent_WaitNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckDeposits</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LoginPayPal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDepositAmounts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClickVerify</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OptionSelected">
+      <bpmn:name>Payment option selected - Bank account</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_StartToEnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Client Tasks -->
+    <bpmn:task id="Task_EnterBankDetails">
+      <bpmn:name>Enter Bank Details (First Name, Bank Name, Account Type, BSB, Account Number)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_StartToEnterDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterToContinue</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ClickContinue">
+      <bpmn:name>Click Continue - Submit Bank Details to PayPal System</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EnterToContinue</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ContinueToSubmitMessage</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Flow from Client to PayPal System -->
+    <bpmn:message id="Msg_BankDetails">
+      <bpmn:name>Bank Details Submission</bpmn:name>
+    </bpmn:message>
+
+    <bpmn:intermediateThrowEvent id="IntermediateThrowEvent_SubmitDetails" name="Submit Bank Details to System">
+      <bpmn:incoming>SequenceFlow_ContinueToSubmitMessage</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubmitToPayPalSystem</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Msg_BankDetails"/>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- PayPal System Tasks -->
+    <bpmn:task id="Task_MakeDeposits">
+      <bpmn:name>Make two random deposits in Bank Account</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SubmitToPayPalSystem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DepositsMadeToSendInfo</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Flow from PayPal System to Client Bank Account -->
+    <bpmn:message id="Msg_DepositNotification">
+      <bpmn:name>Deposit Information Notification</bpmn:name>
+    </bpmn:message>
+
+    <bpmn:intermediateThrowEvent id="IntermediateCatchEvent_NotifyClient" name="Send Deposit Info to Client Bank Account">
+      <bpmn:incoming>SequenceFlow_DepositsMadeToSendInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToTimerWait</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Msg_DepositNotification"/>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Timer Event for 3-5 working days -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendToTimerWait" sourceRef="IntermediateCatchEvent_NotifyClient" targetRef="Task_ClientCheckDeposits"/>
+
+    <!-- Client Tasks after notification period -->
+    <bpmn:task id="Task_CheckDeposits">
+      <bpmn:name>Check deposits received in Bank Account</bpmn:name>
+      <bpmn:incoming>SequenceFlow_SendToTimerWait</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToLogin</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_LoginPayPal">
+      <bpmn:name>Login to PayPal Account</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CheckToLogin</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LoginToEnterAmounts</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EnterDepositAmounts">
+      <bpmn:name>Enter amounts from two deposits</bpmn:name>
+      <bpmn:incoming>SequenceFlow_LoginToEnterAmounts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterToVerifyClick</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_ClickVerify">
+      <bpmn:name>Click Verify - Submit to PayPal System for checking</bpmn:name>
+      <bpmn:incoming>SequenceFlow_EnterToVerifyClick</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerifyToCompareValues</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- PayPal System Task for verification -->
+    <bpmn:task id="Task_CompareValues">
+      <bpmn:name>Check values against client-entered amounts</bpmn:name>
+      <bpmn:incoming>SequenceFlow_VerifyToCompareValues</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CompareToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CheckMatch">
+      <bpmn:name>Do values match?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CompareToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MatchLinkAccount</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoMatchRemoveDetails</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Success Path -->
+    <bpmn:task id="Task_LinkAccount">
+      <bpmn:name>Link Bank Account to PayPal Account (Confirmed)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MatchLinkAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_LinkToEndConfirmed</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_Confirmed">
+      <bpmn:name>Bank Account Confirmed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_LinkToEndConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Failure Path -->
+    <bpmn:task id="Task_RemoveDetails">
+      <bpmn:name>Remove Bank Account Details from PayPal System (Unconfirmed)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_NoMatchRemoveDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RemoveToEndUnconfirmed</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_Unconfirmed">
+      <bpmn:name>Bank Account Unconfirmed - Details Removed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_RemoveToEndUnconfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToEnterDetails" sourceRef="StartEvent_OptionSelected" targetRef="Task_EnterBankDetails"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EnterToContinue" sourceRef="Task_EnterBankDetails" targetRef="Task_ClickContinue"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueToSubmitMessage" name="Client submits bank details to PayPal System" sourceRef="Task_ClickContinue" targetRef="IntermediateThrowEvent_SubmitDetails"/>
+
+    <!-- Message Flow between participants -->
+    <bpmn:messageFlow id="MessageFlow_ClientToPayPalSystem" sourceRef="Task_ClickContinue" targetRef="Participant_PayPalSystem">
+      <bpmn:name>Bank Details Submission</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Message Flow from PayPal System to Client Bank Account -->
+    <bpmn:sequenceFlow id="SequenceFlow_DepositsMadeToSendInfo" sourceRef="Task_MakeDeposits" targetRef="IntermediateCatchEvent_NotifyClient"/>
+    
+    <!-- Timer Event for 3-5 working days notification period -->
+    <bpmn:intermediateThrowEvent id="TimerWait_ThreeToFiveDays">
+      <bpmn:name>After 3-5 Working Days</bpmn:name>
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Message Flow from PayPal System to Client -->
+    <bpmn:messageFlow id="MessageFlow_PayPalToClient" sourceRef="IntermediateCatchEvent_NotifyClient" targetRef="Participant_Client">
+      <bpmn:name>Notification of Deposit Information</bpmn:name>
+    </bpmn:messageFlow>
+
+    <!-- Client verification flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckToLogin" sourceRef="Task_CheckDeposits" targetRef="Task_LoginPayPal"/>
+    <bpmn:sequenceFlow id="SequenceFlow_LoginToEnterAmounts" sourceRef="Task_LoginPayPal" targetRef="Task_EnterDepositAmounts"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EnterToVerifyClick" name="Client enters deposit amounts and clicks verify" sourceRef="Task_EnterDepositAmounts" targetRef="Task_ClickVerify"/>
+
+    <!-- PayPal verification flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_VerifyToCompareValues" sourceRef="Task_ClickVerify" targetRef="Task_CompareValues"/>
+
+    <!-- Decision flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_MatchLinkAccount" name="Values match - YES" sourceRef="ExclusiveGateway_CheckMatch" targetRef="Task_LinkAccount"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NoMatchRemoveDetails" name="Values do not match - NO" sourceRef="ExclusiveGateway_CheckMatch" targetRef="Task_RemoveDetails"/>
+
+    <!-- End flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_LinkToEndConfirmed" sourceRef="Task_LinkAccount" targetRef="EndEvent_Confirmed"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_RemoveToEndUnconfirmed" sourceRef="Task_RemoveDetails" targetRef="EndEvent_Unconfirmed"/>
+  </bpmn:process>
+</bpmn:definitions>

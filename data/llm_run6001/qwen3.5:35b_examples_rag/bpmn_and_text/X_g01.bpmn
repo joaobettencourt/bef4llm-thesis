@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_USICourse_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_USI_Course">
+    <bpmn:participant id="Participant_User" name="Course Registration Process" processRef="Process_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Main" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_01" name="Begin Course Registration">
+      <bpmn:outgoing>SF_StartToSelectCourse</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask id="Task_SelectCourse" name="Select a course from available slots">
+      <bpmn:incoming>SF_StartToSelectCourse</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckAccountStatus</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Login" name="Log into account">
+      <bpmn:incoming>SF_ReadyToLogin</bpmn:incoming>
+      <bpmn:outgoing>SF_TweetFriends</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_RegisterAccount" name="Register your account">
+      <bpmn:incoming>SF_UniversityEligibleYes</bpmn:incoming>
+      <bpmn:outgoing>SF_AccountRegistered</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_RequestActivation" name="Request account activation">
+      <bpmn:incoming>SF_UniversityEligibleNo</bpmn:incoming>
+      <bpmn:outgoing>SF_WaitForResponse</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_CompleteRegistration" name="Complete registration and provide payment">
+      <bpmn:incoming>SF_LoginDone</bpmn:incoming>
+      <bpmn:outgoing>SF_SendTweetParallel</bpmn:outgoing>
+      <bpmn:outgoing>SF_ReceiveTicketFlow</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="GW_HasAccount" name="Have account?">
+       <bpmn:incoming>SF_CheckAccountStatus</bpmn:incoming>
+       <bpmn:outgoing>SF_ReadyToLoginYes</bpmn:outgoing>
+       <bpmn:outgoing>SF_CheckUniversityNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="GW_EligibleUni" name="Eligible university?">
+       <bpmn:incoming>SF_CheckUniversityNo</bpmn:incoming>
+       <bpmn:outgoing>SF_ReadyToRegisterYes</bpmn:outgoing>
+       <bpmn:outgoing>SF_RequestActivationFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway for Tweet and Ticket -->
+    <bpmn:parallelGateway id="GW_ParallelTweetTicket" name="">
+      <bpmn:incoming>SF_SendTweetParallel</bpmn:incoming>
+      <bpmn:outgoing>SF_MergeBeforeEnd</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_01" name="Receive Course Ticket">
+       <bpmn:incoming>SF_MergeBeforeEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SF_StartToSelectCourse" sourceRef="Start_01" targetRef="Task_SelectCourse"/>
+    
+    <bpmn:sequenceFlow id="SF_CheckAccountStatus" name="" sourceRef="Task_SelectCourse" targetRef="GW_HasAccount"/>
+
+    <!-- Account Decision -->
+    <bpmn:sequenceFlow id="SF_ReadyToLoginYes" name="Yes - Already have account" sourceRef="GW_HasAccount" targetRef="Task_Login">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasAccount}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No Account Path -->
+    <bpmn:sequenceFlow id="SF_CheckUniversityNo" name="No - Need to check university" sourceRef="GW_HasAccount" targetRef="GW_EligibleUni"/>
+
+    <!-- University Eligibility Decision -->
+    <bpmn:sequenceFlow id="SF_ReadyToRegisterYes" name="Yes - Eligible university" sourceRef="GW_EligibleUni" targetRef="Task_RegisterAccount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eligibleUniversity}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Request Activation Path -->
+    <bpmn:sequenceFlow id="SF_RequestActivationFlow" name="No - Not eligible university" sourceRef="GW_EligibleUni" targetRef="Task_RequestActivation">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!eligibleUniversity}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Registration Flow -->
+    <bpmn:sequenceFlow id="SF_AccountRegistered" name="" sourceRef="Task_RegisterAccount" targetRef="GW_HasAccount"/>
+
+    <!-- Login to Account (after registration or existing) -->
+    <bpmn:sequenceFlow id="SF_ReadyToLoginNo" name="After account registered" sourceRef="GW_HasAccount" targetRef="Task_Login">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${accountRegistered}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- After Login -->
+    <bpmn:sequenceFlow id="SF_LoginDone" name="" sourceRef="Task_Login" targetRef="Task_CompleteRegistration"/>
+
+    <!-- Parallel Tweet and Ticket Flow -->
+    <bpmn:sequenceFlow id="SF_SendTweetParallel" name="Tweet friends on Twitter" sourceRef="Task_CompleteRegistration" targetRef="GW_ParallelTweetTicket">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${tweetFriends}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Receive Ticket Flow -->
+    <bpmn:sequenceFlow id="SF_ReceiveTicketFlow" name="" sourceRef="Task_CompleteRegistration" targetRef="GW_ParallelTweetTicket"/>
+
+    <!-- Final Merge and End -->
+    <bpmn:sequenceFlow id="SF_MergeBeforeEnd" name="" sourceRef="GW_ParallelTweetTicket" targetRef="End_01"/>
+
+  </bpmn:process>
+</bpmn:definitions>

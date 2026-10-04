@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ContractProject">
+  <bpmn:collaboration id="Collab_1Contract">
+    <bpmn:participant id="Pool_ProjectTeam" name="Contract Project Team" processRef="Process_ContractFulfillment"/>
+    <bpmn:messageFlow id="MsgFlow_Arrival" sourceRef="StartEvent_PartsArrive" targetRef="Task_StartBuilding">
+      <bpmn:name>Parts Arrived</bpmn:name>
+    </bpmn:messageFlow>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ContractFulfillment" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_ProjectInit" name="Project Initiated">
+      <bpmn:outgoing>SequenceFlow_Initiate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_QueryShops" name="Query Web Shops for Parts, Price &amp; Delivery">
+      <bpmn:incoming>SequenceFlow_Initiate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AnalyzeOffers</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_CheckAvailability" name="Demand Met?">
+      <bpmn:incoming>SequenceFlow_AnalyzeOffers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SingleOrderPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MultiShopPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_PlaceOrders" name="Place Order Cheapest Parts">
+      <bpmn:incoming>SequenceFlow_SingleOrderPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitArrival</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:startEvent id="StartEvent_PartsArrive" name="Parts Arrived">
+      <bpmn:messageRef>Message_01_Arrival</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_StartBuildTrigger</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_StartBuilding" name="Start Building">
+      <bpmn:incoming>SequenceFlow_WaitArrival</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_StartBuildTrigger</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MonitorStockLoop</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_MonitorStock" name="Check Stock">
+      <bpmn:incoming>SequenceFlow_MonitorStockLoop</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StockLow5</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StockCritical3</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StockZero</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_ReorderCheapest" name="Reorder Cheapest">
+      <bpmn:incoming>SequenceFlow_StockLow5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnMonitor</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_ReorderFastest" name="Reorder Fastest">
+      <bpmn:incoming>SequenceFlow_StockCritical3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnMonitor2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SendComplaint" name="Write Mail to Friends">
+      <bpmn:incoming>SequenceFlow_StockZero</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Completed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_EventCompleted" name="Project Complete">
+      <bpmn:incoming>SequenceFlow_ReturnMonitor2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Completed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Initiate" sourceRef="StartEvent_ProjectInit" targetRef="Task_QueryShops"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_AnalyzeOffers" name="Analyze Price/Time">
+      <bpmn:sourceRef>Task_QueryShops</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_CheckAvailability</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Availability Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_SingleOrderPath" name="Yes (Enough)">
+        <bpmn:sourceRef>Gateway_CheckAvailability</bpmn:sourceRef>
+      <bpmn:targetRef>Task_PlaceOrders</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Multi-Shop Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_MultiShopPath" name="No (Split)">
+        <bpmn:sourceRef>Gateway_CheckAvailability</bpmn:sourceRef>
+      <bpmn:targetRef>Task_PlaceOrders</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Arrival Trigger -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitArrival" sourceRef="Task_PlaceOrders" targetRef="StartEvent_PartsArrive"/>
+    
+    <!-- Building Start -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartBuildTrigger">
+        <bpmn:sourceRef>StartEvent_PartsArrive</bpmn:sourceRef>
+      <bpmn:targetRef>Task_StartBuilding</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Stock Monitoring Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_MonitorStockLoop" sourceRef="Task_StartBuilding" targetRef="Gateway_MonitorStock"/>
+    
+    <!-- Reorder Cheapest Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StockLow5" name="&lt; 5">
+        <bpmn:sourceRef>Gateway_MonitorStock</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ReorderCheapest</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Reorder Fastest Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StockCritical3" name="&lt; 3">
+        <bpmn:sourceRef>Gateway_MonitorStock</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ReorderFastest</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Complaint Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_StockZero" name="= 0">
+        <bpmn:sourceRef>Gateway_MonitorStock</bpmn:sourceRef>
+      <bpmn:targetRef>Task_SendComplaint</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Loop Backs -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnMonitor" sourceRef="Task_ReorderCheapest" targetRef="Gateway_MonitorStock"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Completed">
+        <bpmn:sourceRef>Task_SendComplaint</bpmn:sourceRef>
+      <bpmn:targetRef>End_EventCompleted</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>  
+
+  <!-- Messages -->
+  <bpmn:message id="Message_01_Arrival" name="Parts Arrived"/>
+  
+</bpmn:definitions>

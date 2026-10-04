@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_RegressProcess">
+    <bpmn:participant id="Participant_Sachbearbeiter" name="Sachbearbeiter Regressabwicklung" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RegressNotification" name="Regressmeldung erhalten">
+      <bpmn:outgoing>SequenceFlow_toCaseReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Case Review Task -->
+    <bpmn:task id="Task_CaseReview" name="Fall prüfen - Regress möglich?">
+      <bpmn:incoming>SequenceFlow_toCaseReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayPossibilityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway 1 -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Possibility" name="Regress möglich?">
+      <bpmn:incoming>SequenceFlow_GatewayPossibilityCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendDemandLetter</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CloseCaseNoRegress</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Demand Letter Task -->
+    <bpmn:task id="Task_SendDemandLetter" name="Zahlungsauflage senden">
+      <bpmn:incoming>SequenceFlow_SendDemandLetter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetFollowUp</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Set Follow-up Task -->
+    <bpmn:task id="Task_SetFollowUp" name="Vorgang auf Wiedervorlage setzen">
+      <bpmn:incoming>SequenceFlow_SetFollowUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForPaymentOrObjection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Wait for Payment/Objection -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PaymentStatus" name="Zahlung eingegangen?">
+      <bpmn:incoming>SequenceFlow_WaitForPaymentOrObjection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BookReceipt</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckObjection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Book Receipt Task -->
+    <bpmn:task id="Task_BookReceipt" name="Geldeingang verbuchen">
+      <bpmn:incoming>SequenceFlow_BookReceipt</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCasePaid</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Objection Check Gateway -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Objection" name="VN widerspricht?">
+      <bpmn:incoming>SequenceFlow_CheckObjection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReviewObjection</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_FollowUpExpired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Review Objection Task -->
+    <bpmn:task id="Task_ReviewObjection" name="Widerspruch prüfen">
+      <bpmn:incoming>SequenceFlow_ReviewObjection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayJustifiedCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Objection Justification Check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Justified" name="Widerspruch gerechtfertigt?">
+      <bpmn:incoming>SequenceFlow_GatewayJustifiedCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseObjectionValid</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_HandToCollectionAgency</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Hand to Collection Agency Task -->
+    <bpmn:task id="Task_HandToCollection" name="An Inkasso-Dienstleister abgeben">
+      <bpmn:incoming>SequenceFlow_HandToCollectionAgency</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CloseCaseHandedOver</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_NoRegress" name="Vorgang geschlossen - kein Regress">
+      <bpmn:incoming>SequenceFlow_CloseCaseNoRegress</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Paid" name="Vorgang geschlossen - Zahlung erhalten">
+      <bpmn:incoming>SequenceFlow_CloseCasePaid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_ObjectionValid" name="Vorgang geschlossen - Widerspruch gerechtfertigt">
+      <bpmn:incoming>SequenceFlow_CloseCaseObjectionValid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_HandedOver" name="Vorgang an Inkasso übergeben">
+      <bpmn:incoming>SequenceFlow_CloseCaseHandedOver</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Lane -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Sachbearbeiter" name="Sachbearbeiter">
+        <bpmn:flowNodeRef>StartEvent_RegressNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CaseReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_Possibility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendDemandLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetFollowUp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_PaymentStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BookReceipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_Objection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewObjection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_Justified</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HandToCollection</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_toCaseReview" sourceRef="StartEvent_RegressNotification" targetRef="Task_CaseReview"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayPossibilityCheck" sourceRef="Task_CaseReview" targetRef="ExclusiveGateway_Possibility"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SendDemandLetter" name="ja - Regress möglich" sourceRef="ExclusiveGateway_Possibility" targetRef="Task_SendDemandLetter"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseNoRegress" name="nein - kein Regress" sourceRef="ExclusiveGateway_Possibility" targetRef="EndEvent_NoRegress"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_SetFollowUp" sourceRef="Task_SendDemandLetter" targetRef="Task_SetFollowUp"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForPaymentOrObjection" name="" sourceRef="Task_SetFollowUp" targetRef="ExclusiveGateway_PaymentStatus"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_BookReceipt" name="ja - Zahlung eingegangen" sourceRef="ExclusiveGateway_PaymentStatus" targetRef="Task_BookReceipt"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckObjection" name="" sourceRef="ExclusiveGateway_PaymentStatus" targetRef="ExclusiveGateway_Objection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCasePaid" sourceRef="Task_BookReceipt" targetRef="EndEvent_Paid"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_FollowUpExpired" name="" sourceRef="ExclusiveGateway_Objection" targetRef="ExclusiveGateway_Justified"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ReviewObjection" name="" sourceRef="ExclusiveGateway_Objection" targetRef="Task_ReviewObjection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayJustifiedCheck" sourceRef="Task_ReviewObjection" targetRef="ExclusiveGateway_Justified"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HandToCollectionAgency" name="" sourceRef="ExclusiveGateway_Justified" targetRef="Task_HandToCollection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseObjectionValid" name="ja - gerechtfertigt" sourceRef="ExclusiveGateway_Justified" targetRef="EndEvent_ObjectionValid"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_HandToCollection" name="" sourceRef="ExclusiveGateway_Justified" targetRef="Task_HandToCollection"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CloseCaseHandedOver" name="nein - nicht gerechtfertigt / Frist abgelaufen" sourceRef="Task_HandToCollection" targetRef="EndEvent_HandedOver"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                 id="Definitions_SchufaScoring_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collab_SchufaProcess">
+    <!-- Three participants in the collaboration -->
+    <bpmn:participant id="Participant_Frontend" name="Kreditvergabe Frontend (Bank)" processRef="Proc_Frontend"/>
+    <bpmn:participant id="Participant_BankScoring" name="Schufascoring-Prozess (Bank)" processRef="Proc_BankScoring"/>
+    <bpmn:participant id="Participant_SchufaSystem" name="Scoringservice (Schufa)" processRef="Proc_SchufaService"/>
+    
+    <!-- Message flows between participants -->
+    <bpmn:messageFlow id="Msg_StartRequest" sourceRef="Task_Frontend_ClickButton" targetRef="StartEvent_BankProcess"/>
+    <bpmn:messageFlow id="Msg_SendScoringReq" sourceRef="Task_SchufaSendRequest" targetRef="Participant_SchufaSystem"/>
+    <bpmn:messageFlow id="Msg_ResultFast" sourceRef="IntermediateCatch_FastResult" targetRef="EndEvent_BankProcess"/>
+    <bpmn:messageFlow id="Msg_DelayNotification" sourceRef="Task_DelayNotifyBank" targetRef="StartEvent_SchufaService"/>
+    <bpmn:messageFlow id="Msg_ResultDelayed" sourceRef="IntermediateCatch_FinalResult" targetRef="Participant_Frontend"/>
+  </bpmn:collaboration>
+
+  <!-- Process 1: Frontend (Sales Department) -->
+  <bpmn:process id="Proc_Frontend" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_BankProcess_1" name="Schufascoring angefragt">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToClick</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for sales staff to click button -->
+    <bpmn:task id="Task_Frontend_ClickButton" name="Scoring anfordern (Knopfdruck)">
+      <bpmn:description>Sales employee requests Schufa scoring via frontend</bpmn:description>
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_StartToClick</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End event for immediate result -->
+    <bpmn:endEvent id="EndEvent_FrontendFast" name="Scoring-Ergebnis erhalten">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ResultReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Intermediate catch for delayed notification -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_DelayedNotification" name="Verzögerungsmeldung empfangen">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_DelayNotifyReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessDelay</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End event for delayed result -->
+    <bpmn:endEvent id="EndEvent_FrontendDelayed" name="Scoring-Ergebnis erhalten (verzögert)">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_FinalResultReceived</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows in Frontend process -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToClick" sourceRef="StartEvent_BankProcess_1" targetRef="Task_Frontend_ClickButton"/>
+  </bpmn:process>
+
+  <!-- Process 2: Bank's Schufa Scoring Process (Main orchestration) -->
+  <bpmn:process id="Proc_BankScoring">
+    <!-- Start event triggered by frontend request -->
+    <bpmn:startEvent id="StartEvent_SchufaRequest" name="Schufascoring angefragt">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToSend</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task to send scoring request -->
+    <bpmn:task id="Task_SchufaSendRequest" name="Scoringanfrage senden">
+      <bpmn:description>Sends Scoring request to Schufa system</bpmn:description>
+      <bpmn:incoming>SequenceFlow_StartToSend</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Event-based gateway to wait for either fast or delayed result -->
+    <bpmn:eventBasedGateway id="EventBased_Gateway" name="Warte auf Ergebnis">
+      <bpmn:description>Wait for Level 1 (fast) OR Level 2 (delayed) scoring</bpmn:description>
+      <bpmn:incoming>SequenceFlow_SendToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitFastResult</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WaitDelayedResult</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate catch for fast result (Level 1) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_FastResult" name="Schufascore sofort ermittelt">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_WaitFastResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResultToGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Intermediate catch for delayed result (Level 2) -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_FinalResult" name="Schufascore verzögert ermittelt">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_WaitDelayedResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DelayedToGateway</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task to notify about delay -->
+    <bpmn:task id="Task_DelayNotifyBank" name="Verzögerung melden">
+      <bpmn:description>Sales staff notified of delayed scoring</bpmn:description>
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_DelayToSchufa</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive gateway to decide result path -->
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_Result" name="Ergebnis verfügbar?">
+      <bpmn:description>Determine if scoring completed or needs delay handling</bpmn:description>
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_YesResult</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End event for fast result -->
+    <bpmn:endEvent id="EndEvent_BankProcess" name="Schufascore vorhanden">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ResultToBank</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows in Bank Scoring process -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToSend" sourceRef="StartEvent_SchufaRequest" targetRef="Task_SchufaSendRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendToGateway" sourceRef="Task_SchufaSendRequest" targetRef="EventBased_Gateway"/>
+  </bpmn:process>
+
+  <!-- Process 3: Schufa Service (External scoring system) -->
+  <bpmn:process id="Proc_SchufaService">
+    <!-- Start event for received request -->
+    <bpmn:startEvent id="StartEvent_RequestReceived" name="Scoringanfrage gestellt">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToLevel1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task for Level 1 scoring -->
+    <bpmn:task id="Task_Level1Scoring" name="Scoring durchführen (level 1)">
+      <bpmn:description>Initial fast scoring performed</bpmn:description>
+      <bpmn:incoming>SequenceFlow_StartToLevel1</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- Task for Level 2 scoring -->
+    <bpmn:task id="Task_Level2Scoring" name="Scoring durchführen (level 2)">
+      <bpmn:description>Final detailed scoring after delay</bpmn:description>
+      <bpmn:incoming/>
+    </bpmn:task>
+
+    <!-- Exclusive gateway to check if result available -->
+    <bpmn:exclusiveGateway id="Exclusive_Gateway_ScoreAvailable" name="Schufascore verfügbar?">
+      <bpmn:description>Determine if scoring completed or needs delay handling</bpmn:description>
+      <bpmn:incoming/>
+      <bpmn:outgoing>SequenceFlow_ResultYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task to send result -->
+    <bpmn:task id="Task_SendResult" name="Schufascore senden">
+      <bpmn:description>Sends scoring result back to bank system</bpmn:description>
+      <bpmn:incoming/>
+    </bpmn:task>
+
+    <!-- End event -->
+    <bpmn:endEvent id="EndEvent_SchufaService" name="Scoringanfrage bearbeitet">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_ResultToBank</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows in Schufa Service process -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToLevel1" sourceRef="StartEvent_RequestReceived" targetRef="Task_Level1Scoring"/>
+  </bpmn:process>
+
+</bpmn:definitions>

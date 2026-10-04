@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_GO_Process">
+    <bpmn:participant id="Participant_GO" name="GO Application Management Process" processRef="Process_AppManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AppManagement" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MSPN" name="MSPN">
+        <bpmn:flowNodeRef>Task_RegisterMeasurement</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_GO" name="GO">
+        <bpmn:flowNodeRef>StartEvent_Registration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExamineApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignMSPN</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotificationsSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Registration" name="Measurement Registered">
+      <bpmn:outgoing>SequenceFlow_RegisterToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task in MSPN Lane (Implicitly triggered by start or external) -->
+    <bpmn:task id="Task_RegisterMeasurement" name="Register Measurement">
+      <bpmn:incoming>SequenceFlow_StartToRegister</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RegisterToExamine</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Start to Task (Cross Lane) -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToRegister" sourceRef="StartEvent_Registration" targetRef="Task_RegisterMeasurement"/>
+
+    <!-- GO Tasks and Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Examination Result">
+      <bpmn:incoming>SequenceFlow_ExamineResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task Examine -->
+    <bpmn:task id="Task_ExamineApplication" name="Examine Application">
+      <bpmn:incoming>SequenceFlow_RegisterToExamine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ExamineResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow Register to Examine (Cross Lane) -->
+    <bpmn:sequenceFlow id="SequenceFlow_RegisterToExamine" sourceRef="Task_RegisterMeasurement" targetRef="Task_ExamineApplication"/>
+
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Reject Application" sourceRef="Gateway_Decision" targetRef="EndEvent_Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejected}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Application Rejected">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Confirm Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmPath" name="Confirm Application" sourceRef="Gateway_Decision" targetRef="Task_AssignMSPN">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${confirmed}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Assignment Task -->
+    <bpmn:task id="Task_AssignMSPN" name="Assign MSPN">
+      <bpmn:incoming>SequenceFlow_ConfirmPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SplitNotifications</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split for Notifications -->
+    <bpmn:parallelGateway id="Gateway_NotificationsSplit">
+      <bpmn:incoming>SequenceFlow_SplitNotifications</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformMSPO</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InformMPO</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InformSP</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Notification Tasks -->
+    <bpmn:task id="Task_InformMSPO" name="Inform MSPO">
+      <bpmn:incoming>SequenceFlow_InformMSPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotifications</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_InformMPO" name="Inform MPO">
+      <bpmn:incoming>SequenceFlow_InformMPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotifications</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_InformSP" name="Inform SP">
+      <bpmn:incoming>SequenceFlow_InformSP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeNotifications</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for Notifications -->
+    <bpmn:sequenceFlow id="SequenceFlow_SplitNotifications" sourceRef="Task_AssignMSPN" targetRef="Gateway_NotificationsSplit"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_InformMSPO" name="Inform MSPO about assignment" sourceRef="Gateway_NotificationsSplit" targetRef="Task_InformMSPO"/>
+    <bpmn:sequenceFlow id="SequenceFlow_InformMPO" name="Inform MPO about assignment" sourceRef="Gateway_NotificationsSplit" targetRef="Task_InformMPO"/>
+    <bpmn:sequenceFlow id="SequenceFlow_InformSP" name="Inform SP about assignment" sourceRef="Gateway_NotificationsSplit" targetRef="Task_InformSP"/>
+
+    <!-- Merge and End -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Assignment Complete">
+      <bpmn:incoming>SequenceFlow_MergeNotifications</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MergeNotifications" sourceRef="Task_InformMSPO" targetRef="EndEvent_Completed"/> <!-- Simplified merge for valid XML structure -->
+    
+  </bpmn:process>
+</bpmn:definitions>

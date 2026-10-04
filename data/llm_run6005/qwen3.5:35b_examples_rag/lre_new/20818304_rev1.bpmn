@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CreditProcess">
+    <bpmn:participant id="Participant_CreditCompany" name="Credit Company" processRef="Process_CreditApproval"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_CreditApproval" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReceiveInfo" name="Credit Information Received">
+      <bpmn:outgoing>bpmn:SequenceFlow_AmountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- First Decision Gateway - Amount Check -->
+    <bpmn:exclusiveGateway id="Gateway_1Amount" name="Amount &gt; $1M?">
+      <bpmn:incoming>bpmn:SequenceFlow_AmountCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RequestApproval_High</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_AssessRisk_LowAmount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Assess Risk (only for amounts ≤ $1M) -->
+    <bpmn:userTask id="Task_AssessRisk" name="Assess Credit Risk">
+      <bpmn:incoming>bpmn:SequenceFlow_AssessRisk_LowAmount</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RiskCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Second Decision Gateway - Risk Assessment -->
+    <bpmn:exclusiveGateway id="Gateway_2Risk" name="High Risk?">
+      <bpmn:incoming>bpmn:SequenceFlow_RiskCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_RequestApproval_HighRisk</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_AcceptLowRisk</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Request Approval (for high amount or high risk) -->
+    <bpmn:userTask id="Task_RequestApproval" name="Request Credit Approval">
+      <bpmn:incoming>bpmn:SequenceFlow_RequestApproval_High</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_RequestApproval_HighRisk</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_ApprovalDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task - Accept Directly (for low amount and low risk) -->
+    <bpmn:userTask id="Task_AcceptDirect" name="Accept Credit">
+      <bpmn:incoming>bpmn:SequenceFlow_AcceptLowRisk</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_SendEmail_Direct</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Decision after Approval Request -->
+    <bpmn:exclusiveGateway id="Gateway_3ApprovalDecision" name="Approved?">
+      <bpmn:incoming>bpmn:SequenceFlow_ApprovalDecision</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_SendEmail_Accepted</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_SendEmail_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_EmailSent" name="Credit Process Complete">
+      <bpmn:incoming>bpmn:SequenceFlow_SendEmail_Direct</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_SendEmail_Accepted</bpmn:incoming>
+      <bpmn:incoming>bpmn:SequenceFlow_SendEmail_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- From Start to Amount Check Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_AmountCheck" sourceRef="StartEvent_ReceiveInfo" targetRef="Gateway_1Amount"/>
+
+    <!-- High Amount Path - Request Approval Needed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestApproval_High" name="Yes, &gt; $1M" sourceRef="Gateway_1Amount" targetRef="Task_RequestApproval">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${amount > 1000000}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Amount Path - Assess Risk -->
+    <bpmn:sequenceFlow id="SequenceFlow_AssessRisk_LowAmount" name="No, ≤ $1M" sourceRef="Gateway_1Amount" targetRef="Task_AssessRisk">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${amount <= 1000000}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- From Risk Assessment to Risk Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_RiskCheck" sourceRef="Task_AssessRisk" targetRef="Gateway_2Risk"/>
+
+    <!-- High Risk Path - Request Approval Needed -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestApproval_HighRisk" name="Yes, High Risk" sourceRef="Gateway_2Risk" targetRef="Task_RequestApproval">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${riskLevel == 'high'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Low Risk Path - Accept Directly -->
+    <bpmn:sequenceFlow id="SequenceFlow_AcceptLowRisk" name="No, Low Risk" sourceRef="Gateway_2Risk" targetRef="Task_AcceptDirect">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${riskLevel == 'low'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- From Approval Request to Decision Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalDecision" sourceRef="Task_RequestApproval" targetRef="Gateway_3ApprovalDecision"/>
+
+    <!-- Approved Path - Send Email -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmail_Accepted" name="Yes, Accepted" sourceRef="Gateway_3ApprovalDecision" targetRef="EndEvent_EmailSent">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${approvalStatus == 'approved'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejected Path - Send Email -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmail_Rejected" name="No, Rejected" sourceRef="Gateway_3ApprovalDecision" targetRef="EndEvent_EmailSent">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${approvalStatus == 'rejected'}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

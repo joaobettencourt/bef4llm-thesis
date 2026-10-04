@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="ACME Inc." processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Department" name="Department">
+        <bpmn:flowNodeRef>StartEvent_001</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Demand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StockCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_LocalConsumption</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Procurement" name="Central Procurement">
+        <bpmn:flowNodeRef>Task_Requisition</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SupplierCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NewSupplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TemplateCreationKnown</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_001">
+      <bpmn:outgoing>bpmn:SequenceFlow_Demand</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Department Tasks and Gateway -->
+    <bpmn:userTask id="Task_Demand" name="Identify Demand Within Department">
+      <bpmn:incoming>bpmn:SequenceFlow_Demand</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_StockCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_StockCheck">
+      <bpmn:incoming>bpmn:SequenceFlow_StockCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_LocalConsumption</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_CreateRequisition</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Local Consumption Path -->
+    <bpmn:endEvent id="EndEvent_LocalConsumption" name="Goods Consumed Locally">
+      <bpmn:incoming>bpmn:SequenceFlow_LocalConsumption</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Requisition Creation Path -->
+    <bpmn:userTask id="Task_Requisition" name="Create Purchase Requisition in ERP">
+      <bpmn:incoming>bpmn:SequenceFlow_CreateRequisition</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_SupplierCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Supplier Check Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_SupplierCheck">
+      <bpmn:incoming>bpmn:SequenceFlow_SupplierCheck</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_NewSupplierCreation</bpmn:outgoing>
+      <bpmn:outgoing>bpmn:SequenceFlow_TemplateCreationKnown</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- New Supplier Creation -->
+    <bpmn:userTask id="Task_NewSupplier" name="Create New Supplier in ERP">
+      <bpmn:incoming>bpmn:SequenceFlow_NewSupplierCreation</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TemplateJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Order Template Creation -->
+    <bpmn:userTask id="TemplateCreationKnown" name="Create Order Template in ERP">
+      <bpmn:incoming>bpmn:SequenceFlow_TemplateCreationKnown</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_Approval</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Parallel Gateway for Join -->
+    <bpmn:parallelGateway id="Parallel_GatewayJoin">
+      <bpmn:incoming>bpmn:SequenceFlow_NewSupplierCreation</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TemplateJoin</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Approver Task -->
+    <bpmn:userTask id="Task_Approval" name="Approve Order and Trigger Purchase">
+      <bpmn:incoming>bpmn:SequenceFlow_Approval</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Demand" sourceRef="StartEvent_001" targetRef="Task_Demand"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_StockCheck" name="Enough Goods in Stock?" sourceRef="Task_Demand" targetRef="Gateway_StockCheck">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${enoughGoodsInStock}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_LocalConsumption" name="Yes - Consume Locally" sourceRef="Gateway_StockCheck" targetRef="EndEvent_LocalConsumption">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${enoughGoodsInStock=true}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CreateRequisition" name="No - Create Requisition" sourceRef="Gateway_StockCheck" targetRef="Task_Requisition">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${enoughGoodsInStock=false}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SupplierCheck" name="Supplier Info Available?" sourceRef="Task_Requisition" targetRef="Gateway_SupplierCheck">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${supplierInfoAvailable}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NewSupplierCreation" name="No - New Supplier" sourceRef="Gateway_SupplierCheck" targetRef="Task_NewSupplier">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${supplierInfoAvailable=false}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_TemplateCreationKnown" name="Yes - Known Supplier" sourceRef="Gateway_SupplierCheck" targetRef="TemplateCreationKnown">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${supplierInfoAvailable=true}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Join for Template Creation -->
+    <bpmn:parallelGateway id="Parallel_GatewayJoin" name="Merge Supplier Paths">
+      <bpmn:incoming>bpmn:SequenceFlow_NewSupplierCreation</bpmn:incoming>
+      <bpmn:outgoing>bpmn:SequenceFlow_TemplateJoin</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flow from Parallel Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_TemplateJoin" sourceRef="Parallel_GatewayJoin" targetRef="TemplateCreationKnown"/>
+
+    <!-- Approval Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_Approval" name="Approve Order" sourceRef="TemplateCreationKnown" targetRef="Task_Approval">
+      <bpmn:name conditionExpression xsi:type="formalExpression">${orderCreated}</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

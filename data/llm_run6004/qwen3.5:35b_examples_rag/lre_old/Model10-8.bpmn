@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Deregistration"/>
+
+  <bpmn:collaboration id="Collaboration_MSPO_GO">
+    <bpmn:participant id="Participant_MSPO" name="MSPO" processRef="Process_MSPO_1"/>
+    <bpmn:participant id="Participant_GO" name="GO" processRef="Process_GO_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MSPO_1">
+    <bpmn:startEvent id="StartEvent_Deregister">
+      <bpmn:name>Deregistration</bpmn:name>
+      <bpmn:messageRef>Message_Deregistration</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_MSPO_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Processed">
+      <bpmn:name>Deregistration Processed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_MSPO_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_MSPO_1" sourceRef="StartEvent_Deregister" targetRef="EndEvent_Processed"/>
+  </bpmn:process>
+
+  <bpmn:process id="Process_GO_1">
+    <bpmn:startEvent id="StartEvent_Verify">
+      <bpmn:name>Deregistration Received</bpmn:name>
+      <bpmn:messageRef>Message_Deregistration</bpmn:messageRef>
+      <bpmn:outgoing>SequenceFlow_GO_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected">
+      <bpmn:name>Deregistration Rejected</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Completed">
+      <bpmn:name>Assignment Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GO_Finalize</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Verify" name="Verify Deregistration">
+      <bpmn:incoming>SequenceFlow_GO_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Decision_Point</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Deregistration" name="Deregistration Result">
+      <bpmn:incoming>SequenceFlow_Decision_Point</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Reject_Path</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Confirm_Path</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_Assign_MSP" name="Assign GO as MSP">
+      <bpmn:incoming>SequenceFlow_Confirm_Path</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Notify_MSPO</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="ParallelGateway_Notifications">
+      <bpmn:incoming>SequenceFlow_Notify_MSPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Notify_MPO</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_Notify_SP</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_Notify_MSPO" name="Inform MSPO about Assignment">
+      <bpmn:incoming>SequenceFlow_Notification_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge_Notifications</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Notify_MPO" name="Inform MPO about Assignment">
+      <bpmn:incoming>SequenceFlow_Notify_MPO</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge_Notifications_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Notify_SP" name="Inform SP about Assignment">
+      <bpmn:incoming>SequenceFlow_Notify_SP</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Merge_Notifications_3</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="ParallelGateway_Merge">
+      <bpmn:incoming>SequenceFlow_Merge_Notifications</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Merge_Notifications_2</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_Merge_Notifications_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Finalize</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_GO_1" sourceRef="StartEvent_Verify" targetRef="Task_Verify"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Decision_Point" name="" sourceRef="Task_Verify" targetRef="ExclusiveGateway_Deregistration"/>
+
+    <!-- Decision Paths -->
+    <bpmn:sequenceFlow id="SequenceFlow_Reject_Path" name="Reject Deregistration" sourceRef="ExclusiveGateway_Deregistration" targetRef="EndEvent_Rejected"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Confirm_Path" name="Confirm Deregistration" sourceRef="ExclusiveGateway_Deregistration" targetRef="Task_Assign_MSP"/>
+
+    <!-- Notification Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Notify_MSPO" sourceRef="Task_Assign_MSP" targetRef="ParallelGateway_Notifications"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Notification_1" name="" sourceRef="ParallelGateway_Notifications" targetRef="Task_Notify_MSPO"/>
+
+    <!-- Parallel Notifications -->
+    <bpmn:sequenceFlow id="SequenceFlow_Merge_Notifications" sourceRef="Task_Notify_MSPO" targetRef="ParallelGateway_Merge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Notify_MPO" name="" sourceRef="ParallelGateway_Notifications" targetRef="Task_Notify_MPO"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Merge_Notifications_2" sourceRef="Task_Notify_MPO" targetRef="ParallelGateway_Merge"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Notify_SP" name="" sourceRef="ParallelGateway_Notifications" targetRef="Task_Notify_SP"/>
+    <bpmn:sequenceFlow id="SequenceFlow_Merge_Notifications_3" sourceRef="Task_Notify_SP" targetRef="ParallelGateway_Merge"/>
+
+    <!-- Finalize Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_Finalize" name="" sourceRef="ParallelGateway_Merge" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

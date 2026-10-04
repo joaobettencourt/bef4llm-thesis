@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_CS" name="Customer Service Department of TELECO" processRef="Process_CS"/>
+    <bpmn:participant id="Participant_SM" name="Service Management" processRef="Process_SM"/>
+    <bpmn:participant id="Participant_RP" name="Resource Provisioning" processRef="Process_RP"/>
+    <bpmn:participant id="Participant_Billing" name="Billing &amp; Collections" processRef="Process_Billing"/>
+  </bpmn:collaboration>
+
+  <!-- Customer Service Process -->
+  <bpmn:process id="Process_CS" isExecutable="false">
+    <bpmn:startEvent id="Start_CS_01" name="Customer perceives service degraded">
+      <bpmn:outgoing>SFlow_CS_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CS_EnterReport" name="Employee enters problem report into system T">
+      <bpmn:incoming>SFlow_CS_Start</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CS_CompareSLA</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="GW_CS_Significance" name="Customer significance affects counter measures?">
+      <bpmn:incoming>SFlow_SLASigned</bpmn:incoming>
+      <bpmn:outgoing>SFlow_PremiumLink</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_ContinueProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_CS_Premium" name="Link to extra problem fix process">
+      <bpmn:incoming>SFlow_PremiumLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_CS_RePrioritize" name="Re-prioritize counter measures">
+      <bpmn:incoming>SFlow_ContinueProcess</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CreateDetailedReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CS_Prioritized" name="Priorities set">
+      <bpmn:incoming>SFlow_ContinueProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_CS_CreateReport" name="Create detailed problem report (contract commitment data + actions)">
+      <bpmn:incoming>SFlow_CreateDetailedReport</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendToSM_Throw</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_CS_Sent" name="Sent to Service Management">
+      <bpmn:incoming>SFlow_SendToSM_Throw</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Wait for final status report from SM/RP loop -->
+    <bpmn:startEvent id="Start_CS_WaitStatus" name="Received detailed problem report">
+      <bpmn:outgoing>SFlow_SM_StatusReady</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Wait for final status from SM/RP loop -->
+     <bpmn:endEvent id="End_CS_WaitStatus" name="Received detailed problem report">
+      <bpmn:incoming>SFlow_SM_StatusReady</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Final Status Handling (After receiving from SM/RP) -->
+     <bpmn:startEvent id="Start_CS_FinalStatus" name="Received final status report">
+      <bpmn:incoming>SFlow_SM_FinalReport</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Determine counter measures based on info (This logic is in SM, but CS receives result) -->
+     <bpmn:startEvent id="Start_CS_ReceiveResult" name="Received actual service performance OR problem resolution report">
+      <bpmn:incoming>SFlow_SM_NoProblem</bpmn:outgoing>
+       <bpmn:incoming>SFlow_SM_MinorActions</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Concurrent Activities -->
+     <bpmn:startEvent id="Start_CS_Concurrent" name="Trigger concurrent activities">
+      <bpmn:outgoing>SFlow_CreateCustomerReport</bpmn:incoming>
+       <bpmn:outgoing>SFlow_ReportRebateToBilling</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Activity 1 -->
+     <bpmn:startEvent id="Start_CS_CustomerReport" name="Created report for customer">
+      <bpmn:outgoing>SFlow_SendCustomerReport</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Activity 2 -->
+     <bpmn:startEvent id="Start_CS_RebateTrigger" name="SLA violation rebate reported to Billing &amp; Collections">
+      <bpmn:outgoing>SFlow_ReportRebateToBilling</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- End of CS Process -->
+     <bpmn:startEvent id="Start_CS_End" name="All three activities completed">
+       <bpmn:outgoing>SFlow_CS_ProcessEnds</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <bpmn:endEvent id="End_CS_Final" name="Process ends within Customer Service">
+      <bpmn:incoming>SFlow_CS_ProcessEnds</bpmn:incoming>
+    </bpmn:endEvent>
+
+
+  <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_CS_Start" sourceRef="Start_CS_01" targetRef="Task_CS_EnterReport"/>
+
+     <bpmn:task id="Task_SM_AnalyzeAnalyzable" name="Investigate whether analyzable at this level">
+      <bpmn:incoming>SFlow_SM_CatchDetailed</bpmn:incoming>
+       <bpmn:outgoing>SFlow_GW_AbleToAnalyze</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Gateway for Analyzable -->
+      <bpmn:startEvent id="Start_SM_Analyse" name="Received detailed problem report">
+       <bpmn:incoming>SFlow_CS_SendDetailed</bpmn:outgoing>
+    </bpmn:endEvent>
+
+
+  </bpmn:process>
+
+  <!-- Service Management Process -->
+  <bpmn:process id="Process_SM" isExecutable="false">
+     <bpmn:startEvent id="Start_SM_01" name="Received detailed problem report from Customer Service">
+      <bpmn:outgoing>SFlow_SM_Analyze</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task to Analyze -->
+     <bpmn:task id="Task_SM_Investigate" name="Investigate whether analyzable at this level">
+      <bpmn:incoming>SFlow_SM_Analyze</bpmn:outgoing>
+       <bpmn:outgoing>SFlow_GW_AbleToAnalyze</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Gateway -->
+     <bpmn:startEvent id="Start_SM_Ready" name="Received detailed problem report">
+      <bpmn:incoming>SFlow_CS_SendDetailed</bpmn:outgoing>
+    </bpmn:endEvent>
+
+
+  </bpmn:process>
+
+   <!-- Resource Provisioning Process -->
+  <bpmn:process id="Process_RP" isExecutable="false">
+     <bpmn:startEvent id="Start_RP_01" name="Received detailed problem report from Service Management">
+      <bpmn:outgoing>SFlow_RP_CheckProblems</bpmn:incoming>
+    </bpmn:endEvent>
+
+  <!-- Sequence Flows -->
+     <bpmn:startEvent id="Start_CS_01" name="Customer perceives service degraded">
+       <bpmn:outgoing>SFlow_CS_Start</bpmn:outgoing>
+    </bpmn:endEvent>
+
+
+  </bpmn:process>
+
+   <!-- Billing Process -->
+  <bpmn:process id="Process_Billing" isExecutable="false">
+     <bpmn:startEvent id="Start_Billing_01" name="Received SLA violation rebate report from Customer Service">
+      <bpmn:outgoing>SFlow_Billing_Adjust</bpmn:incoming>
+    </bpmn:endEvent>
+
+  <!-- Sequence Flows -->
+     <bpmn:startEvent id="Start_CS_01" name="Customer perceives service degraded">
+       <bpmn:outgoing>SFlow_CS_Start</bpmn:outgoing>
+    </bpmn:endEvent>
+
+
+  </bpmn:process>
+
+   <!-- Message Flows -->
+     <bpmn:message id="Message_DetailedProblemReport" />
+      <bpmn:message id="Message_StatusReportFromRP" />
+       <bpmn:message id="Message_TroubleShootingReport" />
+        <bpmn:message id="Message_ServicePerformance" />
+         <bpmn:message id="Message_ProblemResolutionReport" />
+
+</bpmn:definitions>

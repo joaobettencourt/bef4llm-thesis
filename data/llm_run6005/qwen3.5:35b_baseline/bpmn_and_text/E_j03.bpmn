@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_WorkAccidentReporting">
+  <bpmn:collaboration id="Collab_AccidentHandling">
+    <bpmn:participant name="Reporter (Employee/Self-employed)" processRef="Process_Reporter"/>
+    <bpmn:participant name="Employer/Organization" processRef="Process_Employer"/>
+  </bpmn:collaboration>
+
+  <!-- Reporter Process -->
+  <bpmn:process id="Process_Reporter">
+    <bpmn:startEvent id="Start_Event_Occurrence" name="Accident Occurs / Incident Detected">
+      <bpmn:outgoing>SequenceFlow_Start_Classify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_Reporter_Success" name="Reporting Complete"/>
+    
+    <bpmn:task id="Task_VerifyClassification" name="Verify Work Accident Criteria">
+      <bpmn:incoming>SequenceFlow_Start_Classify</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Gateway_CheckWorkAccident</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gw_WorkAccidentCheck">
+      <bpmn:incoming>SequenceFlow_Gateway_CheckWorkAccident</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EmployeePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SelfEmployedPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Reporter_Success">
+      <bpmn:incoming>SequenceFlow_EmployeeReportComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_InformEmployer" name="Inform Employer Immediately">
+      <bpmn:incoming>SequenceFlow_EmployeePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EmployeeReportComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_SelfEmployed" name="Provider Notified (Self)">
+      <bpmn:incoming>SequenceFlow_SelfEmployedPath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Start_Classify" sourceRef="Start_Event_Occurrence" targetRef="Task_VerifyClassification"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_Gateway_CheckWorkAccident" name="" sourceRef="Task_VerifyClassification" targetRef="Gw_WorkAccidentCheck"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EmployeePath" name="Employee/Student (School)" sourceRef="Gw_WorkAccidentCheck" targetRef="Task_InformEmployer">
+      <bpmn:name>Employee / Schoolchild</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SelfEmployedPath" name="Self-Employed" sourceRef="Gw_WorkAccidentCheck" targetRef="End_SelfEmployed"/>
+
+  </bpmn:process> 
+
+  <!-- Employer Process -->
+  <bpmn:process id="Process_Employer"> 
+    <bpmn:startEvent id="Start_Event_Notification" name="Receive Accident Report">
+      <bpmn:outgoing>SequenceFlow_Employer_CheckSeverity</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="End_InspectionComplete" name="Inspectorate Notified"/> 
+    <bpmn:endEvent id="End_EmployerProcess" name="Reporting Complete (Employer)"/> 
+
+    <!-- Task for Severity Check -->
+    <bpmn:task id="Task_CheckSeverity" name="Check Injury/Fatality Status">
+      <bpmn:incoming>SequenceFlow_Employer_CheckSeverity</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_Gateway_Severity</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for Severity -->
+    <bpmn:exclusiveGateway id="Gw_SeverityCheck">
+      <bpmn:incoming>SequenceFlow_Gateway_Severity</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_FatalityPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InjuryStandardPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Fatality/Serious -->
+    <bpmn:task id="Task_ReportInspectorate" name="Report to Labour Inspectorate"> 
+      <bpmn:incoming>SequenceFlow_FatalityPath</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_InspectionComplete</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task for Insurance Provider -->
+    <bpmn:task id="Task_ReportInsurance" name="Report to Accident Insurance"> 
+      <bpmn:incoming>SequenceFlow_InjuryStandardPath</bpmn:incoming> 
+      <bpmn:outgoing>SequenceFlow_EmployerEnd2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_Employer_CheckSeverity" name="" sourceRef="Start_Event_Notification" targetRef="Task_CheckSeverity"/> 
+    <bpmn:sequenceFlow id="SequenceFlow_Gateway_Severity" name="" sourceRef="Task_CheckSeverity" targetRef="Gw_SeverityCheck"/>
+    
+    <!-- Flows from Gateway -->
+    <bpmn:sequenceFlow id="SequenceFlow_FatalityPath" name="Fatality / Serious Injury" sourceRef="Gw_SeverityCheck" targetRef="Task_ReportInspectorate"/> 
+      
+    <bpmn:sequenceFlow id="SequenceFlow_InjuryStandardPath" name="Injured (>3 days)" sourceRef="Gw_SeverityCheck" targetRef="Task_ReportInsurance"/> 
+
+    <!-- Flows to End Events -->
+    <bpmn:sequenceFlow id="SequenceFlow_InspectionComplete" name="" sourceRef="Task_ReportInspectorate" targetRef="End_InspectionComplete"/> 
+      
+    <bpmn:sequenceFlow id="SequenceFlow_EmployerEnd2" name="" sourceRef="Task_ReportInsurance" targetRef="End_EmployerProcess"/> 
+
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:messageFlow id="MessageFlow_IncidentReport" sourceRef="Start_Event_Occurrence" targetRef="Start_Event_Notification"/> 
+</bpmn:definitions>

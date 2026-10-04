@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_0" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_DesignProcess">
+    <bpmn:participant id="Participant_DesignProcess" name="Design Process System" processRef="Process_Design_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Design_1" isExecutable="false">
+    
+    <!-- Signals for Interruption Communication -->
+    <bpmn:signal id="Signal_Electrical_Complete" name="Electrical Design Complete" />
+    <bpmn:signal id="Signal_Physical_Complete" name="Physical Design Complete" />
+
+    <!-- Lane Set -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Admin">
+        <bpmn:name>Administration</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LocateDesigns</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Electrical">
+        <bpmn:name>Electrical Design Department</bpmn:name>
+        <bpmn:flowNodeRef>Gateway_ParallelSplit_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReviewElecDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RevisedElectricalDesign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TestElecOK</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Physical">
+        <bpmn:name>Physical Design Department</bpmn:name>
+        <bpmn:flowNodeRef>Task_ReviewPhysDesigns</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RevisedPhysicalDesign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TestPhysOK</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Process Starts">
+      <bpmn:outgoing>SequenceFlow_StartToLocate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Initial Task -->
+    <bpmn:task id="Task_LocateDesigns" name="Locate and distribute existing designs">
+      <bpmn:incoming>SequenceFlow_RestartCycle</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartToLocate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Split -->
+    <bpmn:parallelGateway id="Gateway_ParallelSplit_1">
+      <bpmn:name>Splits to Departments</bpmn:name>
+      <bpmn:incoming>SequenceFlow_StartToLocate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToElecReview</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ToPhysReview</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Electrical Lane Elements -->
+    <bpmn:task id="Task_ReviewElecDesigns" name="Create Update Plan (Electrical)">
+      <bpmn:name>Create Update Plan</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ToElecReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ElecPlanToRevise</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Electrical Interruption -->
+    <bpmn:boundaryEvent id="BoundaryElec_Interruption" name="Interrupted by Phys Update">
+      <bpmn:name>Catch Signal</bpmn:name>
+      <bpmn:interrupting>true</bpmn:interrupting>
+      <bpmn:signalRef>Signal_Physical_Complete</bpmn:signalRef>
+    </bpmn:boundaryEvent>
+
+    <!-- Electrical Revision Task -->
+    <bpmn:task id="Task_RevisedElectricalDesign" name="Create Revised Design (Electrical)">
+      <bpmn:name>Create Revised Design</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ElecPlanToRevise</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ElecReviseToTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Electrical Test Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_TestElecOK" name="Electrical Design OK?">
+      <bpmn:name>Design Valid?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ElecReviseToTest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ElecFailLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ElecPassSignalJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Electrical Test Fail Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_ElecFailLoop" name="No">
+      <bpmn:name>Re-Review Required</bpmn:name>
+      <bpmn:sourceRef>Gateway_TestElecOK</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ReviewElecDesigns</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Electrical Test Pass (Signal + Join Flow) -->
+    <bpmn:intermediateThrowEvent id="Intermediate_ElecComplete" name="Electrical Design Complete">
+      <bpmn:name>Elec Signal</bpmn:name>
+      <bpmn:signalRef>Signal_Physical_Complete</bpmn:signalRef>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Boundary Event Flow for Electrical -->
+    <bpmn:sequenceFlow id="SequenceFlow_ElecBoundaryToReview" sourceRef="BoundaryElec_Interruption" targetRef="Task_ReviewElecDesigns">
+      <bpmn:name>Restart Review</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Electrical Test Pass Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_ElecPassSignalJoin" name="Yes">
+      <bpmn:name>Elec Passes &amp; Signals Other</bpmn:name>
+      <bpmn:sourceRef>Gateway_TestElecOK</bpmn:sourceRef>
+      <bpmn:targetRef>Intermediate_ElecComplete</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Lane Elements -->
+    <bpmn:task id="Task_ReviewPhysDesigns" name="Create Update Plan (Physical)">
+      <bpmn:name>Create Update Plan</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ToPhysReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PhyPlanToRevise</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Boundary Event for Physical Interruption -->
+    <bpmn:boundaryEvent id="BoundaryPhys_Interruption" name="Interrupted by Elec Update">
+      <bpmn:name>Catch Signal</bpmn:name>
+      <bpmn:interrupting>true</bpmn:interrupting>
+      <bpmn:signalRef>Signal_Electrical_Complete</bpmn:signalRef>
+    </bpmn:boundaryEvent>
+
+    <!-- Physical Revision Task -->
+    <bpmn:task id="Task_RevisedPhysicalDesign" name="Create Revised Design (Physical)">
+      <bpmn:name>Create Revised Design</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PhyPlanToRevise</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PhyReviseToTest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Physical Test Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_TestPhysOK" name="Physical Design OK?">
+      <bpmn:name>Design Valid?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PhyReviseToTest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PhyFailLoop</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PhyPassSignalJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Physical Test Fail Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_PhyFailLoop" name="No">
+      <bpmn:name>Re-Review Required</bpmn:name>
+      <bpmn:sourceRef>Gateway_TestPhysOK</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ReviewPhysDesigns</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Test Pass (Signal + Join Flow) -->
+    <bpmn:intermediateThrowEvent id="Intermediate_PhyComplete" name="Physical Design Complete">
+      <bpmn:name>Phys Signal</bpmn:name>
+      <bpmn:signalRef>Signal_Electrical_Complete</bpmn:signalRef>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Boundary Event Flow for Physical -->
+    <bpmn:sequenceFlow id="SequenceFlow_PhyBoundaryToReview" sourceRef="BoundaryPhys_Interruption" targetRef="Task_ReviewPhysDesigns">
+      <bpmn:name>Restart Review</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Test Pass Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PhyPassSignalJoin" name="Yes">
+      <bpmn:name>Phys Passes &amp; Signals Other</bpmn:name>
+      <bpmn:sourceRef>Gateway_TestPhysOK</bpmn:sourceRef>
+      <bpmn:targetRef>Intermediate_PhyComplete</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Join Gateway -->
+    <bpmn:parallelGateway id="Gateway_Join_Designs">
+      <bpmn:name>Synchronize Designs</bpmn:name>
+      <bpmn:incoming>SequenceFlow_ElecPassSignalJoin</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_PhyPassSignalJoin</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- Combined Design Task -->
+    <bpmn:task id="Task_CombineDesign" name="Combine and Test Final Design">
+      <bpmn:name>Final Integration &amp; Testing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_JoinToCombine</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalTestGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_FinalOK" name="Combined Design OK?">
+      <bpmn:name>Final Test Result</bpmn:name>
+      <bpmn:incoming>SequenceFlow_FinalTestGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FailRestart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_PassManufacturing</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Fail Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_FailRestart" name="No">
+      <bpmn:name>Cycle Restart Required</bpmn:name>
+      <bpmn:sourceRef>Gateway_FinalOK</bpmn:sourceRef>
+      <bpmn:targetRef>Task_LocateDesigns</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <!-- Pass Path -->
+    <bpmn:endEvent id="End_Complete" name="Process Complete">
+      <bpmn:name>Sent to Manufacturing</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PassManufacturing</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Parallel Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToLocate" sourceRef="StartEvent_1" targetRef="Task_LocateDesigns">
+      <bpmn:name>To Locate Designs</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Electrical Lane Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToElecReview" sourceRef="Gateway_ParallelSplit_1" targetRef="Task_ReviewElecDesigns">
+      <bpmn:name>To Elec Review</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Lane Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ToPhysReview" sourceRef="Gateway_ParallelSplit_1" targetRef="Task_ReviewPhysDesigns">
+      <bpmn:name>To Phys Review</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Internal Lane Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ElecPlanToRevise" sourceRef="Task_ReviewElecDesigns" targetRef="Task_RevisedElectricalDesign">
+      <bpmn:name>Create Revised Design</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ElecReviseToTest" sourceRef="Task_RevisedElectricalDesign" targetRef="Gateway_TestElecOK">
+      <bpmn:name>To Test Electrical</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Join Gateway Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_JoinToCombine" sourceRef="Gateway_Join_Designs" targetRef="Task_CombineDesign">
+      <bpmn:name>Both Designs Ready</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Internal Lane Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PhyPlanToRevise" sourceRef="Task_ReviewPhysDesigns" targetRef="Task_RevisedPhysicalDesign">
+      <bpmn:name>Create Revised Design</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PhyReviseToTest" sourceRef="Task_RevisedPhysicalDesign" targetRef="Gateway_TestPhysOK">
+      <bpmn:name>To Test Physical</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Gateway Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalTestGateway" sourceRef="Task_CombineDesign" targetRef="Gateway_FinalOK">
+      <bpmn:name>To Final Test</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Pass Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_PassManufacturing" name="Yes">
+      <bpmn:name>Sent to Manufacturing</bpmn:name>
+      <bpmn:sourceRef>Gateway_FinalOK</bpmn:sourceRef>
+      <bpmn:targetRef>End_Complete</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

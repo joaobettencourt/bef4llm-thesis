@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_0a9j6w5v4h3k2l7x" targetNamespace="http://bpmn.io/schema/bpmn" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <bpmn:collaboration id="Collab_0v7x8w9z6q1p0r4m">
+    <bpmn:participant name="Order Fulfillment Process" processRef="Process_OrderFulfillment"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_CustomerDelayNotification"/>
+  <bpmn:message id="Message_CourierInformed"/>
+  <bpmn:message id="Message_DeliveryUpdate"/>
+
+  <bpmn:process id="Process_OrderFulfillment" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent name="Review Order" id="StartEvent_01">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if items available -->
+    <bpmn:task id="Task_CheckItemsAvailable" name="Check Items Availability">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway for item status -->
+    <bpmn:exclusiveGateway id="Gateway_ItemsStatus" name="Item Status">
+      <bpmn:incoming>SequenceFlow_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AllInStock</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SomeMissing</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DiscontinuedItem</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Exception Path 1: Some items missing - Inform about delay -->
+    <bpmn:userTask id="UserTask_InformDelay" name="Inform Customer About Potential Delay">
+      <bpmn:incoming>SequenceFlow_SomeMissing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderMissingProducts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exception Path 1 continued: Order missing products -->
+    <bpmn:task id="Task_OrderMissingProducts" name="Order Missing Products">
+      <bpmn:incoming>SequenceFlow_OrderMissingProducts</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForDelivery</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exception Path 2: Discontinued item -->
+    <bpmn:userTask id="UserTask_InformDiscontinued" name="Inform Customer About Unavailable Items">
+      <bpmn:incoming>SequenceFlow_DiscontinuedItem</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForDelivery</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Timer Event for waiting x days -->
+    <bpmn:startEvent id="StartEvent_DelayTimer" name="Wait Average X Days">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+      <bpmn:outgoing>SequenceFlow_CheckAgain</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check again if all products on store -->
+    <bpmn:userTask id="UserTask_CheckAvailabilityAfterWait" name="Check Again If All Products On Store">
+      <bpmn:incoming>SequenceFlow_WaitForDelivery</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AfterWaitStatus_Diverge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway after waiting -->
+    <bpmn:exclusiveGateway id="Gateway_AfterWait" name="All Products Available?">
+      <bpmn:incoming>SequenceFlow_CheckAgain</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AllReadyForShipment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Recollect and prepare package -->
+    <bpmn:userTask id="UserTask_RecollectAndPackage" name="Recollect Products And Prepare Package">
+      <bpmn:incoming>SequenceFlow_AllReadyForShipment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformCourier</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Inform courier about pre-processed package -->
+    <bpmn:messageTask id="MessageTask_InformCourier" name="Inform Courier About Pre-Processed Package">
+      <bpmn:incoming>SequenceFlow_InformCourier</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CourierDelayCheck</bpmn:outgoing>
+    </bpmn:messageTask>
+
+    <!-- Exception Path 3: Courier delay notification -->
+    <bpmn:startEvent id="StartEvent_DeliveryUpdate" name="Courier Informs About Delay">
+      <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+      <bpmn:outgoing>SequenceFlow_WaitEnoughResources</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Wait for enough human resources -->
+    <bpmn:userTask id="UserTask_WaitForResources" name="Wait For Enough Human Resources">
+      <bpmn:incoming>SequenceFlow_CourierDelayCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformClient</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Courier company informs client about delay -->
+    <bpmn:messageTask id="MessageTask_InformClient" name="Courier Informs Client About Potential Delay">
+      <bpmn:incoming>SequenceFlow_WaitEnoughResources</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackagePickedUp</bpmn:outgoing>
+    </bpmn:messageTask>
+
+    <!-- Task: Package picked up by driver -->
+    <bpmn:userTask id="UserTask_PackagePickedUp" name="Package Picked Up By Driver">
+      <bpmn:incoming>SequenceFlow_InformClient</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideRoute</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Centralized service decides best route -->
+    <bpmn:serviceTask id="ServiceTask_DecideRoute" name="Centralized Service Decides Best Route">
+      <bpmn:incoming>SequenceFlow_PackagePickedUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DriverDelivers</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Task: Driver delivers package -->
+    <bpmn:userTask id="UserTask_DriverDelivers" name="Driver Delivers Package">
+      <bpmn:incoming>SequenceFlow_DecideRoute</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task: Update system and notify stakeholders -->
+    <bpmn:userTask id="UserTask_UpdateSystem" name="Update System And Notify Stakeholders">
+      <bpmn:incoming>SequenceFlow_DriverDelivers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent name="Order Completed" id="EndEvent_01">
+      <bpmn:incoming>SequenceFlow_UpdateSystem</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AllInStock" name="All In Stock" sourceRef="Gateway_ItemsStatus" targetRef="UserTask_RecollectAndPackage"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SomeMissing" name="Some Missing" sourceRef="Gateway_ItemsStatus" targetRef="UserTask_InformDelay"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DiscontinuedItem" name="Discontinued Item" sourceRef="Gateway_ItemsStatus" targetRef="UserTask_InformDiscontinued"/>
+
+    <!-- Exception Path 1 -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderMissingProducts" sourceRef="UserTask_InformDelay" targetRef="Task_OrderMissingProducts"/>
+    
+    <!-- Wait for delivery convergence -->
+    <bpmn:parallelGateway id="Parallel_WaitForDelivery_Converge">
+      <bpmn:incoming>SequenceFlow_OrderMissingProducts</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_UserTask_InformDiscontinued_Outgoing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForDelivery</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- After wait check -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAgain" sourceRef="StartEvent_DelayTimer" targetRef="UserTask_CheckAvailabilityAfterWait"/>
+    
+    <!-- Gateway after waiting -->
+    <bpmn:exclusiveGateway gatewayDirection="Diverging" id="Gateway_AfterWait">
+      <bpmn:incoming>SequenceFlow_WaitForDelivery</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AllReadyForShipment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Courier notification -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformCourier" sourceRef="UserTask_RecollectAndPackage" targetRef="MessageTask_InformCourier"/>
+    
+    <!-- Courier delay exception -->
+    <bpmn:startEvent id="StartEvent_DeliveryUpdate">
+      <bpmn:name>Courier Informs About Delay</bpmn:name>
+      <bpmn:timerDefinition xsi:type="bpmn:TimeCycle"/>
+      <bpmn:outgoing>SequenceFlow_WaitEnoughResources</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Wait for resources -->
+    <bpmn:userTask id="UserTask_WaitForResources">
+      <bpmn:name>Wait For Enough Human Resources</bpmn:name>
+      <bpmn:incoming>SequenceFlow_CourierDelayCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformClient</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Courier informs client -->
+    <bpmn:messageTask id="MessageTask_InformClient">
+      <bpmn:name>Courier Informs Client About Potential Delay</bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitEnoughResources</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PackagePickedUp</bpmn:outgoing>
+    </bpmn:messageTask>
+
+    <!-- Package pickup -->
+    <bpmn:userTask id="UserTask_PackagePickedUp">
+      <bpmn:name>Package Picked Up By Driver</bpmn:name>
+      <bpmn:incoming>SequenceFlow_InformClient</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DecideRoute</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Route decision -->
+    <bpmn:serviceTask id="ServiceTask_DecideRoute">
+      <bpmn:name>Centralized Service Decides Best Route</bpmn:name>
+      <bpmn:incoming>SequenceFlow_PackagePickedUp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DriverDelivers</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Driver delivers -->
+    <bpmn:userTask id="UserTask_DriverDelivers">
+      <bpmn:name>Driver Delivers Package</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DecideRoute</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_UpdateSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Update system -->
+    <bpmn:userTask id="UserTask_UpdateSystem">
+      <bpmn:name>Update System And Notify Stakeholders</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DriverDelivers</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OrderCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End event -->
+    <bpmn:endEvent name="Order Completed" id="EndEvent_01">
+      <bpmn:incoming>SequenceFlow_UpdateSystem</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

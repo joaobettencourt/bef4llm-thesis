@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_AccountCreation" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_PayPalAccountCreation">
+    <bpmn:participant id="Pool_PayPalProcess" name="PayPal Account Creation Process" processRef="Proc_AccountCreation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_AccountCreation" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_PayPalProcess">
+      <bpmn:lane id="Lane_Client_1" name="Client">
+        <bpmn:flowNodeRef>StartEvent_CreateAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DetermineType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AccountChoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_BeforeDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeclarePEP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SubmitRequest</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System_2" name="PayPal System">
+        <bpmn:flowNodeRef>Task_SystemValidate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ValidationResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyCorrect</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendWelcomeEmail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_AccountCreated</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_CreateAccount" name="Create PayPal Account">
+        <bpmn:outgoing>SF_Start_DetermineType</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_DetermineType" name="Determine Desired Account Type">
+      <bpmn:incoming>SF_Start_DetermineType</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToChoiceGateway</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Gateway to Select Personal or Premium -->
+    <bpmn:exclusiveGateway id="Gateway_AccountChoice" name="Select Account Type">
+      <bpmn:incoming>SF_GoToChoiceGateway</bpmn:incoming>
+        <bpmn:outgoing>SF_PathPersonal</bpmn:outgoing>
+       <bpmn:outgoing>SF_PathPremium</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Merge Point for Account Types -->
+      <bpmn:inclusiveGateway id="Merge_BeforeDetails" name="Account Type Selected"> 
+        <bpmn:incoming>SF_PathPersonal</bpmn:incoming>
+          <bpmn:incoming>SF_PathPremium</bpmn:incoming>
+           <bpmn:outgoing>SF_GoToEnterDetails</bpmn:outgoing>
+     </bpmn:inclusiveGateway>
+
+    <!-- Client Data Entry -->
+      <bpmn:task id="Task_EnterDetails" name="Enter Login &amp; Personal Details">
+        <bpmn:incoming>SF_GoToEnterDetails</bpmn:incoming>
+          <bpmn:outgoing>SF_GoToPEPDeclaration</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- PEP Declaration -->
+         <bpmn:task id="Task_DeclarePEP" name="Declare Politically Exposed Person Status">
+        <bpmn:incoming>SF_GoToPEPDeclaration</bpmn:incoming>
+          <bpmn:outgoing>SF_SubmitForValidation</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Submission Trigger --> 
+         <bpmn:task id="Task_SubmitRequest" name="Submit Account Request">
+        <bpmn:incoming>SF_SubmitForValidation</bpmn:incoming>
+          <bpmn:outgoing>SF_SystemValidateInput</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- System Validation --> 
+       <bpmn:serviceTask id="Task_SystemValidate" name="Validate Input Fields">
+        <bpmn:incoming>SF_SystemValidateInput</bpmn:incoming>
+          <bpmn:outgoing>SF_CheckValidationResult</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+    <!-- Validation Decision --> 
+       <bpmn:exclusiveGateway id="Gateway_ValidationResult" name="Fields Valid?">
+        <bpmn:incoming>SF_CheckValidationResult</bpmn:incoming>
+          <bpmn:outgoing>SF_PathValid</bpmn:outgoing>
+           <bpmn:outgoing>SF_PathInvalid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Correction Loop --> 
+       <bpmn:task id="Task_NotifyCorrect" name="Notify Client &amp; Correct Details">
+        <bpmn:incoming>SF_PathInvalid</bpmn:incoming>
+          <bpmn:outgoing>SF_LoopBackToDetails</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Success Path --> 
+       <bpmn:serviceTask id="Task_SendWelcomeEmail" name="Generate &amp; Send Welcome Email">
+        <bpmn:incoming>SF_PathValid</bpmn:incoming>
+          <bpmn:outgoing>SF_AccountCreatedEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+    <!-- End Event --> 
+       <bpmn:endEvent id="EndEvent_AccountCreated" name="Account Created">
+             <bpmn:incoming>SF_AccountCreatedEnd</bpmn:incoming> 
+        </bpmn:endEvent>
+
+
+      <!-- Sequence Flows --> 
+
+     <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_DetermineType" sourceRef="StartEvent_CreateAccount" targetRef="Task_DetermineType"/>
+
+       <!-- To Choice Gateway -->
+       <bpmn:sequenceFlow id="SF_GoToChoiceGateway" name="Determined Type" sourceRef="Task_DetermineType" targetRef="Gateway_AccountChoice">
+        </bpmn:sequenceFlow>
+
+    <!-- Branches for Account Types --> 
+      <bpmn:sequenceFlow id="SF_PathPersonal" name="Select Personal" sourceRef="Gateway_AccountChoice" targetRef="Merge_BeforeDetails"/>
+       <bpmn:sequenceFlow id="SF_PathPremium" name="Select Premium" sourceRef="Gateway_AccountChoice" targetRef="Merge_BeforeDetails"/>
+
+    <!-- To Data Entry --> 
+      <bpmn:sequenceFlow id="SF_GoToEnterDetails" sourceRef="Merge_BeforeDetails" targetRef="Task_EnterDetails">
+        </bpmn:sequenceFlow>
+
+       <!-- PEP Declaration Flow --> 
+     <bpmn:sequenceFlow id="SF_GoToPEPDeclaration" name="After Details Entered" sourceRef="Task_EnterDetails" targetRef="Task_DeclarePEP"/>
+
+    <!-- Submission to System Lane -->
+      <bpmn:sequenceFlow id="SF_SubmitForValidation" name="Submit Request" sourceRef="Task_DeclarePEP" targetRef="Task_SubmitRequest">
+        </bpmn:sequenceFlow>
+
+       <bpmn:sequenceFlow id="SF_SystemValidateInput" name="Send to System Validation" sourceRef="Task_SubmitRequest" targetRef="Task_SystemValidate"/>
+
+    <!-- Decision Flow --> 
+      <bpmn:sequenceFlow id="SF_CheckValidationResult" sourceRef="Task_SystemValidate" targetRef="Gateway_ValidationResult">
+        </bpmn:sequenceFlow>
+
+       <!-- Valid Path --> 
+     <bpmn:sequenceFlow id="SF_PathValid" name="Yes, Fields OK" sourceRef="Gateway_ValidationResult" targetRef="Task_SendWelcomeEmail"/>
+
+    <!-- Invalid Path (Loop) --> 
+      <bpmn:sequenceFlow id="SF_PathInvalid" name="No, Errors Found" sourceRef="Gateway_ValidationResult" targetRef="Task_NotifyCorrect">
+        </bpmn:sequenceFlow>
+
+       <!-- Loop Back Flow --> 
+     <bpmn:sequenceFlow id="SF_LoopBackToDetails" name="Re-enter Data" sourceRef="Task_NotifyCorrect" targetRef="Task_EnterDetails"/>
+
+    <!-- Final Success Flow --> 
+      <bpmn:sequenceFlow id="SF_AccountCreatedEnd" sourceRef="Task_SendWelcomeEmail" targetRef="EndEvent_AccountCreated">
+        </bpmn:sequenceFlow>
+
+
+  </bpmn:process>
+</bpmn:definitions>

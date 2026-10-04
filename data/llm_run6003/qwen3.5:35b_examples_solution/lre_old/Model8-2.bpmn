@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_0" name="Organization" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_0" name="HR Clerk">
+        <bpmn:flowNodeRef>StartMessageEvent_0</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateJobDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_ConfusionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskDepartment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageEventCatching_ApprovalRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateMessageEventCatching_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PostJob</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndNoneEvent_0</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCreate" sourceRef="StartMessageEvent_0" targetRef="Task_CreateJobDescription"/>
+    
+    <bpmn:exclusiveGateway name="Confusion in message?" id="ExclusiveGateway_ConfusionCheck">
+      <bpmn:incoming>SequenceFlow_CreateToConfusionCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfusedAskDept</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoConfusionSubmit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Confusion check path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ConfusedAskDept" name="Yes - Ask Department" sourceRef="ExclusiveGateway_ConfusionCheck" targetRef="Task_AskDepartment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${confusionExists}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No confusion path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoConfusionSubmit" name="No - Submit for Approval" sourceRef="ExclusiveGateway_ConfusionCheck" targetRef="IntermediateMessageEventCatching_ApprovalRequest">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!confusionExists}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Ask Department path -->
+    <bpmn:sequenceFlow id="SequenceFlow_AskDeptToCreate" sourceRef="Task_AskDepartment" targetRef="Task_CreateJobDescription"/>
+
+    <!-- Approval waiting - rejection/correction request received -->
+    <bpmn:startEvent name="Vacancy reported" id="StartMessageEvent_0">
+      <bpmn:message ref="Message_VacancyReported"/>
+      <bpmn:outgoing>SequenceFlow_StartToCreate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask name="Create job description from vacancy information" id="Task_CreateJobDescription">
+      <bpmn:incoming>SequenceFlow_StartToCreate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateToConfusionCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask name="Ask Department for clarification" id="Task_AskDepartment">
+      <bpmn:incoming>SequenceFlow_ConfusedAskDept</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AskDeptToCreate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catch Events -->
+    <bpmn:intermediateCatchEvent name="Corrections required" id="IntermediateMessageEventCatching_ApprovalRequest">
+      <bpmn:message ref="Message_CorrectionRequired"/>
+      <bpmn:outgoing>SequenceFlow_RejectionToCorrect</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Correct description path -->
+    <bpmn:userTask name="Correct job description" id="Task_CorrectDescription">
+      <bpmn:incoming>SequenceFlow_RejectionToCorrect</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CorrectBackSubmit</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- After correction, submit again for approval (loop back) -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectionToCorrect" sourceRef="IntermediateMessageEventCatching_ApprovalRequest" targetRef="Task_CorrectDescription"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CreateToConfusionCheck" name="" sourceRef="Task_CreateJobDescription" targetRef="ExclusiveGateway_ConfusionCheck">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${confusionExists}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Resubmit for approval -->
+    <bpmn:sequenceFlow id="SequenceFlow_CorrectBackSubmit" name="Resubmit for Approval" sourceRef="Task_CorrectDescription" targetRef="IntermediateMessageEventCatching_ApprovalRequest">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resubmitted}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Approval received path -->
+    <bpmn:intermediateCatchEvent name="Job Description approved" id="IntermediateMessageEventCatching_Approved">
+      <bpmn:message ref="Message_DescriptionApproved"/>
+      <bpmn:outgoing>SequenceFlow_ApprovalToPost</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Post job path -->
+    <bpmn:userTask name="Post the job" id="Task_PostJob">
+      <bpmn:incoming>SequenceFlow_ApprovalToPost</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndFromPost</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End event -->
+    <bpmn:endEvent name="Job Posted Successfully" id="EndNoneEvent_0">
+      <bpmn:incoming>SequenceFlow_EndFromPost</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ApprovalToPost" sourceRef="IntermediateMessageEventCatching_Approved" targetRef="Task_PostJob"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndFromPost" sourceRef="Task_PostJob" targetRef="EndNoneEvent_0"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

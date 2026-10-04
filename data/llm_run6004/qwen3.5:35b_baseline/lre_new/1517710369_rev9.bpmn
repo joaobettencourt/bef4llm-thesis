@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CreditCardProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_0CreditCardPayment">
+    <bpmn:participant id="Pool_PaymentSystem" name="Online Payment Process" processRef="Proc_ManageCCAddition"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ManageCCAddition" isExecutable="false">
+    
+    <!-- Lane Definitions -->
+    <bpmn:laneSet id="LaneSet_PaymentFlow">
+      <bpmn:lane id="Lane_Customer_1" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_ChooseCC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ModifyInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClickContinue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System_2" name="Payment System">
+         <bpmn:flowNodeRef>ExclusiveGateway_AddressCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_VerifyCC</bpmn:flowNodeRef>
+         <bpmn:flowNodeRef>ExclusiveGateway_ValidationResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+
+    
+     <!-- Events and Tasks -->
+
+    <bpmn:startEvent id="StartEvent_ChooseCC" name="Choose Credit Card">
+        <bpmn:outgoing>SF_Start_EnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_EnterDetails" name="Enter Credit Card Details">
+      <bpmn:incoming>SF_Start_EnterDetails</bpmn:incoming>
+        <bpmn:outgoing>SF_SubmitForCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway to check Address -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_AddressCheck" name="Address Correct?">
+      <bpmn:incoming>SF_SubmitForCheck</bpmn:incoming>
+        <bpmn:outgoing>SF_ModifyFlow</bpmn:outgoing>
+       <bpmn:outgoing>SF_ContinueToClick</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- User Task for Modification -->
+      <bpmn:userTask id="Task_ModifyInfo" name="Modify Billing Info">
+        <bpmn:incoming>SF_ModifyFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_ReCheckAddress</bpmn:outgoing>
+      </bpmn:userTask>
+
+     <!-- User Task for Continue -->
+       <bpmn:userTask id="Task_ClickContinue" name="Click Continue Button">
+        <bpmn:incoming>SF_ContinueToClick</bpmn:incoming>
+          <bpmn:outgoing>SF_TriggerVerification</bpmn:outgoing>
+      </bpmn:userTask>
+
+    <!-- System Task for Verification -->
+     <bpmn:serviceTask id="ServiceTask_VerifyCC" name="Verify Credit Card">
+        <bpmn:incoming>SF_TriggerVerification</bpmn:incoming>
+          <bpmn:outgoing>SF_CheckResultFlow</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+    <!-- Gateway for Verification Result -->
+     <bpmn:exclusiveGateway id="ExclusiveGateway_ValidationResult" name="Validated?"> 
+        <bpmn:incoming>SF_CheckResultFlow</bpmn:incoming>
+          <bpmn:outgoing>SF_AddCardFlow</bpmn:outgoing>
+           <bpmn:outgoing>SF_CancelAdditionFlow</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+      <!-- End Events --> 
+
+        <bpmn:endEvent id="EndEvent_Success" name="Card Added">
+             <bpmn:incoming>SF_AddCardFlow</bpmn:incoming>
+        </bpmn:endEvent>
+
+         <bpmn:endEvent id="EndEvent_Failure" name="Addition Cancelled">
+            <bpmn:incoming>SF_CancelAdditionFlow</bpmn:incoming> 
+        </bpmn:endEvent>
+
+
+    <!-- Flows --> 
+
+      <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_Start_EnterDetails" sourceRef="StartEvent_ChooseCC" targetRef="Task_EnterDetails"/>
+
+       <!-- To Gateway (Address Check) -->
+       <bpmn:sequenceFlow id="SF_SubmitForCheck" name="Submit for Address Check" sourceRef="Task_EnterDetails" targetRef="ExclusiveGateway_AddressCheck">
+        </bpmn:sequenceFlow>
+
+    <!-- Loop Flow from Modify Info back to Gateway --> 
+     <bpmn:sequenceFlow id="SF_ReCheckAddress" name="Re-check after modification" sourceRef="Task_ModifyInfo" targetRef="ExclusiveGateway_AddressCheck"/>
+
+       <!-- Incorrect Address Path (Loop) -->
+        <bpmn:sequenceFlow id="SF_ModifyFlow" name="Incorrect" sourceRef="ExclusiveGateway_AddressCheck" targetRef="Task_ModifyInfo">
+      </bpmn:sequenceFlow>
+
+    <!-- Correct Address Path to Continue Button --> 
+       <bpmn:sequenceFlow id="SF_ContinueToClick" name="Correct" sourceRef="ExclusiveGateway_AddressCheck" targetRef="Task_ClickContinue"/>
+
+
+     <!-- Verification Trigger Flow -->
+        <bpmn:sequenceFlow id="SF_TriggerVerification" name="Trigger Authority Check" sourceRef="Task_ClickContinue" targetRef="ServiceTask_VerifyCC">
+      </bpmn:sequenceFlow>
+
+    <!-- Result Checking Flow --> 
+       <bpmn:sequenceFlow id="SF_CheckResultFlow" name="Get Verification Result" sourceRef="ServiceTask_VerifyCC" targetRef="ExclusiveGateway_ValidationResult"/>
+
+
+     <!-- Success Path (Validated) -->
+        <bpmn:sequenceFlow id="SF_AddCardFlow" name="Yes, Validated" sourceRef="ExclusiveGateway_ValidationResult" targetRef="EndEvent_Success">
+      </bpmn:sequenceFlow>
+
+    <!-- Failure Path (Cancelled) --> 
+       <bpmn:sequenceFlow id="SF_CancelAdditionFlow" name="No, Not Validated" sourceRef="ExclusiveGateway_ValidationResult" targetRef="EndEvent_Failure"/>
+
+
+  </bpmn:process>
+</bpmn:definitions>

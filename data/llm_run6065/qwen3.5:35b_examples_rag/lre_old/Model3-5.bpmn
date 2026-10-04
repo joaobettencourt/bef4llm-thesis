@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_MailProcess">
+    <bpmn:participant id="Participant_Main" name="Mail Processing Process" processRef="Process_MailProcessing"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_MailProcessing" isExecutable="false">
+    
+    <!-- Lane Set for Organizational Units -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_MailUnit" name="Mail Processing Unit">
+        <bpmn:flowNodeRef>Task_CollectDaily</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SortUnopened</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Registry" name="Registry">
+        <bpmn:flowNodeRef>Task_DistributeToRegistry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpenSortRegister</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_QualityCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Cashier" name="Cashier">
+        <bpmn:flowNodeRef>Task_ProcessFee</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PartyDetailsFile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_DailyCollection" name="Daily Mail Collection">
+      <bpmn:outgoing>Flow_Collect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Collect mail daily from parties -->
+    <bpmn:task id="Task_CollectDaily" name="Collect Daily Mail from Parties">
+      <bpmn:incoming>Flow_Collect</bpmn:incoming>
+      <bpmn:outgoing>Flow_SortUnopened</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Sort unopened mail into business areas -->
+    <bpmn:task id="Task_SortUnopened" name="Sort Unopened Mail to Business Areas">
+      <bpmn:incoming>Flow_SortUnopened</bpmn:incoming>
+      <bpmn:outgoing>Flow_DistributeToRegistry</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Distribute to Registry -->
+    <bpmn:task id="Task_DistributeToRegistry" name="Distribute Mail to Registry">
+      <bpmn:incoming>Flow_DistributeToRegistry</bpmn:incoming>
+      <bpmn:outgoing>Flow_OpenSortRegister</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Open, sort into groups for distribution -->
+    <bpmn:task id="Task_OpenSortRegister" name="Open Mail &amp; Register in Incoming Mail Register">
+      <bpmn:incoming>Flow_OpenSortRegister</bpmn:incoming>
+      <bpmn:outgoing>Flow_QualityCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Quality Check -->
+    <bpmn:exclusiveGateway id="Gateway_QualityCheck" name="Quality Check">
+      <bpmn:incoming>Flow_QualityCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectionPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CompliantPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5a: Rejection Path - Compile rejection list -->
+    <bpmn:task id="Task_RejectList" name="Compile List of Requisition for Non-Compliance">
+      <bpmn:incoming>Flow_RejectionPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendRejection</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Mail Rejected -->
+    <bpmn:endEvent id="End_Rejected" name="Mail Rejected">
+      <bpmn:incoming>Flow_SendRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 6a: Compliant Path - Capture matter details -->
+    <bpmn:task id="Task_CaptureDetails" name="Capture Matter Details for Cashier">
+      <bpmn:incoming>Flow_CompliantPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProvideToCashier</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway to split into two paths -->
+    <bpmn:parallelGateway id="Gateway_PaymentProcess" name="Payment Processing">
+      <bpmn:incoming>Flow_ProvideToCashier</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProcessFee</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CapturePartyDetails</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 6b: Cashier processes fees -->
+    <bpmn:task id="Task_ProcessFee" name="Process Applicable Fees">
+      <bpmn:incoming>Flow_ProcessFee</bpmn:incoming>
+      <bpmn:outgoing>Flow_PrepareReceipt</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6c: Meanwhile - Capture Party Details and Print Court File -->
+    <bpmn:task id="Task_PartyDetailsFile" name="Capture Party Details &amp; Print Physical Court File">
+      <bpmn:incoming>Flow_CapturePartyDetails</bpmn:incoming>
+      <bpmn:outgoing>Flow_MergeProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6d: Prepare receipt and documents -->
+    <bpmn:task id="Task_PrepareReceipt" name="Prepare Receipt &amp; Copy Documents in Envelope">
+      <bpmn:incoming>Flow_PrepareReceipt</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendToParty</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway -->
+    <bpmn:parallelGateway id="Gateway_MergeProcess" name="Merge Process">
+      <bpmn:incoming>Flow_PrepareReceipt</bpmn:incoming>
+      <bpmn:incoming>Flow_SendToParty</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Finalize</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- End Event 2: Mail Processed Successfully -->
+    <bpmn:endEvent id="End_Completed" name="Mail Processed Successfully">
+      <bpmn:name>Post Receipt &amp; Documents to Party</bpmn:name>
+      <bpmn:incoming>Flow_Finalize</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+  
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="Flow_Collect" sourceRef="Start_DailyCollection" targetRef="Task_CollectDaily"/>
+  <bpmn:sequenceFlow id="Flow_SortUnopened" sourceRef="Task_CollectDaily" targetRef="Task_SortUnopened"/>
+  <bpmn:sequenceFlow id="Flow_DistributeToRegistry" sourceRef="Task_SortUnopened" targetRef="Task_DistributeToRegistry"/>
+  <bpmn:sequenceFlow id="Flow_OpenSortRegister" sourceRef="Task_DistributeToRegistry" targetRef="Task_OpenSortRegister"/>
+  <bpmn:sequenceFlow id="Flow_QualityCheck" sourceRef="Task_OpenSortRegister" targetRef="Gateway_QualityCheck"/>
+  
+  <!-- Quality Check Decision Paths -->
+  <bpmn:sequenceFlow id="Flow_RejectionPath" name="Not Compliant" sourceRef="Gateway_QualityCheck" targetRef="Task_RejectList">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${mailCompliance == false}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+  
+  <bpmn:sequenceFlow id="Flow_CompliantPath" name="Compliant" sourceRef="Gateway_QualityCheck" targetRef="Task_CaptureDetails">
+    <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${mailCompliance == true}</bpmn:conditionExpression>
+  </bpmn:sequenceFlow>
+
+  <!-- Rejection Path -->
+  <bpmn:sequenceFlow id="Flow_SendRejection" sourceRef="Task_RejectList" targetRef="End_Rejected"/>
+
+  <!-- Compliant Processing Paths -->
+  <bpmn:sequenceFlow id="Flow_ProvideToCashier" sourceRef="Task_CaptureDetails" targetRef="Gateway_PaymentProcess"/>
+  
+  <bpmn:sequenceFlow id="Flow_ProcessFee" name="Payment Path" sourceRef="Gateway_PaymentProcess" targetRef="Task_ProcessFee"/>
+  <bpmn:sequenceFlow id="Flow_CapturePartyDetails" name="Meanwhile Path" sourceRef="Gateway_PaymentProcess" targetRef="Task_PartyDetailsFile"/>
+
+  <!-- Final Processing Paths -->
+  <bpmn:sequenceFlow id="Flow_PrepareReceipt" sourceRef="Task_ProcessFee" targetRef="Task_PrepareReceipt"/>
+  
+  <bpmn:sequenceFlow id="Flow_SendToParty" sourceRef="Task_PrepareReceipt" targetRef="Gateway_MergeProcess"/>
+  <bpmn:sequenceFlow id="Flow_Finalize" name="Complete Process" sourceRef="Gateway_MergeProcess" targetRef="End_Completed"/>
+
+</bpmn:definitions>

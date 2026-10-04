@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_ExpenseReportProcess" targetNamespace="http://bpmn.io/schema/bpmn" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <bpmn:collaboration id="Collab_ExpenseReportProcess">
+    <bpmn:participant name="Employee Expense Report Process" processRef="Proc_ExpenseReportProcess"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ExpenseReportProcess" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Event_Filed" name="Employee Files Expense Report">
+      <bpmn:outgoing>Seq_StartToAccountCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Account Check Timer and Main Process -->
+    <bpmn:parallelGateway id="GW_AccountTimerSplit" name="">
+      <bpmn:incoming>Seq_StartToAccountCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_Timer28DaysStart</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CheckEmployeeAccount</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer Boundary Event for 28 Days -->
+    <bpmn:intermediateCatchEvent id="Timer_28Days" name="28 days">
+      <bpmn:incoming>Seq_Timer28DaysStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendResubmitEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Resubmit Email Task -->
+    <bpmn:task id="Task_ResubmitEmail" name="Send 'resubmit' email to employee">
+      <bpmn:incoming>Seq_SendResubmitEmail</bpmn:incoming>
+      <bpmn:outgoing>Seq_28DaysEndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for 28 Days Timeout -->
+    <bpmn:endEvent id="End_Event_Timeout" name="Process Stopped">
+      <bpmn:incoming>Seq_28DaysEndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Check Employee Account Gateway -->
+    <bpmn:exclusiveGateway id="GW_CheckEmployeeAccount" name="Does employee have account?">
+      <bpmn:incoming>Seq_CheckEmployeeAccount</bpmn:incoming>
+      <bpmn:outgoing>Seq_AccountExists_ReviewReport</bpmn:outgoing>
+      <bpmn:outgoing>Seq_NoAccount_CreateThenReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Account Task -->
+    <bpmn:task id="Task_CreateAccount" name="Create employee account">
+      <bpmn:incoming>Seq_NoAccount_CreateThenReview</bpmn:incoming>
+      <bpmn:outgoing>Seq_AccountCreated_ReviewReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Review Expense Report Task -->
+    <bpmn:task id="Task_ReviewExpense" name="Review expense report">
+      <bpmn:incoming>Seq_AccountExists_ReviewReport</bpmn:incoming>
+      <bpmn:incoming>Seq_AccountCreated_ReviewReport</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckAmountThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Amount Threshold Gateway -->
+    <bpmn:exclusiveGateway id="GW_AmountCheck" name="Does amount exceed 200?">
+      <bpmn:incoming>Seq_CheckAmountThreshold</bpmn:incoming>
+      <bpmn:outgoing>Seq_Over200_SupervisorApproval</bpmn:outgoing>
+      <bpmn:outgoing>Seq_Under200_ReimburseDirectly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reimbursement Task (Under 200) -->
+    <bpmn:task id="Task_DirectReimburse" name="Deposit reimbursement to bank account">
+      <bpmn:incoming>Seq_Under200_ReimburseDirectly</bpmn:incoming>
+      <bpmn:outgoing>Seq_Over200EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Ask Supervisor for Approval Task (Over 200) -->
+    <bpmn:task id="Task_SupervisorApproval" name="Ask supervisor for approval">
+      <bpmn:incoming>Seq_Over200_SupervisorApproval</bpmn:incoming>
+      <bpmn:outgoing>Seq_AskSupervisorToReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Boundary Event for 7 Days on Supervisor Approval Path -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 days">
+      <bpmn:incoming>Seq_AskSupervisorToReview</bpmn:incoming>
+      <bpmn:outgoing>Seq_SupervisorNoResponse_InProgressEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Approval In Progress Email Task -->
+    <bpmn:task id="Task_ApprovalInProgress" name="Send 'approval in progress' email to employee">
+      <bpmn:incoming>Seq_SupervisorNoResponse_InProgressEmail</bpmn:incoming>
+      <bpmn:outgoing>Seq_RepeatSupervisorApprovalLoopback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to supervisor approval -->
+    <bpmn:sequenceFlow id="Seq_RepeatSupervisorApprovalLoopback" sourceRef="Task_ApprovalInProgress" targetRef="GW_SupervisorDecision">
+      <bpmn:name>repeat</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="GW_SupervisorDecision" name="">
+      <bpmn:incoming>Seq_AskSupervisorToReview</bpmn:incoming>
+      <bpmn:outgoing>Seq_ApprovedWithin7Days_Reimburse</bpmn:outgoing>
+      <bpmn:outgoing>Seq_RejectedWithin7Days_NotifyRejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Rejected Notification Task -->
+    <bpmn:task id="Task_RejectNotification" name="Send rejection notification email to employee">
+      <bpmn:incoming>Seq_RejectedWithin7Days_NotifyRejection</bpmn:incoming>
+      <bpmn:outgoing>Seq_RejectedEndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Rejection -->
+    <bpmn:endEvent id="End_Event_Rejected" name="Request Rejected">
+      <bpmn:incoming>Seq_RejectedEndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Send Approval Within 7 Days - Deposit Task -->
+    <bpmn:task id="Task_ApprovedReimburse" name="Deposit reimbursement to bank account">
+      <bpmn:incoming>Seq_ApprovedWithin7Days_Reimburse</bpmn:incoming>
+      <bpmn:outgoing>Seq_Over200EndProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Successful Process -->
+    <bpmn:endEvent id="End_Event_Success" name="Expense Report Completed">
+      <bpmn:incoming>Seq_Over200EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_StartToAccountCheck" sourceRef="Start_Event_Filed" targetRef="GW_AccountTimerSplit"/>
+    
+    <bpmn:sequenceFlow id="Seq_Timer28DaysStart" sourceRef="GW_AccountTimerSplit" targetRef="Timer_28Days"/>
+    <bpmn:sequenceFlow id="Seq_SendResubmitEmail" sourceRef="Timer_28Days" targetRef="Task_ResubmitEmail"/>
+    <bpmn:sequenceFlow id="Seq_28DaysEndProcess" sourceRef="Task_ResubmitEmail" targetRef="End_Event_Timeout"/>
+
+    <bpmn:sequenceFlow id="Seq_CheckEmployeeAccount" sourceRef="GW_AccountTimerSplit" targetRef="GW_CheckEmployeeAccount"/>
+    
+    <bpmn:sequenceFlow id="Seq_NoAccount_CreateThenReview" name="No account exists" sourceRef="GW_CheckEmployeeAccount" targetRef="Task_CreateAccount"/>
+    <bpmn:sequenceFlow id="Seq_AccountExists_ReviewReport" name="Account exists" sourceRef="GW_CheckEmployeeAccount" targetRef="Task_ReviewExpense"/>
+    
+    <bpmn:sequenceFlow id="Seq_AccountCreated_ReviewReport" sourceRef="Task_CreateAccount" targetRef="Task_ReviewExpense"/>
+
+    <bpmn:sequenceFlow id="Seq_CheckAmountThreshold" sourceRef="Task_ReviewExpense" targetRef="GW_AmountCheck"/>
+    
+    <bpmn:sequenceFlow id="Seq_Under200_ReimburseDirectly" name="Does not exceed 200" sourceRef="GW_AmountCheck" targetRef="Task_DirectReimburse"/>
+    <bpmn:sequenceFlow id="Seq_Over200_SupervisorApproval" name="Exceeds 200" sourceRef="GW_AmountCheck" targetRef="Task_SupervisorApproval"/>
+
+    <bpmn:sequenceFlow id="Seq_AskSupervisorToReview" sourceRef="Task_SupervisorApproval" targetRef="Timer_7Days"/>
+    
+    <bpmn:sequenceFlow id="Seq_SupervisorNoResponse_InProgressEmail" name="More than 7 days" sourceRef="Timer_7Days" targetRef="Task_ApprovalInProgress"/>
+
+    <!-- Corrected Supervisor Decision Gateway -->
+    <bpmn:exclusiveGateway id="GW_SupervisorDecision2" name="">
+      <bpmn:incoming>Seq_AskSupervisorToReview</bpmn:incoming>
+      <bpmn:outgoing>Seq_ApprovedWithin7Days_Reimburse</bpmn:outgoing>
+      <bpmn:outgoing>Seq_RejectedWithin7Days_NotifyRejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Corrected Supervisor Decision Flow -->
+    <bpmn:sequenceFlow id="Seq_AskSupervisorToReview2" sourceRef="Task_SupervisorApproval" targetRef="GW_SupervisorDecision"/>
+
+    <bpmn:sequenceFlow id="Seq_ApprovedWithin7Days_Reimburse" name="Approved within 7 days" sourceRef="GW_SupervisorDecision" targetRef="Task_ApprovedReimburse"/>
+    
+    <bpmn:sequenceFlow id="Seq_RejectedWithin7Days_NotifyRejection" name="Rejected within 7 days" sourceRef="GW_SupervisorDecision" targetRef="Task_RejectNotification"/>
+
+    <!-- End Process Flows -->
+    <bpmn:sequenceFlow id="Seq_Over200EndProcess" sourceRef="Task_ApprovedReimburse" targetRef="End_Event_Success"/>
+    <bpmn:sequenceFlow id="Seq_Under200EndProcess" sourceRef="Task_DirectReimburse" targetRef="End_Event_Success"/>
+
+  </bpmn:process>
+</bpmn:definitions>

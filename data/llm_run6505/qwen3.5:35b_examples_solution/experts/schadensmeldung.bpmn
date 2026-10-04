@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Schadensmeldung">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Pool_Process" name="Schadensbearbeitung" processRef="Process_Schaden"/>
+    <bpmn:participant id="Participant_Customer" name="Kunde"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Schaden">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_CustomerCenter" name="Kundenzentrum">
+        <bpmn:flowNodeRef>StartEvent_ClaimReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckValidity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InvalidCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Management" name="Versicherungsmanagement">
+        <bpmn:flowNodeRef>UserTask_CheckDocuments</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CompletenessCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_SpecializedDept" name="Fachabteilung">
+        <bpmn:flowNodeRef>UserTask_ValidateDamage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LegalAssessmentNeeded</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ClaimReceived" name="Schadensmeldung eingereicht">
+      <bpmn:outgoing>SequenceFlow_CheckValidity</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Check Validity -->
+    <bpmn:userTask id="Task_CheckValidity" name="Gültigkeit der Schadensmeldung prüfen">
+      <bpmn:incoming>SequenceFlow_CheckValidity</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InvalidCheckResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1: Invalid Check -->
+    <bpmn:exclusiveGateway id="Gateway_InvalidCheck" name="Ist Schaden gültig?">
+      <bpmn:incoming>SequenceFlow_InvalidCheckResult</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotValid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_ProcessEnded" name="Prozess abgeschlossen">
+      <bpmn:incoming>SequenceFlow_CustomerNotifiedInvalid</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Task 2: Check Documents Completeness -->
+    <bpmn:userTask id="UserTask_CheckDocuments" name="Eingereichte Unterlagen auf Vollständigkeit prüfen">
+      <bpmn:incoming>SequenceFlow_ValidClaim</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CompletenessCheckResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 2: Completeness Check -->
+    <bpmn:exclusiveGateway id="Gateway_CompletenessCheck" name="Sind alle Unterlagen vollständig?">
+      <bpmn:incoming>SequenceFlow_CompletenessCheckResult</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ContinueProcessing</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Validate Damage -->
+    <bpmn:userTask id="UserTask_ValidateDamage" name="Schadensursache untersuchen">
+      <bpmn:incoming>SequenceFlow_ContinueProcessing</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LegalAssessmentCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 3: Legal Assessment Needed -->
+    <bpmn:exclusiveGateway id="Gateway_LegalAssessmentNeeded" name="Rechtliche Einschätzung erforderlich?">
+      <bpmn:incoming>SequenceFlow_LegalAssessmentCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoLegalAssess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 4: Send to Insurer -->
+    <bpmn:userTask id="UserTask_SendToInsurer" name="Rechtliche Einschätzung einholen">
+      <bpmn:incoming>SequenceFlow_YesLegalAssess</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_LegalDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 5: Request Additional Info -->
+    <bpmn:userTask id="UserTask_RequestAdditionalInfo" name="Zusätzliche Informationen einholen">
+      <bpmn:incoming>SequenceFlow_ContinueProcessing</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InfoReceived</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 6: Update Statistics -->
+    <bpmn:userTask id="UserTask_UpdateStatistics" name="Schadensstatistik aktualisieren">
+      <bpmn:incoming>SequenceFlow_LegalDone</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StatUpdated</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 7: Inform Customer -->
+    <bpmn:userTask id="UserTask_InformCustomer" name="Kunden über Bearbeitungsstand informieren">
+      <bpmn:incoming>SequenceFlow_StatUpdated</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CustomerNotifiedInvalid</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start to Check Validity -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckValidity" sourceRef="StartEvent_ClaimReceived" targetRef="Task_CheckValidity"/>
+
+    <!-- Invalid Result Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotValid" name="Nein, nicht gültig" sourceRef="Gateway_InvalidCheck" targetRef="EndEvent_ProcessEnded">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!isValid}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Valid Claim Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidClaim" name="Ja, gültig" sourceRef="Gateway_InvalidCheck" targetRef="UserTask_CheckDocuments">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Completeness Check Result -->
+    <bpmn:sequenceFlow id="SequenceFlow_CompletenessCheckResult" sourceRef="UserTask_CheckDocuments" targetRef="Gateway_CompletenessCheck"/>
+
+    <!-- Continue Processing Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ContinueProcessing" name="Ja, vollständig" sourceRef="Gateway_CompletenessCheck" targetRef="UserTask_ValidateDamage">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${documentsComplete}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Legal Assessment Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_LegalAssessmentCheck" sourceRef="UserTask_ValidateDamage" targetRef="Gateway_LegalAssessmentNeeded"/>
+
+    <!-- No Legal Assessment Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoLegalAssess" name="Nein, nicht erforderlich" sourceRef="Gateway_LegalAssessmentNeeded" targetRef="UserTask_UpdateStatistics">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!needLegal}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Yes Legal Assessment Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesLegalAssess" name="Ja, erforderlich" sourceRef="Gateway_LegalAssessmentNeeded" targetRef="UserTask_SendToInsurer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${needLegal}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Legal Done Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_LegalDone" sourceRef="UserTask_SendToInsurer" targetRef="Gateway_CompletenessCheck"/>
+
+  </bpmn:process>
+</bpmn:definitions>

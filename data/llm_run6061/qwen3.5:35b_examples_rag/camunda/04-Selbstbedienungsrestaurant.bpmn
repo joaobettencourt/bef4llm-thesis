@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://bpmn.io/schema/bpmn">
+  <collaboration id="Collab_Restaurant_001">
+    <participant id="Part_Guest_001" name="Gast (Kunde)" processRef="Proc_Guest_001"/>
+    <participant id="Part_Angestellte_001" name="Angestellte" processRef="Proc_Angestellte_001"/>
+    <participant id="Part_Koch_001" name="Koch" processRef="Proc_Koch_001"/>
+  </collaboration>
+
+  <!-- Guest Process -->
+  <process id="Proc_Guest_001">
+    <laneSet>
+      <lane id="Lane_Guest_001" name="Gast (Kunde)">
+        <flowNodeRef>StartEvent_Guest_001</flowNodeRef>
+        <flowNodeRef>Task_GuestChooseDish_001</flowNodeRef>
+        <flowNodeRef>Task_GuestWaitForTurn_001</flowNodeRef>
+        <flowNodeRef>Task_GuestPlaceOrder_001</flowNodeRef>
+        <flowNodeRef>CatchEvent_PagerRings_001</flowNodeRef>
+        <flowNodeRef>EndEvent_EatMeal_001</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="StartEvent_Guest_001" name="Gast betritt Restaurant">
+      <outgoing>SeqFlow_StartToChooseDish_001</outgoing>
+    </startEvent>
+
+    <task id="Task_GuestChooseDish_001" name="Gericht aus Angebot wählen">
+      <incoming>SeqFlow_StartToChooseDish_001</incoming>
+      <outgoing>SeqFlow_ChooseToWait_001</outgoing>
+    </task>
+
+    <task id="Task_GuestWaitForTurn_001" name="Auf die Reihe warten">
+      <incoming>SeqFlow_ChooseToWait_001</incoming>
+      <outgoing>SeqFlow_WaitToOrder_001</outgoing>
+    </task>
+
+    <task id="Task_GuestPlaceOrder_001" name="Bestellung beim Angestellten aufgeben">
+      <incoming>SeqFlow_WaitToOrder_001</incoming>
+      <outgoing>SeqFlow_OrderToPagerWait_001</outgoing>
+    </task>
+
+    <intermediateCatchEvent id="CatchEvent_PagerRings_001" name="Pieper meldet sich">
+      <bpmn:timerDefinition/>
+      <incoming>MsgFlow_CookNotifiesStaffToTriggerPager_001</incoming>
+      <outgoing>SeqFlow_PagerToEatMeal_001</outgoing>
+    </intermediateCatchEvent>
+
+    <endEvent id="EndEvent_EatMeal_001" name="Mahlzeit verzehren">
+      <bpmn:incoming>SeqFlow_PagerToEatMeal_001</bpmn:incoming>
+    </endEvent>
+
+    <sequenceFlow id="SeqFlow_StartToChooseDish_001" sourceRef="StartEvent_Guest_001" targetRef="Task_GuestChooseDish_001"/>
+    <sequenceFlow id="SeqFlow_ChooseToWait_001" sourceRef="Task_GuestChooseDish_001" targetRef="Task_GuestWaitForTurn_001"/>
+    <sequenceFlow id="SeqFlow_WaitToOrder_001" sourceRef="Task_GuestWaitForTurn_001" targetRef="Task_GuestPlaceOrder_001"/>
+
+  </process>
+
+  <!-- Staff Process -->
+  <process id="Proc_Angestellte_001">
+    <laneSet>
+      <lane id="Lane_Angestellte_001" name="Angestellter">
+        <flowNodeRef>StartEvent_Staff_001</flowNodeRef>
+        <flowNodeRef>Task_OrderEntryAndPayment_001</flowNodeRef>
+        <flowNodeRef>Task_SetPagerForGuest_001</flowNodeRef>
+        <flowNodeRef>CatchEvent_FoodReadyReceived_001</flowNodeRef>
+        <flowNodeRef>Trigger_PagerToGuest_001</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="StartEvent_Staff_001" name="Gast wartet an der Kasse">
+      <outgoing>SeqFlow_StartOrderEntry_001</outgoing>
+    </startEvent>
+
+    <task id="Task_OrderEntryAndPayment_001" name="Bestellung eingeben und Geld kassieren">
+      <incoming>SeqFlow_StartOrderEntry_001</incoming>
+      <outgoing>SeqFlow_PaymentToPagerSetup_001</outgoing>
+    </task>
+
+    <task id="Task_SetPagerForGuest_001" name="Pieper einstellen und übergeben">
+      <incoming>SeqFlow_PaymentToPagerSetup_001</incoming>
+      <outgoing>MsgFlow_InformCookAboutOrder_001</outgoing>
+    </task>
+
+    <intermediateCatchEvent id="CatchEvent_FoodReadyReceived_001" name="Koch meldet Essen fertig">
+      <bpmn:timerDefinition/>
+      <incoming>MessageFlow_CookNotifiesStaff_001</incoming>
+      <outgoing>SeqFlow_RingPagerToCallGuest_001</outgoing>
+    </intermediateCatchEvent>
+
+    <task id="Trigger_PagerToGuest_001" name="Pieper des Gastes auslösen">
+      <bpmn:incoming>MsgFlow_CookNotifiesStaffToTriggerPager_001</bpmn:incoming>
+      <outgoing>SeqFlow_CallIfNoResponse_001</outgoing>
+    </task>
+
+    <sequenceFlow id="SeqFlow_StartOrderEntry_001" sourceRef="StartEvent_Staff_001" targetRef="Task_OrderEntryAndPayment_001"/>
+    <sequenceFlow id="SeqFlow_PaymentToPagerSetup_001" sourceRef="Task_OrderEntryAndPayment_001" targetRef="Task_SetPagerForGuest_001">
+      <bpmn:name>Pieper aktivieren</bpmn:name>
+    </sequenceFlow>
+
+  </process>
+
+  <!-- Cook Process -->
+  <process id="Proc_Koch_001">
+    <laneSet>
+      <lane id="Lane_Cook_001" name="Koch">
+        <flowNodeRef>StartEvent_Cook_001</flowNodeRef>
+        <flowNodeRef>Task_PrepareMeal_001</flowNodeRef>
+        <flowNodeRef>Task_PutInPassThrough_001</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="StartEvent_Cook_001" name="Bestellung vom Angestellten erhalten">
+      <outgoing>SeqFlow_StartPrepareMeal_001</outgoing>
+    </startEvent>
+
+    <task id="Task_PrepareMeal_001" name="Mahlzeit zubereiten">
+      <incoming>SeqFlow_StartPrepareMeal_001</incoming>
+      <outgoing>MsgFlow_PutInPassThroughAndNotifyStaff_001</outgoing>
+    </task>
+
+    <task id="Task_PutInPassThrough_001" name="Mahlzeit in Durchreiche stellen">
+      <bpmn:incoming>SeqFlow_StartPrepareMeal_001</bpmn:incoming>
+      <outgoing>MessageFlow_CookNotifiesStaff_001</outgoing>
+    </task>
+
+    <sequenceFlow id="SeqFlow_StartPrepareMeal_001" sourceRef="StartEvent_Cook_001" targetRef="Task_PrepareMeal_001"/>
+
+  </process>
+
+  <!-- Message Flows -->
+  <messageFlow id="MessageFlow_CookNotifiesStaff_001">
+    <bpmn:sourceRef>CatchEvent_FoodReadyReceived_001</bpmn:sourceRef>
+    <bpmn:targetRef>Task_PutInPassThrough_001</bpmn:targetRef>
+  </messageFlow>
+
+  <message id="Message_OrderToCook_001" name="Bestellung an Koch"/>
+  <message id="Message_FoodReadyNotification_001" name="Koch meldet Essen fertig"/>
+
+</bpmn:definitions>

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_LegoMachineProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_001">
+    <bpmn:participant id="Participant_Main" name="Custom Machine Building Process" processRef="Proc_Building"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Building" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_001" name="Custom machine building">
+      <bpmn:outgoing>Seq_001</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Initial Tasks (Sequential) -->
+    <bpmn:userTask id="Task_Design" name="Develop basic design">
+      <bpmn:incoming>Seq_001</bpmn:incoming>
+      <bpmn:outgoing>Seq_002</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_OrderSets" name="Order lego brick sets">
+      <bpmn:incoming>Seq_002</bpmn:incoming>
+      <bpmn:outgoing>Seq_003</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SortParts" name="Sort parts into containers">
+      <bpmn:incoming>Seq_003</bpmn:incoming>
+      <bpmn:outgoing>Seq_004</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for multiple subcomponents -->
+    <bpmn:exclusiveGateway id="GW_SubcomponentLoop" name="More subcomponents needed?">
+      <bpmn:incoming>Seq_004</bpmn:incoming>
+      <bpmn:outgoing>Seq_BuildSubcomp</bpmn:outgoing>
+      <bpmn:outgoing>Seq_AssembleFinal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Build Subcomponent Task -->
+    <bpmn:userTask id="Task_Build" name="Build subcomponent">
+      <bpmn:incoming>Seq_BuildSubcomp</bpmn:incoming>
+      <bpmn:outgoing>Seq_TestCheckParts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Check if parts available -->
+    <bpmn:exclusiveGateway id="GW_PartsAvailable" name="More parts in container?">
+      <bpmn:incoming>Seq_TestCheckParts</bpmn:incoming>
+      <bpmn:outgoing>Seq_BuildAgain</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ReorderParts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Reorder Parts if needed -->
+    <bpmn:userTask id="Task_Reorder" name="Reorder individual parts">
+      <bpmn:incoming>Seq_ReorderParts</bpmn:incoming>
+      <bpmn:outgoing>Seq_BuildAgain2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Test Subcomponent -->
+    <bpmn:userTask id="Task_Test" name="Test subcomponent">
+      <bpmn:incoming>Seq_BuildAgain</bpmn:incoming>
+      <bpmn:incoming>Seq_BuildAgain2</bpmn:incoming>
+      <bpmn:outgoing>Seq_GW_TestResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Test Result Gateway -->
+    <bpmn:exclusiveGateway id="GW_TestResult" name="Test successful?">
+      <bpmn:incoming>Seq_GW_TestResult</bpmn:incoming>
+      <bpmn:outgoing>Seq_RedesignLoop</bpmn:outgoing>
+      <bpmn:outgoing>Seq_SubcompComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Redesign if test failed -->
+    <bpmn:userTask id="Task_Redesign" name="Redesign subcomponent">
+      <bpmn:incoming>Seq_RedesignLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_BuildAgain</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Final Assembly -->
+    <bpmn:userTask id="Task_Assemble" name="Assemble machine">
+      <bpmn:incoming>Seq_SubcompComplete</bpmn:incoming>
+      <bpmn:outgoing>Seq_FinalCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_001" name="Machine completed">
+      <bpmn:incoming>Seq_FinalCheck</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_001" sourceRef="Start_001" targetRef="Task_Design"/>
+    <bpmn:sequenceFlow id="Seq_002" name="" sourceRef="Task_Design" targetRef="Task_OrderSets"/>
+    <bpmn:sequenceFlow id="Seq_003" name="" sourceRef="Task_OrderSets" targetRef="Task_SortParts"/>
+    <bpmn:sequenceFlow id="Seq_004" name="" sourceRef="Task_SortParts" targetRef="GW_SubcomponentLoop"/>
+
+    <!-- Subcomponent Loop -->
+    <bpmn:sequenceFlow id="Seq_BuildSubcomp" name="Yes - Build subcomponent" sourceRef="GW_SubcomponentLoop" targetRef="Task_Build">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[more needed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Assembly Path -->
+    <bpmn:sequenceFlow id="Seq_AssembleFinal" name="No - All done" sourceRef="GW_SubcomponentLoop" targetRef="Task_Assemble">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[no more needed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Parts Check -->
+    <bpmn:sequenceFlow id="Seq_TestCheckParts" name="" sourceRef="Task_Build" targetRef="GW_PartsAvailable"/>
+
+    <!-- Reorder Path -->
+    <bpmn:sequenceFlow id="Seq_ReorderParts" name="No parts available" sourceRef="GW_PartsAvailable" targetRef="Task_Reorder">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[no more parts]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Build Again Path -->
+    <bpmn:sequenceFlow id="Seq_BuildAgain" name="" sourceRef="GW_PartsAvailable" targetRef="Task_Test">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[parts available]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Reorder to Build Again -->
+    <bpmn:sequenceFlow id="Seq_BuildAgain2" name="" sourceRef="Task_Reorder" targetRef="Task_Test"/>
+
+    <!-- Test Result Path - Failed -->
+    <bpmn:sequenceFlow id="Seq_RedesignLoop" name="No - Redesign needed" sourceRef="GW_TestResult" targetRef="Task_Redesign">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[test failed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Test Result Path - Success -->
+    <bpmn:sequenceFlow id="Seq_SubcompComplete" name="Yes - Passed test" sourceRef="GW_TestResult" targetRef="Task_Assemble">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[test passed]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Check -->
+    <bpmn:sequenceFlow id="Seq_FinalCheck" name="" sourceRef="Task_Assemble" targetRef="End_001"/>
+
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_meeting_mgmt" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_0a1b2c3d4e5f">
+    <bpmn:participant id="Participant_CoordinationUnit" name="Coordination Unit" processRef="Process_QA_Check"/>
+    <bpmn:participant id="Participant_SupportOfficer" name="Support Officer" processRef="Process_Meeting_Org"/>
+    <bpmn:participant id="Participant_CommitteeMembers" name="Committee Members" processRef="Process_Attend_Meetings"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Message_ReminderToMembers" sourceRef="IntermediateThrowEvent_WeekBeforeReminder" targetRef="StartEvent_MemberReminderReceived"/>
+    <bpmn:messageFlow id="Message_MinutesSent" sourceRef="Task_SendMinutesQAApproved" targetRef="EndEvent_MinutesReceivedByMember"/>
+  </bpmn:collaboration>
+
+  <!-- Process: Support Officer (Main Organization) -->
+  <bpmn:process id="Process_Meeting_Org" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_DatesFinalized" name="Dates Finalized">
+      <bpmn:outgoing>SequenceFlow_StartToCalendars</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndProcess_SupportOfficerComplete" name="Records Updated">
+      <bpmn:incoming>SequenceFlow_RecordsUpdateDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_UpdateCalendars" name="Update all group calendars">
+      <bpmn:incoming>SequenceFlow_StartToCalendars</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CalendarsToFolders</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CreateFolders" name="Create meeting folders">
+      <bpmn:incoming>SequenceFlow_CalendarsToFolders</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FoldersToDocs</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_UploadDocuments" name="Ensure documents uploaded to system">
+      <bpmn:incoming>SequenceFlow_FoldersToDocs</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DocsToTimer</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateThrowEvent_WeekBeforeReminder" name="1 week before meeting">
+      <bpmn:incoming>SequenceFlow_DocsToTimer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerToSendRemind</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Send Reminder (Message) -->
+    <bpmn:endEvent id="EndMeetingPrepared" name="Meeting Prepared">
+       <bpmn:incoming>SequenceFlow_SendRemindToQA</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_ProduceMinutes" name="Produce minutes including Action Points">
+      <bpmn:incoming>SequenceFlow_MeetingDoneToMinutes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MinutesToSendQA</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- QA Check Trigger -->
+    <bpmn:endEvent id="End_QATriggered" name="Minutes Sent for QA">
+       <bpmn:incoming>SequenceFlow_SendRemindToQA</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_UpdateRecords" name="Update all departmental records">
+      <bpmn:incoming>SequenceFlow_QAApprovedToRecords</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RecordsUpdateDone</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCalendars" sourceRef="StartEvent_DatesFinalized" targetRef="Task_UpdateCalendars"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CalendarsToFolders" name="Update Calendars Complete" sourceRef="Task_UpdateCalendars" targetRef="Task_CreateFolders"/>
+    <bpmn:sequenceFlow id="SequenceFlow_FoldersToDocs" name="Create Folders Complete" sourceRef="Task_CreateFolders" targetRef="Task_UploadDocuments"/>
+    <bpmn:sequenceFlow id="SequenceFlow_DocsToTimer" name="Ensure Documents Uploaded" sourceRef="Task_UploadDocuments" targetRef="IntermediateThrowEvent_WeekBeforeReminder"/>
+
+    <!-- Logic for Reminder and Meeting -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MeetingStatus" name="Meeting Held?">
+      <bpmn:incoming>SequenceFlow_TimerToSendRemind</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendRemindToQA</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Note: In a real model, the meeting happens externally. Here we simulate flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToSendRemind" name="1 Week Passed" sourceRef="IntermediateThrowEvent_WeekBeforeReminder" targetRef="ExclusiveGateway_MeetingStatus"/>
+
+    <!-- QA Check Logic (Internal to Support Officer for simplicity of single process, or separate pool) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRemindToQA" name="Send Reminder & Proceed" sourceRef="Task_ProduceMinutes" targetRef="ExclusiveGateway_MeetingStatus"/>
+
+  </bpmn:process>
+
+  <!-- Process: Coordination Unit (QA Check) -->
+  <bpmn:process id="Process_QA_Check" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_MinutesReceivedForQA" name="Minutes Received for QA">
+      <bpmn:outgoing>SequenceFlow_StartToTimer</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Timer Event -->
+    <bpmn:intermediateCatchEvent id="IntermediateThrowEvent_5DaysQA" name="Within 5 working days">
+      <bpmn:incoming>SequenceFlow_StartToTimer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TimerToQATask</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- QA Task -->
+    <bpmn:endEvent id="End_QAComplete" name="QA Check Complete">
+       <bpmn:incoming>SequenceFlow_SendMinutesToMembers</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_PerformQACheck" name="Conduct QA check on minutes">
+      <bpmn:incoming>SequenceFlow_TimerToQATask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_QAApprovedToSendMembers</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToTimer" sourceRef="StartEvent_MinutesReceivedForQA" targetRef="IntermediateThrowEvent_5DaysQA"/>
+    <bpmn:sequenceFlow id="SequenceFlow_TimerToQATask" name="Within 5 Days" sourceRef="IntermediateThrowEvent_5DaysQA" targetRef="Task_PerformQACheck"/>
+
+  </bpmn:process>
+
+  <!-- Process: Committee Members -->
+  <bpmn:process id="Process_Attend_Meetings" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_MemberReminderReceived" name="Receive Reminder to Read Docs">
+      <bpmn:outgoing>SequenceFlow_StartToMeeting</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_MinutesReceivedByMember" name="Minutes Received by Member">
+       <bpmn:incoming>MessageFlow_MinutesSentIncoming</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task -->
+    <bpmn:task id="Task_HoldMeeting" name="Hold meeting and read documents">
+      <bpmn:incoming>SequenceFlow_StartToMeeting</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MeetingDoneToWaitMinutes</bpmn:outgoing>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartToMeeting" sourceRef="StartEvent_MemberReminderReceived" targetRef="Task_HoldMeeting"/>
+  </bpmn:process>
+
+</bpmn:definitions>

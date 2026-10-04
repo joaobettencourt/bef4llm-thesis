@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_InsuranceClaimProcess" targetNamespace="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC">
+  <bpmn:collaboration id="Collab_InsuranceClaimProcess">
+    <bpmn:participant id="Participant_Shop" name="Versicherungsmanagement" processRef="Proc_ClaimHandling"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ClaimHandling" isExecutable="false">
+    <bpmn:dataObjectReference id="DataClaimDocument" name="Schadensmeldung"/>
+    
+    <bpmn:laneSet>
+      <bpmn:laneSet id="Lane_Set_0123456789ab">
+        <bpmn:lane id="Lane_CustomerService" name="Kundenzentrum / Front Office">
+          <bpmn:flowNodeRef>StartEvent_ClaimReceived</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_CheckValidity</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Gtw_IsValidClaim</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_InformInvalid</bpmn:flowNodeRef>
+        </bpmn:lane>
+        <bpmn:lane id="Lane_SpecialistDept" name="Fachabteilung / Schadenbearbeitung">
+          <bpmn:flowNodeRef>Gtw_ParallelSplit</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_InitStatsEntry</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_CheckCompleteness</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Gtw_NeedLegalAssessment</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_RequestInfoInsurer</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_InvestigateCause</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Gtw_NeedAdditionalInfo</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_RequestCustomerThirdParty</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Gtw_ParallelJoin</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Tsk_UpdateStats</bpmn:flowNodeRef>
+        </bpmn:lane>
+      </bpmn:laneSet>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ClaimReceived" name="Schadensmeldung eingereicht">
+      <bpmn:outgoing>SqFlow_StartToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:userTask id="Tsk_CheckValidity" name="Prüfung auf Gültigkeit">
+      <bpmn:incoming>SqFlow_StartToCheck</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToValidityGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gtw_IsValidClaim" name="Ist die Meldung gültig?">
+      <bpmn:incoming>SqFlow_ToValidityGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_InvalidPath</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_ValidPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 2 (Invalid Path) -->
+    <bpmn:userTask id="Tsk_InformInvalid" name="Kunde über Ungültigkeit informieren">
+      <bpmn:incoming>SqFlow_InvalidPath</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_EndRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="EndEvent_Rejected" name="Prozess abgeschlossen (abgelehnt)">
+      <bpmn:incoming>SqFlow_EndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 2 (Parallel Split) -->
+    <bpmn:parallelGateway id="Gtw_ParallelSplit" name="Bearbeitung starten">
+      <bpmn:incoming>SqFlow_ValidPath</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_InitStatsEntry</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_DeepValidationStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 3 (Parallel Branch A) -->
+    <bpmn:userTask id="Tsk_InitStatsEntry" name="Fall in Schadensstatistik erfassen">
+      <bpmn:incoming>SqFlow_InitStatsEntry</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToJoinInit</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 4 (Parallel Branch B - Start) -->
+    <bpmn:userTask id="Tsk_CheckCompleteness" name="Kontrolle Unterlagen auf Vollständigkeit">
+      <bpmn:incoming>SqFlow_DeepValidationStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToLegalGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 3 (Decision) -->
+    <bpmn:exclusiveGateway id="Gtw_NeedLegalAssessment" name="Rechtliche Einschätzung erforderlich?">
+      <bpmn:incoming>SqFlow_ToLegalGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_LegalYesPath</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_LegalNoPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 5 (Legal Yes) -->
+    <bpmn:userTask id="Tsk_RequestInfoInsurer" name="Rechtliche Einschätzung einholen">
+      <bpmn:incoming>SqFlow_LegalYesPath</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToInvestigate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 4 (Merge Legal Paths) -->
+    <bpmn:exclusiveGateway id="Gtw_MergeLegal" name="">
+      <bpmn:incoming>SqFlow_LegalYesPath</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToInvestigate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 6 (Legal No) -->
+    <bpmn:userTask id="Tsk_InvestigateCause" name="Schadensursache untersuchen">
+      <bpmn:incoming>SqFlow_ToInvestigate</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ToInfoGtw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 5 (Additional Info) -->
+    <bpmn:exclusiveGateway id="Gtw_NeedAdditionalInfo" name="Zusätzliche Informationen nötig?">
+      <bpmn:incoming>SqFlow_ToInfoGtw</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_InfoYesPath</bpmn:outgoing>
+      <bpmn:outgoing>SqFlow_ContinueToJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 7 (Info Yes) -->
+    <bpmn:userTask id="Tsk_RequestCustomerThirdParty" name="Informationen vom Kunden/Dritten einholen">
+      <bpmn:incoming>SqFlow_InfoYesPath</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_ContinueToJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway 6 (Parallel Join) -->
+    <bpmn:parallelGateway id="Gtw_ParallelJoin" name="">
+      <bpmn:incoming>SqFlow_ToJoinInit</bpmn:incoming>
+      <bpmn:incoming>SqFlow_ContinueToJoin</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_UpdateStatsStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 8 (Final Update) -->
+    <bpmn:userTask id="Tsk_UpdateStats" name="Schadensstatistik aktualisieren">
+      <bpmn:incoming>SqFlow_UpdateStatsStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_InformCustomerStatus</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 9 (Final Info) -->
+    <bpmn:userTask id="Tsk_FinalInfo" name="Bearbeitungsstand dem Kunden mitteilen">
+      <bpmn:incoming>SqFlow_InformCustomerStatus</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_EndCompleted</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event 2 -->
+    <bpmn:endEvent id="EndEvent_Completed" name="Prozess abgeschlossen (entschieden)">
+      <bpmn:incoming>SqFlow_EndCompleted</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SqFlow_StartToCheck" sourceRef="StartEvent_ClaimReceived" targetRef="Tsk_CheckValidity"/>
+    <bpmn:sequenceFlow id="SqFlow_ToValidityGtw" sourceRef="Tsk_CheckValidity" targetRef="Gtw_IsValidClaim"/>
+    <bpmn:sequenceFlow id="SqFlow_InvalidPath" name="Nein" sourceRef="Gtw_IsValidClaim" targetRef="Tsk_InformInvalid"/>
+    <bpmn:sequenceFlow id="SqFlow_ValidPath" name="Ja" sourceRef="Gtw_IsValidClaim" targetRef="Gtw_ParallelSplit"/>
+    <bpmn:sequenceFlow id="SqFlow_EndRejected" sourceRef="Tsk_InformInvalid" targetRef="EndEvent_Rejected"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_InitStatsEntry" name="" sourceRef="Gtw_ParallelSplit" targetRef="Tsk_InitStatsEntry"/>
+    <bpmn:sequenceFlow id="SqFlow_DeepValidationStart" name="" sourceRef="Gtw_ParallelSplit" targetRef="Tsk_CheckCompleteness"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_ToLegalGtw" sourceRef="Tsk_CheckCompleteness" targetRef="Gtw_NeedLegalAssessment"/>
+    <bpmn:sequenceFlow id="SqFlow_LegalYesPath" name="Ja" sourceRef="Gtw_NeedLegalAssessment" targetRef="Tsk_RequestInfoInsurer"/>
+    <bpmn:sequenceFlow id="SqFlow_LegalNoPath" name="Nein" sourceRef="Gtw_NeedLegalAssessment" targetRef="Gtw_MergeLegal"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_ToInvestigate" sourceRef="Tsk_RequestInfoInsurer" targetRef="Gtw_MergeLegal"/>
+    <bpmn:sequenceFlow id="SqFlow_ToInfoGtw" name="" sourceRef="Gtw_MergeLegal" targetRef="Tsk_InvestigateCause"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_InfoYesPath" name="Ja" sourceRef="Gtw_NeedAdditionalInfo" targetRef="Tsk_RequestCustomerThirdParty"/>
+    <bpmn:sequenceFlow id="SqFlow_ContinueToJoin" name="" sourceRef="Tsk_InvestigateCause" targetRef="Gtw_ParallelJoin"/>
+    <bpmn:sequenceFlow id="SqFlow_ToJoinInit" sourceRef="Tsk_InitStatsEntry" targetRef="Gtw_ParallelJoin"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_UpdateStatsStart" name="" sourceRef="Gtw_ParallelJoin" targetRef="Tsk_UpdateStats"/>
+    <bpmn:sequenceFlow id="SqFlow_InformCustomerStatus" sourceRef="Tsk_UpdateStats" targetRef="Tsk_FinalInfo"/>
+    
+    <bpmn:sequenceFlow id="SqFlow_EndCompleted" name="" sourceRef="Tsk_FinalInfo" targetRef="EndEvent_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

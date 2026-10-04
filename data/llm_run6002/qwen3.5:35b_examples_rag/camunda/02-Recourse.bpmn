@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1aeg7k3">
+    <bpmn:participant id="Participant_1m8q2r5" name="Recourse Process" processRef="Process_0p9x4w6"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_0p9x4w6" isExecutable="false">
+    <!-- Lane for the clerk handling recourse -->
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Clerk" name="Clerk">
+        <bpmn:flowNodeRef>StartEvent_0a3k7j9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckPossibility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PossibilityExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Parallel_SendAndReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendPaymentRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MakeReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_RequestAndReminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PaymentReceivedOrDeadlineReached</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BookingMade</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_CaseClosedNoRecourse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PaymentReceived</bpmn:flowNodeRef>
+      </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_0a3k7j9" name="Get Information on Possible Subrogation">
+      <bpmn:outgoing>SequenceFlow_GetInfoToCheck</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if possibility exists -->
+    <bpmn:task id="Task_CheckPossibility" name="Check Possibility of Recourse">
+      <bpmn:incoming>SequenceFlow_GetInfoToCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResult</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is possibility really there? -->
+    <bpmn:exclusiveGateway id="Gateway_PossibilityExists" name="Possibility Really Exists?">
+      <bpmn:incoming>SequenceFlow_CheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NoRecoursePossible</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_YesSendRequestAndReminder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow for No Recourse Possible -->
+    <bpmn:endEvent id="EndEvent_CaseClosedNoRecourse" name="Case Closed (no recourse)">
+      <bpmn:incoming>SequenceFlow_NoRecoursePossible</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Parallel Gateway for Send Request AND Make Reminder -->
+    <bpmn:parallelGateway id="Parallel_SendAndReminder" name="Send &amp; Remind">
+      <bpmn:incoming>SequenceFlow_YesSendRequestAndReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendPaymentRequest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MakeReminder</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Send Payment Request -->
+    <bpmn:endEvent id="EndEvent_PaymentReceived" name="Booking Made - Case Closed">
+      <bpmn:incoming>SequenceFlow_CaseClosedAfterPayment</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Make Reminder -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send Request for Payment to Insurant">
+      <bpmn:incoming>SequenceFlow_SendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RequestSentToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Make Reminder -->
+    <bpmn:task id="Task_MakeReminder" name="Make Reminder">
+      <bpmn:incoming>SequenceFlow_MakeReminder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReminderMadeToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows for Parallel Activities -->
+    <bpmn:sequenceFlow id="SequenceFlow_YesSendRequestAndReminder" name="Yes - Possible" sourceRef="Gateway_PossibilityExists" targetRef="Parallel_SendAndReminder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_SendPaymentRequest" sourceRef="Parallel_SendAndReminder" targetRef="Task_SendPaymentRequest"/>
+    <bpmn:sequenceFlow id="SequenceFlow_MakeReminder" sourceRef="Parallel_SendAndReminder" targetRef="Task_MakeReminder"/>
+
+    <!-- Merge Gateway after parallel activities -->
+    <bpmn:endEvent id="EndEvent_ForwardToCollectionRight" name="Forward to Collection Agency (insurant right)"/>
+    
+    <bpmn:parallelGateway id="Merge_RequestAndReminder">
+      <bpmn:incoming>SequenceFlow_RequestSentToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_ReminderMadeToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForPaymentOrDisagreement</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows to Merge -->
+    <bpmn:sequenceFlow id="SequenceFlow_RequestSentToMerge" sourceRef="Task_SendPaymentRequest" targetRef="Merge_RequestAndReminder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_ReminderMadeToMerge" sourceRef="Task_MakeReminder" targetRef="Lane_Clerk"/>
+
+    <!-- Gateway: Payment Received or Deadline Reached -->
+    <bpmn:endEvent id="EndEvent_ForwardToCollectionWrong" name="Forward to Collection Agency (deadline reached)"/>
+    
+    <bpmn:exclusiveGateway id="Gateway_PaymentReceivedOrDeadlineReached">
+      <bpmn:incoming>SequenceFlow_WaitForPaymentOrDisagreement</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MoneyReceived</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow for Money Received -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForPaymentOrDisagreement" sourceRef="Merge_RequestAndReminder" targetRef="Gateway_PaymentReceivedOrDeadlineReached"/>
+    
+    <bpmn:task id="Task_BookingMade" name="Make Booking">
+      <bpmn:incoming>SequenceFlow_MoneyReceived</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CaseClosedAfterPayment</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow to End Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_MoneyReceived" sourceRef="Gateway_PaymentReceivedOrDeadlineReached" targetRef="Task_BookingMade"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

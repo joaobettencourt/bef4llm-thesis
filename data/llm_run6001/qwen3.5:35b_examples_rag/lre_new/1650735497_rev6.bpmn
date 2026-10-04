@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_BankAccountVerification">
+    <bpmn:participant id="Participant_Client" name="PayPal Client" processRef="Process_ClientActions" />
+    <bpmn:participant id="Participant_System" name="PayPal System" processRef="Process_SystemActions" />
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="MessageFlow_1">
+      <bpmn:sourceRef>IntermediateClientSubmit</bpmn:sourceRef>
+      <bpmn:targetRef>StartEvent_ReceiveDetails</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_2">
+      <bpmn:sourceRef>Task_SystemMakeDeposits</bpmn:sourceRef>
+      <bpmn:targetRef>IntermediateClientCheckBankAccount</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_3">
+      <bpmn:sourceRef>Task_ClientEnterDeposits</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_ValidateDeposits</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_4">
+      <bpmn:sourceRef>IntermediateSystemSendConfirmation</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ClientReceiveResult</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+    <bpmn:messageFlow id="MessageFlow_5">
+      <bpmn:sourceRef>IntermediateSystemSendRejection</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ClientReceiveResult</bpmn:targetRef>
+    </bpmn:messageFlow>
+
+  </bpmn:collaboration>
+
+  <!-- Global Message Definitions -->
+  <bpmn:message id="Message_BankDetails" name="Bank Details Submission" />
+  <bpmn:message id="Message_DepositInfo" name="Deposit Information Notification" />
+  <bpmn:message id="Message_VerificationRequest" name="Verification Request with Deposit Amounts" />
+  <bpmn:message id="Message_ConfirmationResult" name="Account Confirmation Result" />
+
+  <!-- PayPal Client Process -->
+  <bpmn:process id="Process_ClientActions">
+    <bpmn:startEvent id="StartEvent_AddBankAccount" name="Add Bank Account to PayPal">
+      <bpmn:outgoing>SequenceFlow_EnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Client enters bank details -->
+    <bpmn:userTask id="Task_ClientEnterDetails" name="Enter bank account details (first name, bank name, account type, BSB, account number)">
+      <bpmn:incoming>SequenceFlow_EnterDetails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SubmitToSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Client submits details -->
+    <bpmn:intermediateThrowEvent id="IntermediateClientSubmit" name="Click Continue">
+      <bpmn:incoming>SequenceFlow_SubmitToSystem</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_BankDetails" />
+      <bpmn:outgoing>SequenceFlow_ClientWaitForNotification</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Client waits for notification -->
+    <bpmn:userTask id="Task_ClientCheckBankAccount" name="Log into PayPal and check bank account for received deposits">
+      <bpmn:incoming>SequenceFlow_ClientWaitForNotification</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EnterDepositAmounts</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Client enters deposit amounts -->
+    <bpmn:userTask id="Task_ClientEnterDeposits" name="Enter the two deposit amounts and click Verify">
+      <bpmn:incoming>SequenceFlow_EnterDepositAmounts</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_VerificationRequest" />
+      <bpmn:outgoing>SequenceFlow_SendVerificationToSystem</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Client waits for verification result -->
+    <bpmn:endEvent id="EndEvent_AccountConfirmed" name="Bank Account Confirmed">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_ClientReceiveConfirmation</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Client receives confirmation -->
+    <bpmn:userTask id="Task_ClientReceiveRejection" name="View verification result (Rejected)">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_ClientReceiveRejection</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- End events for client -->
+    <bpmn:endEvent id="EndEvent_AccountRejected" name="Account Verification Failed">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_ClientReceiveRejection</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterDetails" sourceRef="StartEvent_AddBankAccount" targetRef="Task_ClientEnterDetails">
+      <bpmn:description>Client initiates bank account addition process</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitToSystem" sourceRef="Task_ClientEnterDetails" targetRef="IntermediateClientSubmit">
+      <bpmn:description>Submit all entered details to PayPal system</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ClientWaitForNotification" sourceRef="IntermediateClientSubmit" targetRef="Task_ClientCheckBankAccount">
+      <bpmn:description>After 3-5 working days, client receives notification</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Client checks bank account for deposits -->
+    <bpmn:intermediateCatchEvent id="IntermediateClientCheckBankAccount" name="Receive Deposit Notification">
+      <bpmn:messageEventDefinition messageRef="Message_DepositInfo" />
+      <bpmn:outgoing>SequenceFlow_ClientWaitForNotification</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterDepositAmounts" sourceRef="Task_ClientCheckBankAccount" targetRef="Task_ClientEnterDeposits">
+      <bpmn:description>Navigate to verification page and enter amounts</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Message flow for deposits -->
+    <bpmn:message id="Message_DepositInfo" name="Deposit Information Notification" />
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendVerificationToSystem" sourceRef="Task_ClientEnterDeposits" targetRef="EndEvent_AccountConfirmed">
+      <bpmn:description>Submit entered deposit values for verification</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- PayPal System Process -->
+  <bpmn:process id="Process_SystemActions">
+    <bpmn:startEvent id="StartEvent_ReceiveDetails" name="Bank Details Received">
+      <bpmn:messageEventDefinition messageRef="Message_BankDetails" />
+      <bpmn:outgoing>SequenceFlow_StartDeposits</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- System makes two random deposits -->
+    <bpmn:userTask id="Task_SystemMakeDeposits" name="Generate and make two random deposit amounts">
+      <bpmn:incoming>SequenceFlow_StartDeposits</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_DepositInfo" />
+      <bpmn:outgoing>SequenceFlow_SendDepositInfoToClient</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- System sends notification to client -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendNotification" name="Notify Client (3-5 working days)">
+      <bpmn:messageEventDefinition messageRef="Message_DepositInfo" />
+      <bpmn:incoming>SequenceFlow_SendDepositInfoToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- System waits for verification request -->
+    <bpmn:userTask id="Task_SystemReceiveVerificationRequest" name="Receive deposit amount values from client">
+      <bpmn:messageEventDefinition messageRef="Message_VerificationRequest" />
+      <bpmn:incoming>SequenceFlow_WaitForVerificationRequest</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- System validates deposit amounts -->
+    <bpmn:exclusiveGateway id="Gateway_ValidateDeposits" name="Do values match?">
+      <bpmn:messageEventDefinition messageRef="Message_VerificationRequest" />
+      <bpmn:incoming>SequenceFlow_StartValidation</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MatchFound</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoMatch</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- System confirms account -->
+    <bpmn:userTask id="Task_SystemConfirmAccount" name="Link bank account to PayPal (Confirmed)">
+      <bpmn:incoming>SequenceFlow_MatchFound</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+    </bpmn:userTask>
+
+    <!-- System rejects account -->
+    <bpmn:userTask id="Task_SystemRejectAccount" name="Remove bank account from PayPal (Not Confirmed)">
+      <bpmn:incoming>SequenceFlow_NoMatch</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+    </bpmn:userTask>
+
+    <!-- System sends confirmation to client -->
+    <bpmn:endEvent id="EndEvent_ProcessConfirmed" name="Account Successfully Verified">
+      <bpmn:incoming>SequenceFlow_SystemEndConfirmed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End events for system -->
+    <bpmn:endEvent id="EndEvent_ProcessRejected" name="Verification Failed - Account Removed">
+      <bpmn:incoming>SequenceFlow_SystemEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartDeposits" sourceRef="StartEvent_ReceiveDetails" targetRef="Task_SystemMakeDeposits">
+      <bpmn:description>Initiate deposit process upon receiving bank details</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendConfirmation" name="Notify Client of Confirmation">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_SendConfirmationToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- System sends rejection to client -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendRejection" name="Notify Client of Rejection">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_SendRejectionToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForVerificationRequest" sourceRef="IntermediateSystemSendNotification" targetRef="Task_SystemReceiveVerificationRequest">
+      <bpmn:description>Await client to check bank and submit deposit amounts</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartValidation" sourceRef="Task_SystemReceiveVerificationRequest" targetRef="Gateway_ValidateDeposits">
+      <bpmn:description>Begin validation of submitted deposit amounts</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Validation results -->
+    <bpmn:sequenceFlow id="SequenceFlow_MatchFound" name="Yes - Values Match" sourceRef="Gateway_ValidateDeposits" targetRef="Task_SystemConfirmAccount">
+      <bpmn:description>Client-entered values match system records</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence flows after waiting period -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendConfirmation" name="Notify Client of Confirmation">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_SendConfirmationToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- System sends rejection to client -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoMatch" name="No - Values Do Not Match" sourceRef="Gateway_ValidateDeposits" targetRef="Task_SystemRejectAccount">
+      <bpmn:description>Client-entered values do not match system records</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final notification flows -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendConfirmation" name="Notify Client of Confirmation">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_SendConfirmationToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- System sends rejection to client -->
+    <bpmn:sequenceFlow id="SequenceFlow_SystemEndConfirmed" sourceRef="IntermediateSystemSendConfirmation" targetRef="EndEvent_ProcessConfirmed">
+      <bpmn:description>Sends confirmation message to client</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Final sequence flows -->
+    <bpmn:intermediateThrowEvent id="IntermediateSystemSendRejection" name="Notify Client of Rejection">
+      <bpmn:messageEventDefinition messageRef="Message_ConfirmationResult" />
+      <bpmn:incoming>SequenceFlow_SendRejectionToClient</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+
+    <!-- Final sequence flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SystemEndRejected" sourceRef="IntermediateSystemSendRejection" targetRef="EndEvent_ProcessRejected">
+      <bpmn:description>Sends rejection message to client</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+</bpmn:definitions>

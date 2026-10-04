@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1kp8vzq7xw3f2r5y4h6t9u1l">
+    <bpmn:participant id="Participant_AccountDefaulters" name="Account Defaulters Process" processRef="Process_AccountDef"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AccountDef" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_WeekdayMorning" name="Weekday Morning">
+      <bpmn:outgoing>Seq_BackupDB</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="Timer_Start"/>
+    </bpmn:startEvent>
+
+    <!-- Task -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>Seq_BackupDB</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckDefaultersTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Check Defaulters Table -->
+    <bpmn:exclusiveGateway id="GW_NewRecords" name="New Records in Account Defaulters?">
+      <bpmn:incoming>Seq_CheckDefaultersTable</bpmn:incoming>
+      <bpmn:outgoing>Seq_YesRegister</bpmn:outgoing>
+      <bpmn:outgoing>Seq_NoCheckCRM1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path Yes - Register Accounts -->
+    <bpmn:userTask id="Task_RegisterAccounts" name="Register Defaulting Accounts &amp; Customers">
+      <bpmn:incoming>Seq_YesRegister</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckCodesAdvised</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway - Check Codes Advised -->
+    <bpmn:exclusiveGateway id="GW_CodesPreviouslyAdvised" name="Client Codes Previously Advised?">
+      <bpmn:incoming>Seq_CheckCodesAdvised</bpmn:incoming>
+      <bpmn:outgoing>Seq_ProduceTable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task - Produce Table -->
+    <bpmn:userTask id="Task_ProduceTable" name="Produce Defaulting Accounts Table">
+      <bpmn:incoming>Seq_ProduceTable</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendManagement</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Path No - Check CRM -->
+    <bpmn:task id="Task_CheckCRM1" name="Check CRM System for New Returns">
+      <bpmn:incoming>Seq_NoCheckCRM1</bpmn:incoming>
+      <bpmn:outgoing>Seq_NewReturns?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway - Check New Returns -->
+    <bpmn:exclusiveGateway id="GW_ReturnsExist" name="New Returns Filed?">
+      <bpmn:incoming>Seq_NewReturns?</bpmn:incoming>
+      <bpmn:outgoing>Seq_RegisterMerge</bpmn:outgoing>
+      <bpmn:outgoing>Seq_MorningComplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_BackupDB" sourceRef="Start_WeekdayMorning" targetRef="Task_BackupDatabase">
+      <bpmn:name>Morning Start</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_CheckDefaultersTable" sourceRef="Task_BackupDatabase" targetRef="GW_NewRecords"/>
+
+    <bpmn:sequenceFlow id="Seq_YesRegister" sourceRef="GW_NewRecords" targetRef="Task_RegisterAccounts">
+      <bpmn:name>Yes - New Records</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_NoCheckCRM1" sourceRef="GW_NewRecords" targetRef="Task_CheckCRM1">
+      <bpmn:name>No - Check CRM</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_CheckCodesAdvised" sourceRef="Task_RegisterAccounts" targetRef="GW_CodesPreviouslyAdvised"/>
+
+    <bpmn:sequenceFlow id="Seq_ProduceTable" sourceRef="GW_CodesPreviouslyAdvised" targetRef="Task_ProduceTable">
+      <bpmn:name>No - Not Previously Advised</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_SendManagement" sourceRef="Task_ProduceTable" targetRef="GW_MorningComplete"/>
+
+    <bpmn:sequenceFlow id="Seq_NewReturns?" sourceRef="Task_CheckCRM1" targetRef="GW_ReturnsExist">
+      <bpmn:name>Check Results</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_RegisterMerge" sourceRef="GW_ReturnsExist" targetRef="Task_RegisterAccounts">
+      <bpmn:name>New Returns Exist - Register</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_MorningComplete" sourceRef="GW_ReturnsExist" targetRef="GW_MorningComplete"/>
+
+    <!-- Gateway Morning Complete -->
+    <bpmn:exclusiveGateway id="GW_MorningComplete">
+      <bpmn:incoming>Seq_SendManagement</bpmn:incoming>
+      <bpmn:outgoing>Seq_TimeCheck230PM</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Time Check 2:30 PM -->
+    <bpmn:intermediateCatchEvent id="Timer_230PM" name="Deadline 2:30 pm">
+      <bpmn:incoming>Seq_TimeCheck230PM</bpmn:incoming>
+      <bpmn:outgoing>Seq_AlertSupervisor1</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_230PM"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Alert Task 1 -->
+    <bpmn:userTask id="Task_AlertSupervisor1" name="Alert Supervisor (Missed 2:30 PM)">
+      <bpmn:incoming>Seq_AlertSupervisor1</bpmn:incoming>
+      <bpmn:outgoing>Seq_AfternoonCheckStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Afternoon Check -->
+    <bpmn:userTask id="Task_CheckCRM2" name="Check CRM for New Returns (After Report)">
+      <bpmn:incoming>Seq_AfternoonCheckStart</bpmn:incoming>
+      <bpmn:outgoing>Seq_ReconcileDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway Reconcile Decision -->
+    <bpmn:exclusiveGateway id="GW_Reconcile" name="New Returns Filed?">
+      <bpmn:incoming>Seq_ReconcileDecision</bpmn:incoming>
+      <bpmn:outgoing>Seq_DoReconcile</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task Reconcile -->
+    <bpmn:userTask id="Task_Reconcile" name="Reconcile with Account Defaulters Table">
+      <bpmn:incoming>Seq_DoReconcile</bpmn:incoming>
+      <bpmn:outgoing>Seq_TimeCheck400PM</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Time Check 4:00 PM -->
+    <bpmn:intermediateCatchEvent id="Timer_400PM" name="Deadline 4:00 pm">
+      <bpmn:incoming>Seq_TimeCheck400PM</bpmn:incoming>
+      <bpmn:outgoing>Seq_AlertSupervisor2</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_400PM"/>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Alert Task 2 -->
+    <bpmn:userTask id="Task_AlertSupervisor2" name="Alert Supervisor (Missed 4:00 PM)">
+      <bpmn:incoming>Seq_AlertSupervisor2</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Completed" name="Process Complete">
+      <bpmn:incoming>Seq_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Remaining Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_TimeCheck230PM" sourceRef="GW_MorningComplete" targetRef="Timer_230PM">
+      <bpmn:name>All Morning Tasks Done</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_AlertSupervisor1" sourceRef="Timer_230PM" targetRef="Task_AlertSupervisor1">
+      <bpmn:name>If Not Completed by 2:30 PM</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_AfternoonCheckStart" sourceRef="Task_AlertSupervisor1" targetRef="Task_CheckCRM2">
+      <bpmn:name>Proceed to Afternoon Check</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ReconcileDecision" sourceRef="Task_CheckCRM2" targetRef="GW_Reconcile"/>
+
+    <bpmn:sequenceFlow id="Seq_DoReconcile" sourceRef="GW_Reconcile" targetRef="Task_Reconcile">
+      <bpmn:name>New Returns Exist</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_TimeCheck400PM" sourceRef="Task_Reconcile" targetRef="Timer_400PM"/>
+
+    <bpmn:sequenceFlow id="Seq_AlertSupervisor2" sourceRef="Timer_400PM" targetRef="Task_AlertSupervisor2">
+      <bpmn:name>If Not Completed by 4:00 PM</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_EndProcess" sourceRef="Task_AlertSupervisor2" targetRef="End_Completed"/>
+
+  </bpmn:process>
+</bpmn:definitions>

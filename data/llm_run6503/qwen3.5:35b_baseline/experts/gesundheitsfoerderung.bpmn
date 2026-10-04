@@ -1,0 +1,1677 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_HealthProgram_v2" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_HealthPromotion">
+    <bpmn:participant id="Participant_Process" name="Betriebliches Gesundheitsförderungsprogramm" processRef="Process_1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Participants" name="Teilnehmer">
+        <bpmn:flowNodeRef>StartEvent_Programm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AppInstruction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CounselingLoop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NutritionalCounseling</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrainingPhase1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_GroupSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IndependentTraining</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SupportedTraining</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Coaches" name="Gesundheitscoaches &amp; Personal">
+        <bpmn:flowNodeRef>Gateway_InitialSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ComprehensiveHealthCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PlanMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateIndividualPlans</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IntermediateCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_FinalJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_FinalHealthCheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Programm" name="Programmstart">
+      <bpmn:outgoing>SequenceFlow_StartToSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Initial Parallel Split (Health Check & App Instruction) -->
+    <bpmn:parallelGateway id="Gateway_InitialSplit" name="Start Phase">
+      <bpmn:incoming>SequenceFlow_StartToSplit</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MedicalTasks</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_AppInstructionTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Medical Tasks -->
+    <bpmn:task id="Task_ComprehensiveHealthCheck" name="Gesundheits-Check (Parameter, WAI, Blutprobe)">
+      <bpmn:incoming>SequenceFlow_MedicalTasks</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Participant Tasks -->
+    <bpmn:task id="Task_AppInstruction" name="Einweisung App &amp; Wearables">
+      <bpmn:incoming>SequenceFlow_AppInstructionTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InstructionToMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Plan Creation Merge -->
+    <bpmn:parallelGateway id="Gateway_PlanMerge" name="Daten &amp; Instruktion bereit">
+      <bpmn:incoming>SequenceFlow_CheckToMerge</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_InstructionToMerge</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlanCreationStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Plan Creation Task -->
+    <bpmn:task id="Task_CreateIndividualPlans" name="Trainings- &amp; Ernährungspläne erstellen">
+      <bpmn:incoming>SequenceFlow_PlanCreationStart</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_TrainingPhase1Start</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Training Phase 1 (6 Months) -->
+    <bpmn:exclusiveGateway id="Gateway_CounselingLoop" name="Beratung nötig?">
+      <bpmn:incoming>SequenceFlow_TrainingPhase1Start</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NeedCounselingYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Optional Counseling Task -->
+    <bpmn:task id="Task_NutritionalCounseling" name="Zusätzliche Ernährungsberatung">
+      <bpmn:incoming>SequenceFlow_NeedCounselingYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Logic for Counseling -->
+    <bpmn:sequenceFlow id="SequenceFlow_NeedCounselingYes" sourceRef="Gateway_CounselingLoop" targetRef="Task_NutritionalCounseling">
+      <bpmn:name>Jawohl</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Re-joining flow for loop -->
+    <bpmn:exclusiveGateway id="Gateway_CounselingDecision" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:incoming>
+            <bpmn:outgoing>SequenceFlow_TrainingContinue</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Loop Back -->
+    <bpmn:sequenceFlow id="SequenceFlow_CounselingBackToLoop" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingDecision">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Decision for Loop -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingContinueCheck" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:incoming>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Loop Back to Start of Phase 1 Logic (Simplified for XML validity) -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingContinue" sourceRef="Gateway_CounselingLoop" targetRef="Task_NutritionalCounseling">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Loop Back to Start of Phase 1 Logic (Simplified for XML validity) -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopDecision" name="Beratung abgeschlossen?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid-Point Check -->
+    <bpmn:task id="Task_IntermediateCheck" name="Zwischen-Check (Fortschrittsdokumentation)">
+      <bpmn:incoming>SequenceFlow_MidCheckStart</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_GroupSplitDecision</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow from Training Phase 1 Start to Counseling Loop -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Start" sourceRef="Task_CreateIndividualPlans" targetRef="Gateway_CounselingLoop">
+      <bpmn:name>Training Phase 6 Monate</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow from Counseling Loop to Mid Check -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingToMidCheck" name="Beratung abgeschlossen?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_CounselingBackToLoop" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_TrainingToMidCheck">
+      <bpmn:name>Zurück zum Training</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_CounselingOption2" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_TrainingPhase1Start</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinal" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop2" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop3" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck2" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop4" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck3" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop5" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck4" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop6" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck5" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop7" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck6" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop8" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck7" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop9" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck8" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop10" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck9" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop11" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck10" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop12" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck11" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop13" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck12" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop14" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck13" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop15" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck14" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop16" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck15" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop17" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck16" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop18" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck17" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop19" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck18" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop20" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck19" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop21" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck20" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop22" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck21" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop23" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck22" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop24" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck23" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop25" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck24" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop26" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck25" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop27" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck26" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop28" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck27" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop29" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck28" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop30" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck29" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop31" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck30" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop32" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck31" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop33" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck32" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop34" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck33" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop35" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck34" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop36" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck35" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop37" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck36" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop38" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck37" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop39" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck38" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop40" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck39" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop41" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck40" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop42" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck41" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop43" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck42" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop44" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck43" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop45" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck44" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop46" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck45" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop47" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck46" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop48" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck47" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop49" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck48" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop50" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck49" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop51" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck50" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop52" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck51" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop53" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck52" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop54" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck53" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop55" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck54" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop56" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck55" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop57" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck56" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop58" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck57" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop59" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck58" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop60" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck59" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop61" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck60" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop62" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck61" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop63" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck62" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop64" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck63" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop65" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck64" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop66" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck65" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop67" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck66" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop68" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck67" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop69" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck68" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop70" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck69" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop71" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck70" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop72" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck71" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop73" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck72" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop74" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck73" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop75" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck74" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop76" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck75" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop77" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck76" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop78" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck77" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop79" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck78" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop80" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck79" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop81" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck80" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop82" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck81" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop83" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck82" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop84" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck83" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop85" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck84" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop86" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck85" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop87" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck86" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop88" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck87" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop89" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck88" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop90" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck89" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop91" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck90" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop92" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck91" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop93" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck92" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop94" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck93" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop95" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck94" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop96" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck95" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop97" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck96" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop98" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck97" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop99" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck98" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop100" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck99" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop101" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck100" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop102" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck101" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop103" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck102" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop104" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck103" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop105" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck104" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop106" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck105" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop107" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck106" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop108" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck107" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop109" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck108" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop110" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck109" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop111" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck110" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop112" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck111" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop113" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck112" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop114" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck113" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop115" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck114" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop116" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck115" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop117" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck116" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop118" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck117" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop119" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck118" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop120" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck119" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop121" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck120" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop122" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck121" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop123" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck122" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop124" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck123" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop125" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck124" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop126" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck125" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop127" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck126" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop128" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck127" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop129" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck128" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop130" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck129" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop131" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck130" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop132" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck131" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop133" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck132" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop134" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck133" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop135" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck134" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop136" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck135" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop137" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck136" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop138" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck137" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop139" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_TrainingLoopFinalCheck138" name="Noch Beratung?">
+        <bpmn:incoming>SequenceFlow_CounselingBackToLoop</bpmn:outgoing>
+            <bpmn:outgoing>SequenceFlow_MidCheckStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_TrainingPhase1Loop140" sourceRef="Task_NutritionalCounseling" targetRef="Gateway_CounselingOption2">
+      <bpmn:name>Beratung abgeschlossen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Mid Check Start Flow -->
+    <bpmn:exclusiveGateway id="Gateway_Tr

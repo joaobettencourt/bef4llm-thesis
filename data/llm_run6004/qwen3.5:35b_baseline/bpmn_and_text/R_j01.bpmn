@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_OEE_Monitoring" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_0OEEProcess">
+    <bpmn:participant id="Participant_System" name="OEE Monitoring System" processRef="Process_OEEMonitoring"/>
+  </bpmn:collaboration>
+
+  <bpmn:message id="Message_RestartSignal" />
+
+  <bpmn:process id="Process_OEEMonitoring" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_Connected" name="Machine Connected">
+      <bpmn:outgoing>Seq_CollectData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Collect Data -->
+    <bpmn:task id="Task_CollectData" name="Collect Machine Information">
+      <bpmn:incoming>Seq_ContinueLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_CalcOEE</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Calculate OEE -->
+    <bpmn:task id="Task_CalcOEE" name="Calculate Overall Equipment Efficiency">
+      <bpmn:incoming>Seq_CalcOEE</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckStatus</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Disconnection -->
+    <bpmn:exclusiveGateway id="Gateway_ConnectionCheck">
+      <bpmn:incoming>Seq_CalcOEE</bpmn:incoming>
+      <bpmn:outgoing>Seq_EndProcess</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CheckThreshold</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 1 -->
+    <bpmn:endEvent id="End_Disconnected" name="Machine Disconnected">
+      <bpmn:incoming>Seq_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway 2: Check OEE Threshold -->
+    <bpmn:exclusiveGateway id="Gateway_OEELowThreshold">
+      <bpmn:incoming>Seq_CheckStatus</bpmn:incoming>
+      <bpmn:outgoing>Seq_StopMachineAction</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ContinueLoop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 3: Stop Machine -->
+    <bpmn:task id="Task_StopMachine" name="Stop Machine">
+      <bpmn:incoming>Seq_CalcOEE</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendEmailAction</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Send Email -->
+    <bpmn:task id="Task_SendEmail" name="Send Email to Engineer">
+      <bpmn:incoming>Seq_StopMachineAction</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitRestartSignal</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Catch Event: Wait for Restart -->
+    <bpmn:intermediateCatchEvent id="Intermediate_Restart" name="Receive Restart Signal">
+      <bpmn:messageEventDefinition ref="Message_RestartSignal"/>
+      <bpmn:incoming>Seq_WaitRestartSignal</bpmn:incoming>
+      <bpmn:outgoing>Seq_ContinueLoop</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows -->
+  <bpmn:sequenceFlow id="Seq_CollectData" sourceRef="Start_Connected" targetRef="Task_CollectData"/>
+
+  <bpmn:sequenceFlow id="Seq_CalcOEE" name="" sourceRef="Task_CollectData" targetRef="Task_CalcOEE"/>
+  
+  <!-- Correcting Gateway Incoming/Outgoing references -->
+  <bpmn:sequenceFlow id="Seq_CheckStatus" name="" sourceRef="Task_CalcOEE" targetRef="Gateway_ConnectionCheck"/>
+
+  <bpmn:sequenceFlow id="Seq_EndProcess" name="Disconnected" sourceRef="Gateway_ConnectionCheck" targetRef="End_Disconnected">
+    <bpmn:name>Is Disconnected</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="Seq_CheckThreshold" name="" sourceRef="Gateway_ConnectionCheck" targetRef="Gateway_OEELowThreshold"/>
+
+  <!-- Correcting Gateway Incoming/Outgoing references -->
+  <bpmn:sequenceFlow id="Seq_StopMachineAction" name="OEE Low" sourceRef="Gateway_OEELowThreshold" targetRef="Task_StopMachine">
+    <bpmn:name>Below Threshold</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="Seq_ContinueLoop" name="" sourceRef="Gateway_OEELowThreshold" targetRef="Task_CollectData"/>
+
+  <!-- Correcting Task Incoming/Outgoing references -->
+  <bpmn:sequenceFlow id="Seq_SendEmailAction" name="" sourceRef="Task_StopMachine" targetRef="Task_SendEmail">
+    <bpmn:name>Stop Machine</bpmn:name>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="Seq_WaitRestartSignal" name="" sourceRef="Task_SendEmail" targetRef="Intermediate_Restart"/>
+
+</bpmn:definitions>

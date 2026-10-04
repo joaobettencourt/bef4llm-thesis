@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1x9k3mz">
+  <bpmn:collaboration id="Collaboration_AccountCreation">
+    <bpmn:participant id="Participant_Customer" name="Bank Customer" processRef="Process_Customer"/>
+    <bpmn:participant id="Participant_PostOfficer" name="Post Officer" processRef="Process_PostOfficer"/>
+    <bpmn:participant id="Participant_BankOfficer" name="Bank Officer" processRef="Process_BankOfficer"/>
+
+    <!-- Message flows between participants -->
+    <bpmn:messageFlow id="MessageFlow_CustomerToPost" sourceRef="Task_CustomerPrintPDF" targetRef="StartEvent_PostRequestReceived"/>
+    <bpmn:messageFlow id="MessageFlow_PostToBank" sourceRef="Task_PostMailRequest" targetRef="IntermediateCatch_BankReceivesRequest"/>
+    <bpmn:messageFlow id="MessageFlow_BankCustomerAccept" sourceRef="Task_MailAccountDocuments" targetRef="IntermediateCatch_CustomerReceiveDocs"/>
+    <bpmn:messageFlow id="MessageFlow_BankCustomerReject" sourceRef="Task_MailRefusalLetter" targetRef="IntermediateCatch_CustomerReceiveRefusal"/>
+
+  </bpmn:collaboration>
+
+  <!-- Bank Customer Process -->
+  <bpmn:process id="Process_Customer">
+    <bpmn:startEvent id="StartEvent_AccountRequest">
+      <bpmn:name>Account Request</bpmn:name>
+      <bpmn:outgoing>SequenceFlow_StartToWebsite</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_CustomerVisitWebsite" name="Visit Bank Website">
+      <bpmn:incoming>SequenceFlow_StartToWebsite</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WebsiteToFillData</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToWebsite" sourceRef="StartEvent_AccountRequest" targetRef="Task_CustomerVisitWebsite"/>
+
+    <bpmn:task id="Task_FillPersonalData" name="Fill in Personal Data">
+      <bpmn:incoming>SequenceFlow_WebsiteToFillData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataToGeneratePDF</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WebsiteToFillData" sourceRef="Task_CustomerVisitWebsite" targetRef="Task_FillPersonalData"/>
+
+    <bpmn:task id="Task_GeneratePDF" name="Generate PDF Document">
+      <bpmn:incoming>SequenceFlow_DataToGeneratePDF</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PDFToPrint</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DataToGeneratePDF" sourceRef="Task_FillPersonalData" targetRef="Task_GeneratePDF"/>
+
+    <bpmn:task id="Task_CustomerPrintPDF" name="Print PDF Document">
+      <bpmn:incoming>SequenceFlow_PDFToPrint</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PrintToPostOffice</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_PDFToPrint" sourceRef="Task_GeneratePDF" targetRef="Task_CustomerPrintPDF"/>
+
+    <!-- Intermediate events for receiving messages from Bank Officer -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_CustomerReceiveDocs">
+      <bpmn:name>Account Documents</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_BankToCustomerAccept</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_CustomerReceiveRefusal">
+      <bpmn:name>Letter of Refusal</bpmn:name>
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_BankToCustomerReject</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+
+  </bpmn:process>
+
+  <!-- Post Officer Process -->
+  <bpmn:process id="Process_PostOfficer">
+    <bpmn:startEvent id="StartEvent_PostRequestReceived" name="Account Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToAuthenticate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_AuthenticateCustomer" name="Check Customer Identity">
+      <bpmn:incoming>SequenceFlow_StartToAuthenticate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AuthToMailRequest</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToAuthenticate" sourceRef="StartEvent_PostRequestReceived" targetRef="Task_AuthenticateCustomer"/>
+
+    <bpmn:task id="Task_PostMailRequest" name="Mail Account Request to Bank">
+      <bpmn:incoming>SequenceFlow_AuthToMailRequest</bpmn:incoming>
+      <bpmn:messageEventDefinition/>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AuthToMailRequest" sourceRef="Task_AuthenticateCustomer" targetRef="Task_PostMailRequest"/>
+
+  </bpmn:process>
+
+  <!-- Bank Officer Process -->
+  <bpmn:process id="Process_BankOfficer">
+    <bpmn:startEvent id="StartEvent_OfficerReceivesRequest" name="Account Request Received">
+      <bpmn:messageEventDefinition/>
+      <bpmn:outgoing>SequenceFlow_StartToCheckData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Intermediate catch event for receiving request from Post Officer -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_BankReceivesRequest">
+      <bpmn:messageEventDefinition/>
+      <bpmn:incoming>SequenceFlow_PostToBank</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:task id="Task_CheckCustomerData" name="Check Customer Data">
+      <bpmn:incoming>SequenceFlow_StartToCheckData</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StartToCheckData" sourceRef="StartEvent_OfficerReceivesRequest" targetRef="Task_CheckCustomerData"/>
+
+    <!-- Decision Gateway for Accept/Reject -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Decision">
+      <bpmn:name>Accept Request?</bpmn:name>
+      <bpmn:incoming>SequenceFlow_DataToGateway</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_GatewayToMailDocs</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GatewayToRefusal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DataToGateway" sourceRef="Task_CheckCustomerData" targetRef="ExclusiveGateway_Decision"/>
+
+    <!-- Accept Path -->
+    <bpmn:task id="Task_MailAccountDocuments" name="Mail Account Documents">
+      <bpmn:name>Mail Account Documents</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GatewayToMailDocs</bpmn:incoming>
+      <bpmn:messageEventDefinition/>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayToMailDocs" sourceRef="ExclusiveGateway_Decision" targetRef="Task_MailAccountDocuments"/>
+
+    <!-- Reject Path -->
+    <bpmn:task id="Task_MailRefusalLetter" name="Mail Letter of Refusal">
+      <bpmn:name>Mail Letter of Refusal</bpmn:name>
+      <bpmn:incoming>SequenceFlow_GatewayToRefusal</bpmn:incoming>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GatewayToRefusal" sourceRef="ExclusiveGateway_Decision" targetRef="Task_MailRefusalLetter"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

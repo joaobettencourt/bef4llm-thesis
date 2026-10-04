@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_CarService_01" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CarService">
+    <bpmn:participant name="Car Service Management System" processRef="Process_CarService_Main"/>
+  </bpmn:collaboration>
+
+  <bpmn:process isExecutable="false" id="Process_CarService_Main">
+    
+    <!-- Lane Configuration -->
+    <bpmn:laneSet>
+      <bpmn:lane name="System/App" id="Lane_System">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckRegistration</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_IsRegistered</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyOwner</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateTimerEvent_30Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckAttendance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IssueFine</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane name="Service Mechanic" id="Lane_Mechanic">
+        <bpmn:flowNodeRef>InclusiveGateway_IsRegistered</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordProblems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_RepairStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendStatusUpdates</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_MergeRepair</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmSuccessPickerl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ScheduleNextService</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Service Due Date Reached">
+      <bpmn:outgoing>SequenceFlow_CheckRegistration</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check Registration -->
+    <bpmn:task id="Task_CheckRegistration" name="Check Car Registration Status">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_IsRegistered</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Is Registered? -->
+    <bpmn:exclusiveGateway id="InclusiveGateway_IsRegistered" name="Car Registered?" gatewayType="Exclusive">
+      <bpmn:incoming>SequenceFlow_CheckRegistration</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyUser</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Notify Owner -->
+    <bpmn:task id="Task_NotifyOwner" name="Notify User via App">
+      <bpmn:incoming>SequenceFlow_NotifyUser</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Wait30Days</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event (Catch) for 30 Days -->
+    <bpmn:intermediateCatchEvent id="IntermediateTimerEvent_30Days" name="Wait 30 Days">
+      <bpmn:incoming>SequenceFlow_Wait30Days</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckAttendanceStatus</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway: Check Attendance Status -->
+    <bpmn:exclusiveGateway id="Gateway_CheckAttendance" name="Service Completed?">
+      <bpmn:incoming>SequenceFlow_CheckAttendanceStatus</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProceedToRepair</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_IssueFinePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Issue Fine -->
+    <bpmn:task id="Task_IssueFine" name="Issue Fine">
+      <bpmn:incoming>SequenceFlow_IssueFinePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FineEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Fine -->
+    <bpmn:endEvent id="EndEvent_1" name="Process Ended (Fine)">
+      <bpmn:incoming>SequenceFlow_FineEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Record Problems -->
+    <bpmn:task id="Task_RecordProblems" name="Enter Car Problems">
+      <bpmn:incoming>SequenceFlow_ProceedToRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_StartParallelRepair</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for Repair & Email -->
+    <bpmn:parallelGateway id="ParallelGateway_RepairStart" name="Wait Time">
+      <bpmn:incoming>SequenceFlow_StartParallelRepair</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendEmails</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task: Send Status Updates -->
+    <bpmn:task id="Task_SendStatusUpdates" name="Send Email Status Updates">
+      <bpmn:incoming>SequenceFlow_SendEmails</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeRepairPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Inclusive Gateway to Merge Repair & Email -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_MergeRepair" name="Merge Paths">
+      <bpmn:incoming>SequenceFlow_MergeRepairPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ProcessPayment</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Task: Process Payment -->
+    <bpmn:task id="Task_ProcessPayment" name="Process App Payment">
+      <bpmn:incoming>SequenceFlow_ProcessPayment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ConfirmSuccess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Confirm Success & Pickerl -->
+    <bpmn:task id="Task_ConfirmSuccessPickerl" name="Confirm Repair & Issue Pickerl">
+      <bpmn:incoming>SequenceFlow_ConfirmSuccess</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ScheduleNextService</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Schedule Next Service -->
+    <bpmn:task id="Task_ScheduleNextService" name="Enter Next Service Time">
+      <bpmn:incoming>SequenceFlow_ScheduleNextService</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Success -->
+    <bpmn:endEvent id="EndEvent_2" name="Process Completed">
+      <bpmn:incoming>SequenceFlow_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRegistration" sourceRef="StartEvent_1" targetRef="Task_CheckRegistration"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_IsRegistered" name="Yes - Registered" sourceRef="InclusiveGateway_IsRegistered" targetRef="Task_NotifyOwner"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_Wait30Days" name="Wait 30 Days" sourceRef="Task_NotifyOwner" targetRef="IntermediateTimerEvent_30Days"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckAttendanceStatus" sourceRef="IntermediateTimerEvent_30Days" targetRef="Gateway_CheckAttendance"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProceedToRepair" name="Service Completed" sourceRef="Gateway_CheckAttendance" targetRef="Task_RecordProblems"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_IssueFinePath" name="Not Attended (Fined)" sourceRef="Gateway_CheckAttendance" targetRef="Task_IssueFine"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FineEnd" sourceRef="Task_IssueFine" targetRef="EndEvent_1"/>
+    
+    <!-- Repair Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_StartParallelRepair" name="Start Service Work" sourceRef="Task_RecordProblems" targetRef="ParallelGateway_RepairStart"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SendEmails" sourceRef="ParallelGateway_RepairStart" targetRef="Task_SendStatusUpdates"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_MergeRepairPath" sourceRef="Task_SendStatusUpdates" targetRef="InclusiveGateway_MergeRepair"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessPayment" name="Pay via App" sourceRef="InclusiveGateway_MergeRepair" targetRef="Task_ProcessPayment"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmSuccess" sourceRef="Task_ProcessPayment" targetRef="Task_ConfirmSuccessPickerl"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ScheduleNextService" name="Schedule Next Service" sourceRef="Task_ConfirmSuccessPickerl" targetRef="Task_ScheduleNextService"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_FinalEnd" sourceRef="Task_ScheduleNextService" targetRef="EndEvent_2"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

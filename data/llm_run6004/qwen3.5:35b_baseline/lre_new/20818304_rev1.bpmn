@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_CreditApprovalProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_CreditCompany">
+    <bpmn:participant id="Pool_CreditCompany" name="Credit Company Process" processRef="Proc_ManageCreditRequests"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_ManageCreditRequests" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_ProcessFlow">
+      <bpmn:lane id="Lane_Operations_1" name="Operations Team">
+        <bpmn:flowNodeRef>StartEvent_CreditRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssessRisk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckHighRisk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MergeApprovalPaths</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SubmitForReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CommitteeDecision</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Customer_2" name="Customer">
+         <!-- Implicit interaction via Email -->
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_CreditRequest" name="Receive Credit Request">
+        <bpmn:outgoing>SF_StartToCollect</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Collect Information -->
+    <bpmn:task id="Task_CollectInfo" name="Collect Customer Info">
+      <bpmn:incoming>SF_StartToCollect</bpmn:incoming>
+        <bpmn:outgoing>SF_ToAmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Check Amount -->
+    <bpmn:exclusiveGateway id="Gw_CheckAmount" name="Is amount &gt; $1M?">
+      <bpmn:incoming>SF_ToAmountCheck</bpmn:incoming>
+        <bpmn:outgoing>SF_AmountYes_ApprovalPath</bpmn:outgoing>
+       <bpmn:outgoing>SF_AmountNo_RiskAssess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Assess Risk (Only if amount <= 1M) -->
+      <bpmn:task id="Task_AssessRisk" name="Assess Credit Risk">
+        <bpmn:incoming>SF_AmountNo_RiskAssess</bpmn:incoming>
+          <bpmn:outgoing>SF_ToHighRiskCheck</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 2: Check Risk Level -->
+     <bpmn:exclusiveGateway id="Gw_CheckHighRisk" name="Is risk High?">
+        <bpmn:incoming>SF_ToHighRiskCheck</bpmn:incoming>
+          <bpmn:outgoing>SF_RiskYes_ApprovalPath</bpmn:outgoing>
+           <bpmn:outgoing>SF_RiskNo_DirectAccept</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+     <!-- Gateway 3: Merge Approval Paths -->
+      <bpmn:inclusiveGateway id="Gw_MergeApprovalPaths" name="Merge Request Logic"> 
+        <bpmn:incoming>SF_AmountYes_ApprovalPath</bpmn:incoming>
+          <bpmn:incoming>SF_RiskYes_ApprovalPath</bpmn:incoming>
+           <bpmn:outgoing>SF_ToSubmitReview</bpmn:outgoing> 
+     </bpmn:inclusiveGateway>
+
+    <!-- Task: Submit for Committee Review -->
+      <bpmn:task id="Task_SubmitForReview" name="Request Approval">
+        <bpmn:incoming>SF_ToSubmitReview</bpmn:incoming>
+          <bpmn:outgoing>SF_GoToDecisionGw</bpmn:outgoing>
+      </bpmn:task>
+
+    <!-- Gateway 4: Committee Decision -->
+     <bpmn:exclusiveGateway id="Gw_CommitteeDecision" name="Committee Result?"> 
+        <bpmn:incoming>SF_GoToDecisionGw</bpmn:incoming>
+          <bpmn:outgoing>SF_DecisionAccept_EmailPath</bpmn:outgoing>
+           <bpmn:outgoing>SF_DecisionReject_Path</bpmn:outgoing> 
+     </bpmn:exclusiveGateway>
+
+    <!-- Task: Send Email (Decision Path) -->
+      <bpmn:task id="Task_SendEmailApproval" name="Send Decision Email">
+        <bpmn:incoming>SF_DecisionAccept_EmailPath</bpmn:incoming> 
+          <bpmn:outgoing>SF_EndApproved</bpmn:outgoing>
+     </bpmn:task>
+
+    <!-- Task: Send Email (Reject Path) -->
+      <bpmn:task id="Task_SendEmailRejected" name="Send Rejection Email">
+        <bpmn:incoming>SF_DecisionReject_Path</bpmn:incoming> 
+          <bpmn:outgoing>SF_EndRejected</bpmn:outgoing>
+     </bpmn:task>
+
+    <!-- Task: Direct Acceptance (Low Risk) -->
+      <bpmn:task id="Task_DirectAccept" name="Directly Accept Credit"> 
+        <bpmn:incoming>SF_RiskNo_DirectAccept</bpmn:incoming> 
+          <bpmn:outgoing>SF_SendEmailDirectPath</bpmn:outgoing>
+     </bpmn:task>
+
+    <!-- Task: Send Email (Direct Path) -->
+      <bpmn:task id="Task_SendEmailDirect" name="Send Acceptance Email"> 
+        <bpmn:incoming>SF_SendEmailDirectPath</bpmn:incoming> 
+          <bpmn:outgoing>SF_EndApproved</bpmn:outgoing>
+     </bpmn:task>
+
+    <!-- End Events -->
+      <bpmn:endEvent id="End_Approved" name="Credit Approved">
+             <bpmn:incoming>SF_EndApproved</bpmn:incoming> 
+        </bpmn:endEvent>
+
+         <bpmn:endEvent id="End_Rejected" name="Request Rejected">
+            <bpmn:incoming>SF_EndRejected</bpmn:incoming> 
+     </bpmn:endEvent>
+
+
+    <!-- Sequence Flows --> 
+
+      <!-- Initial Flow --> 
+     <bpmn:sequenceFlow id="SF_StartToCollect" sourceRef="StartEvent_CreditRequest" targetRef="Task_CollectInfo"/>
+
+       <!-- To Amount Check Gateway -->
+       <bpmn:sequenceFlow id="SF_ToAmountCheck" name="Submit for Review Logic" sourceRef="Task_CollectInfo" targetRef="Gw_CheckAmount">
+        </bpmn:sequenceFlow>
+
+    <!-- Approval Path Flows (Converging) --> 
+      <bpmn:sequenceFlow id="SF_AmountYes_ApprovalPath" name="Amount &gt; 1M$" sourceRef="Gw_CheckAmount" targetRef="Gw_MergeApprovalPaths"/>
+      
+       <bpmn:sequenceFlow id="SF_ToHighRiskCheck" name="Assess Risk Flow" sourceRef="Task_AssessRisk" targetRef="Gw_CheckHighRisk">
+        </bpmn:sequenceFlow>
+
+      <!-- High Risk Path --> 
+     <bpmn:sequenceFlow id="SF_RiskYes_ApprovalPath" name="Is risk High?" sourceRef="Gw_CheckHighRisk" targetRef="Gw_MergeApprovalPaths"/>
+
+    <!-- Low Risk Direct Acceptance Flow -->
+       <bpmn:sequenceFlow id="SF_RiskNo_DirectAccept" name="Low Risk Accepted" sourceRef="Gw_CheckHighRisk" targetRef="Task_DirectAccept"/>
+
+
+      <!-- Merge to Submit Task --> 
+     <bpmn:sequenceFlow id="SF_ToSubmitReview" name="Merge Approval Paths" sourceRef="Gw_MergeApprovalPaths" targetRef="Task_SubmitForReview">
+        </bpmn:sequenceFlow>
+
+    <!-- To Decision Gateway --> 
+      <bpmn:sequenceFlow id="SF_GoToDecisionGw" name="Await Committee Result" sourceRef="Task_SubmitForReview" targetRef="Gw_CommitteeDecision"/>
+
+
+     <!-- From Decision to Email Tasks -->
+        <bpmn:sequenceFlow id="SF_DecisionAccept_EmailPath" name="Approved by Committee" sourceRef="Gw_CommitteeDecision" targetRef="Task_SendEmailApproval">
+        </bpmn:sequenceFlow>
+
+      <bpmn:sequenceFlow id="SF_DecisionReject_Path" name="Rejected by Committee" sourceRef="Gw_CommitteeDecision" targetRef="Task_SendEmailRejected"/>
+
+
+    <!-- From Direct Accept to Email --> 
+       <bpmn:sequenceFlow id="SF_SendEmailDirectPath" name="Send Notification" sourceRef="Task_DirectAccept" targetRef="Task_SendEmailDirect">
+        </bpmn:sequenceFlow>
+
+      <!-- To End Events --> 
+     <bpmn:sequenceFlow id="SF_EndApproved" sourceRef="Task_SendEmailApproval" targetRef="End_Approved"/>
+       <bpmn:sequenceFlow id="SF_EndRejected" name="Reject Flow" sourceRef="Task_SendEmailRejected" targetRef="End_Rejected"/>
+
+    </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_MeetingProcess">
+    <bpmn:participant id="Participant_OrgUnit" name="Organization Unit" processRef="Proc_InternalWorkflow"/>
+    <bpmn:participant id="Participant_CommitteeMembers" name="Committee Members" processRef="Proc_CommitteeMeeting"/>
+  </bpmn:collaboration>
+
+  <!-- Internal Workflow Process (Coordination & Support) -->
+  <bpmn:process id="Proc_InternalWorkflow">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_CoordUnit" name="Coordination Unit">
+        <bpmn:flowNodeRef>StartEvent_DatesFinalized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QACheckMinutes</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SupportOfficer" name="Support Officer">
+        <bpmn:flowNodeRef>StartEvent_DatesFinalized</bpmn:flowNodeRef> <!-- Shared start trigger -->
+        <bpmn:flowNodeRef>Task_UpdateCalendars</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateFolders</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UploadDocs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_AdviseMembers</bpmn:flowNodeRef> <!-- Intermediate Throw -->
+        <bpmn:flowNodeRef>Task_ProduceMinutes</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_DatesFinalized" name="Dates Finalized">
+      <bpmn:name>Dates Finalized</bpmn:name>
+      <bpmn:outgoing>SeqFlow_StartToCalendars</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_UpdateCalendars" name="Update group calendars">
+      <bpmn:name>Update Group Calendars</bpmn:name>
+      <bpmn:incoming>SeqFlow_StartToCalendars</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_CalendarsToFolders</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CreateFolders" name="Create meeting folders">
+      <bpmn:name>Create Meeting Folders</bpmn:name>
+      <bpmn:incoming>SeqFlow_CalendarsToFolders</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_FoldersToDocs</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_UploadDocs" name="Ensure documents uploaded">
+      <bpmn:name>Upload Documents to System</bpmn:name>
+      <bpmn:incoming>SeqFlow_FoldersToDocs</bpmn:incoming>
+      <bpmn:outgoing>SeqFlow_DocsToAdvise</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Event for 1 week before meeting -->
+    <bpmn:intermediateThrowEvent id="Event_AdviseMembers" name="Advised a week before">
+      <bpmn:name>Advise Members to Read Docs</bpmn:name>
+      <bpmn:incoming>SeqFlow_DocsToAdvise</bpmn:incoming>
+      <bpmn:outgoing>MsgFlow_AdviseMembers</bpmn:outgoing> <!-- Message Flow -->
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:task id="Task_ProduceMinutes" name="Produce minutes">
+      <bpmn:name>Create Minutes with Action Points</bpmn:name>
+      <bpmn:incoming>SeqFlow_MinutesReceived</bpmn:incoming> <!-- Triggered by meeting completion -->
+      <bpmn:outgoing>MsgFlow_SendMinutesToMembers</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_ProcessComplete" name="Records Updated">
+      <bpmn:name>Update Departmental Records</bpmn:name>
+      <bpmn:incoming>SeqFlow_FinalUpdate</bpmn:outgoing> <!-- Typo fix in logic below -->
+    </bpmn:endEvent>
+
+    <!-- QA Check Task (Coordination Unit) -->
+    <bpmn:task id="Task_QACheckMinutes" name="QA check on minutes">
+      <bpmn:name>Perform QA Check</bpmn:name>
+      <bpmn:incoming>SeqFlow_MinutesForQACheck</bpmn:incoming> <!-- From Committee Process via Message -->
+      <bpmn:outgoing>MsgFlow_SendMinutesToMembers</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows (Internal) -->
+    <bpmn:sequenceFlow id="SeqFlow_StartToCalendars" sourceRef="StartEvent_DatesFinalized" targetRef="Task_UpdateCalendars"/>
+    <bpmn:sequenceFlow id="SeqFlow_CalendarsToFolders" sourceRef="Task_UpdateCalendars" targetRef="Task_CreateFolders"/>
+    <bpmn:sequenceFlow id="SeqFlow_FoldersToDocs" sourceRef="Task_CreateFolders" targetRef="Task_UploadDocs"/>
+    <bpmn:sequenceFlow id="SeqFlow_DocsToAdvise" sourceRef="Task_UploadDocs" targetRef="Event_AdviseMembers"/>
+
+  </bpmn:process>
+
+  <!-- Committee Members Process -->
+  <bpmn:process id="Proc_CommitteeMeeting">
+    <bpmn:startEvent id="StartEvent_MeetingReminderReceived" name="Receive Reminder">
+      <bpmn:name>Receive Meeting Advice</bpmn:name>
+      <bpmn:outgoing>SeqFlow_ReminderToMeet</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task -->
+    <bpmn:task id="Task_HoldMeeting" name="Hold meeting">
+      <bpmn:name>Holding Meeting</bpmn:name>
+      <bpmn:incoming>SeqFlow_ReminderToMeet</bpmn:incoming>
+      <bpmn:outgoing>MsgFlow_MinutesReadyForQA</bpmn:outgoing> <!-- Trigger for QA -->
+    </bpmn:task>
+
+    <!-- End Event (Implicitly after meeting, but logic flows back to Org) -->
+    <bpmn:endEvent id="EndEvent_MeetingDone" name="Meeting Completed">
+      <bpmn:name>Meeting Done</bpmn:name>
+      <bpmn:incoming>SeqFlow_FinalizeProcess</bpmn:outgoing> <!-- Logic fix below -->
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Internal) -->
+    <bpmn:sequenceFlow id="SeqFlow_ReminderToMeet" sourceRef="StartEvent_MeetingReminderReceived" targetRef="Task_HoldMeeting"/>
+  </bpmn:process>
+
+  <!-- Message Flows between Participants -->
+  <bpmn:messageFlow id="MsgFlow_AdviseMembers" name="Advise Members">
+    <bpmn:name>Advised a week before</bpmn:name>
+    <bpmn:sourceRef>Event_AdviseMembers</bpmn:sourceRef> <!-- From Org -->
+    <bpmn:targetRef>StartEvent_MeetingReminderReceived</bpmn:targetRef> <!-- To Committee Start -->
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MsgFlow_MinutesReadyForQA" name="Minutes Ready">
+     <bpmn:name>Meeting Completed Notification</bpmn:name>
+    <bpmn:sourceRef>Task_HoldMeeting</bpmn:sourceRef> <!-- From Committee -->
+    <bpmn:targetRef>StartEvent_QATriggerInternal</bpmn:targetRef> 
+  </bpmn:messageFlow>
+
+   <!-- Internal Trigger for QA (Added to Org Process) -->
+   <bpmn:startEvent id="StartEvent_QATriggerInternal" name="QA Check Start">
+      <bpmn:name>Trigger QA</bpmn:name>
+       <bpmn:outgoing>SeqFlow_StartToQACheck</bpmn:outgoing>
+   </bpmn:startEvent>
+
+    <!-- Correcting Sequence Flow for Minutes Production Logic -->
+     <bpmn:sequenceFlow id="MsgFlow_MinutesReadyForQA" sourceRef="Task_HoldMeeting" targetRef="StartEvent_QATriggerInternal"/> 
+     
+  </definitions>

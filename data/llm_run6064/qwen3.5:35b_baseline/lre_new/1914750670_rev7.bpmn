@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_AccountCreation_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_AccountCreation">
+    <bpmn:participant id="Pool_Customer" name="Customer" processRef="Proc_CustomerProcess"/>
+    <bpmn:participant id="Pool_Bank" name="Bank Account Creation Process" processRef="Proc_BankProcess"/>
+    
+    <!-- Message Flow connecting Customer Task to Bank Start Event -->
+    <bpmn:messageFlow id="MessageFlow_SendDocuments" sourceRef="UserTask_PrintSend" targetRef="StartEvent_Receive"/>
+
+  </bpmn:collaboration>
+
+  <!-- Customer Process -->
+  <bpmn:process id="Proc_CustomerProcess">
+    
+    <bpmn:startEvent id="StartCustomer_1" name="Visit Website">
+      <bpmn:outgoing>SF_StartFillData</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="UserTask_FillData" name="Fill Personal Data">
+      <bpmn:incoming>SF_StartFillData</bpmn:incoming>
+        <bpmn:outgoing>SF_GeneratePDF</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:task id="Task_GeneratePDF" name="Generate PDF Document">
+      <bpmn:incoming>SF_GeneratePDF</bpmn:incoming>
+        <bpmn:outgoing>SF_PrintDocument</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:userTask id="UserTask_PrintSend" name="Print and Send via Post Office">
+      <bpmn:incoming>SF_PrintDocument</bpmn:incoming>
+        <!-- No outgoing sequence flow as it goes to another participant -->
+    </bpmn:userTask>
+
+  </bpmn:process>
+
+  <!-- Bank Process with Lanes -->
+  <bpmn:process id="Proc_BankProcess">
+    
+    <bpmn:laneSet id="LaneSet_BankProcess">
+      <bpmn:lane id="Lane_Officer" name="Bank Officer">
+        <bpmn:flowNodeRef>StartEvent_Receive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_CheckData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>XORGateway_Decision</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Admin" name="Administration">
+        <bpmn:flowNodeRef>UserTask_MailDocuments</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SendRejectionLetter</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Receive" name="Receive Account Request">
+        <bpmn:outgoing>SF_StartBankProcess</bpmn:outgoing>
+      </bpmn:startEvent>
+
+    <!-- Task to Check Customer Data -->
+    <bpmn:userTask id="UserTask_CheckData" name="Check Customer Data">
+      <bpmn:incoming>SF_StartBankProcess</bpmn:incoming>
+        <bpmn:outgoing>SF_GoToDecisionGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="XORGateway_Decision" name="Accept Request?">
+      <bpmn:incoming>SF_GoToDecisionGateway</bpmn:incoming>
+        <bpmn:outgoing>SF_AcceptPathFlow</bpmn:outgoing>
+          <bpmn:outgoing>SF_RejectPathFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task for Mailing Documents -->
+    <bpmn:userTask id="UserTask_MailDocuments" name="Mail Account Documents">
+      <bpmn:incoming>SF_AcceptPathFlow</bpmn:incoming>
+        <bpmn:outgoing>SF_EndApprovedEventLink</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task for Mailing Rejection Letter -->
+    <bpmn:userTask id="UserTask_SendRejectionLetter" name="Send Refusal Letter">
+      <bpmn:incoming>SF_RejectPathFlow</bpmn:incoming>
+        <bpmn:outgoing>SF_EndRejectedEventLink</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Approved" name="Account Created">
+      <bpmn:incoming>SF_EndApprovedEventLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Request Rejected">
+      <bpmn:incoming>SF_EndRejectedEventLink</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- Sequence Flows for Customer Process -->
+  <bpmn:sequenceFlow id="SF_StartFillData" name="" sourceRef="StartCustomer_1" targetRef="UserTask_FillData"/>
+  <bpmn:sequenceFlow id="SF_GeneratePDF" name="" sourceRef="UserTask_FillData" targetRef="Task_GeneratePDF"/>
+  <bpmn:sequenceFlow id="SF_PrintDocument" name="" sourceRef="Task_GeneratePDF" targetRef="UserTask_PrintSend"/>
+
+  <!-- Sequence Flows for Bank Process -->
+  <bpmn:sequenceFlow id="SF_StartBankProcess" name="" sourceRef="StartEvent_Receive" targetRef="UserTask_CheckData"/>
+  <bpmn:sequenceFlow id="SF_GoToDecisionGateway" name="" sourceRef="UserTask_CheckData" targetRef="XORGateway_Decision"/>
+
+  <!-- Decision Paths -->
+  <bpmn:sequenceFlow id="SF_AcceptPathFlow" name="Accept" sourceRef="XORGateway_Decision" targetRef="UserTask_MailDocuments">
+    <bpmn:dataAssociation>
+      <bpmn:assignment>
+        <bpmn:value xsi:type="bpmn:tFormalExpression">true</bpmn:value>
+      </bpmn:assignment>
+    </bpmn:dataAssociation>
+  </bpmn:sequenceFlow>
+
+  <bpmn:sequenceFlow id="SF_RejectPathFlow" name="Reject" sourceRef="XORGateway_Decision" targetRef="UserTask_SendRejectionLetter">
+    <bpmn:dataAssociation>
+      <bpmn:assignment>
+        <bpmn:value xsi:type="bpmn:tFormalExpression">false</bpmn:value>
+      </bpmn:assignment>
+    </bpmn:dataAssociation>
+  </bpmn:sequenceFlow>
+
+  <!-- End Event Links -->
+  <bpmn:sequenceFlow id="SF_EndApprovedEventLink" name="" sourceRef="UserTask_MailDocuments" targetRef="EndEvent_Approved"/>
+  <bpmn:sequenceFlow id="SF_EndRejectedEventLink" name="" sourceRef="UserTask_SendRejectionLetter" targetRef="EndEvent_Rejected"/>
+
+</bpmn:definitions>

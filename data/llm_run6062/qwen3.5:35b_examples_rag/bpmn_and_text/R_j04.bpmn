@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_CarService_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="CarServiceProcess" isExecutable="false">
+
+    <!-- Start Event -->
+    <startEvent id="StartEvent_Reminder" name="Service reminder triggered">
+      <outgoing>SequenceFlow_CheckRegistration</outgoing>
+    </startEvent>
+
+    <!-- Service Task: Check Registration -->
+    <serviceTask id="Task_CheckRegistration" name="Check car registration status">
+      <incoming>SequenceFlow_CheckRegistration</incoming>
+      <outgoing>SequenceFlow_RegisteredDecision</outgoing>
+    </serviceTask>
+
+    <!-- Exclusive Gateway: Is Car Registered? -->
+    <exclusiveGateway id="Gateway_RegisteredDecision" gatewayDirection="Diverging">
+      <bpmn:name>Car registered?</bpmn:name>
+      <incoming>SequenceFlow_RegisteredDecision</incoming>
+      <outgoing>SequenceFlow_NotifyUser</outgoing>
+      <outgoing>SequenceFlow_NotRegisteredEnd</outgoing>
+    </exclusiveGateway>
+
+    <!-- User Task: Notify User -->
+    <userTask id="UserTask_NotifyUser" name="Notify user of service requirement">
+      <incoming>SequenceFlow_NotifyUser</incoming>
+      <outgoing>SequenceFlow_ServiceDecisionPoint</outgoing>
+    </userTask>
+
+    <!-- Exclusive Gateway: Did User Go for Service? -->
+    <exclusiveGateway id="Gateway_ServiceDecision" gatewayDirection="Diverging">
+      <bpmn:name>User went to service?</bpmn:name>
+      <incoming>SequenceFlow_ServiceDecisionPoint</incoming>
+      <outgoing>SequenceFlow_GoToServiceFacility</outgoing>
+      <outgoing>SequenceFlow_NoShowFine</outgoing>
+    </exclusiveGateway>
+
+    <!-- Intermediate Catch Event: Wait 30 Days -->
+    <intermediateCatchEvent id="IntermediateCatch_ThirtyDays" name="Wait 30 days">
+      <bpmn:name>Wait 30 days</bpmn:name>
+      <incoming>SequenceFlow_NoShowFine</incoming>
+      <outgoing>SequenceFlow_IssueFine</outgoing>
+    </intermediateCatchEvent>
+
+    <!-- Service Task: Issue Fine -->
+    <serviceTask id="ServiceTask_IssueFine" name="Issue fine to user">
+      <bpmn:name>Issue fine after 30 days</bpmn:name>
+      <incoming>SequenceFlow_IssueFine</incoming>
+      <outgoing>SequenceFlow_FineIssuedEnd</outgoing>
+    </serviceTask>
+
+    <!-- End Event: Fine Issued -->
+    <endEvent id="EndEvent_FineIssued" name="Process complete - Fine issued">
+      <bpmn:name>Fine issued</bpmn:name>
+      <incoming>SequenceFlow_FineIssuedEnd</incoming>
+    </endEvent>
+
+    <!-- User Task: Enter Problems -->
+    <userTask id="UserTask_EnterProblems" name="Enter car problems">
+      <incoming>SequenceFlow_GoToServiceFacility</incoming>
+      <outgoing>SequenceFlow_StartWaitingPeriod</outgoing>
+    </userTask>
+
+    <!-- Intermediate Catch Event: Waiting Period -->
+    <intermediateCatchEvent id="IntermediateCatch_WaitingPeriod" name="Wait for repair completion">
+      <bpmn:name>Status updates via email during waiting period</bpmn:name>
+      <incoming>SequenceFlow_StartWaitingPeriod</incoming>
+      <outgoing>SequenceFlow_RepairCompleteNotification</outgoing>
+    </intermediateCatchEvent>
+
+    <!-- User Task: Complete Repair -->
+    <userTask id="UserTask_CompleteRepair" name="Mark repair successful">
+      <bpmn:name>Enter problems, mark success and issue Pickerl</bpmn:name>
+      <incoming>SequenceFlow_RepairCompleteNotification</incoming>
+      <outgoing>SequenceFlow_PaymentRequired</outgoing>
+    </userTask>
+
+    <!-- Service Task: Pay via App -->
+    <serviceTask id="UserTask_PayViaApp" name="Pay through app">
+      <bpmn:name>Paid successfully?</bpmn:name>
+      <incoming>SequenceFlow_PaymentRequired</incoming>
+      <outgoing>SequenceFlow_NextServiceScheduled</outgoing>
+    </serviceTask>
+
+    <!-- User Task: Schedule Next Service -->
+    <userTask id="UserTask_ScheduleNext" name="Enter next service time">
+      <bpmn:name>Schedule next service date</bpmn:name>
+      <incoming>SequenceFlow_NextServiceScheduled</incoming>
+      <outgoing>SequenceFlow_ProcessCompleteFinal</outgoing>
+    </userTask>
+
+    <!-- End Event: Process Complete -->
+    <endEvent id="EndEvent_ProcessComplete" name="Process complete - Service done">
+      <bpmn:name>Service completed successfully</bpmn:name>
+      <incoming>SequenceFlow_ProcessCompleteFinal</incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="SequenceFlow_CheckRegistration" sourceRef="StartEvent_Reminder" targetRef="Task_CheckRegistration"/>
+    
+    <sequenceFlow id="SequenceFlow_RegisteredDecision" name="Yes, registered" sourceRef="Gateway_RegisteredDecision" targetRef="UserTask_NotifyUser">
+      <bpmn:name>Car is registered</bpmn:name>
+    </sequenceFlow>
+
+    <sequenceFlow id="SequenceFlow_NotRegisteredEnd" name="No registration found" sourceRef="Gateway_RegisteredDecision" targetRef="ServiceTask_IssueFine"/>
+    
+    <sequenceFlow id="SequenceFlow_NotifyUser" sourceRef="UserTask_NotifyUser" targetRef="Gateway_ServiceDecision">
+      <bpmn:name>Notify user</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Decision: Did User Go for Service? -->
+    <sequenceFlow id="SequenceFlow_GoToServiceFacility" name="Yes, went to service" sourceRef="Gateway_ServiceDecision" targetRef="UserTask_EnterProblems"/>
+    
+    <sequenceFlow id="SequenceFlow_NoShowFine" name="No show after 30 days" sourceRef="Gateway_ServiceDecision" targetRef="IntermediateCatch_ThirtyDays">
+      <bpmn:name>User did not go</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Fine Process -->
+    <sequenceFlow id="SequenceFlow_IssueFine" name="After 30 days" sourceRef="IntermediateCatch_ThirtyDays" targetRef="ServiceTask_IssueFine"/>
+    
+    <sequenceFlow id="SequenceFlow_FineIssuedEnd" sourceRef="ServiceTask_IssueFine" targetRef="EndEvent_FineIssued">
+      <bpmn:name>Issue fine</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Service Facility Process -->
+    <sequenceFlow id="SequenceFlow_StartWaitingPeriod" name="Enter problems and wait" sourceRef="UserTask_EnterProblems" targetRef="IntermediateCatch_WaitingPeriod"/>
+    
+    <sequenceFlow id="SequenceFlow_RepairCompleteNotification" sourceRef="IntermediateCatch_WaitingPeriod" targetRef="UserTask_CompleteRepair">
+      <bpmn:name>Notify user repair complete</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Payment and Next Service -->
+    <sequenceFlow id="SequenceFlow_PaymentRequired" name="Payment required" sourceRef="UserTask_CompleteRepair" targetRef="UserTask_PayViaApp"/>
+    
+    <sequenceFlow id="SequenceFlow_NextServiceScheduled" name="Next service scheduled" sourceRef="UserTask_PayViaApp" targetRef="UserTask_ScheduleNext">
+      <bpmn:name>Payment successful</bpmn:name>
+    </sequenceFlow>
+
+    <!-- Final Completion -->
+    <sequenceFlow id="SequenceFlow_ProcessCompleteFinal" name="Process complete" sourceRef="UserTask_ScheduleNext" targetRef="EndEvent_ProcessComplete"/>
+
+  </process>
+</bpmn:definitions>

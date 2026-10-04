@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_StorageManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_StorageManagement">
+    <bpmn:participant id="Participant_OrderProcessing" name="Order Processing Process" processRef="Process_StorageManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_StorageManagement" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReadOrder" name="Read order from system">
+      <bpmn:outgoing>bpmn_flow_StartToCheckStock</bpmn:flowNodeRef>
+    </bpmn:startEvent>
+
+    <!-- Service Task - Check Stock -->
+    <bpmn:serviceTask id="ServiceTask_CheckStock" name="Check if product is in stock">
+      <bpmn:incoming>bpmn_flow_StartToCheckStock</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_StockDecision</bpmn:flowNodeRef>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway - Stock Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_IsInStock" name="Is in stock?">
+      <bpmn:incoming>bpmn_flow_StockDecision</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_InStockWithdraw</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_NotInStockReorder</bpmn:flowNodeRef>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manual Task - Withdraw Product -->
+    <bpmn:manualTask id="ManualTask_WithdrawProduct" name="Withdraw product from warehouse">
+      <bpmn:incoming>bpmn_flow_InStockWithdraw</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_CheckOrderReady1</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- Service Task - Reorder from Wholesaler -->
+    <bpmn:serviceTask id="ServiceTask_Reorder" name="Reorder product from wholesaler">
+      <bpmn:incoming>bpmn_flow_NotInStockReorder</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_WaitingArrival</bpmn:flowNodeRef>
+    </bpmn:serviceTask>
+
+    <!-- Service Task - Waiting for Arrival -->
+    <bpmn:serviceTask id="ServiceTask_Waiting" name="Wait until product arrives">
+      <bpmn:incoming>bpmn_flow_WaitingArrival</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_DelayDecision</bpmn:flowNodeRef>
+    </bpmn:serviceTask>
+
+    <!-- Exclusive Gateway - Delay Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_DelayCheck" name="Arrived after more than 10 days?">
+      <bpmn:incoming>bpmn_flow_DelayDecision</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_PenaltyDemand</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_SkipPenalty</bpmn:flowNodeRef>
+    </bpmn:exclusiveGateway>
+
+    <!-- Service Task - Demand Penalty -->
+    <bpmn:serviceTask id="ServiceTask_DemandPenalty" name="Demand delivery delay penalty">
+      <bpmn:incoming>bpmn_flow_PenaltyDemand</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_ConvergeToRegister1</bpmn:flowNodeRef>
+    </bpmn:serviceTask>
+
+    <!-- Manual Task - Register in Stock System -->
+    <bpmn:manualTask id="ManualTask_RegisterStock" name="Register product in stock management system">
+      <bpmn:incoming>bpmn_flow_ConvergeToRegister1</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_CheckOrderReady2</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- Manual Task - Check Order Ready -->
+    <bpmn:manualTask id="ManualTask_CheckOrder" name="Check if whole order is ready for shipment">
+      <bpmn:incoming>bpmn_flow_CheckOrderReady1</bpmn:flowNodeRef>
+      <bpmn:incoming>bpmn_flow_CheckOrderReady2</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_OrderDecision</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- Exclusive Gateway - Order Ready Decision -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_OrderReady" name="Order ready for shipment?">
+      <bpmn:incoming>bpmn_flow_OrderDecision</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_YesShipProcess</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_NoNextProduct</bpmn:flowNodeRef>
+    </bpmn:exclusiveGateway>
+
+    <!-- Parallel Gateway - Ship Process -->
+    <bpmn:parallelGateway id="ParallelGateway_ShipStart" name="">
+      <bpmn:incoming>bpmn_flow_YesShipProcess</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_RequestCourier</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_PackProducts</bpmn:flowNodeRef>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task - Request Courier -->
+    <bpmn:manualTask id="ManualTask_RequestCourier" name="Request courier">
+      <bpmn:incoming>bpmn_flow_RequestCourier</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_ConvergeShip1</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- Manual Task - Pack Products -->
+    <bpmn:manualTask id="ManualTask_PackProducts" name="Pack products">
+      <bpmn:incoming>bpmn_flow_PackProducts</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_ConvergeShip2</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- Parallel Gateway - Converge Ship -->
+    <bpmn:parallelGateway id="ParallelGateway_ShipConverge" name="">
+      <bpmn:incoming>bpmn_flow_ConvergeShip1</bpmn:flowNodeRef>
+      <bpmn:incoming>bpmn_flow_ConvergeShip2</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_ShipOrder</bpmn:flowNodeRef>
+    </bpmn:parallelGateway>
+
+    <!-- Manual Task - Ship Order -->
+    <bpmn:manualTask id="ManualTask_Ship" name="Ship the order">
+      <bpmn:incoming>bpmn_flow_ShipOrder</bpmn:flowNodeRef>
+      <bpmn:outgoing>bpmn_flow_EndEvent</bpmn:flowNodeRef>
+    </bpmn:manualTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_OrderShipped" name="Order was shipped">
+      <bpmn:incoming>bpmn_flow_EndEvent</bpmn:flowNodeRef>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="bpmn_flow_StartToCheckStock" sourceRef="StartEvent_ReadOrder" targetRef="ServiceTask_CheckStock"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_StockDecision" sourceRef="ServiceTask_CheckStock" targetRef="ExclusiveGateway_IsInStock"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_InStockWithdraw" name="Yes - In Stock" sourceRef="ExclusiveGateway_IsInStock" targetRef="ManualTask_WithdrawProduct"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_NotInStockReorder" name="No - Not in Stock" sourceRef="ExclusiveGateway_IsInStock" targetRef="ServiceTask_Reorder"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_WaitingArrival" sourceRef="ServiceTask_Reorder" targetRef="ServiceTask_Waiting"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_DelayDecision" sourceRef="ServiceTask_Waiting" targetRef="ExclusiveGateway_DelayCheck"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_PenaltyDemand" name="Yes - More than 10 days" sourceRef="ExclusiveGateway_DelayCheck" targetRef="ServiceTask_DemandPenalty"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_SkipPenalty" name="No - Within 10 days" sourceRef="ExclusiveGateway_DelayCheck" targetRef="ManualTask_RegisterStock"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_ConvergeToRegister1" sourceRef="ServiceTask_DemandPenalty" targetRef="ManualTask_RegisterStock"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_CheckOrderReady1" sourceRef="ManualTask_WithdrawProduct" targetRef="ManualTask_CheckOrder"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_CheckOrderReady2" sourceRef="ManualTask_RegisterStock" targetRef="ManualTask_CheckOrder"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_OrderDecision" sourceRef="ManualTask_CheckOrder" targetRef="ExclusiveGateway_OrderReady"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_YesShipProcess" name="Yes - Ready for Shipment" sourceRef="ExclusiveGateway_OrderReady" targetRef="ParallelGateway_ShipStart"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_NoNextProduct" name="No - Not ready, select next product" sourceRef="ExclusiveGateway_OrderReady" targetRef="ServiceTask_CheckStock"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_RequestCourier" sourceRef="ParallelGateway_ShipStart" targetRef="ManualTask_RequestCourier"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_PackProducts" sourceRef="ParallelGateway_ShipStart" targetRef="ManualTask_PackProducts"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_ConvergeShip1" sourceRef="ManualTask_RequestCourier" targetRef="ParallelGateway_ShipConverge"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_ConvergeShip2" sourceRef="ManualTask_PackProducts" targetRef="ParallelGateway_ShipConverge"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_ShipOrder" sourceRef="ParallelGateway_ShipConverge" targetRef="ManualTask_Ship"/>
+    
+    <bpmn:sequenceFlow id="bpmn_flow_EndEvent" sourceRef="ManualTask_Ship" targetRef="EndEvent_OrderShipped"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

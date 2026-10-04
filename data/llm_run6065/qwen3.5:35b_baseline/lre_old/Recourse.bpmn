@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_SubrogationProcess">
+    <bpmn:participant name="Subrogation Management Process" processRef="Proc_Subrogation"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_Subrogation" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_ReceiveInfo" name="Receive Subrogation Information">
+      <bpmn:outgoing>Seq_CheckPossibility</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Check if recourse is possible -->
+    <bpmn:task id="Task_CheckRecourse" name="Check Recourse Possibility">
+      <bpmn:incoming>Seq_CheckPossibility</bpmn:incoming>
+      <bpmn:outgoing>XFlow_PossibleYes</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway 1: Is recourse possible? -->
+    <bpmn:exclusiveGateway id="XG_RecoursePossible" name="Recourse Possible?">
+      <bpmn:incoming>XFlow_PossibleYes</bpmn:incoming>
+      <bpmn:outgoing>Seq_SendPaymentRequest</bpmn:outgoing>
+      <bpmn:outgoing>Seq_CloseCaseNoRecourse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Send payment request -->
+    <bpmn:task id="Task_SendPaymentRequest" name="Send Payment Request to Insurant">
+      <bpmn:incoming>Seq_SendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>XFlow_PaymentSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task: Make reminder -->
+    <bpmn:task id="Task_MakeReminder" name="Make Reminder">
+      <bpmn:incoming>XFlow_ReminderTrigger</bpmn:incoming>
+      <bpmn:outgoing>XFlow_PaymentSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway for reminder and payment request -->
+    <bpmn:parallelGateway id="PG_SendAndReminder">
+        <bpmn:incoming>XFlow_ReminderTrigger</bpmn:incoming>
+        <bpmn:outgoing>Seq_CheckMoneyReceived</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Exclusive Gateway 2: Money received? -->
+    <bpmn:exclusiveGateway id="XG_MoneyReceived" name="Money Received?">
+      <bpmn:incoming>Seq_CheckMoneyReceived</bpmn:incoming>
+      <bpmn:outgoing>XFlow_BookingAndClose</bpmn:outgoing>
+      <bpmn:outgoing>Seq_DisagreementCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Make booking -->
+    <bpmn:task id="Task_MakeBooking" name="Make Booking">
+      <bpmn:incoming>XFlow_BookingAndClose</bpmn:incoming>
+      <bpmn:outgoing>Seq_CloseCaseBooked</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Case closed after booking -->
+    <bpmn:endEvent id="End_CaseClosed" name="Case Closed">
+      <bpmn:incoming>Seq_CloseCaseBooked</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Exclusive Gateway 3: Insurant disagrees? -->
+    <bpmn:exclusiveGateway id="XG_Disagreement" name="Insurant Disagree?">
+      <bpmn:incoming>Seq_DisagreementCheck</bpmn:incoming>
+      <bpmn:outgoing>XFlow_CheckReasoning</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Check reasoning -->
+    <bpmn:task id="Task_CheckReasoning" name="Check Reasoning">
+      <bpmn:incoming>XFlow_CheckReasoning</bpmn:incoming>
+      <bpmn:outgoing>XG_InsurantRightOrWrong</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway 4: Is insurant right? -->
+    <bpmn:exclusiveGateway id="XG_InsurantRight" name="Is Insurant Right?">
+      <bpmn:incoming>XFlow_CheckReasoning</bpmn:incoming>
+      <bpmn:outgoing>Seq_CloseCaseRight</bpmn:outgoing>
+      <bpmn:outgoing>Seq_ForwardToCollectionWrong</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 2: Case closed (insurant right) -->
+    <bpmn:endEvent id="End_CaseClosedRight" name="Case Closed">
+      <bpmn:incoming>Seq_CloseCaseRight</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task: Forward to collection agency (insurant wrong) -->
+    <bpmn:task id="Task_ForwardToCollection" name="Forward Case to Collection Agency">
+      <bpmn:incoming>Seq_ForwardToCollectionWrong</bpmn:incoming>
+      <bpmn:outgoing>XFlow_CollectionSent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3: Case closed (collection agency) -->
+    <bpmn:endEvent id="End_CaseClosedCollection" name="Case Closed">
+      <bpmn:incoming>XFlow_CollectionSent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event 4: Case closed (no recourse) -->
+    <bpmn:endEvent id="End_CaseClosedNoRecourse" name="Case Closed">
+      <bpmn:incoming>Seq_CloseCaseNoRecourse</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_CheckPossibility" sourceRef="Start_ReceiveInfo" targetRef="Task_CheckRecourse"/>
+    
+    <bpmn:sequenceFlow id="XFlow_PossibleYes" name="Yes" sourceRef="Task_CheckRecourse" targetRef="XG_RecoursePossible"/>
+    <bpmn:sequenceFlow id="Seq_CloseCaseNoRecourse" name="No - Recourse Not Possible" sourceRef="XG_RecoursePossible" targetRef="End_CaseClosedNoRecourse"/>
+
+    <bpmn:sequenceFlow id="Seq_SendPaymentRequest" name="Yes - Send Request" sourceRef="XG_RecoursePossible" targetRef="Task_SendPaymentRequest"/>
+    
+    <!-- Parallel flow for reminder -->
+    <bpmn:parallelGateway id="PG_ReminderTrigger">
+      <bpmn:incoming>Seq_SendPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>XFlow_ReminderTrigger</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Merge after payment request and reminder -->
+    <bpmn:sequenceFlow id="XFlow_PaymentSent" sourceRef="Task_SendPaymentRequest" targetRef="PG_SendAndReminder"/>
+    
+    <bpmn:sequenceFlow id="Seq_CheckMoneyReceived" name="Check Payment Status" sourceRef="PG_SendAndReminder" targetRef="XG_MoneyReceived"/>
+
+    <!-- Money received path -->
+    <bpmn:sequenceFlow id="XFlow_BookingAndClose" name="Yes - Received" sourceRef="XG_MoneyReceived" targetRef="Task_MakeBooking"/>
+    
+    <!-- Disagreement check (no money yet) -->
+    <bpmn:sequenceFlow id="Seq_DisagreementCheck" name="No Money Yet / Check Status" sourceRef="XG_MoneyReceived" targetRef="XG_Disagreement"/>
+
+    <!-- Insurant disagrees path -->
+    <bpmn:sequenceFlow id="XFlow_CheckReasoning" name="Disagree - Check Reasoning" sourceRef="XG_Disagreement" targetRef="Task_CheckReasoning"/>
+
+    <!-- Is insurant right? paths -->
+    <bpmn:sequenceFlow id="Seq_CloseCaseRight" name="Yes - Right" sourceRef="XG_InsurantRight" targetRef="End_CaseClosedRight"/>
+    
+    <bpmn:sequenceFlow id="Seq_ForwardToCollectionWrong" name="No - Wrong" sourceRef="XG_InsurantRight" targetRef="Task_ForwardToCollection"/>
+
+    <!-- Deadline reached path (forward to collection) -->
+    <bpmn:parallelGateway id="PG_DeadlineReached">
+      <bpmn:incoming>Seq_DisagreementCheck</bpmn:incoming>
+      <bpmn:outgoing>XFlow_CollectionSentDeadline</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Final collection flow -->
+    <bpmn:sequenceFlow id="XFlow_CollectionSent" sourceRef="Task_ForwardToCollection" targetRef="End_CaseClosedCollection"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

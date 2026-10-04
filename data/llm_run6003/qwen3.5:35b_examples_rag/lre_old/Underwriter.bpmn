@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_IPO_Process_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_IPO_Main">
+    <bpmn:participant id="Participant_Company" name="Issuing Company"/>
+    <bpmn:participant id="Participant_Bank" name="Investment Bank / Underwriters"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_IPO_Main">
+    
+    <!-- Lane Set for Organizing Responsibilities -->
+    <bpmn:laneSet id="LaneSet_01">
+      <bpmn:lane id="Lane_Company" name="Issuing Company">
+        <bpmn:name>Company Management</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_IPO_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectUnderwriters</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Compliance" name="Bank Operations">
+        <bpmn:name>Compliance &amp; Registration</bpmn:name>
+        <bpmn:flowNodeRef>Task_CheckFactsFairly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareRegistrationStatement</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Sales" name="Sales Team">
+        <bpmn:name>Sales &amp; Pricing</bpmn:name>
+        <bpmn:flowNodeRef>Task_RoadShowFirmPrice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionReasonNotToProceed</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_IPO_Decision" name="Decision to Go Public">
+      <bpmn:outgoing>SequenceFlow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Select Underwriters -->
+    <bpmn:task id="Task_SelectUnderwriters" name="Select Underwriters">
+      <bpmn:incoming>SequenceFlow_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_02</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Check Facts Fairly (Reputation) -->
+    <bpmn:task id="Task_CheckFactsFairly" name="Check facts presented fairly">
+      <bpmn:incoming>SequenceFlow_03</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_04</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3: Prepare Registration Statement -->
+    <bpmn:task id="Task_PrepareRegistrationStatement" name="Prepare registration statement for SEC">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>ParallelGateway_SplitWaitRoadshow</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="ParallelGateway_SplitWaitRoadshow" name="Split Wait/Road Show">
+      <bpmn:incoming>SequenceFlow_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitSECApproval</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_RoadShowTask</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Intermediate Catch Event for SEC Approval -->
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_SECApproval" name="SEC Clearance Received">
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterClearance</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task 4: Road Show / Firm Up Price -->
+    <bpmn:task id="Task_RoadShowFirmPrice" name="Road show &amp; firm up issue price">
+      <bpmn:incoming>SequenceFlow_RoadShowTask</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MergeAfterClearance</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Gateway -->
+    <bpmn:parallelGateway id="ParallelGateway_Merge" name="Merge Paths">
+      <bpmn:incoming>SequenceFlow_WaitSECApproval</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FixPriceFinalizeCommitment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Task 5: Fix Issue Price & Commit -->
+    <bpmn:task id="Task_FixIssuePrice" name="Fix issue price and enter firm commitment">
+      <bpmn:incoming>SequenceFlow_MergeAfterClearance</bpmn:incoming>
+      <bpmn:outgoing>Gateway_DecisionReasonNotToProceed</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Decision Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionReasonNotToProceed" name="Found reason not to do it?">
+      <bpmn:incoming>SequenceFlow_FixPriceFinalizeCommitment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_OfferStock</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelIPO</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="End_IPOSuccess" name="Offer Stock to Public">
+      <bpmn:incoming>SequenceFlow_OfferStock</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_IPOCancelled" name="IPO Cancelled">
+      <bpmn:incoming>SequenceFlow_CancelIPO</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    
+    1. Start -> Select Underwriters (Company Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_01" name="Decision to go public triggers selection" sourceRef="StartEvent_IPO_Decision" targetRef="Task_SelectUnderwriters"/>
+
+    2. Select Underwriters -> Check Facts (Bank Lane) - Cross-Lane Flow
+    <bpmn:sequenceFlow id="SequenceFlow_03" name="Select underwriter initiates compliance check" sourceRef="Task_SelectUnderwriters" targetRef="Task_CheckFactsFairly"/>
+
+    3. Check Facts -> Prepare Registration Statement (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_04" name="Facts verified, proceed to SEC registration" sourceRef="Task_CheckFactsFairly" targetRef="Task_PrepareRegistrationStatement"/>
+
+    4. Parallel Split -> Wait for Approval (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_WaitSECApproval" name="Awaiting SEC approval" sourceRef="ParallelGateway_SplitWaitRoadshow" targetRef="IntermediateCatch_SECApproval"/>
+
+    5. Parallel Split -> Road Show (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_RoadShowTask" name="Road show begins while awaiting approval" sourceRef="ParallelGateway_SplitWaitRoadshow" targetRef="Task_RoadShowFirmPrice"/>
+
+    6. Merge -> Fix Price (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_MergeAfterClearance" name="SEC clearance received, merge with road show completion" sourceRef="IntermediateCatch_SECApproval" targetRef="ParallelGateway_Merge"/>
+
+    7. Merge -> Fix Price Task (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_FixPriceFinalizeCommitment" name="All conditions met, fix price and commit" sourceRef="ParallelGateway_Merge" targetRef="Task_FixIssuePrice"/>
+
+    8. Decision -> Offer Stock (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_OfferStock" name="No reason not to proceed, offer stock" sourceRef="Gateway_DecisionReasonNotToProceed" targetRef="End_IPOSuccess"/>
+
+    9. Decision -> Cancel IPO (Bank Lane)
+    <bpmn:sequenceFlow id="SequenceFlow_CancelIPO" name="Found reason not to proceed, cancel" sourceRef="Gateway_DecisionReasonNotToProceed" targetRef="End_IPOCancelled"/>
+
+  </bpmn:process>
+</bpmn:definitions>

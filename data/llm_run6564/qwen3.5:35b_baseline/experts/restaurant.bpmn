@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="Definitions_1" targetNamespace="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC">
+  <bpmn:collaboration id="Collab_01">
+    <bpmn:participant id="Pool_Guest" name="Gast" processRef="Proc_Guest"/>
+    <bpmn:participant id="Pool_Restaurant" name="Restaurant Service Process" processRef="Proc_Restaurant"/>
+
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="Msg_OrderPlaced" sourceRef="Task_GuestOrderPlace" targetRef="StartEvent_StaffReceive"/>
+    <bpmn:messageFlow id="Msg_PagerSignal" sourceRef="Task_StaffTriggerPager" targetRef="CatchEvent_GuestWaitForBeep"/>
+  </bpmn:collaboration>
+
+  <!-- Guest Process -->
+  <bpmn:process id="Proc_Guest">
+    <bpmn:startEvent id="StartEvent_GuestEntry" name="Gast betritt Restaurant &amp; wählt Gericht aus">
+      <bpmn:outgoing>SqFlow_StartToOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_GuestOrderPlace" name="Bestellung aufgeben">
+      <bpmn:incoming>SqFlow_StartToOrder</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_OrderPlacedMsg</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Catching Event for Pager Signal -->
+    <bpmn:intermediateCatchEvent id="CatchEvent_GuestWaitForBeep" name="Warten auf Pieper-Signal">
+      <bpmn:incoming>SqFlow_WaitStart</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_BeepReceivedToPickup</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:userTask id="Task_GuestPickUp" name="Essen abholen">
+      <bpmn:incoming>SqFlow_BeepReceivedToPickup</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_PickupToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_GuestEat" name="Mahlzeit verzehrt">
+      <bpmn:incoming>SqFlow_PickupToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Internal Sequence Flows -->
+    <bpmn:sequenceFlow id="SqFlow_StartToOrder" sourceRef="StartEvent_GuestEntry" targetRef="Task_GuestOrderPlace"/>
+    <bpmn:sequenceFlow id="SqFlow_OrderPlacedMsg" name="Bestellung senden" sourceRef="Task_GuestOrderPlace" targetRef="CatchEvent_GuestWaitForBeep">
+      <!-- Note: In BPMN, sequence flows connect internal nodes. Message flow handles external communication -->
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="SqFlow_WaitStart" sourceRef="Task_GuestOrderPlace" targetRef="CatchEvent_GuestWaitForBeep"/>
+    <!-- Correction: Start -> Task Order. Then wait for message. The flow from Task to Catch Event is internal logic -->
+
+    <bpmn:sequenceFlow id="SqFlow_BeepReceivedToPickup" sourceRef="CatchEvent_GuestWaitForBeep" targetRef="Task_GuestPickUp"/>
+    <bpmn:sequenceFlow id="SqFlow_PickupToEnd" sourceRef="Task_GuestPickUp" targetRef="EndEvent_GuestEat"/>
+
+  </bpmn:process>
+
+  <!-- Restaurant Process -->
+  <bpmn:process id="Proc_Restaurant">
+    <bpmn:laneSet>
+      <bpmn:laneSet id="Lane_Set_01">
+        <bpmn:lane id="Lane_Angestellter" name="Angestellter">
+          <bpmn:flowNodeRef>StartEvent_StaffReceive</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_StaffPayOrder</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_StaffSetPagerInfoCook</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Event_CookReadySignal</bpmn:flowNodeRef>
+          <bpmn:flowNodeRef>Task_StaffTriggerPager</bpmn:flowNodeRef>
+        </bpmn:lane>
+      </bpmn:laneSet>
+    </bpmn:laneSet>
+
+    <!-- Start Event (triggered by message from Guest) -->
+    <bpmn:startEvent id="StartEvent_StaffReceive" name="Gast bestellt">
+       <bpmn:outgoing>SqFlow_StartToPay</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Pay & Order Entry -->
+    <bpmn:userTask id="Task_StaffPayOrder" name="Bestellung eingeben &amp; kassieren">
+      <bpmn:incoming>SqFlow_StartToPay</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_PayToPagerInfoCook</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Task 2: Set Pager & Inform Cook -->
+    <bpmn:userTask id="Task_StaffSetPagerInfoCook" name="Pieper einstellen, Koch informieren">
+      <bpmn:incoming>SqFlow_PayToPagerInfoCook</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_InfoCookToKitchen</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Event for Cook Ready Signal -->
+    <bpmn:intermediateCatchEvent id="Event_CookReadySignal" name="Koch meldet Essen fertig">
+      <bpmn:incoming>SqFlow_InfoCookToKitchen</bpmn:outgoing/> 
+       Wait, Catch event needs incoming. The flow from Task to Event is outgoing of task.
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Correction on Flow Logic for Cook Signal -->
+    <bpmn:userTask id="Task_StaffTriggerPager" name="Pieper auslösen">
+      <bpmn:incoming>SqFlow_CookReadyToTrigger</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_TriggerToEndOrCall</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Exception Path for 5 Minutes -->
+    <bpmn:intermediateTimerEvent id="Event_Timeout" name="Timeout (5 Min)">
+      <bpmn:incoming>SqFlow_WaitForPickup</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_CallGuestLoop</bpmn:outgoing>
+    </bpmn:intermediateTimerEvent>
+
+    <!-- Task Call Guest -->
+    <bpmn:userTask id="Task_StaffCallGuest" name="Gast nach 5 Min rufen">
+      <bpmn:incoming>SqFlow_CallGuestLoop</bpmn:incoming>
+      <bpmn:outgoing>SqFlow_CalledToWaitAgain</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Restaurant" name="Service abgeschlossen">
+       <bpmn:incoming>SqFlow_TriggerToEndOrCall</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Corrected) -->
+    <bpmn:sequenceFlow id="SqFlow_StartToPay" sourceRef="StartEvent_StaffReceive" targetRef="Task_StaffPayOrder"/>
+    <bpmn:sequenceFlow id="SqFlow_PayToPagerInfoCook" sourceRef="Task_StaffPayOrder" targetRef="Task_StaffSetPagerInfoCook"/>
+    
+    <!-- Logic for Kitchen Interaction (Simplified as internal flow for XML validity) -->
+    <bpmn:userTask id="Task_KitchenPrepareMeal" name="Mahlzeit zubereiten &amp; durchreichen">
+      <bpmn:incoming>SqFlow_InfoCookToKitchen</bpmn:outgoing/> <!-- Typo in previous thought, fixing below -->
+       Wait, I need to ensure all IDs match. Let's define the Kitchen Task and Flow properly here.
+
+    </bpmn:userTask>
+
+  </bpmn:process>
+  
+  <bpmn:message id="Msg_CookReady" name="Koch meldet Essen fertig"/>
+</definitions>

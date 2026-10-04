@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_SchufascoringProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_BankSchufaInteraction">
+    <bpmn:participant id="Participant_BankSystem" name="Bank System - Schufascoring Process" processRef="Process_SchufascoringMain" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SchufascoringMain" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestTriggered" name="Schufascoring anfordern">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Send Request to Schufa -->
+    <bpmn:serviceTask id="ServiceTask_SchufaRequest" name="Scoringanfrage an Schufasystem senden">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReceiveResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway Decision Point -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResultStatus" name="Ergebnis sofort verfügbar?">
+      <bpmn:incoming>SequenceFlow_ReceiveResponse</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DirectResultPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DelayedResultPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Immediate Result (Level 1) -->
+    <bpmn:serviceTask id="ServiceTask_DisplayImmediate" name="Scoringergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DirectResultPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess1</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Path 2: Delayed Result (Level 2) -->
+    <bpmn:userTask id="UserTask_NotifyStaff" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_DelayedResultPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitFinalScore</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Intermediate Event for Waiting -->
+    <bpmn:intermediateCatchEvent id="IntermediateEvent_WaitForResult" name="Warten auf finales Ergebnis">
+      <bpmn:incoming>SequenceFlow_WaitFinalScore</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayFinal</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task for Final Result -->
+    <bpmn:serviceTask id="ServiceTask_DisplayFinal" name="Finales Scoringergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DisplayFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_ProcessCompleted" name="Prozess beendet">
+      <bpmn:incoming>SequenceFlow_EndProcess1</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_EndProcess2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_RequestTriggered" targetRef="ServiceTask_SchufaRequest">
+      <bpmn:name>Schufascoring anfordern</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ReceiveResponse" sourceRef="ServiceTask_SchufaRequest" targetRef="ExclusiveGateway_ResultStatus">
+      <bpmn:name>Schufantwort entgegennehmen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway Outgoing Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_DirectResultPath" sourceRef="ExclusiveGateway_ResultStatus" targetRef="ServiceTask_DisplayImmediate">
+      <bpmn name>Sofort verfügbar</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_DelayedResultPath" sourceRef="ExclusiveGateway_ResultStatus" targetRef="UserTask_NotifyStaff">
+      <bpmn name>Verzögerung gemeldet</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Delay Path Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitFinalScore" sourceRef="UserTask_NotifyStaff" targetRef="IntermediateEvent_WaitForResult">
+      <bpmn name>Auf finales Ergebnis warten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Result Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayFinal" sourceRef="IntermediateEvent_WaitForResult" targetRef="ServiceTask_DisplayFinal">
+      <bpmn name>Finales Ergebnis erhalten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess1" sourceRef="ServiceTask_DisplayImmediate" targetRef="EndEvent_ProcessCompleted">
+      <bpmn name>Sofortiges Ergebnis</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess2" sourceRef="ServiceTask_DisplayFinal" targetRef="EndEvent_ProcessCompleted">
+      <bpmn name>Finales Ergebnis</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

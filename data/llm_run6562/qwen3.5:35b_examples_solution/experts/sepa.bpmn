@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SEPA_Mandat">
+    <bpmn:participant id="Participant_SEPA_Process" name="SEPA-Mandatsbearbeitung" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SEPA_Eingang" name="Daten für SEPA-Mandat eingegangen"/>
+    
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Mandat_erfolgreich" name="SEPA-Mandat erfolgreich angelegt"/>
+    <bpmn:endEvent id="EndEvent_Manuelle_Pruefung_benoetigt" name="Manuelle Prüfung erforderlich"/>
+    
+    <!-- Tasks - Manual Processing -->
+    <bpmn:userTask id="UserTask_IBAN_pruefen" name="IBAN auf Vollständigkeit prüfen"/>
+    <bpmn:userTask id="UserTask_Land_ermitteln" name="Land anhand IBAN ermitteln"/>
+    <bpmn:userTask id="UserTask_Person_suchen" name="Person im System suchen"/>
+    <bpmn:userTask id="UserTask_Daten_vollstaendig_pruefen" name="Alle erforderlichen Daten prüfen (Unterschrift, Ort, Datum)"/>
+    
+    <!-- Tasks - Automatic Processing -->
+    <bpmn:serviceTask id="ServiceTask_Unter_schrift_anfordern" name="Automatisches Anschreiben zur Unterschrift anfordern"/>
+    <bpmn:receiveTask id="ReceiveTask_Ruecklauf_abwarten" name="Rücklauf abwarten (28 Tage)"/>
+    
+    <!-- Tasks - Bank Connection -->
+    <bpmn:userTask id="UserTask_Bankverbindung_pruefen" name="Bankverbindung manuell prüfen/erstellen"/>
+    <bpmn:serviceTask id="ServiceTask_Gueltig_von_datum_erstellen" name="Gültig-von-Datum erstellen/setzen"/>
+    
+    <!-- Tasks - Mandate Management -->
+    <bpmn:userTask id="UserTask_Aktives_Mandat_pruefen" name="Prüfen ob aktives SEPA-Mandat existiert"/>
+    <bpmn:serviceTask id="ServiceTask_Neues_Mandat_anlegen" name="Neues SEPA-Mandat anlegen"/>
+    
+    <!-- Tasks - Open Claims -->
+    <bpmn:userTask id="UserTask_Offene_Forderungen_pruefen" name="Offene Forderungen prüfen und zuordnen"/>
+    <bpmn:serviceTask id="ServiceTask_Betrag_berechnen" name="Summe offener Forderungen berechnen"/>
+    
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="Gateway_IBAN_vorhanden" name="IBAN vorhanden?"/>
+    <bpmn:exclusiveGateway id="Gateway_Daten_vollstaendig" name="Alle Daten vollständig?"/>
+    <bpmn:exclusiveGateway id="Gateway_Unter_schrift_vorhanden" name="Unterschrift vorhanden?"/>
+    <bpmn:exclusiveGateway id="Gateway_Bankverbindung_gueltig" name="Bankverbindung gültig?"/>
+    <bpmn:exclusiveGateway id="Gateway_Mandat_existiert" name="Aktives Mandat existiert?"/>
+    <bpmn:exclusiveGateway id="Gateway_Neues_Mandat_gueltig" name="Neues Mandat gültig und relevant?"/>
+    <bpmn:exclusiveGateway id="Gateway_Forderungshoehe" name="Forderungen &gt; 5.000€?"/>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_SEPA_Eingang" targetRef="UserTask_IBAN_pruefen">
+      <bpmn:name>Daten eingegangen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_2" name="Ja - IBAN vorhanden" sourceRef="Gateway_IBAN_vorhanden" targetRef="UserTask_Land_ermitteln">
+      <bpmn:conditionExpression>${ibanExists == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_3" name="Nein - IBAN fehlt" sourceRef="Gateway_IBAN_vorhanden" targetRef="EndEvent_Manuelle_Pruefung_benoetigt">
+      <bpmn:conditionExpression>${ibanExists == false}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_4" sourceRef="UserTask_Land_ermitteln" targetRef="Gateway_Daten_vollstaendig">
+      <bpmn:name>Länderermittlung abgeschlossen</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_5" name="Alle Daten vorhanden" sourceRef="Gateway_Daten_vollstaendig" targetRef="UserTask_Person_suchen">
+      <bpmn:conditionExpression>${allDataComplete == true}</b bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_6" name="Daten unvollständig - Unterschrift vorhanden" sourceRef="Gateway_Daten_vollstaendig" targetRef="UserTask_Person_suchen">
+      <b bpmn:name>Vollständige Prüfung</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_7" name="Daten unvollständig - Unterschrift fehlt" sourceRef="Gateway_Daten_vollstaendig" targetRef="ServiceTask_Unter_schrift_anfordern">
+      <b bpmn:name>Fehlende Daten</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_8" sourceRef="UserTask_Person_suchen" targetRef="Gateway_Unter_schrift_vorhanden"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_9" name="Ja - Unterschrift vorhanden" sourceRef="Gateway_Unter_schrift_vorhanden" targetRef="ServiceTask_Gueltig_von_datum_erstellen">
+      <b bpmn:name>Unterschrift OK</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_10" name="Nein - Unterschrift fehlt" sourceRef="Gateway_Unter_schrift_vorhanden" targetRef="ServiceTask_Unter_schrift_anfordern">
+      <b bpmn:name>Fehlende Unterschrift</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_11" sourceRef="ServiceTask_Unter_schrift_anfordern" targetRef="ReceiveTask_Ruecklauf_abwarten"/>
+
+    <bpmn:boundaryEvent id="Boundary_Timeout" attachedToRef="ReceiveTask_Ruecklauf_abwarten">
+      <b bpmn:timerEventDefinition>
+        <b bpmn:timeDuration>P28D</b bpmn:timeDuration>
+      </b bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_12" sourceRef="Boundary_Timeout" targetRef="EndEvent_Manuelle_Pruefung_benoetigt"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_13" name="Rücklauf erhalten" sourceRef="ReceiveTask_Ruecklauf_abwarten" targetRef="Gateway_Bankverbindung_gueltig">
+      <b bpmn:name>28 Tage abgewartet</b bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_14" sourceRef="ServiceTask_Gueltig_von_datum_erstellen" targetRef="Gateway_Bankverbindung_gueltig"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_15" name="Bankverbindung gültig" sourceRef="Gateway_Bankverbindung_gu

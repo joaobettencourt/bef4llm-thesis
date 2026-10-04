@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_AddCC">
+    <bpmn:participant id="Participant_PaymentProcess" name="Credit Card Addition Process" processRef="Process_AddCC"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_AddCC" isExecutable="false">
+    <bpmn:dataObjectReference id="Data_CreditCardDetails" name="Customer Credit Card Details"/>
+    <bpmn:dataObjectReference id="Data_AddressInfo" name="Billing Address Information"/>
+    <bpmn:dataObjectReference id="Data_VerificationResult" name="Verification Result from Authority"/>
+
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer">
+        <bpmn:name>Customer</bpmn:name>
+        <bpmn:flowNodeRef>StartEvent_AddCC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterDetails</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AddressCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClickContinue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_System">
+        <bpmn:name>System &amp; Authority</bpmn:name>
+        <bpmn:flowNodeRef>Gateway_ValidationResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerifyCCAuthority</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddCardToProfile</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Cancelled</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_AddCC" name="Add Credit Card">
+      <bpmn:outgoing>SequenceFlow_EnterDetails</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Enter Details -->
+    <bpmn:userTask id="Task_EnterDetails" name="Enter Credit Card &amp; Address">
+      <bpmn:incoming>SequenceLoopBackAddress</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddressCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Check Billing Address -->
+    <bpmn:exclusiveGateway id="Gateway_AddressCheck" name="Address Valid?">
+      <bpmn:incoming>SequenceFlow_AddressCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceLoopBackAddress</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ConfirmContinue</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Click Continue -->
+    <bpmn:userTask id="Task_ClickContinue" name="Click 'Confirm' Button">
+      <bpmn:incoming>SequenceFlow_ConfirmContinue</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VerifyCC</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Service Task: Verify with Authority -->
+    <bpmn:serviceTask id="Task_VerifyCCAuthority" name="Verify Credit Card">
+      <bpmn:incoming>SequenceFlow_VerifyCC</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckResult</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Check Verification Result -->
+    <bpmn:exclusiveGateway id="Gateway_ValidationResult" name="Verification Successful?">
+      <bpmn:incoming>SequenceFlow_CheckResult</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AddCard</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CancelAddition</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task: Add Card -->
+    <bpmn:userTask id="Task_AddCardToProfile" name="Save Credit Card">
+      <bpmn:incoming>SequenceFlow_AddCard</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SuccessEnd</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event: Success -->
+    <bpmn:endEvent id="EndEvent_Success" name="Credit Card Added">
+      <bpmn:incoming>SequenceFlow_SuccessEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End Event: Cancelled -->
+    <bpmn:endEvent id="EndEvent_Cancelled" name="Addition Cancelled">
+      <bpmn:incoming>SequenceFlow_CancelAddition</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterDetails" sourceRef="StartEvent_AddCC" targetRef="Task_EnterDetails"/>
+    
+    <bpmn:sequenceFlow id="SequenceLoopBackAddress" name="Invalid Address">
+      <bpmn:name>no</bpmn:name>
+      <bpmn:sourceRef>Gateway_AddressCheck</bpmn:sourceRef>
+      <bpmn:targetRef>Task_EnterDetails</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ConfirmContinue" name="Valid Address">
+      <bpmn:name>yes</bpmn:name>
+      <bpmn:sourceRef>Gateway_AddressCheck</bpmn:sourceRef>
+      <bpmn:targetRef>Task_ClickContinue</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_VerifyCC" sourceRef="Task_ClickContinue" targetRef="Task_VerifyCCAuthority"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_CheckResult">
+      <bpmn:name/>
+      <bpmn:sourceRef>Task_VerifyCCAuthority</bpmn:sourceRef>
+      <bpmn:targetRef>Gateway_ValidationResult</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_AddCard" name="Validated">
+      <bpmn:name>yes</bpmn:name>
+      <bpmn:sourceRef>Gateway_ValidationResult</bpmn:sourceRef>
+      <bpmn:targetRef>Task_AddCardToProfile</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CancelAddition" name="Not Validated">
+      <bpmn:name>no</bpmn:name>
+      <bpmn:sourceRef>Gateway_ValidationResult</bpmn:sourceRef>
+      <bpmn:targetRef>EndEvent_Cancelled</bpmn:targetRef>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SuccessEnd" sourceRef="Task_AddCardToProfile" targetRef="EndEvent_Success"/>
+
+  </bpmn:process>
+</bpmn:definitions>

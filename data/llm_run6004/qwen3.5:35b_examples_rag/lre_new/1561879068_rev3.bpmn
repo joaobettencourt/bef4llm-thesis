@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RegistrationProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RegistractionProcess">
+    <bpmn:participant name="Customer Registration Process" processRef="Proc_CustomerRegistraction"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_CustomerRegistraction" isExecutable="false">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_001">
+      <bpmn:lane id="Lane_RegistrationTeam">
+        <bpmn:flowNodeRef>StartEvent_RegForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckAvailabilityCreditRating</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CreditCheckResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DataManagement">
+        <bpmn:flowNodeRef>Task_CreateInterimDataset</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FulfillmentTeam">
+        <bpmn:flowNodeRef>Gateway_ParallelStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeviceProvision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegisterCustomerAccountISP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParallelJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateWelcomePackage</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent name="Registration Form Filled Out" id="StartEvent_RegForm">
+      <bpmn:outgoing>SF_StartToCheckAvailability</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Check Product Availability and Credit Rating -->
+    <bpmn:task name="Check Product Availability &amp; Credit Rating" id="Task_CheckAvailabilityCreditRating">
+      <bpmn:incoming>SF_StartToCheckAvailability</bpmn:incoming>
+      <bpmn:outgoing>SF_CheckResultToGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Exclusive Gateway for Credit Rating Decision -->
+    <bpmn:exclusiveGateway name="Credit Rating &gt; 9000?" id="Gateway_CreditCheckResult">
+      <bpmn:incoming>SF_CheckResultToGateway</bpmn:incoming>
+      <bpmn:outgoing>SF_RegistrationUnsuccessful</bpmn:outgoing>
+      <bpmn:outgoing>SF_CreateInterimDataset</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Unsuccessful Registration -->
+    <bpmn:endEvent name="Registration Unsuccessful" id="EndEvent_Unsuccessful">
+      <bpmn:incoming>SF_RegistrationUnsuccessful</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Create Interim Customer Dataset Record -->
+    <bpmn:task name="Create Interim Customer Dataset Record" id="Task_CreateInterimDataset">
+      <bpmn:incoming>SF_CreateInterimDataset</bpmn:incoming>
+      <bpmn:outgoing>SF_StartParallelSubprocesses</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway to Start Two Sub-processes -->
+    <bpmn:parallelGateway name="Start Device Provision &amp; Register Account" id="Gateway_ParallelStart">
+      <bpmn:incoming>SF_StartParallelSubprocesses</bpmn:incoming>
+      <bpmn:outgoing>SF_DeviceProvisionPath</bpmn:outgoing>
+      <bpmn:outgoing>SF_RegisterAccountISPPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Device Provision Sub-process -->
+    <bpmn:task name="Device Provision" id="Task_DeviceProvision">
+      <bpmn:incoming>SF_DeviceProvisionPath</bpmn:incoming>
+      <bpmn:outgoing>SF_ParallelJoinIncoming1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Register Customer Account at ISP Nodes Sub-process -->
+    <bpmn:task name="Register Customer Account at ISP Nodes" id="Task_RegisterCustomerAccountISP">
+      <bpmn:incoming>SF_RegisterAccountISPPath</bpmn:incoming>
+      <bpmn:outgoing>SF_ParallelJoinIncoming2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Gateway to Join Sub-processes -->
+    <bpmn:parallelGateway name="Wait for Both Tasks" id="Gateway_ParallelJoin">
+      <bpmn:incoming>SF_ParallelJoinIncoming1</bpmn:incoming>
+      <bpmn:incoming>SF_ParallelJoinIncoming2</bpmn:incoming>
+      <bpmn:outgoing>SF_CreateWelcomePackageFlow</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Create and Send Welcome Package -->
+    <bpmn:task name="Create &amp; Send Welcome Package" id="Task_CreateWelcomePackage">
+      <bpmn:incoming>SF_CreateWelcomePackageFlow</bpmn:incoming>
+      <bpmn:outgoing>SF_ToSuccessfulEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event for Successful Registration -->
+    <bpmn:endEvent name="Registration Completed Successfully" id="EndEvent_Successful">
+      <bpmn:incoming>SF_ToSuccessfulEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow sourceRef="StartEvent_RegForm" targetRef="Task_CheckAvailabilityCreditRating" id="SF_StartToCheckAvailability"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_CheckAvailabilityCreditRating" targetRef="Gateway_CreditCheckResult" id="SF_CheckResultToGateway"/>
+    
+    <bpmn:sequenceFlow name="No (credit rating &gt; 9000)" sourceRef="Gateway_CreditCheckResult" targetRef="EndEvent_Unsuccessful" id="SF_RegistrationUnsuccessful"/>
+    
+    <bpmn:sequenceFlow name="Yes (registration successful)" sourceRef="Gateway_CreditCheckResult" targetRef="Task_CreateInterimDataset" id="SF_CreateInterimDataset"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_CreateInterimDataset" targetRef="Gateway_ParallelStart" id="SF_StartParallelSubprocesses"/>
+    
+    <bpmn:sequenceFlow sourceRef="Gateway_ParallelStart" targetRef="Task_DeviceProvision" id="SF_DeviceProvisionPath"/>
+    
+    <bpmn:sequenceFlow sourceRef="Gateway_ParallelStart" targetRef="Task_RegisterCustomerAccountISP" id="SF_RegisterAccountISPPath"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_DeviceProvision" targetRef="Gateway_ParallelJoin" id="SF_ParallelJoinIncoming1"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_RegisterCustomerAccountISP" targetRef="Gateway_ParallelJoin" id="SF_ParallelJoinIncoming2"/>
+    
+    <bpmn:sequenceFlow sourceRef="Gateway_ParallelJoin" targetRef="Task_CreateWelcomePackage" id="SF_CreateWelcomePackageFlow"/>
+    
+    <bpmn:sequenceFlow sourceRef="Task_CreateWelcomePackage" targetRef="EndEvent_Successful" id="SF_ToSuccessfulEndEvent"/>
+
+  </bpmn:process>
+</bpmn:definitions>

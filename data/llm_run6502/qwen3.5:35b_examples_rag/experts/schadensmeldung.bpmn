@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Schadensabwicklung_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Schadenabwicklung">
+    <bpmn:participant id="Participant_Versicherungsgesellschaft" name="Schadensbearbeitung Versicherung" processRef="Process_Schadensmeldung_01" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Schadensmeldung_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Kundenzentrum" name="Kundenzentrum">
+        <bpmn:flowNodeRef>StartEvent_SchadenEingereicht</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GueltigkeitPruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IsValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_SchadenAbgelehnt</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Fachabteilung" name="Fachabteilung">
+        <bpmn:flowNodeRef>Gateway_ProcessSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DokumentePruefen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SchadensursacheUntersuchen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_LegalAssessmentNeeded</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Versicherer" name="Versicherer">
+        <bpmn:flowNodeRef>Task_RechtlicheEinschaetzungEinholen</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Statistikabteilung" name="Schadensstatistik">
+        <bpmn:flowNodeRef>Gateway_ProcessSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SchadenInStatistikErfassen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SchadensstatistikAktualisieren</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SchadenEingereicht" name="Schadensmeldung eingereicht">
+      <bpmn:outgoing>SequenceFlow_CheckValidity</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_SchadenAbgelehnt" name="Schadensmeldung abgelehnt">
+      <bpmn:incoming>SequenceFlow_InvalidClaim</bpmn:outgoing>
+    </bpmn:endEvent>
+
+    <!-- Tasks -->
+    <bpmn:userTask id="Task_GueltigkeitPruefen" name="Gültigkeit der Schadensmeldung prüfen">
+      <bpmn:incoming>SequenceFlow_CheckValidity</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_IsValid</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_DokumentePruefen" name="Eingereichte Unterlagen auf Vollständigkeit prüfen">
+      <bpmn:incoming>SequenceFlow_ProcessStart</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_LegalAssessmentNeeded</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SchadensursacheUntersuchen" name="Schadensursache untersuchen">
+      <bpmn:incoming>Gateway_ProcessSplit</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_LegalAssessmentNeeded</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_RechtlicheEinschaetzungEinholen" name="Rechtliche Einschätzung durch Versicherer einholen">
+      <bpmn:incoming>Gateway_LegalAssessmentNeeded</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_ProcessJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SchadenInStatistikErfassen" name="Fall in Schadensstatistik erfassen">
+      <bpmn:incoming>Gateway_ProcessSplit</bpmn:outgoing>
+      <bpmn:outgoing>Gateway_ProcessJoin</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SchadensstatistikAktualisieren" name="Schadensstatistik aktualisieren">
+      <bpmn:incoming>Gateway_ProcessJoin</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CustomerNotificationStart</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="Gateway_IsValid" name="Schadensmeldung gültig?">
+      <bpmn:incoming>Gateway_ProcessSplit</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_InvalidClaim</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ValidProcessStart</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="Gateway_ProcessSplit" name="Bearbeitung starten">
+      <bpmn:incoming>Gateway_IsValid</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckDocsStart</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StatsCaptureStart</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:exclusiveGateway id="Gateway_LegalAssessmentNeeded" name="Rechtliche Einschätzung erforderlich?">
+      <bpmn:incoming>Gateway_ProcessSplit</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_GetLegalAssessment</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="Gateway_ProcessJoin" name="Bearbeitung abgeschlossen">
+      <bpmn:incoming>Gateway_LegalAssessmentNeeded</bpmn:outgoing>
+      <bpmn:incoming>SequenceFlow_GetLegalAssessment</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckValidity" name="" sourceRef="StartEvent_SchadenEingereicht" targetRef="Task_GueltigkeitPruefen">
+      <bpmn:name>Gültigkeit prüfen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_InvalidClaim" name="nein" sourceRef="Gateway_IsValid" targetRef="EndEvent_SchadenAbgelehnt">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ValidProcessStart" name="ja" sourceRef="Gateway_IsValid" targetRef="Task_DokumentePruefen">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CheckDocsStart" name="" sourceRef="Gateway_ProcessSplit" targetRef="Task_DokumentePruefen">
+      <bpmn:name>Fachabteilung bearbeiten</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StatsCaptureStart" name="" sourceRef="Gateway_ProcessSplit" targetRef="Task_SchadenInStatistikErfassen">
+      <bpmn:name>Fall erfassen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GetLegalAssessment" name="" sourceRef="Gateway_LegalAssessmentNeeded" targetRef="Task_RechtlicheEinschaetzungEinholen">
+      <bpmn:name>Erforderlich</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessJoinStart" name="" sourceRef="Gateway_LegalAssessmentNeeded" targetRef="Task_SchadensursacheUntersuchen">
+      <bpmn:name>Nicht erforderlich</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Note: Corrected flow logic for convergence -->
+    <bpmn:sequenceFlow id="SequenceFlow_LegalToJoin" name="" sourceRef="Task_RechtlicheEinschaetzungEinholen" targetRef="Gateway_ProcessJoin">
+      <bpmn:name>Erfolg</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_StatsToJoin" name="" sourceRef="Task_SchadenInStatistikErfassen" targetRef="Gateway_ProcessJoin">
+      <bpmn:name>Erfolg</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Corrected flow for convergence logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_CauseToLegalCheck" name="" sourceRef="Task_SchadensursacheUntersuchen" targetRef="Gateway_LegalAssessmentNeeded">
+      <bpmn:name>Bereit</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

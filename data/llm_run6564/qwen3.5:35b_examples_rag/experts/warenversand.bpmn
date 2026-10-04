@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_Versandprozess">
+    <bpmn:participant id="Participant_Sekretariat" name="Sekretariat" processRef="Process_Versand"/>
+    <bpmn:participant id="Participant_Lagerarbeiter" name="Lagerarbeiter" processRef="Process_Versand"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Versand" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_WareVersenden" name="Ware soll versendet werden">
+      <bpmn:outgoing>SequenceFlow_MengePrüfen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway for quantity check -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_GroßeMengen" name="Große Mengen?">
+      <bpmn:incoming>SequenceFlow_MengePrüfen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Sonderversand</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Large quantity path - Special shipping -->
+    <bpmn:task id="Task_AngeboteEinholen" name="Angebote von 3 Spediteuren einholen">
+      <bpmn:incoming>SequenceFlow_Sonderversand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_AngbotAuswählen</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_AngebotAussuchen" name="Angebot auswählen">
+      <bpmn:incoming>SequenceFlow_AngbotAuswählen</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SpediteurBeauftragen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Small quantity path - Normal postal shipping -->
+    <bpmn:task id="Task_PaketscheinAusfüllen" name="Paketformular ausfüllen">
+      <bpmn:incoming>SequenceFlow_NormalerVersand</bpmn:incoming>
+      <bpmn:outgoing>InclusiveGateway_VersicherungPrüfen</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Insurance check gateway -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_VersicherungPrüfen" name="Versicherung erforderlich?">
+      <bpmn:incoming>InclusiveGateway_VersicherungPrüfen</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_VersicherungAbschließen</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- Insurance task -->
+    <bpmn:task id="Task_VersicherungAbschließen" name="Versicherung abschließen">
+      <bpmn:incoming>SequenceFlow_VersicherungAbschließen</bpmn:incoming>
+      <bpmn:outgoing>InclusiveGateway_SekretariatFertig</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Warehouse worker parallel task -->
+    <bpmn:task id="Task_WareVerpacken" name="Ware verpacken">
+      <bpmn:incoming>SequenceFlow_VerpackenStart</bpmn:incoming>
+      <bpmn:outgoing>InclusiveGateway_LagerFertig</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Final gateway to merge all paths -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_VorbereitungenAbschließen" name="Alle Vorbereitungen abgeschlossen?">
+      <bpmn:incoming>InclusiveGateway_SekretariatFertig</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+    </bpmn:inclusiveGateway>
+
+    <!-- Final task -->
+    <bpmn:task id="Task_Bereitstellen" name="Ware zur Abholung bereitstellen">
+      <bpmn:incoming>InclusiveGateway_VorbereitungenAbschließen</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+      <bpmn:outgoing>EndEvent_VersandVorbereitet</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_VersandVorbereitet" name="Versand vorbereitet">
+      <bpmn:incoming>InclusiveGateway_VorbereitungenAbschließen</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Lane assignments -->
+    <bpmn:laneSet id="LaneSet_Versandprozess">
+      <bpmn:lane id="Lane_Sekretariat" name="Sekretariat">
+        <bpmn:flowNodeRef>StartEvent_WareVersenden</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+        <bpmn:flowNodeRef>ExclusiveGateway_GroßeMengen</bpmn:outgoing>SequenceFlow_NormalerVersand</bpmn:incoming>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Lagerarbeiter" name="Lagerarbeiter">
+        <bpmn:flowNodeRef>Task_WareVerpacken</bpmn:outgoing>InclusiveGateway_VersicherungPrüfen</bpmn:incoming>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+  </bpmn:process>
+
+</bpmn:definitions>

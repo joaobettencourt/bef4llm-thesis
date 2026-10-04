@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_SchufaScoring">
+  <bpmn:collaboration id="Collab_01">
+    <bpmn:participant id="Participant_Bank" name="Bank (Schufascoring-Prozess)" processRef="Process_Bank"/>
+    <bpmn:participant id="Participant_Schufa" name="Schufa System" processRef="Process_Schufa"/>
+  </bpmn:collaboration>
+
+  <!-- Bank Process -->
+  <bpmn:process id="Process_Bank">
+    <bpmn:startEvent id="StartEvent_Request">
+      <bpmn:name name="Scoring anfordern"/>
+      <bpmn:outgoing>Flow_Start_Send</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="UserTask_ShowResultImmediate" name="Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>Flow_ImmediateResult</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_NotifyDelay" name="Verzögerungsmeldung anzeigen">
+      <bpmn:incoming>Flow_DelayedNotification</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitFinalResult</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_ShowResultFinal" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>Flow_ShowFinalResult</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndProcessDelayed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_Immediate">
+      <bpmn:name name="Scoring abgeschlossen (Sofort)"/>
+      <bpmn:incoming>Flow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Delayed">
+      <bpmn:name name="Scoring abgeschlossen (Verzögert)"/>
+      <bpmn:incoming>Flow_EndProcessDelayed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="IntCatch_ResponseL1">
+      <bpmn:name name="Warte auf Schufa Antwort (Level 1)"/>
+      <bpmn:incoming>Flow_Request_Schufa</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckResultType</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="IntCatch_FinalResult">
+      <bpmn:name name="Warte auf finales Ergebnis"/>
+      <bpmn:incoming>Flow_WaitFinalResult</bpmn:incoming>
+      <bpmn:outgoing>Flow_ShowFinalResult</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_CheckResultType">
+      <bpmn:name name="Ergebnis sofort verfügbar?"/>
+      <bpmn:incoming>Flow_CheckResultType</bpmn:incoming>
+      <bpmn:outgoing>Flow_ImmediateResult</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DelayedNotification</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_Send" sourceRef="StartEvent_Request" targetRef="IntCatch_ResponseL1">
+      <bpmn:name name="Anfrage starten"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_CheckResultType" sourceRef="IntCatch_ResponseL1" targetRef="Gateway_CheckResultType"/>
+
+    <bpmn:sequenceFlow id="Flow_ImmediateResult" name="Ja (Sofort)" sourceRef="Gateway_CheckResultType" targetRef="UserTask_ShowResultImmediate">
+      <bpmn:name name="Ergebnis sofort verfügbar"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_DelayedNotification" name="Nein (Verzögerung)" sourceRef="Gateway_CheckResultType" targetRef="UserTask_NotifyDelay">
+      <bpmn:name name="Kein sofortiges Ergebnis"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_WaitFinalResult" sourceRef="UserTask_NotifyDelay" targetRef="IntCatch_FinalResult"/>
+
+    <bpmn:sequenceFlow id="Flow_ShowFinalResult" name="Ergebnis eingetroffen" sourceRef="IntCatch_FinalResult" targetRef="UserTask_ShowResultFinal">
+      <bpmn:name name="Finales Ergebnis verfügbar"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_EndProcess" sourceRef="UserTask_ShowResultImmediate" targetRef="EndEvent_Immediate"/>
+
+    <bpmn:sequenceFlow id="Flow_EndProcessDelayed" sourceRef="UserTask_ShowResultFinal" targetRef="EndEvent_Delayed">
+      <bpmn:name name="Prozessende"/>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Schufa Process -->
+  <bpmn:process id="Process_Schufa">
+    <bpmn:startEvent id="StartEvent_01">
+      <bpmn:name name="Scoringanfrage erhalten"/>
+      <bpmn:outgoing>Flow_Start_L1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_ResultSent">
+      <bpmn:name name="Ergebnis gesendet (Level 1)"/>
+      <bpmn:incoming>Flow_SendResultMsg_Schufa</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_FinalSent">
+      <bpmn:name name="Finales Ergebnis gesendet (Level 2)"/>
+      <bpmn:incoming>Flow_SendFinalMsg_Schufa</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UserTask_Level1Scoring" name="Scoring Level 1 durchführen">
+      <bpmn:name name="Erstes Scoring"/>
+      <bpmn:incoming>Flow_Start_L1</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckReady_Schufa</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UserTask_Level2Scoring" name="Scoring Level 2 durchführen">
+      <bpmn:name name="Finales Scoring"/>
+      <bpmn:incoming>Flow_DelayPath_Schufa_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendFinalMsg_Schufa</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_SchufaCheck">
+      <bpmn:name name="Ergebnis bereit?"/>
+      <bpmn:incoming>Flow_CheckReady_Schufa</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendResultMsg_Schufa</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DelayPath_Schufa_01</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Start_L1" sourceRef="StartEvent_01" targetRef="UserTask_Level1Scoring">
+      <bpmn:name name="Anfrage erhalten"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_CheckReady_Schufa" sourceRef="UserTask_Level1Scoring" targetRef="Gateway_SchufaCheck"/>
+
+    <bpmn:sequenceFlow id="Flow_SendResultMsg_Schufa" name="Ergebnis sofort" sourceRef="Gateway_SchufaCheck" targetRef="EndEvent_ResultSent">
+      <bpmn:name name="Ja - Ergebnis bereit"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_DelayPath_Schufa_01" name="Verzögerung" sourceRef="Gateway_SchufaCheck" targetRef="UserTask_Level2Scoring">
+      <bpmn:name name="Nein - Verzögerung"/>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_SendFinalMsg_Schufa" sourceRef="UserTask_Level2Scoring" targetRef="EndEvent_FinalSent">
+      <bpmn:name name="Level 2 fertig"/>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <!-- Message Flows -->
+  <bpmn:message id="Msg_Request"/>
+  <bpmn:message id="Msg_ResultImmediate"/>
+  <bpmn:message id="Msg_DelayNotification"/>
+  <bpmn:message id="Msg_FinalResult"/>
+
+  <bpmn:messageFlow id="MessageFlow_Request" sourceRef="IntCatch_ResponseL1" targetRef="StartEvent_01">
+    <bpmn:name name="Scoringanfrage"/>
+    <bpmn:elementRef>Msg_Request</bpmn:elementRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ResultImmediate" sourceRef="EndEvent_ResultSent" targetRef="IntCatch_ResponseL1">
+    <bpmn:name name="Ergebnis sofort"/>
+    <bpmn:elementRef>Msg_ResultImmediate</bpmn:elementRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_DelayNotification" sourceRef="Gateway_SchufaCheck" targetRef="UserTask_NotifyDelay">
+    <bpmn:name name="Verzögerungsmeldung"/>
+    <bpmn:elementRef>Msg_DelayNotification</bpmn:elementRef>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_FinalResult" sourceRef="EndEvent_FinalSent" targetRef="IntCatch_FinalResult">
+    <bpmn:name name="Finales Ergebnis"/>
+    <bpmn:elementRef>Msg_FinalResult</bpmn:elementRef>
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_DailyMaintenance">
+  <bpmn:collaboration id="Collab_MaintenanceProcess">
+    <bpmn:participant id="Participant_MainSystem" name="Database Maintenance System" processRef="Proc_DailyMaintenance"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_DailyMaintenance" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_MorningRoutine" name="Weekday Morning Routine">
+      <bpmn:outgoing>Seq_BackupDB</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 -->
+    <bpmn:task id="Task_BackupDatabase" name="Backup Database">
+      <bpmn:incoming>Seq_BackupDB</bpmn:incoming>
+      <bpmn:outgoing>Seq_CheckDefaulterTable</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gate_NewRecords" name="New Defaulter Records?">
+      <bpmn:incoming>Seq_CheckDefaulterTable</bpmn:incoming>
+      <bpmn:outgoing>Seq_CRMCheck_NoRecs</bpmn:outgoing>
+      <bpmn:outgoing>Seq_AdvisedStatus_YesRecs</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_BackupDB" sourceRef="Start_MorningRoutine" targetRef="Task_BackupDatabase"/>
+    <bpmn:sequenceFlow id="Seq_CheckDefaulterTable" name="Check Table" sourceRef="Task_BackupDatabase" targetRef="Gate_NewRecords"/>
+
+    <!-- Path A (No New Records) -->
+    <bpmn:task id="Task_CRMReturns" name="Check CRM for Returns">
+      <bpmn:incoming>Seq_CRMCheck_NoRecs</bpmn:incoming>
+      <bpmn:outgoing>Gate_NewCRMReturns?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path B (New Records Found) -->
+    <bpmn:sequenceFlow id="Seq_CRMCheck_NoRecs" name="No New Defaulter Recs" sourceRef="Gate_NewRecords" targetRef="Task_CRMReturns"/>
+    
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gate_NewCRMReturns?" name="New Returns in CRM?">
+      <bpmn:incoming>Seq_CheckCRMR</bpmn:incoming>
+      <bpmn:outgoing>Task_RegisterAccounts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Gateway 1 (Yes Path) -->
+    <bpmn:sequenceFlow id="Seq_AdvisedStatus_YesRecs" name="Has New Records" sourceRef="Gate_NewRecords" targetRef="Task_RegisterAccounts"/>
+
+    <!-- Task Registration -->
+    <bpmn:task id="Task_RegisterAccounts" name="Register Defaulting Accounts &amp; Customers">
+      <bpmn:incoming>Seq_NewCRMReturns</bpmn:incoming>
+      <bpmn:outgoing>Gate_CodesAdvised</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Gateway 2 -->
+    <bpmn:sequenceFlow id="Seq_CheckCRMR" sourceRef="Task_CRMReturns" targetRef="Gate_NewCRMReturns?"/>
+    <bpmn:sequenceFlow id="Seq_NewCRMReturns" name="Yes Returns Found" sourceRef="Gate_NewCRMReturns?" targetRef="Task_RegisterAccounts"/>
+
+    <!-- Gateway 3 -->
+    <bpmn:exclusiveGateway id="Gate_CodesAdvised" name="Client Codes Advised?">
+      <bpmn:incoming>Seq_AdviseNo</bpmn:incoming>
+      <bpmn:outgoing>Task_GenerateTable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Registration -->
+    <bpmn:sequenceFlow id="Seq_RegisterDone" sourceRef="Task_RegisterAccounts" targetRef="Gate_CodesAdvised"/>
+
+    <!-- Task Generate Table (Boundary Event Attached) -->
+    <bpmn:task id="Task_GenerateTable" name="Generate Defaulters Table">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_AdviseNo</bpmn:incoming>
+      <bpmn:outgoing>Task_SendReport</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task Send Report (Boundary Event Attached) -->
+    <bpmn:task id="Task_SendReport" name="Send to Account Management">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_GenTable</bpmn:incoming>
+      <bpmn:outgoing>Gate_CheckCRMAgain</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_AdviseNo" name="Not Advised" sourceRef="Gate_CodesAdvised" targetRef="Task_GenerateTable"/>
+    <bpmn:sequenceFlow id="Seq_GenTable" sourceRef="Task_GenerateTable" targetRef="Task_SendReport"/>
+
+    <!-- Boundary Event 1 (Deadline Alert) -->
+    <bpmn:boundaryEvent id="Boundary_Alert_230PM" name="Alert Supervisor by 2:30 PM">
+      <bpmn:attachedToRef>Task_SendReport</bpmn:attachedToRef>
+      <bpmn:timerDefinition>
+        <bpmn:timeDuration>P1H</bpmn:timeDuration>
+      </bpmn:timerDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Sequence Flow for Alert -->
+    <bpmn:sequenceFlow id="Seq_Alert_230PM" sourceRef="Boundary_Alert_230PM" targetRef="Task_SendAlertSupervisor"/>
+
+    <!-- Task Send Alert (Implicit) -->
+    <bpmn:endEvent id="End_SupervisorAlert1">
+      <bpmn:incoming>Seq_Alert_230PM</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task Send Alert (Implicit) -->
+    <bpmn:task id="Task_SendAlertSupervisor" name="Send Supervisor Alert">
+      <bpmn:name></bpmn:name>
+      <bpmn:outgoing>End_SupervisorAlert1</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 -->
+    <bpmn:exclusiveGateway id="Gate_CheckCRMAgain" name="Check CRM Again">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_SendReport</bpmn:incoming>
+      <bpmn:outgoing>Task_CRMReturns2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Send Report -->
+    <bpmn:sequenceFlow id="Seq_SendReport" sourceRef="Task_SendReport" targetRef="Gate_CheckCRMAgain"/>
+
+    <!-- Task Check CRM Again (Boundary Event Attached) -->
+    <bpmn:task id="Task_CRMReturns2" name="Check CRM for Returns">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_CheckCRMAgain</bpmn:incoming>
+      <bpmn:outgoing>Gate_NewReturnsAgain?</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Gateway 4 -->
+    <bpmn:sequenceFlow id="Seq_CheckCRMAgain" sourceRef="Gate_CheckCRMAgain" targetRef="Task_CRMReturns2"/>
+
+    <!-- Boundary Event 2 (Deadline Alert) -->
+    <bpmn:boundaryEvent id="Boundary_Alert_160PM" name="Alert Supervisor by 4:00 PM">
+      <bpmn:name></bpmn:name>
+      <bpmn:attachedToRef>Task_Reconcile</bpmn:attachedToRef>
+      <bpmn:timerDefinition>
+        <bpmn:timeDuration>P3H</bpmn:timeDuration>
+      </bpmn:timerDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Sequence Flow for Alert -->
+    <bpmn:sequenceFlow id="Seq_Alert_160PM" sourceRef="Boundary_Alert_160PM" targetRef="Task_SendAlertSupervisor2"/>
+
+    <!-- Task Send Alert (Implicit) -->
+    <bpmn:endEvent id="End_SupervisorAlert2">
+      <bpmn:incoming>Seq_Alert_160PM</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task Send Alert (Implicit) -->
+    <bpmn:task id="Task_SendAlertSupervisor2" name="Send Supervisor Alert">
+      <bpmn:name></bpmn:name>
+      <bpmn:outgoing>End_SupervisorAlert2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 5 -->
+    <bpmn:exclusiveGateway id="Gate_NewReturnsAgain?" name="New Returns Found?">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_CRMReturns2</bpmn:incoming>
+      <bpmn:outgoing>Task_Reconcile</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Sequence Flow from Task CRM Returns 2 -->
+    <bpmn:sequenceFlow id="Seq_CRMReturns2" sourceRef="Task_CRMReturns2" targetRef="Gate_NewReturnsAgain?"/>
+
+    <!-- Task Reconcile (Boundary Event Attached) -->
+    <bpmn:task id="Task_Reconcile" name="Reconcile with Defaulters Table">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_NewReturnsAgain</bpmn:incoming>
+      <bpmn:outgoing>End_ProcessDone</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow from Gateway 5 -->
+    <bpmn:sequenceFlow id="Seq_NewReturnsAgain" name="Yes Returns Found" sourceRef="Gate_NewReturnsAgain?" targetRef="Task_Reconcile"/>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_ProcessDone">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>Seq_RecDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flow from Reconcile -->
+    <bpmn:sequenceFlow id="Seq_RecDone" sourceRef="Task_Reconcile" targetRef="End_ProcessDone"/>
+
+  </bpmn:process>
+</bpmn:definitions>

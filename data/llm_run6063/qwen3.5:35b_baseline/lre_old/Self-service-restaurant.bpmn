@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_RestaurantProcess">
+    <bpmn:participant id="Participant_Guest" name="Guest" processRef="Process_Guest"/>
+    <bpmn:participant id="Participant_Employee" name="Employee" processRef="Process_Employee"/>
+    <bpmn:participant id="Participant_Chef" name="Chef" processRef="Process_Chef"/>
+  </bpmn:collaboration>
+
+  <!-- Guest Process -->
+  <bpmn:process id="Process_Guest">
+    <bpmn:startEvent id="StartEvent_EnterRestaurant" name="Guest Enters Restaurant">
+      <bpmn:outgoing>SequenceFlow_ChooseDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_GuestChooseDish" name="Choose Dish from Changing Meal Range">
+      <bpmn:incoming>SequenceFlow_ChooseDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_TurnWaiting" name="Is Turn?">
+      <bpmn:incoming>SequenceFlow_WaitForTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_GuestPlaceOrder" name="Place Order with Employee">
+      <bpmn:incoming>SequenceFlow_PlaceOrder</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForBuzzer</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_BuzzerReaction" name="Guest Reacts to Buzzer?">
+      <bpmn:incoming>SequenceFlow_GuestReactsToBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PickUpMeal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_GuestPickupAndEat" name="Pick Up Meal and Eat">
+      <bpmn:incoming>SequenceFlow_PickUpMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndGuestProcess</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_GuestDone" name="Dinner Consumed">
+      <bpmn:incoming>SequenceFlow_EndGuestProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Timer for buzzer timeout -->
+    <bpmn:startEvent id="StartTimer_5MinCall_Guest" name="Buzzer Timeout (5 min)">
+      <bpmn:outgoing>SequenceFlow_CallGuest</bpmn:outgoing>
+      <bpmn:eventDefinitions>
+        <bpmn:timerEventDefinition id="TimerDef_5Min">
+          <timeDuration>P0DT0H5M0S</timeDuration>
+        </bpmn:timerEventDefinition>
+      </bpmn:eventDefinitions>
+    </bpmn:startEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_ChooseDish" sourceRef="StartEvent_EnterRestaurant" targetRef="Task_GuestChooseDish"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForTurn" name="Wait for Turn" sourceRef="Task_GuestChooseDish" targetRef="ExclusiveGateway_TurnWaiting"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrder" sourceRef="ExclusiveGateway_TurnWaiting" targetRef="Task_GuestPlaceOrder"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForBuzzer" name="Wait for Buzzer Ringing" sourceRef="Task_GuestPlaceOrder" targetRef="ExclusiveGateway_BuzzerReaction"/>
+    <bpmn:sequenceFlow id="SequenceFlow_PickUpMeal" sourceRef="ExclusiveGateway_BuzzerReaction" targetRef="Task_GuestPickupAndEat"/>
+    <bpmn:sequenceFlow id="SequenceFlow_EndGuestProcess" name="Dinner Consumed" sourceRef="Task_GuestPickupAndEat" targetRef="EndEvent_GuestDone"/>
+
+  </bpmn:process>
+
+  <!-- Employee Process -->
+  <bpmn:process id="Process_Employee">
+    <bpmn:startEvent id="StartEvent_OrderReceived" name="Order Received from Guest">
+      <bpmn:outgoing>SequenceFlow_EnterPOS</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_EmployeeEnterPOS" name="Enter Order into POS System">
+      <bpmn:incoming>SequenceFlow_EnterPOS</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CollectMoney</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PaymentConfirmed" name="Payment Confirmed?">
+      <bpmn:incoming>SequenceFlow_CollectMoney</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetBuzzerYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_EmployeeCollectPayment" name="Collect Money from Guest">
+      <bpmn:incoming>SequenceFlow_CollectMoney</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetBuzzerYes</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_EmployeeSetBuzzer" name="Setup Buzzer and Pass to Guest">
+      <bpmn:incoming>SequenceFlow_SetBuzzerYes</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_InformChef</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MealReady_Employee" name="Meal Ready?">
+      <bpmn:incoming>MessageFlow_ChefInformsEmployee</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SetOffBuzzer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_EmployeeSetOffBuzzer" name="Ring Guest's Buzzer">
+      <bpmn:incoming>SequenceFlow_SetOffBuzzer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForGuestAtHatch</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_GuestAppears" name="Guest Appears at Hatch?">
+      <bpmn:incoming>SequenceFlow_WaitForGuestAtHatch</bpmn:incoming>
+      <bpmn:outgoing>SequenceHandOverMeal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:startEvent id="StartTimer_5MinCall_Employee" name="Buzzer Timeout (5 min)">
+      <bpmn:outgoing>SequenceFlow_CallGuest</bpmn:outgoing>
+      <bpmn:eventDefinitions>
+        <bpmn:timerEventDefinition id="TimerDef_5MinCall">
+          <timeDuration>P0DT0H5M0S</timeDuration>
+        </bpmn:timerEventDefinition>
+      </bpmn:eventDefinitions>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEmployeeProcess" name="Order Completed">
+      <bpmn:incoming>SequenceFlow_EndEmployeeProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EnterPOS" sourceRef="StartEvent_OrderReceived" targetRef="Task_EmployeeEnterPOS"/>
+    <bpmn:sequenceFlow id="SequenceFlow_CollectMoney" name="Collect Payment" sourceRef="Task_EmployeeEnterPOS" targetRef="ExclusiveGateway_PaymentConfirmed"/>
+    <bpmn:exclusiveGateway id="ExclusiveGateway_PaymentConfirmed">
+      <incoming>SequenceFlow_CollectMoney</incoming>
+      <outgoing>SequenceFlow_SetBuzzerYes</outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Message Flow from Chef -->
+    <bpmn:messageFlow id="MessageFlow_ChefInformsEmployee" sourceRef="Task_ChefPlaceInServiceHatch" targetRef="ExclusiveGateway_MealReady_Employee"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SetBuzzerYes" name="Payment Confirmed - Yes" sourceRef="ExclusiveGateway_PaymentConfirmed" targetRef="Task_EmployeeSetBuzzer"/>
+    <bpmn:sequenceFlow id="SequenceFlow_InformChef" name="Inform Chef of Order" sourceRef="Task_EmployeeSetBuzzer" targetRef="MessageStart_ChefOrderReceived">
+      <!-- Message Flow to Chef -->
+    </bpmn:sequenceFlow>
+
+    <bpmn:messageFlow id="MessageFlow_OrderToChef" sourceRef="SequenceFlow_InformChef" targetRef="Task_ChefPrepareMeal"/>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MealReady_Employee">
+      <incoming>MessageFlow_ChefInformsEmployee</incoming>
+      <outgoing>SequenceFlow_SetOffBuzzer</outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_SetOffBuzzer" sourceRef="ExclusiveGateway_MealReady_Employee" targetRef="Task_EmployeeSetOffBuzzer"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForGuestAtHatch" name="Wait for Guest at Hatch" sourceRef="Task_EmployeeSetOffBuzzer" targetRef="ExclusiveGateway_GuestAppears"/>
+
+    <!-- Timer Event -->
+    <bpmn:startEvent id="StartTimer_5MinCall_Employee">
+      <outgoing>SequenceFlow_CallGuest</outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_CallGuest" sourceRef="ExclusiveGateway_GuestAppears" targetRef="Task_EmployeeCallGuest"/>
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MealReady_Employee">
+      <incoming>MessageFlow_ChefInformsEmployee</incoming>
+      <outgoing>SequenceFlow_SetOffBuzzer</outgoing>
+    </bpmn:exclusiveGateway>
+
+  </bpmn:process>
+
+  <!-- Chef Process -->
+  <bpmn:process id="Process_Chef">
+    <bpmn:startEvent id="StartChefOrderReceived" name="New Meal Order Received from Employee">
+      <bpmn:outgoing>SequenceFlow_PrepareMeal</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_ChefPrepareMeal" name="Prepare the Meal">
+      <bpmn:incoming>MessageFlow_OrderToChef</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceInHatch</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MealPrepared" name="Meal Prepared?">
+      <bpmn:incoming>SequenceFlow_PrepareMeal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceInHatchYes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_ChefPlaceInServiceHatch" name="Place Finished Meal in Service Hatch">
+      <bpmn:incoming>SequenceFlow_PlaceInHatchYes</bpmn:incoming>
+      <bpmn:outgoing>MessageFlow_ChefNotifiesEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Message Flow to Employee -->
+    <bpmn:message id="Message_MealReady" name="Meal Ready Notification"/>
+
+    <bpmn:endEvent id="EndChefProcess" name="Meal Placed in Hatch">
+      <bpmn:incoming>SequenceFlow_EndChefProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareMeal" sourceRef="StartChefOrderReceived" targetRef="Task_ChefPrepareMeal"/>
+    <bpmn:exclusiveGateway id="ExclusiveGateway_MealPrepared">
+      <incoming>SequenceFlow_PrepareMeal</incoming>
+      <outgoing>SequenceFlow_PlaceInHatchYes</outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Message Flow to Employee -->
+    <bpmn:message id="Message_MealReady" name="Meal Ready Notification"/>
+
+  </bpmn:process>
+
+  <!-- Message Flows between Participants -->
+  <bpmn:messageFlow id="MessageFlow_OrderToChef">
+    <bpmn:name>New Meal Order</bpmn:name>
+  </bpmn:messageFlow>
+
+  <bpmn:messageFlow id="MessageFlow_ChefInformsEmployee" name="Meal Ready Notification">
+    <bpmn:sourceRef>Task_ChefPlaceInServiceHatch</bpmn:sourceRef>
+    <bpmn:targetRef>ExclusiveGateway_MealReady_Employee</bpmn:targetRef>
+  </bpmn:messageFlow>
+
+</bpmn:definitions>

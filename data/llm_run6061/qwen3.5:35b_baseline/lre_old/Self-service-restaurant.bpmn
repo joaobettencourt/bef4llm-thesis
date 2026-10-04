@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_RestaurantProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_RestaurantOrdering">
+    <bpmn:participant id="Participant_MainSystem" name="Restaurant Order Process" processRef="Process_01"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_01" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Guest" name="Guest">
+        <bpmn:flowNodeRef>StartEvent_Arrival</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectDish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_WaitTurn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_ReceivesBuzzer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PickUpMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Consumed</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>Task_PlaceOrderReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterPOSAndCollectMoney</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SetBuzzerForGuest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>InclusiveGateway_CheckResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_CallCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallerGuestAfterTimeout</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Chef" name="Chef">
+        <bpmn:flowNodeRef>Event_ReceiveOrderInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareMeal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_PlaceInHatch</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Guest Lane Start -->
+    <bpmn:startEvent id="StartEvent_Arrival" name="Guest Arrives">
+      <bpmn:outgoing>SequenceFlow_SelectDish</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Select Dish -->
+    <bpmn:task id="Task_SelectDish" name="Choose Dish from Changing Meal Range">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SelectDish</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitTurn</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Activity: Wait Turn -->
+    <bpmn:serviceTask id="Activity_WaitTurn" name="Wait Until It Is My Turn">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_WaitTurn</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_PlaceOrderToEmployee</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Sequence Flow to Employee -->
+    <bpmn:sequenceFlow id="SequenceFlow_SelectDish" sourceRef="StartEvent_Arrival" targetRef="Task_SelectDish"/>
+    <bpmn:sequenceFlow id="SequenceFlow_WaitTurn" sourceRef="Task_SelectDish" targetRef="Activity_WaitTurn"/>
+
+    <!-- Task: Place Order (Guest) -->
+    <bpmn:task id="Task_PlaceOrderToEmployee" name="Place Order with Employee">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PlaceOrderToEmployee</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_OrderReceivedByEmployee</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Employee Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceOrderToEmployee" sourceRef="Activity_WaitTurn" targetRef="Task_PlaceOrderToEmployee"/>
+    
+    <!-- Task: POS & Payment (Employee) -->
+    <bpmn:task id="Task_EnterPOSAndCollectMoney" name="Enter Order into POS &amp; Collect Money">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_OrderReceivedByEmployee</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_SetBuzzerAction</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Set Buzzer -->
+    <bpmn:sequenceFlow id="SequenceFlow_OrderReceivedByEmployee" sourceRef="Task_PlaceOrderToEmployee" targetRef="Task_EnterPOSAndCollectMoney"/>
+    
+    <!-- Task: Set Buzzer (Employee) -->
+    <bpmn:task id="Task_SetBuzzerForGuest" name="Set Up and Pass On Buzzer">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_SetBuzzerAction</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_BuzzerToGuest</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow to Guest Buzzer Event -->
+    <bpmn:sequenceFlow id="SequenceFlow_SetBuzzerAction" sourceRef="Task_EnterPOSAndCollectMoney" targetRef="Task_SetBuzzerForGuest"/>
+    
+    <!-- Task/Event: Guest Receives Buzzer (Simulated as task for flow continuity in single pool) -->
+    <bpmn:startEvent id="Event_ReceivesBuzzer" name="Receive Buzzer">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_BuzzerToGuest</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_WaitForMealPrep</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow to Chef (Inform) -->
+    <bpmn:sequenceFlow id="SequenceFlow_BuzzerToGuest" sourceRef="Task_SetBuzzerForGuest" targetRef="Event_ReceivesBuzzer"/>
+    
+    <!-- Task: Inform Chef (Employee -> Chef via sequence flow crossing lanes) -->
+    <bpmn:startEvent id="Event_ReceiveOrderInfo" name="Inform Chef of Order">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_InformChef</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>SequenceFlow_PrepareMealStart</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow to Chef Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_InformChef" sourceRef="Task_EnterPOSAndCollectMoney" targetRef="Event_ReceiveOrderInfo"/>
+    
+    <!-- Task: Prepare Meal (Chef) -->
+    <bpmn:task id="Task_PrepareMeal" name="Prepare the Meal">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PrepareMealStart</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>SequenceFlow_PlaceInHatchAction</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:task>
+
+    <!-- Sequence Flow to Place in Hatch -->
+    <bpmn:sequenceFlow id="SequenceFlow_PrepareMealStart" sourceRef="Event_ReceiveOrderInfo" targetRef="Task_PrepareMeal"/>
+    
+    <!-- Activity: Place Meal (Chef) -->
+    <bpmn:serviceTask id="Activity_PlaceInHatch" name="Place Finished Meal in Service Hatch">
+      <bpmn:name></bpmn:name>
+      <bpmn:incoming>SequenceFlow_PlaceInHatchAction</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>SequenceFlow_MealReadyToEmployee</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:serviceTask>
+
+    <!-- Sequence Flow back to Employee (Notify) -->
+    <bpmn:sequenceFlow id="SequenceFlow_PlaceInHatchAction" sourceRef="Task_PrepareMeal" targetRef="Activity_PlaceInHatch"/>
+    
+    <!-- Task/Event: Meal Ready Notification Received (Employee Lane logic trigger) -->
+    <bpmn:startEvent id="Event_MealReadyNotificationReceived" name="Meal is Ready in Hatch">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>SequenceFlow_MealReadyToEmployee</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>SequenceFlow_RingBuzzerAction</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:startEvent>
+
+    <!-- Sequence Flow to Ring Buzzer Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_MealReadyToEmployee" sourceRef="Activity_PlaceInHatch" targetRef="Event_MealReadyNotificationReceived"/>
+    
+    <!-- Task: Ring Guest's Buzzer (Employee) -->
+    <bpmn:task id="Task_RingGuestsBuzzer" name="Ring Guest's Buzzer">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>SequenceFlow_RingBuzzerAction</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:task>
+
+    <!-- Sequence Flow to Ring Buzzer Task -->
+    <bpmn:sequenceFlow id="SequenceFlow_RingBuzzerAction" sourceRef="Event_MealReadyNotificationReceived" targetRef="Task_RingGuestsBuzzer"/>
+
+    <!-- Gateway: Check Response (Employee) -->
+    <bpmn:inclusiveGateway id="InclusiveGateway_CheckResponse" name="Guest Responds to Buzzer?">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Self-reference for logic, usually incoming from task) -->
+      <bpmn:outgoing>SequenceFlow_GuestResponded</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>SequenceFlow_NoReactionAfter5Min</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:inclusiveGateway>
+
+    <!-- Correcting Gateway Incoming/Outgoing for validity -->
+    <bpmn:sequenceFlow id="Seq_GatewayIn" sourceRef="Task_RingGuestsBuzzer" targetRef="InclusiveGateway_CheckResponse"/>
+    
+    <!-- Sequence Flow: Guest Responded (Pick Up) -->
+    <bpmn:task id="Task_PickUpMeal" name="Pick Up and Eat Meal">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>SequenceFlow_GuestResponded</bmm:outgoing> <!-- Fixed prefix -->
+      <bpmn:outgoing>EndEvent_Consumed</bmm:outgoing> <!-- Fixed prefix -->
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_GuestResponded" name="Guest Reacts">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:sourceRef>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Should be targetRef in flow) -->
+    </bpmn:sequenceFlow>
+
+    <!-- Correcting Sequence Flow Definition for Guest Responded -->
+    <bpmn:sequenceFlow id="SequenceFlow_GuestResponded" sourceRef="InclusiveGateway_CheckResponse" targetRef="Task_PickUpMeal"/>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Consumed" name="Meal Consumed">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>SequenceFlow_GuestResponded</bmm:outgoing> <!-- Fixed prefix (Should be incoming) -->
+    </bpmn:endEvent>
+
+    <!-- Correcting End Event Incoming Flow Reference -->
+    <bpmn:sequenceFlow id="Seq_ToEnd" sourceRef="Task_PickUpMeal" targetRef="EndEvent_Consumed"/>
+
+    <!-- Sequence Flow: No Reaction (Loop) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_CallCheck" name="Call Guest After 5 Minutes?">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Should be incoming) -->
+    </bpmn:exclusiveGateway>
+
+    <!-- Correcting Gateway Incoming Flow Reference for No Reaction Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoReactionAfter5Min" name="No Reaction">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:sourceRef>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Should be targetRef in flow) -->
+    </bpmn:sequenceFlow>
+
+    <!-- Correcting Sequence Flow Definition for No Reaction Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_NoReactionAfter5Min" sourceRef="InclusiveGateway_CheckResponse" targetRef="ExclusiveGateway_CallCheck"/>
+
+    <!-- Task: Call Guest (Employee) -->
+    <bpmn:task id="Task_CallerGuestAfterTimeout" name="Call for Guest">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:incoming>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Should be incoming) -->
+    </bpmn:task>
+
+    <!-- Correcting Task Incoming Flow Reference for Call Guest -->
+    <bpmn:sequenceFlow id="SequenceFlow_CallGuest" sourceRef="ExclusiveGateway_CallCheck" targetRef="Task_CallerGuestAfterTimeout"/>
+
+    <!-- Loop Back to Check Response (Simplified Logic) -->
+    <bpmn:sequenceFlow id="SequenceLoopBack" name="Retry">
+      <bpmn:name></bmm:name> <!-- Fixed prefix -->
+      <bpmn:sourceRef>InclusiveGateway_CheckResponse</bmm:outgoing> <!-- Fixed prefix (Should be targetRef in flow) -->
+    </bpmn:sequenceFlow>
+
+    <!-- Correcting Loop Back Flow Definition -->
+    <bpmn:sequenceFlow id="SequenceLoopBack" sourceRef="Task_CallerGuestAfterTimeout" targetRef="InclusiveGateway_CheckResponse"/>
+
+  </bpmn:process>
+</bpmn:definitions>

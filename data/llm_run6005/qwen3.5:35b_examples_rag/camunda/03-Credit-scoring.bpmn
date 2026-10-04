@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1a2b3c" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_CreditScoring">
+    <bpmn:participant id="Participant_BankingSystem" name="Banking System Process" processRef="Process_1a2b3c"/>
+    <bpmn:participant id="Participant_Agency" name="Credit Scoring Agency (Schufa)" processRef="Process_4d5e6f"/>
+  </bpmn:collaboration>
+
+  <!-- Banking System Process -->
+  <bpmn:process id="Process_1a2b3c" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_ClerkRequest" name="Clerk Requests Credit Scoring">
+      <bpmn:description>Credit scoring request initiated by sales clerk</bpmn:description>
+      <bpmn:outgoing>SequenceFlow_SendScoringRequest_01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="EndEvent_ResultDisplayed" name="Credit Scoring Result Displayed">
+      <bpmn:description>Clerk can view the credit scoring result at frontend</bpmn:description>
+      <bpmn:incoming>SequenceFlow_DisplayResult_03</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Send Scoring Request to Agency -->
+    <bpmn:serviceTask id="ServiceTask_SendScoringRequest" name="Send Credit Scoring Request">
+      <bpmn:description>Sends request to external credit scoring agency</bpmn:description>
+      <bpmn:incoming>SequenceFlow_SendScoringRequest_01</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForResponse_02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway for Result Type -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResultType" name="Result Available Immediately?">
+      <bpmn:description>Determines if Level 1 scoring provides immediate result</bpmn:description>
+      <bpmn:incoming>SequenceFlow_WaitForResponse_02</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayResult_Immediate_03a</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_DelayNotification_04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Display Delay Message to Clerk -->
+    <bpmn:userTask id="UserTask_DisplayDelayMessage" name="Display Scoring Delay Notification">
+      <bpmn:description>Informs clerk that scoring will take longer, check again later</bpmn:description>
+      <bpmn:incoming>SequenceFlow_DelayNotification_04</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitForFinalResultTask_05a</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Display Final Result to Clerk -->
+    <bpmn:userTask id="UserTask_DisplayFinalResult" name="Display Credit Scoring Result">
+      <bpmn:description>Presents final credit scoring result at frontend</bpmn:description>
+      <bpmn:incoming>SequenceFlow_DisplayResult_Immediate_03a</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_FinalScoringResponse_05</bpmn:incoming>
+    </bpmn:userTask>
+
+    <!-- Receive Task for Extended Scoring -->
+    <bpmn:receiveTask id="ReceiveTask_WaitForFinalResult" name="Wait for Extended Scoring">
+      <bpmn:description>System waits for Level 2 scoring completion</bpmn:description>
+      <bpmn:incoming>SequenceFlow_WaitForFinalResultTask_05a</bpmn:incoming>
+    </bpmn:receiveTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendScoringRequest_01" name="" sourceRef="StartEvent_ClerkRequest" targetRef="ServiceTask_SendScoringRequest">
+      <bpmn:description>Clerk initiates credit scoring request</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Message Flow to Agency -->
+    <bpmn:messageFlow id="MessageFlow_ScoringRequest" name="Credit Scoring Request" sourceRef="ServiceTask_SendScoringRequest" targetRef="StartEvent_AgencyReceive">
+      <bpmn:description>Sends credit scoring request to external agency</bpmn:description>
+    </bpmn:messageFlow>
+
+    <!-- Receive Immediate Result -->
+    <bpmn:sequenceFlow id="SequenceFlow_ImmediateResult_06" name="" sourceRef="ExclusiveGateway_ResultType" targetRef="UserTask_DisplayFinalResult">
+      <bpmn:description>Level 1 scoring provides immediate result</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Receive Delay Notification -->
+    <bpmn:sequenceFlow id="SequenceFlow_DelayNotification_04" name="" sourceRef="ExclusiveGateway_ResultType" targetRef="UserTask_DisplayDelayMessage">
+      <bpmn:description>Level 1 scoring requires extended processing time</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Wait for Final Result -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitForFinalResultTask_05a" name="" sourceRef="UserTask_DisplayDelayMessage" targetRef="ReceiveTask_WaitForFinalResult">
+      <bpmn:description>Clerk checks again later after delay notification</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Display Final Result -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalScoringResponse_05" name="" sourceRef="ReceiveTask_WaitForFinalResult" targetRef="UserTask_DisplayFinalResult">
+      <bpmn:description>Level 2 scoring completed, result available</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Display Result to End -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayResult_03" name="" sourceRef="UserTask_DisplayFinalResult" targetRef="EndEvent_ResultDisplayed">
+      <bpmn:description>Clerk views credit scoring result at frontend</bpmn:description>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- Credit Scoring Agency Process -->
+  <bpmn:process id="Process_4d5e6f" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_AgencyReceive" name="Receive Scoring Request">
+      <bpmn:description>Award receives credit scoring request from banking system</bpmn:description>
+      <bpmn:incoming/>
+      <bpmn:messageEventDefinition messageRef="Message_ScoringRequest"/>
+    </bpmn:startEvent>
+
+    <!-- Perform Level 1 Quick Scoring -->
+    <bpmn:serviceTask id="ServiceTask_Level1Scoring" name="Perform Level 1 Credit Scoring">
+      <bpmn:description>Rapid initial credit assessment</bpmn:description>
+      <bpmn:incoming>SequenceFlow_AgencyStart_07</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_Level1ResultCheck_08a</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway for Level 1 Result -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_Level1Result" name="Level 1 Scoring Complete?">
+      <bpmn:description>Determines if immediate result available from quick scoring</bpmn:description>
+      <bpmn:incoming>SequenceFlow_Level1ResultCheck_08a</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SendImmediateResult_09a</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_StartLevel2Scoring_10a</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Perform Level 2 Extended Scoring -->
+    <bpmn:serviceTask id="ServiceTask_Level2Scoring" name="Perform Level 2 Credit Scoring">
+      <bpmn:description>Detailed credit assessment taking several minutes</bpmn:description>
+      <bpmn:incoming>SequenceFlow_StartLevel2Scoring_10a</bpmn:incoming>
+    </bpmn:serviceTask>
+
+    <!-- Send Result to Banking System -->
+    <bpmn:endEvent id="EndEvent_ScoringComplete" name="Scoring Complete">
+      <bpmn:description>Credit scoring process completed at agency side</bpmn:description>
+      <bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_AgencyStart_07" name="" sourceRef="StartEvent_AgencyReceive" targetRef="ServiceTask_Level1Scoring">
+      <bpmn:description>Award begins credit scoring process</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Immediate Result Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ImmediateResult_Agency" name="" sourceRef="ExclusiveGateway_Level1Result" targetRef="EndEvent_ScoringComplete">
+      <bpmn:description>Level 1 scoring provides immediate result</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Extended Processing Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_ExtendedProcessing_Agency" name="" sourceRef="ExclusiveGateway_Level1Result" targetRef="ServiceTask_Level2Scoring">
+      <bpmn:description>Level 1 scoring requires extended processing</bpmn:description>
+    </bpmn:sequenceFlow>
+
+    <!-- Send Extended Result -->
+    <bpmn:messageFlow id="MessageFlow_ScoringResult" name="Credit Scoring Result" sourceRef="ServiceTask_Level2Scoring" targetRef="ReceiveTask_WaitForFinalResult">
+      <bpmn:description>Sends completed credit scoring result to banking system</bpmn:description>
+    </bpmn:messageFlow>
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_ScoringRequest" name="Credit Scoring Request"/>
+  <bpmn:message id="Message_ScoringResult" name="Credit Scoring Result"/>
+
+</bpmn:definitions>

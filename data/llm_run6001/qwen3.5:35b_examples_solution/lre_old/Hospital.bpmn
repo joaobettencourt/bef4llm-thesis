@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Hospital_Exam">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Examination Process" processRef="Process_Examination"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Examination" isExecutable="false">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="Start_1" name="Patient examination initiated">
+      <bpmn:outgoing>SFlow_StartToExamine</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1: Examine patient by outpatient physician -->
+    <bpmn:task id="Task_Examine" name="Examine female patient">
+      <bpmn:incoming>SFlow_StartToExamine</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InitialDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1: Additional examination required? -->
+    <bpmn:exclusiveGateway id="Gate_AdditionalExam" name="Additional examination required?">
+      <bpmn:incoming>SFlow_InitialDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_NoAddExam</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_YesAddExam</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1A: No additional examination needed -->
+    <bpmn:task id="Task_FillForm" name="Fill out examination form">
+      <bpmn:incoming>SFlow_NoAddExam</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ReleasePatient</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 1: Patient released -->
+    <bpmn:endEvent id="End_PatientReleased" name="Patient leaves">
+      <bpmn:incoming>SFlow_ReleasePatient</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 1B: Additional examination required -->
+    <bpmn:task id="Task_OrderExam" name="Order examination &amp; follow-up treatment">
+      <bpmn:incoming>SFlow_YesAddExam</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InformRisks</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 2: Inform about risks -->
+    <bpmn:task id="Task_InformRisks" name="Inform patient about potential risks">
+      <bpmn:incoming>SFlow_InformRisks</bpmn:incoming>
+      <bpmn:outgoing>SFlow_PatientAgreesDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2: Patient agrees to continue? -->
+    <bpmn:exclusiveGateway id="Gate_PatientAgree" name="Patient signs informed consent?">
+      <bpmn:incoming>SFlow_PatientAgreesDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AgreeContinue</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoAgreeEnd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event 2: Patient declines -->
+    <bpmn:endEvent id="End_PatientDeclines" name="Patient declines procedure">
+      <bpmn:incoming>SFlow_NoAgreeEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task 3: Make appointment with ward -->
+    <bpmn:task id="Task_MakeAppointment" name="Arrange patient appointment with ward">
+      <bpmn:incoming>SFlow_AgreeContinue</bpmn:incoming>
+      <bpmn:outgoing>SFlow_WardPreparesExam</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 4: Ward prepares examination -->
+    <bpmn:task id="Task_PrepareWard" name="Prepare examination and sampling">
+      <bpmn:incoming>SFlow_WardPreparesExam</bpmn:incoming>
+      <bpmn:outgoing>SFlow_TakeSample</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 5: Ward physician takes sample -->
+    <bpmn:task id="Task_WardTakeSample" name="Ward physician takes requested sample">
+      <bpmn:incoming>SFlow_TakeSample</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendToLab</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 6: Send to lab -->
+    <bpmn:task id="Task_SampleSent" name="Send sample to indicated lab">
+      <bpmn:incoming>SFlow_SendToLab</bpmn:incoming>
+      <bpmn:outgoing>SFlow_LabReceivesSample</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 7: Lab validates sample state -->
+    <bpmn:task id="Task_LabValidateState" name="Lab physician validates sample state">
+      <bpmn:incoming>SFlow_LabReceivesSample</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SampleDecisionGate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 3: Sample ok for analysis? -->
+    <bpmn:exclusiveGateway id="Gate_SampleOk" name="Sample usable for analysis?">
+      <bpmn:incoming>SFlow_SampleDecisionGate</bpmn:incoming>
+      <bpmn:outgoing>SFlow_YesSampleOk</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoContaminated</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 3A: Sample contaminated - loop back -->
+    <bpmn:task id="Task_NewSample" name="Collect new sample">
+      <bpmn:incoming>SFlow_NoContaminated</bpmn:incoming>
+      <bpmn:outgoing>SFlow_ResendToLab</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop back to lab validation -->
+    <bpmn:sequenceFlow id="SFlow_ResendToLab" sourceRef="Task_NewSample" targetRef="Task_SampleSent"/>
+
+    <!-- Path 3B: Sample ok for analysis -->
+    <bpmn:task id="Task_AnalyseSample" name="Medical technical assistant performs sample analysis">
+      <bpmn:incoming>SFlow_YesSampleOk</bpmn:incoming>
+      <bpmn:outgoing>SFlow_LabValidateResults</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 8: Lab physician validates results -->
+    <bpmn:task id="Task_LabValidate" name="Lab physician validates analysis results">
+      <bpmn:incoming>SFlow_LabValidateResults</bpmn:incoming>
+      <bpmn:outgoing>SFlow_OutpatientDiagnosis</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 9: Outpatient physician makes diagnosis -->
+    <bpmn:task id="Task_Diagnose" name="Outpatient physician diagnoses and prescribes therapy">
+      <bpmn:incoming>SFlow_OutpatientDiagnosis</bpmn:incoming>
+      <bpmn:outgoing>SFlow_FinalEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event 3: Process complete -->
+    <bpmn:endEvent id="End_ProcessComplete" name="Diagnosis and therapy prescribed">
+      <bpmn:incoming>SFlow_FinalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_StartToExamine" sourceRef="Start_1" targetRef="Task_Examine"/>
+    <bpmn:sequenceFlow id="SFlow_InitialDecision" name="" sourceRef="Task_Examine" targetRef="Gate_AdditionalExam"/>
+
+    <!-- Decision 1 flows -->
+    <bpmn:sequenceFlow id="SFlow_NoAddExam" name="No additional examination needed" sourceRef="Gate_AdditionalExam" targetRef="Task_FillForm"/>
+    <bpmn:sequenceFlow id="SFlow_YesAddExam" name="Additional examination required" sourceRef="Gate_AdditionalExam" targetRef="Task_OrderExam"/>
+
+    <!-- Decision 2 flows -->
+    <bpmn:sequenceFlow id="SFlow_InformRisks" name="" sourceRef="Task_OrderExam" targetRef="Task_InformRisks"/>
+    <bpmn:sequenceFlow id="SFlow_PatientAgreesDecision" name="" sourceRef="Task_InformRisks" targetRef="Gate_PatientAgree"/>
+
+    <!-- Decision 2 outcomes -->
+    <bpmn:sequenceFlow id="SFlow_AgreeContinue" name="Patient agrees to continue" sourceRef="Gate_PatientAgree" targetRef="Task_MakeAppointment"/>
+    <bpmn:sequenceFlow id="SFlow_NoAgreeEnd" name="Patient declines procedure" sourceRef="Gate_PatientAgree" targetRef="End_PatientDeclines"/>
+
+    <!-- Ward process flows -->
+    <bpmn:sequenceFlow id="SFlow_WardPreparesExam" name="" sourceRef="Task_MakeAppointment" targetRef="Task_PrepareWard"/>
+    <bpmn:sequenceFlow id="SFlow_TakeSample" name="" sourceRef="Task_PrepareWard" targetRef="Task_WardTakeSample"/>
+
+    <!-- Lab process flows -->
+    <bpmn:sequenceFlow id="SFlow_SendToLab" name="Send sample to lab" sourceRef="Task_WardTakeSample" targetRef="Task_SampleSent"/>
+    <bpmn:sequenceFlow id="SFlow_LabReceivesSample" name="" sourceRef="Task_SampleSent" targetRef="Task_LabValidateState"/>
+
+    <!-- Decision 3 flows -->
+    <bpmn:sequenceFlow id="SFlow_SampleDecisionGate" name="" sourceRef="Task_LabValidateState" targetRef="Gate_SampleOk"/>
+    <bpmn:sequenceFlow id="SFlow_YesSampleOk" name="Sample usable for analysis" sourceRef="Gate_SampleOk" targetRef="Task_AnalyseSample"/>
+    <bpmn:sequenceFlow id="SFlow_NoContaminated" name="Sample contaminated - new sample required" sourceRef="Gate_SampleOk" targetRef="Task_NewSample"/>
+
+    <!-- Final flows -->
+    <bpmn:sequenceFlow id="SFlow_LabValidateResults" name="" sourceRef="Task_AnalyseSample" targetRef="Task_LabValidate"/>
+    <bpmn:sequenceFlow id="SFlow_OutpatientDiagnosis" name="" sourceRef="Task_LabValidate" targetRef="Task_Diagnose"/>
+
+  </bpmn:process>
+</bpmn:definitions>

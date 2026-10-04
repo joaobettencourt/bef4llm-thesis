@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_SEPA_Mandat">
+    <bpmn:participant id="Participant_Process" name="SEPA-Mandatsbearbeitung" processRef="Process_0geryc1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_0geryc1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_EingangMandat" name="Eingang Mandatsdaten">
+      <bpmn:outgoing>SequenceFlow_CheckIBAN</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task 1 & 2 -->
+    <bpmn:task id="Task_PruefeIBANLand" name="Prüfe IBAN und Land">
+      <bpmn:incoming>SequenceFlow_CheckIBAN</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_SearchPerson</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task 3 -->
+    <bpmn:task id="Task_SuchePerson" name="Suche Person im System">
+      <bpmn:incoming>SequenceFlow_SearchPerson</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DataCompleteCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 1 -->
+    <bpmn:exclusiveGateway id="Gateway_DatenVollstaendig" name="Alle Daten vollständig?">
+      <bpmn:incoming>SequenceFlow_DataCompleteCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidMandatDate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_MissingSignatureCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Data Complete -->
+    <bpmn:sequenceFlow id="SequenceFlow_ValidMandatDate" sourceRef="Gateway_DatenVollstaendig" targetRef="Task_PruefeGeltigVonDatum">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Path 2: Missing Data -->
+    <bpmn:exclusiveGateway id="Gateway_FehltUnterschrift" name="Fehlt Unterschrift?">
+      <bpmn:incoming>SequenceFlow_MissingSignatureCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateLetter</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManualReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 2a: Missing Signature -->
+    <bpmn:task id="Task_ErstelleSchreiben" name="Erstelle Anforderungsschreiben">
+      <bpmn:incoming>SequenceFlow_CreateLetter</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitFeedback</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Intermediate Timer Event -->
+    <bpmn:intermediateCatchEvent id="Event_WarteRueckmeldung" name="Warte auf Rückmeldung (28 Tage)">
+      <bpmn:incoming>SequenceFlow_WaitFeedback</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FeedbackReceivedCheck</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway after Timer -->
+    <bpmn:exclusiveGateway id="Gateway_RueckmeldungErhalten" name="Rückmeldung erhalten?">
+      <bpmn:incoming>SequenceFlow_FeedbackReceivedCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidMandatDate</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ProcessFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event for Failure -->
+    <bpmn:endEvent id="EndEvent_ProzessAbgebrochen" name="Prozess abgebrochen">
+      <bpmn:incoming>SequenceFlow_ProcessFailed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2b: Missing Other Data (Sig Present) -->
+    <bpmn:task id="Task_ManuellePruefung" name="Manuelle Prüfung fehlender Daten">
+      <bpmn:incoming>SequenceFlow_ManualReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ValidMandatDate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Missing Signature Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_MissingSignatureCheck" sourceRef="Gateway_DatenVollstaendig" targetRef="Gateway_FehltUnterschrift">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Create Letter -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateLetter" sourceRef="Gateway_FehltUnterschrift" targetRef="Task_ErstelleSchreiben">
+      <bpmn:name>Fehlt Unterschrift</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Wait -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitFeedback" sourceRef="Event_WarteRueckmeldung" targetRef="Gateway_RueckmeldungErhalten">
+      <bpmn:name>Ablauf 28 Tage</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Feedback Received Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_FeedbackReceivedCheck" sourceRef="Event_WarteRueckmeldung" targetRef="Gateway_RueckmeldungErhalten">
+      <bpmn:name>Rückmeldung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Manual Review -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManualReview" sourceRef="Gateway_FehltUnterschrift" targetRef="Task_ManuellePruefung">
+      <bpmn:name>Sonstige Daten fehlen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Process Failed -->
+    <bpmn:sequenceFlow id="SequenceFlow_ProcessFailed" sourceRef="Gateway_RueckmeldungErhalten" targetRef="EndEvent_ProzessAbgebrochen">
+      <bpmn:name>Keine Rückmeldung</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 7 & 8 -->
+    <bpmn:task id="Task_PruefeGeltigVonDatum" name="Prüfe Gültig von Datum und Bankverbindung">
+      <bpmn:incoming>SequenceFlow_ValidMandatDate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_BankValidCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 2 -->
+    <bpmn:exclusiveGateway id="Gateway_BankVerbindungGültig" name="Bankverbindung gültig?">
+      <bpmn:incoming>SequenceFlow_BankValidCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MandatExistenceCheck</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ManageBankConnection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 8 -->
+    <bpmn:task id="Task_BearbeiteBankverbindung" name="Erstelle/Prüfe Bankverbindung">
+      <bpmn:incoming>SequenceFlow_ManageBankConnection</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_MandatExistenceCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flow for Bank Valid -->
+    <bpmn:sequenceFlow id="SequenceFlow_BankValidCheck" sourceRef="Task_PruefeGeltigVonDatum" targetRef="Gateway_BankVerbindungGültig">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow for Bank Invalid -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManageBankConnection" sourceRef="Gateway_BankVerbindungGültig" targetRef="Task_BearbeiteBankverbindung">
+      <bpmn:name>Fehlt/Fehler</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway 3 -->
+    <bpmn:exclusiveGateway id="Gateway_MandatExistenzCheck" name="Aktives Mandat vorhanden?">
+      <bpmn:incoming>SequenceFlow_MandatExistenceCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CreateNewMandatNoExisting</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_CheckRelevance</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 9a -->
+    <bpmn:task id="Task_AnlegeNeuesMandat" name="Anlage neues SEPA-Mandat">
+      <bpmn:incoming>SequenceFlow_CreateNewMandatNoExisting</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckClaims</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 4 -->
+    <bpmn:exclusiveGateway id="Gateway_MandatRelevant" name="Neues Mandat relevant?">
+      <bpmn:incoming>SequenceFlow_CheckRelevanceInput</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndOldCreateNew</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 9b -->
+    <bpmn:task id="Task_BearbeiteBestehendesMandat" name="Beende altes, lege neues an">
+      <bpmn:incoming>SequenceFlow_EndOldCreateNew</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckClaimsFromExisting</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow Mandat Existence Check (No Existing) -->
+    <bpmn:sequenceFlow id="SequenceFlow_MandatExistenceCheck" sourceRef="Task_BearbeiteBankverbindung" targetRef="Gateway_MandatExistenzCheck">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Mandat Existence Check (Existing) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRelevance" sourceRef="Gateway_MandatExistenzCheck" targetRef="Gateway_MandatRelevant">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Create New (No Existing) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CreateNewMandatNoExisting" sourceRef="Gateway_MandatExistenzCheck" targetRef="Task_AnlegeNeuesMandat">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Check Relevance -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckRelevanceInput" sourceRef="Gateway_MandatExistenzCheck" targetRef="Gateway_MandatRelevant">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow End Old Create New -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndOldCreateNew" sourceRef="Gateway_MandatRelevant" targetRef="Task_BearbeiteBestehendesMandat">
+      <bpmn:name>Erfüllt Bedingungen</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow to Claims Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClaims" sourceRef="Task_AnlegeNeuesMandat" targetRef="Task_PruefeOffeneForderungen">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow to Claims Check (from Existing Mandate Update) -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckClaimsFromExisting" sourceRef="Task_BearbeiteBestehendesMandat" targetRef="Task_PruefeOffeneForderungen">
+      <bpmn:name>Nein</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 10 -->
+    <bpmn:task id="Task_PruefeOffeneForderungen" name="Prüfe offene Forderungen">
+      <bpmn:incoming>SequenceFlow_CheckClaims</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ClaimAmountCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway 5 -->
+    <bpmn:exclusiveGateway id="Gateway_ForderungHoehe" name="Forderungen &gt; 5.000 €?">
+      <bpmn:incoming>SequenceFlow_ClaimAmountCheck</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ManualReviewHighClaim</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task 10a -->
+    <bpmn:task id="Task_ManuelleUeberpruefung" name="Manuelle Überprüfung hohe Forderung">
+      <bpmn:incoming>SequenceFlow_ManualReviewHighClaim</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CommunicateClaims</bpmn:outgoing>
+    </bpmn:task>
+
+     <!-- Sequence Flow Claim Amount Check -->
+    <bpmn:sequenceFlow id="SequenceFlow_ClaimAmountCheck" sourceRef="Task_PruefeOffeneForderungen" targetRef="Gateway_ForderungHoehe">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow Manual Review -->
+    <bpmn:sequenceFlow id="SequenceFlow_ManualReviewHighClaim" sourceRef="Gateway_ForderungHoehe" targetRef="Task_ManuelleUeberpruefung">
+      <bpmn:name>&gt; 5.000 €</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow to Communication -->
+    <bpmn:sequenceFlow id="SequenceFlow_CommunicateClaims" sourceRef="Task_ManuelleUeberpruefung" targetRef="Task_KommuniziereBetraege">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+     <!-- Sequence Flow to Communication (Skip Manual) -->
+    <bpmn:sequenceFlow id="SequenceFlow_SkipManualReview" sourceRef="Gateway_ForderungHoehe" targetRef="Task_KommuniziereBetraege">
+      <bpmn:name>&lt;= 5.000 €</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Task 11 -->
+    <bpmn:task id="Task_KommuniziereBetraege" name="Kommuniziere Beträge an Person">
+      <bpmn:incoming>SequenceFlow_CommunicateClaims</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_FinalCompletion</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_SEPAAbgeschlossen" name="SEPA-Mandat abgeschlossen">
+      <bpmn:incoming>SequenceFlow_FinalCompletion</bpmn:incoming>
+    </bpmn:endEvent>
+
+     <!-- Sequence Flow Final Completion -->
+    <bpmn:sequenceFlow id="SequenceFlow_FinalCompletion" sourceRef="Task_KommuniziereBetraege" targetRef="EndEvent_SEPAAbgeschlossen">
+      <bpmn:name>Ja</bpmn:name>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

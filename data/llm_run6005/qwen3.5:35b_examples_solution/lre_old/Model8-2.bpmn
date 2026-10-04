@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_001" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_HRProcess">
+    <bpmn:participant id="Participant_HR" name="HR Department" processRef="Proc_VacancyManagement"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Proc_VacancyManagement" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_HRClerk" name="HR Clerk">
+        <bpmn:flowNodeRef>StartMessage_01</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ConfusionCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskDepartment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ApprovalWait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_Rejection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CorrectDescription</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_Approval</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PostJob</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartMessage_01" name="Vacancy Reported">
+      <bpmn:message ref="Msg_VacancyReport"/>
+      <bpmn:outgoing>Seq_StartToCreate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Tasks -->
+    <bpmn:task id="Task_CreateDescription" name="Create job description">
+      <bpmn:incoming>Seq_StartToCreate</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToConfusionCheck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_AskDepartment" name="Ask Department for clarification">
+      <bpmn:incoming>Seq_FromClarificationLoop</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToCreateDescription2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_CorrectDescription" name="Correct job description">
+      <bpmn:incoming>Seq_FromRejection</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToApprovalWait2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_PostJob" name="Post the job">
+      <bpmn:incoming>Seq_FromApproval</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToEndEvent</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="Gw_ConfusionCheck" name="Confusion in message?">
+      <bpmn:incoming>Seq_ToConfusionCheck</bpmn:incoming>
+      <bpmn:outgoing>Seq_YesToAskDept</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:eventBasedGateway id="Gw_ApprovalWait" name="Await Department Response">
+      <bpmn:incoming>Seq_ToApprovalWait1</bpmn:incoming>
+      <bpmn:outgoing>Seq_WaitRejection</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Intermediate Catch Events -->
+    <bpmn:intermediateCatchEvent id="Catch_Rejection" name="Department Rejected">
+      <bpmn:message ref="Msg_DepartmentRejected"/>
+      <bpmn:incoming>Seq_WaitRejection</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToCorrectDescription</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="Catch_Approval" name="Job Description Approved">
+      <bpmn:message ref="Msg_DescriptionApproved"/>
+      <bpmn:incoming>Seq_WaitApproval</bpmn:incoming>
+      <bpmn:outgoing>Seq_ToPostJob</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_Completed" name="Vacancy Process Completed">
+      <bpmn:incoming>Seq_ToEndEvent</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Seq_StartToCreate" sourceRef="StartMessage_01" targetRef="Task_CreateDescription"/>
+    
+    <bpmn:sequenceFlow id="Seq_ToConfusionCheck" name="After creation" sourceRef="Task_CreateDescription" targetRef="Gw_ConfusionCheck"/>
+    
+    <bpmn:sequenceFlow id="Seq_YesToAskDept" name="Confused - Ask Department" sourceRef="Gw_ConfusionCheck" targetRef="Task_AskDepartment">
+      <bpmn:name>Confusion detected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ToCreateDescription2" name="Clarified - Create again" sourceRef="Task_AskDepartment" targetRef="Gw_ConfusionCheck"/>
+
+    <!-- Loop back to create description after clarification -->
+    <bpmn:sequenceFlow id="Seq_FromClarificationLoop" sourceRef="Task_AskDepartment" targetRef="Gw_ConfusionCheck"/>
+
+    <bpmn:sequenceFlow id="Seq_ToApprovalWait1" name="Submit for approval" sourceRef="Gw_ConfusionCheck" targetRef="Gw_ApprovalWait">
+      <bpmn:name>Message clear</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Event-based gateway paths -->
+    <bpmn:sequenceFlow id="Seq_WaitRejection" sourceRef="Gw_ApprovalWait" targetRef="Catch_Rejection"/>
+    
+    <bpmn:sequenceFlow id="Seq_ToCorrectDescription" name="Request correction received" sourceRef="Catch_Rejection" targetRef="Task_CorrectDescription">
+      <bpmn:name>Department rejected</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ToApprovalWait2" sourceRef="Task_CorrectDescription" targetRef="Gw_ApprovalWait"/>
+
+    <!-- Approval path -->
+    <bpmn:sequenceFlow id="Seq_WaitApproval" name="Await approval or rejection" sourceRef="Gw_ApprovalWait" targetRef="Catch_Approval">
+      <bpmn:name>Waiting for response</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Seq_ToPostJob" name="Approved - Post job" sourceRef="Catch_Approval" targetRef="Task_PostJob">
+      <bpmn:name>Description approved</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Final flow -->
+    <bpmn:sequenceFlow id="Seq_ToEndEvent" name="Post advertised" sourceRef="Task_PostJob" targetRef="End_Completed"/>
+  </bpmn:process>
+
+  <!-- Messages for collaboration with Department (Global elements) -->
+  <bpmn:message id="Msg_VacancyReport" name="Vacancy Report Message"/>
+  <bpmn:message id="Msg_DepartmentRejected" name="Department Rejection Response"/>
+  <bpmn:message id="Msg_DescriptionApproved" name="Job Description Approval Response"/>
+
+</bpmn:definitions>

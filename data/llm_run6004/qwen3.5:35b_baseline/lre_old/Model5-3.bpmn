@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_OfficeSupplyRequest">
+    <bpmn:participant id="Participant_OfficeSupplyProcess" name="Office Supply Request Process" processRef="Process_OfficeSupply"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_OfficeSupply" isExecutable="true">
+    
+    <!-- Lane Set -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Employee" name="Employee">
+        <bpmn:flowNodeRef>StartEvent_SubmitRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ReviewComments</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <bpmn:lane id="Lane_Supervisor" name="Supervisor">
+        <bpmn:flowNodeRef>Task_RegisterRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DecisionApproval</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_PurchaseDept" name="Purchase Department">
+        <bpmn:flowNodeRef>UserTask_SendNotificationApproved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubProcess_PurchaseFlow</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SubmitRequest" name="Submit Office Supply Request">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Task: Register Requirement/Receive by Supervisor -->
+    <bpmn:task id="Task_RegisterRequest" name="Register &amp; Receive Request">
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway: Supervisor Decision -->
+    <bpmn:exclusiveGateway id="Gateway_DecisionApproval" name="Supervisor Approval">
+      <bpmn:incoming>SequenceFlow_toDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Path 1: Rejected -->
+    <bpmn:userTask id="UserTask_SendNotificationRejected" name="Send Notification (Rejection)">
+      <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toEndRejected</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Event_Rejected" name="Request Rejected">
+      <bpmn:incoming>SequenceFlow_toEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Path 2: Change Required -->
+    <bpmn:userTask id="UserTask_SendNotificationChange" name="Send Notification (Changes)">
+      <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toReviewComments</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:task id="UserTask_ReviewComments" name="Review Comments &amp; Resubmit">
+      <bpmn:incoming>SequenceFlow_toReviewComments</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ResubmitToSupervisor</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 3: Approved -->
+    <bpmn:userTask id="UserTask_SendNotificationApproved" name="Send Notification (Approval)">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_toPurchaseSubprocess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Subprocess for Purchase Flow -->
+    <bpmn:subProcess id="SubProcess_PurchaseFlow" name="Generate Quotes &amp; Select Vendor">
+      <bpmn:startEvent id="Start_SubProc"/>
+      
+      <bpmn:task id="Task_GenerateQuotes" name="Request Quotations from Vendors">
+        <bpmn:incoming>SequenceFlow_fromApproved</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_toVendorCheck</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Gateway for Vendor Validity -->
+      <bpmn:exclusiveGateway id="Gateway_VendorValid" name="Vendor Valid?">
+        <bpmn:incoming>SequenceFlow_fromQuotes</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ValidSelected</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_InvalidRetry</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+      <!-- Task for Vendor Selection -->
+      <bpmn:task id="Task_SelectVendor" name="Select &amp; Confirm Vendor">
+        <bpmn:incoming>SequenceFlow_fromQuotes</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_toPOGeneration</bpmn:outgoing>
+      </bpmn:task>
+
+       <!-- Task for Re-selection -->
+       <bpmn:task id="Task_ReSelectVendor" name="Choose Different Vendor">
+         <bpmn:incoming>SequenceFlow_InvalidRetry</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_toVendorCheckLoop</bpmn:outgoing>
+       </bpmn:task>
+
+      <!-- Purchase Order Generation -->
+      <bpmn:task id="Task_GeneratePO" name="Generate &amp; Send Purchase Order">
+        <bpmn:incoming>SequenceFlow_fromValidVendor</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_toDeliveryWait</bpmn:outgoing>
+      </bpmn:task>
+
+      <!-- Wait for Delivery & Invoice -->
+      <bpmn:endEvent id="End_SubProc_Complete" name="Receive Product &amp; Invoice">
+        <bpmn:incoming>SequenceFlow_fromDeliveryWait</bpmn:incoming>
+      </bpmn:endEvent>
+
+      <!-- Sequence Flows within Subprocess -->
+      <bpmn:sequenceFlow id="SequenceFlow_fromApproved" sourceRef="Gateway_DecisionApproval" targetRef="Task_GenerateQuotes"/>
+      
+      <bpmn:exclusiveGateway id="Gateway_VendorValid">
+        <bpmn:incoming>SequenceFlow_toVendorCheck</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_ValidSelected</bpmn:outgoing>
+        <bpmn:outgoing>SequenceFlow_InvalidRetry</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+
+       <!-- Logic Correction for Subprocess Internal Flow -->
+       <bpmn:sequenceFlow id="SequenceFlow_toVendorCheck" sourceRef="Task_GenerateQuotes" targetRef="Gateway_VendorValid"/>
+       
+       <bpmn:task id="Task_SelectVendor">
+         <bpmn:incoming>SequenceFlow_ValidSelected</bpmn:incoming>
+         <bpmn:outgoing>SequenceFlow_toPOGeneration</bpmn:outgoing>
+       </bpmn:task>
+
+      <!-- Purchase Order Flow -->
+      <bpmn:sequenceFlow id="SequenceFlow_fromValidVendor" sourceRef="Task_SelectVendor" targetRef="Task_GeneratePO"/>
+      
+      <bpmn:intermediateCatchEvent id="EndSubprocessWait">
+        <bpmn:incoming>SequenceFlow_toDeliveryWait</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_fromDeliveryWait</bpmn:outgoing>
+      </bpmn:intermediateCatchEvent>
+
+       <!-- Re-selection Loop -->
+       <bpmn:sequenceFlow id="SequenceFlow_InvalidRetry" sourceRef="Gateway_VendorValid" targetRef="Task_ReSelectVendor"/>
+       <bpmn:sequenceFlow id="SequenceFlow_toVendorCheckLoop" sourceRef="Task_ReSelectVendor" targetRef="Gateway_VendorValid"/>
+
+    </bpmn:subProcess>
+
+    <!-- Final End Event -->
+    <bpmn:endEvent id="End_Event_Completed" name="Request Completed">
+      <bpmn:incoming>SequenceFlow_fromSubprocess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows (Global) -->
+    
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_SubmitRequest" targetRef="Task_RegisterRequest"/>
+    
+    <bpmn:exclusiveGateway id="Gateway_DecisionApproval">
+      <bpmn:incoming>SequenceFlow_toDecision</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RejectPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ChangePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_ApprovePath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="SequenceFlow_toDecision" sourceRef="Task_RegisterRequest" targetRef="Gateway_DecisionApproval"/>
+    
+    <!-- Decision Outcomes -->
+    <bpmn:sequenceFlow id="SequenceFlow_RejectPath" name="Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[rejected]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:userTask id="UserTask_SendNotificationRejected">
+       <bpmn:incoming>SequenceFlow_RejectPath</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_toEndRejected</bpmn:outgoing>
+     </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Event_Rejected">
+      <bpmn:incoming>SequenceFlow_toEndRejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ChangePath" name="Change Required">
+       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[changeRequested]]></bpmn:conditionExpression>
+     </bpmn:sequenceFlow>
+
+    <bpmn:userTask id="UserTask_SendNotificationChange">
+      <bpmn:incoming>SequenceFlow_ChangePath</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_toReviewComments</bpmn:outgoing>
+     </bpmn:userTask>
+
+    <bpmn:task id="UserTask_ReviewComments">
+      <bpmn:incoming>SequenceFlow_toReviewComments</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_ResubmitToSupervisor</bpmn:outgoing>
+     </bpmn:task>
+
+    <bpmn:sequenceFlow id="SequenceFlow_ResubmitToSupervisor" sourceRef="UserTask_ReviewComments" targetRef="Gateway_DecisionApproval"/>
+
+    <bpmn:userTask id="UserTask_SendNotificationApproved">
+      <bpmn:incoming>SequenceFlow_ApprovePath</bpmn:incoming> 
+       <bpmn:outgoing>SequenceFlow_toPurchaseSubprocess</bpmn:outgoing>
+     </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Event_Completed">
+      <bpmn:incoming>SequenceFlow_fromSubprocess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Subprocess Entry -->
+    <bpmn:sequenceFlow id="SequenceFlow_toPurchaseSubprocess" sourceRef="UserTask_SendNotificationApproved" targetRef="Start_SubProc"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_OrderProcess">
+    <bpmn:participant id="Participant_MainOrder" name="SO: Angebot/Auftrag Process" processRef="Process_Operation1" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Operation1" isExecutable="true">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_OrderManagement" name="SO: Angebot/Auftrag">
+        <bpmn:flowNodeRef>Seller_StartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ParallelSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PrepareGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ShipGoods</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_CheckCustomerStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_MergeInvoicingLogic</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_JoinEnds</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Seller_EndEvent</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AddressManagement" name="SO: Address- management">
+        <bpmn:flowNodeRef>Task_AddParentAddress</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="Seller_StartEvent" name="Receive Subsidiary Order">
+      <bpmn:outgoing>Seller_Flow_SplitStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Split Gateway (Concurrent Paths) -->
+    <bpmn:parallelGateway id="Gw_ParallelSplit" name="Parallel Start">
+      <bpmn:incoming>Seller_Flow_SplitStart</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_PhysicalPath</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_InvoicingLogicPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Path 1: Physical Fulfillment -->
+    <bpmn:task id="Task_PrepareGoods" name="Prepare Goods For Shipment">
+      <bpmn:incoming>Seller_Flow_PhysicalPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ToShip</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 1 Continued -->
+    <bpmn:task id="Task_ShipGoods" name="Ship Goods">
+      <bpmn:incoming>Seller_Flow_ToShip</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_PhysicalEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Path 2: Invoicing Logic -->
+    <bpmn:exclusiveGateway id="Gw_CheckCustomerStatus" name="Subsidiary &amp; Unmodeled?">
+      <bpmn:incoming>Seller_Flow_InvoicingLogicPath</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_AddAddressYes</bpmn:outgoing>
+      <bpmn:outgoing>Seller_Flow_SkipAddressNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Yes Branch -->
+    <bpmn:task id="Task_AddParentAddress" name="Add Parent Company as Invoicing Address">
+      <bpmn:incoming>Seller_Flow_AddAddressYes</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_ToInvoiceMerge</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Merge Logic Paths before Invoice Creation -->
+    <bpmn:exclusiveGateway id="Gw_MergeInvoicingLogic" name="Merge Invoicing">
+      <bpmn:incoming>Seller_Flow_ToInvoiceMerge</bpmn:incoming>
+      <bpmn:incoming>Seller_Flow_SkipAddressNo</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+
+    <!-- Create Invoice Task (After Logic Merge) -->
+    <bpmn:task id="Task_CreateInvoice" name="Create Invoice">
+      <bpmn:outgoing>Seller_Flow_ToSendInvoice</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Send Invoice Task -->
+    <bpmn:task id="Task_SendInvoice" name="Send Invoice">
+      <bpmn:incoming>Seller_Flow_ToSendInvoice</bpmn:incoming>
+      <bpmn:outgoing>Seller_Flow_InvoicingEnd</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Parallel Join at End -->
+    <bpmn:parallelGateway id="Gw_JoinEnds" name="Join Process Ends">
+      <bpmn:incoming>Seller_Flow_PhysicalEnd</bpmn:incoming>
+      <bpmn:incoming>Seller_Flow_InvoicingEnd</bpmn:incoming>
+    </bpmn:parallelGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="Seller_EndEvent" name="Order Process Finished">
+      <bpmn:incoming>Seller_Flow_JoinToFinish</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows for Physical Path -->
+    <bpmn:sequenceFlow id="Seller_Flow_SplitStart" sourceRef="Seller_StartEvent" targetRef="Gw_ParallelSplit">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Seller_Flow_PhysicalPath" sourceRef="Gw_ParallelSplit" targetRef="Task_PrepareGoods">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Sequence Flow from Prepare to Ship -->
+    <bpmn:sequenceFlow id="Seller_Flow_ToShip" sourceRef="Task_PrepareGoods" targetRef="Task_ShipGoods">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Invoicing Logic Path -->
+    <bpmn:sequenceFlow id="Seller_Flow_InvoicingLogicPath" sourceRef="Gw_ParallelSplit" targetRef="Gw_CheckCustomerStatus">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Yes Branch Flow (Subsidiary &amp; Unmodeled) -->
+    <bpmn:sequenceFlow id="Seller_Flow_AddAddressYes" sourceRef="Gw_CheckCustomerStatus" targetRef="Task_AddParentAddress">
+      <bpmn:name/>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isSubsidiary &amp;&amp; !isModeled}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No Branch Flow (Independent or Modeled) -->
+    <bpmn:sequenceFlow id="Seller_Flow_SkipAddressNo" sourceRef="Gw_CheckCustomerStatus" targetRef="Gw_MergeInvoicingLogic">
+      <bpmn:name/>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!isSubsidiary || isModeled}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Address Task to Merge -->
+    <bpmn:sequenceFlow id="Seller_Flow_ToInvoiceMerge" sourceRef="Task_AddParentAddress" targetRef="Gw_MergeInvoicingLogic">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Logic Merge to Create Invoice -->
+    <bpmn:sequenceFlow id="Seller_Flow_ToCreateInvoice" sourceRef="Gw_MergeInvoicingLogic" targetRef="Task_CreateInvoice">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Flow from Create to Send Invoice -->
+    <bpmn:sequenceFlow id="Seller_Flow_ToSendInvoice" sourceRef="Task_CreateInvoice" targetRef="Task_SendInvoice">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Path End Flow -->
+    <bpmn:sequenceFlow id="Seller_Flow_PhysicalEnd" sourceRef="Task_ShipGoods" targetRef="Gw_JoinEnds">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Invoicing Path End Flow -->
+    <bpmn:sequenceFlow id="Seller_Flow_InvoicingEnd" sourceRef="Task_SendInvoice" targetRef="Gw_JoinEnds">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Flow to End Event -->
+    <bpmn:sequenceFlow id="Seller_Flow_JoinToFinish" sourceRef="Gw_JoinEnds" targetRef="Seller_EndEvent">
+      <bpmn:name/>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

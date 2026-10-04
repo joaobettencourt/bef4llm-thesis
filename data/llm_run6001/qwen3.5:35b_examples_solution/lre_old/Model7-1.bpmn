@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_LeadManagement" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_LeadMgmt">
+    <bpmn:participant id="Participant_ManagementProcess" name="Lead Management Process" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Manager" name="Manager">
+        <bpmn:flowNodeRef>StartEvent_Leads</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckOpenLeads</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectTopFive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Interested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProcessLead</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SalesAssistant" name="Sales Assistant">
+        <bpmn:flowNodeRef>Gateway_MoreLeads</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CallContactPerson</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendNoteToManager</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Leads" name="New Leads Available">
+      <bpmn:outgoing>SFlow_CheckOpen</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Manager Tasks -->
+    <bpmn:task id="Task_CheckOpenLeads" name="Check Open Leads">
+      <bpmn:incoming>SFlow_CheckOpen</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SelectTopFive</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SelectTopFive" name="Select Top Five Leads">
+      <bpmn:incoming>SFlow_SelectTopFive</bpmn:incoming>
+      <bpmn:outgoing>SFlow_AssignCall</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sales Assistant Tasks -->
+    <bpmn:task id="Task_CallContactPerson" name="Call Contact Person">
+      <bpmn:incoming>SFlow_AssignCall</bpmn:incoming>
+      <bpmn:incoming>SFlow_LoopBack</bpmn:incoming>
+      <bpmn:outgoing>SFlow_InterestedDecision</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_SendNoteToManager" name="Send Note to Manager">
+      <bpmn:incoming>SFlow_NoteSent</bpmn:incoming>
+      <bpmn:outgoing>SFlow_MergeProcessLead</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="Gateway_Interested" name="Customer Interested?">
+      <bpmn:incoming>SFlow_InterestedDecision</bpmn:incoming>
+      <bpmn:outgoing>SFlow_SendNotePath</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_NoInterestPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Manager Task for Processing -->
+    <bpmn:task id="Task_ProcessLead" name="Process Lead">
+      <bpmn:incoming>SFlow_MergeProcessLead</bpmn:incoming>
+      <bpmn:outgoing>SFlow_CheckMoreLeads</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Loop Control Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_MoreLeads" name="More Leads Left?">
+      <bpmn:incoming>SFlow_NoInterestPath</bpmn:incoming>
+      <bpmn:incoming>SFlow_CheckMoreLeads</bpmn:incoming>
+      <bpmn:outgoing>SFlow_LoopBack</bpmn:outgoing>
+      <bpmn:outgoing>SFlow_EndProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_AllHandled" name="All Leads Handled">
+      <bpmn:incoming>SFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SFlow_CheckOpen" sourceRef="StartEvent_Leads" targetRef="Task_CheckOpenLeads"/>
+    
+    <bpmn:sequenceFlow id="SFlow_SelectTopFive" sourceRef="Task_CheckOpenLeads" targetRef="Task_SelectTopFive"/>
+
+    <!-- Handoff to Sales Assistant -->
+    <bpmn:sequenceFlow id="SFlow_AssignCall" name="Assign Call Task" sourceRef="Task_SelectTopFive" targetRef="Task_CallContactPerson">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision Flow -->
+    <bpmn:sequenceFlow id="SFlow_InterestedDecision" sourceRef="Task_CallContactPerson" targetRef="Gateway_Interested"/>
+
+    <!-- Yes Path (Send Note) -->
+    <bpmn:sequenceFlow id="SFlow_SendNotePath" name="Yes, Interested" sourceRef="Gateway_Interested" targetRef="Task_SendNoteToManager">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${interested}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- No Path (Skip Processing) -->
+    <bpmn:sequenceFlow id="SFlow_NoInterestPath" name="No, Not Interested" sourceRef="Gateway_Interested" targetRef="Gateway_MoreLeads">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!interested}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Merge to Process Lead Task -->
+    <bpmn:sequenceFlow id="SFlow_MergeProcessLead" sourceRef="Task_SendNoteToManager" targetRef="Task_ProcessLead"/>
+
+    <!-- Loop Back Flow (More Leads) -->
+    <bpmn:sequenceFlow id="SFlow_LoopBack" name="Yes, More Leads" sourceRef="Gateway_MoreLeads" targetRef="Task_CallContactPerson">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasMoreLeads}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flow (No More Leads) -->
+    <bpmn:sequenceFlow id="SFlow_EndProcess" name="All Processed" sourceRef="Gateway_MoreLeads" targetRef="EndEvent_AllHandled">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!hasMoreLeads}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

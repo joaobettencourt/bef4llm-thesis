@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_ExpenseReportProcess_Corrected" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_EmployeeFinanceProc">
+    <bpmn:participant id="Participant_MainEmployeeFinance" name="Employee Finance Process" processRef="Process_ExpenseApproval_Corrected"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_ExpenseApproval_Corrected" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_FinanceOps" name="Finance Operations">
+        <bpmn:flowNodeRef>StartEvent_expenseReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ParallelGateway_mainSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_7Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_approvalInProgressEmail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_30Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_processCancelled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_accountExists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_createEmployeeAccount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_reviewExpenseReport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_amountCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_autoApproved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_supervisorReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_approvalDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_reimburseEmployee</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_expenseReceived" name="Receive Expense Report">
+      <bpmn:outgoing>SequenceFlow_initiateReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Parallel Gateway for Timer and Process Split -->
+    <bpmn:parallelGateway id="ParallelGateway_mainSplit" name="Start Processing &amp; Timers">
+      <bpmn:incoming>SequenceFlow_initiateReview</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_timer7DaysPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_accountCheckPath</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- Timer Path (7 Days) -->
+    <bpmn:intermediateCatchEvent id="Timer_7Days" name="7 days">
+      <bpmn:incoming>SequenceFlow_timer7DaysPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_sendApprovalInProgressEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Task (Send Email) -->
+    <bpmn:task id="Task_approvalInProgressEmail" name="Send approval in progress email">
+      <bpmn:incoming>SequenceFlow_sendApprovalInProgressEmail</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_timer30DaysPath</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Timer Path (Total 30 Days) -->
+    <bpmn:intermediateCatchEvent id="Timer_30Days" name="23 days">
+      <bpmn:incoming>SequenceFlow_timer30DaysPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_sendCancellationEmail</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event (Cancelled) -->
+    <bpmn:endEvent id="EndEvent_processCancelled" name="Process Cancelled">
+      <bpmn:name>Cancellation Notice Sent (Re-submit Required)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_sendCancellationEmail</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Process Path -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_accountExists" name="Account Exists?">
+      <bpmn:incoming>SequenceFlow_accountCheckPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_reviewReportDirectly</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_createNewAccount</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Task (Create Account) -->
+    <bpmn:task id="Task_createEmployeeAccount" name="Create new employee account">
+      <bpmn:incoming>SequenceFlow_createNewAccount</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_reviewReportFromCreate</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Task (Review Report) -->
+    <bpmn:task id="Task_reviewExpenseReport" name="Review for automatic approval">
+      <bpmn:incoming>SequenceFlow_reviewReportDirectly</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_reviewReportFromCreate</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_checkAmountThreshold</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway (Amount Check) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_amountCheck" name="Amount &lt; $200?">
+      <bpmn:incoming>SequenceFlow_checkAmountThreshold</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_autoApprovePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_supervisorApprovalRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event (Auto Approved) -->
+    <bpmn:endEvent id="EndEvent_autoApproved" name="Automatic Approval">
+      <bpmn:name>Automatic Approval Completed</bpmn:name>
+      <bpmn:incoming>SequenceFlow_reimburseEmployeePath</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task (Supervisor Review) -->
+    <bpmn:task id="Task_supervisorReview" name="Supervisor review">
+      <bpmn:incoming>SequenceFlow_supervisorApprovalRequired</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_decisionApprovedOrRejected</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Gateway (Decision) -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_approvalDecision" name="Supervisor Approval?">
+      <bpmn:incoming>SequenceFlow_decisionApprovedOrRejected</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_reimburseEmployeePath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_sendRejectionEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- End Event (Rejected) -->
+    <bpmn:endEvent id="EndEvent_rejected" name="Rejection Notice Sent">
+      <bpmn:name>Rejection Email Sent (Process Ends)</bpmn:name>
+      <bpmn:incoming>SequenceFlow_sendRejectionEmail</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Task (Reimburse) -->
+    <bpmn:task id="Task_reimburseEmployee" name="Transfer to employee direct deposit">
+      <bpmn:incoming>SequenceFlow_autoApprovePath</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_supervisorApprovedReimbursing</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_completeProcessSuccess</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Initiation -->
+    <bpmn:sequenceFlow id="SequenceFlow_initiateReview" sourceRef="StartEvent_expenseReceived" targetRef="ParallelGateway_mainSplit"/>
+    
+    <!-- Timer Split -->
+    <bpmn:sequenceFlow id="SequenceFlow_timer7DaysPath" name="Timer Start (7 days)" sourceRef="ParallelGateway_mainSplit" targetRef="Timer_7Days"/>
+    <bpmn:sequenceFlow id="SequenceFlow_accountCheckPath" name="Main Process Flow" sourceRef="ParallelGateway_mainSplit" targetRef="ExclusiveGateway_accountExists"/>
+
+    <!-- Timer 1 Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_sendApprovalInProgressEmail" sourceRef="Timer_7Days" targetRef="Task_approvalInProgressEmail">
+      <bpmn:name>After 7 days</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Timer 2 Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_timer30DaysPath" sourceRef="Task_approvalInProgressEmail" targetRef="Timer_30Days"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_sendCancellationEmail" name="After additional 23 days (Total 30)" sourceRef="Timer_30Days" targetRef="EndEvent_processCancelled">
+      <bpmn:name>Process Cancelled</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Account Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_createNewAccount" name="No - Create Account" sourceRef="ExclusiveGateway_accountExists" targetRef="Task_createEmployeeAccount">
+      <bpmn:name>Does not exist</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_reviewReportFromCreate" name="After Account Created" sourceRef="Task_createEmployeeAccount" targetRef="Task_reviewExpenseReport"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_reviewReportDirectly" name="Yes - Continue Review" sourceRef="ExclusiveGateway_accountExists" targetRef="Task_reviewExpenseReport">
+      <bpmn:name>Already exists</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Amount Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_checkAmountThreshold" name="Proceed to Amount Check" sourceRef="Task_reviewExpenseReport" targetRef="ExclusiveGateway_amountCheck"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_autoApprovePath" name="Yes - Under $200" sourceRef="ExclusiveGateway_amountCheck" targetRef="Task_reimburseEmployee">
+      <bpmn:name>Automatic Approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_supervisorApprovalRequired" name="No - Supervisor Review Required" sourceRef="ExclusiveGateway_amountCheck" targetRef="Task_supervisorReview">
+      <bpmn:name>= $200</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Decision Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_decisionApprovedOrRejected" name="Supervisor Decision Pending" sourceRef="Task_supervisorReview" targetRef="ExclusiveGateway_approvalDecision"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_reimburseEmployeePath" name="Yes - Approved by Supervisor (Reimbursing)" sourceRef="ExclusiveGateway_approvalDecision" targetRef="EndEvent_autoApproved">
+      <bpmn:name>Supervisor Approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Rejection Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_sendRejectionEmail" name="No - Rejected by Supervisor (Rejected)" sourceRef="ExclusiveGateway_approvalDecision" targetRef="EndEvent_rejected">
+      <bpmn:name>Supervisor Rejects</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <!-- Completion Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_supervisorApprovedReimbursing" name="Yes - Approved by Supervisor (Task)" sourceRef="ExclusiveGateway_approvalDecision" targetRef="Task_reimburseEmployee">
+      <bpmn:name>Supervisor Approval</bpmn:name>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_completeProcessSuccess" name="Reimbursement Complete" sourceRef="Task_reimburseEmployee" targetRef="EndEvent_autoApproved"/>
+
+  </bpmn:process>
+</bpmn:definitions>

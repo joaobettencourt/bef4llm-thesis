@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_SchufaResponse" name="Schufascoring Antwort"/>
+
+  <bpmn:collaboration id="Collaboration_BankProcess">
+    <bpmn:participant id="Participant_BankProcess" name="Bank Schufascore-Prozess" processRef="Process_SchufaScore"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_SchufaScore" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_RequestScoring" name="Schufascoring anfordern">
+      <bpmn:outgoing>SequenceFlow_SendRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Service Task to send request -->
+    <bpmn:serviceTask id="ServiceTask_Level1" name="Scoringanfrage Level 1 senden">
+      <bpmn:incoming>SequenceFlow_SendRequest</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Intermediate Catch Event for Response -->
+    <bpmn:intermediateCatchEvent id="IntermediateWait_Response" name="Warte auf Antwort von Schufa">
+      <bpmn:incoming>SequenceFlow_WaitResponse</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_SchufaResponse"/>
+      <bpmn:outgoing>SequenceFlow_CheckResponseType</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Gateway to check response type -->
+    <bpmn:exclusiveGateway id="ExclusiveGateway_ResponseType">
+      <bpmn:incoming>SequenceFlow_CheckResponseType</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_DisplayResultFast</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NotifyDelay</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Fast Path -->
+    <bpmn:userTask id="UserTask_DisplayFast" name="Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DisplayResultFast</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Delay Path -->
+    <bpmn:userTask id="UserTask_NotifyDelay" name="Vertriebsmitarbeiter über Verzögerung informieren">
+      <bpmn:incoming>SequenceFlow_NotifyDelay</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_WaitLevel2Result</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Wait for Level 2 Result -->
+    <bpmn:intermediateCatchEvent id="IntermediateWait_Level2" name="Warte auf finales Ergebnis (Level 2)">
+      <bpmn:incoming>SequenceFlow_WaitLevel2Result</bpmn:incoming>
+      <bpmn:messageEventDefinition messageRef="Message_SchufaResponse"/>
+      <bpmn:outgoing>SequenceFlow_DisplayFinal</bpmn:outgoing>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Final Display -->
+    <bpmn:userTask id="UserTask_DisplayFinal" name="Finales Ergebnis im Frontend anzeigen">
+      <bpmn:incoming>SequenceFlow_DisplayFinal</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcessDelayed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Fast" name="Scoring abgeschlossen (Sofort)">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_Delayed" name="Scoring abgeschlossen (Verzögert)">
+      <bpmn:incoming>SequenceFlow_EndProcessDelayed</bpmn:incoming/>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SendRequest" sourceRef="StartEvent_RequestScoring" targetRef="ServiceTask_Level1"/>
+
+    <bpmn:sequenceFlow id="SequenceFlow_WaitResponse" name="Warte auf Antwort" sourceRef="ServiceTask_Level1" targetRef="IntermediateWait_Response">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway Conditions -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayResultFast" name="Ergebnis sofort verfügbar (Level 1)" sourceRef="ExclusiveGateway_ResponseType" targetRef="UserTask_DisplayFast">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${responseType == 'RESULT'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyDelay" name="Verzögerung gemeldet (Level 2 nötig)" sourceRef="ExclusiveGateway_ResponseType" targetRef="UserTask_NotifyDelay">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">${responseType == 'DELAY'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Delay Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_WaitLevel2Result" sourceRef="UserTask_NotifyDelay" targetRef="IntermediateWait_Level2">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Final Path Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_DisplayFinal" sourceRef="IntermediateWait_Level2" targetRef="UserTask_DisplayFinal">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" sourceRef="UserTask_DisplayFast" targetRef="EndEvent_Fast">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcessDelayed" sourceRef="UserTask_DisplayFinal" targetRef="EndEvent_Delayed">
+      <bpmn:conditionExpression xsi:type="tFormalExpression">true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+</bpmn:definitions>

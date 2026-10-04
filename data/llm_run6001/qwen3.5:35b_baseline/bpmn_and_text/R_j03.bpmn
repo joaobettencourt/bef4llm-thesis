@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_FridgeService_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collab_FridgeService">
+    <bpmn:participant id="Pool_ServiceSystem" name="Fridge Service Process" processRef="Process_FridgeService"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_FridgeService" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="Lane_Customer" name="Customer">
+        <bpmn:flowNodeRef>StartEvent_ReportIssue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_SubmitInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ConfirmOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_RateService</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CentralOffice" name="Central Service Center">
+        <bpmn:flowNodeRef>UserTask_SelectFacility</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_LocalFacility" name="Local Facility">
+        <bpmn:flowNodeRef>UserTask_ScheduleAppointment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CheckParts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_OrderPartsReturn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_RepairFridge</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ReportIssue" name="Report Fridge Issue">
+      <bpmn:outgoing>SequenceFlow_SubmitInfo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Customer Task -->
+    <bpmn:userTask id="UserTask_SubmitInfo" name="Describe Symptoms &amp; Fridge Type">
+      <bpmn:incoming>SequenceFlow_SubmitInfo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ToCentralOffice</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Central Office Task -->
+    <bpmn:userTask id="UserTask_SelectFacility" name="Select Local Service Facility">
+      <bpmn:incoming>SequenceFlow_ToCentralOffice</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ScheduleAppointment</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Local Facility Tasks -->
+    <bpmn:userTask id="UserTask_ScheduleAppointment" name="Make Appointment">
+      <bpmn:incoming>SequenceFlow_ScheduleAppointment</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_CheckPartsReq</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway for Parts Check -->
+    <bpmn:exclusiveGateway id="Gateway_CheckParts" name="Sufficient&#10;Parts?">
+      <bpmn:incoming>SequenceFlow_CheckPartsReq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RepairPath</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_NoPartsPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- No Parts Path -->
+    <bpmn:userTask id="UserTask_OrderPartsReturn" name="Order Parts &amp; Return Later">
+      <bpmn:incoming>SequenceFlow_NoPartsPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_ReturnToCheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Repair Path -->
+    <bpmn:userTask id="UserTask_RepairFridge" name="Repair Fridge">
+      <bpmn:incoming>SequenceFlow_RepairPath</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_NotifyCustomer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Customer Confirmation Task -->
+    <bpmn:userTask id="UserTask_ConfirmOK" name="Confirm Fridge OK">
+      <bpmn:incoming>SequenceFlow_NotifyCustomer</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_RateServiceReq</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Rating Task -->
+    <bpmn:userTask id="UserTask_RateService" name="Rate Service Facility">
+      <bpmn:incoming>SequenceFlow_RateServiceReq</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_EndProcess</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_EventCompleted" name="Service&#10;Complete">
+      <bpmn:incoming>SequenceFlow_EndProcess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_SubmitInfo" sourceRef="StartEvent_ReportIssue" targetRef="UserTask_SubmitInfo"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ToCentralOffice" name="Send Info" sourceRef="UserTask_SubmitInfo" targetRef="UserTask_SelectFacility"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_ScheduleAppointment" sourceRef="UserTask_SelectFacility" targetRef="UserTask_ScheduleAppointment"/>
+    
+    <!-- Parts Check Logic -->
+    <bpmn:sequenceFlow id="SequenceFlow_CheckPartsReq" name="Arrive &amp; Inspect" sourceRef="UserTask_ScheduleAppointment" targetRef="Gateway_CheckParts"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RepairPath" name="Yes, Parts Ready" sourceRef="Gateway_CheckParts" targetRef="UserTask_RepairFridge"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_NoPartsPath" name="No, Need Parts" sourceRef="Gateway_CheckParts" targetRef="UserTask_OrderPartsReturn"/>
+    
+    <!-- Loop for Return -->
+    <bpmn:sequenceFlow id="SequenceFlow_ReturnToCheck" name="Return Visit" sourceRef="UserTask_OrderPartsReturn" targetRef="Gateway_CheckParts"/>
+
+    <!-- Post Repair Flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_NotifyCustomer" name="Repair Done" sourceRef="UserTask_RepairFridge" targetRef="UserTask_ConfirmOK"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_RateServiceReq" sourceRef="UserTask_ConfirmOK" targetRef="UserTask_RateService"/>
+    
+    <bpmn:sequenceFlow id="SequenceFlow_EndProcess" name="Rate Service" sourceRef="UserTask_RateService" targetRef="End_EventCompleted"/>
+
+  </bpmn:process>
+</bpmn:definitions>

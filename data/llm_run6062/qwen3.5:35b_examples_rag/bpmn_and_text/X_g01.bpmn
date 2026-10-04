@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="USI_CourseRegistrationProcess" isExecutable="false">
+    <!-- Start Event -->
+    <startEvent id="StartEvent_RegisterCourse" name="Register for USI course">
+      <outgoing>SequenceFlow_CheckAvailability</outgoing>
+    </startEvent>
+
+    <!-- Task: Check Course Availability -->
+    <task id="Task_CheckAvailability" name="Check course availability">
+      <incoming>SequenceFlow_CheckAvailability</incoming>
+      <outgoing>SequenceFlow_SlotsAvailableDecision</outgoing>
+    </task>
+
+    <!-- Gateway: Slots Available? -->
+    <exclusiveGateway id="Gateway_SlotsAvailable" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_SlotsAvailableDecision</incoming>
+      <outgoing>SequenceFlow_ShowCourses</outgoing>
+      <outgoing>SequenceFlow_NoSlotsEnd</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Show Courses and Select -->
+    <task id="Task_SelectCourse" name="Show courses &amp; select one">
+      <incoming>SequenceFlow_ShowCourses</incoming>
+      <outgoing>SequenceFlow_CheckAccountStatus</outgoing>
+    </task>
+
+    <!-- Gateway: Has Existing Account? -->
+    <exclusiveGateway id="Gateway_HasExistingAccount" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_AccountCheckDecision</incoming>
+      <outgoing>SequenceFlow_LoginDirectly</outgoing>
+      <outgoing>SequenceFlow_CheckEligibility</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Check University Eligibility -->
+    <task id="Task_CheckUniversity" name="Check university eligibility">
+      <incoming>SequenceFlow_CheckEligibility</incoming>
+      <outgoing>SequenceFlow_EligibleDecision</outgoing>
+    </task>
+
+    <!-- Gateway: Is Eligible? -->
+    <exclusiveGateway id="Gateway_IsEligible" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_EligibleDecision</incoming>
+      <outgoing>SequenceFlow_RegisterAccount</outgoing>
+      <outgoing>SequenceFlow_RequestActivation</outgoing>
+    </exclusiveGateway>
+
+    <!-- Task: Register Account -->
+    <task id="Task_RegisterNewAccount" name="Register your account">
+      <incoming>SequenceFlow_RegisterAccount</incoming>
+      <outgoing>SequenceFlow_LoginMerge1</outgoing>
+    </task>
+
+    <!-- Task: Request Activation & Wait -->
+    <task id="Task_RequestActivation" name="Request activation and wait for response">
+      <incoming>SequenceFlow_RequestActivation</incoming>
+      <outgoing>SequenceFlow_LoginMerge2</outgoing>
+    </task>
+
+    <!-- Parallel Gateway to merge account paths before login -->
+    <parallelGateway id="Parallel_Gateway_MergeLogin" gatewayDirection="Converging">
+      <incoming>SequenceFlow_LoginDirectly</incoming>
+      <incoming>SequenceFlow_LoginMerge1</incoming>
+      <incoming>SequenceFlow_LoginMerge2</incoming>
+      <outgoing>SequenceFlow_ToTweetRegSplit</outgoing>
+    </parallelGateway>
+
+    <!-- Task: Login -->
+    <task id="Task_LoginSystem" name="Log into account">
+      <incoming>SequenceFlow_ToTweetRegSplit</incoming>
+      <outgoing>SequenceFlow_TweetOrRegister</outgoing>
+    </task>
+
+    <!-- Parallel Gateway for Tweet and Registration (parallel) -->
+    <parallelGateway id="Parallel_Gateway_TweetReg" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_TweetOrRegister</incoming>
+      <outgoing>SequenceFlow_TweetFriends</outgoing>
+      <outgoing>SequenceFlow_CompleteRegistration</outgoing>
+    </parallelGateway>
+
+    <!-- Task: Tweet Friends -->
+    <task id="Task_TweetFriends" name="Tweet friends">
+      <incoming>SequenceFlow_TweetFriends</incoming>
+      <outgoing>SequenceFlow_ConvergeReg</outgoing>
+    </task>
+
+    <!-- Parallel Gateway Converging after tweet and registration parallel paths -->
+    <parallelGateway id="Parallel_Gateway_Converge" gatewayDirection="Converging">
+      <incoming>SequenceFlow_TweetFriendsOut</incoming>
+      <incoming>SequenceFlow_CompleteRegistrationIn</incoming>
+      <outgoing>SequenceFlow_FinalizePayment</outgoing>
+    </parallelGateway>
+
+    <!-- Task: Complete Registration & Payment -->
+    <task id="Task_CompleteReg" name="Complete registration and payment">
+      <incoming>SequenceFlow_FinalizePayment</incoming>
+      <outgoing>SequenceFlow_EndRegistration</outgoing>
+    </task>
+
+    <!-- End Event -->
+    <endEvent id="EndEvent_ReceiveTicket" name="Receive course ticket">
+      <incoming>SequenceFlow_EndRegistration</incoming>
+    </endEvent>
+
+    <!-- Sequence Flows -->
+    
+    <!-- Start -> Check Availability -->
+    <sequenceFlow id="SequenceFlow_CheckAvailability" sourceRef="StartEvent_RegisterCourse" targetRef="Task_CheckAvailability"/>
+    
+    <!-- Task_CheckAvailability -> Gateway_SlotsAvailable -->
+    <sequenceFlow id="SequenceFlow_SlotsAvailableDecision" sourceRef="Task_CheckAvailability" targetRef="Gateway_SlotsAvailable"/>
+
+    <!-- Slots Available? Yes/No flows -->
+    <sequenceFlow id="SequenceFlow_ShowCourses" name="Yes - Free slots available" sourceRef="Gateway_SlotsAvailable" targetRef="Task_SelectCourse"/>
+    
+    <!-- Task_SelectCourse -> Check Account Status -->
+    <sequenceFlow id="SequenceFlow_CheckAccountStatus" sourceRef="Task_SelectCourse" targetRef="Gateway_HasExistingAccount"/>
+
+    <!-- Gateway_HasExistingAccount Flows -->
+    <sequenceFlow id="SequenceFlow_AccountCheckDecision" name="" sourceRef="Gateway_SlotsAvailable" targetRef="Gateway_HasExistingAccount">
+      <bpmn:conditionExpression xsi:type="tFormalExpression"><![CDATA[false]]></bpmn:conditionExpression>
+    </sequenceFlow>
+
+    <!-- Has Existing Account? Yes/No flows -->
+    <sequenceFlow id="SequenceFlow_LoginDirectly" name="Yes - Have account" sourceRef="Gateway_HasExistingAccount" targetRef="Parallel_Gateway_MergeLogin"/>
+    
+    <!-- No -> Check Eligibility -->
+    <sequenceFlow id="SequenceFlow_CheckEligibility" name="No - Check eligibility" sourceRef="Gateway_HasExistingAccount" targetRef="Task_CheckUniversity"/>
+
+    <!-- University Eligible? Flows -->
+    <sequenceFlow id="SequenceFlow_EligibleDecision" sourceRef="Task_CheckUniversity" targetRef="Gateway_IsEligible"/>
+    
+    <sequenceFlow id="SequenceFlow_RegisterAccount" name="Yes - Register Account" sourceRef="Gateway_IsEligible" targetRef="Task_RegisterNewAccount"/>
+    <sequenceFlow id="SequenceFlow_RequestActivation" name="No - Request Activation" sourceRef="Gateway_IsEligible" targetRef="Task_RequestActivation"/>
+
+    <!-- Merge account paths before login -->
+    <sequenceFlow id="SequenceFlow_LoginMerge1" sourceRef="Task_RegisterNewAccount" targetRef="Parallel_Gateway_MergeLogin"/>
+    
+    <sequenceFlow id="SequenceFlow_LoginMerge2" sourceRef="Task_RequestActivation" targetRef="Parallel_Gateway_MergeLogin"/>
+
+    <!-- Login -> Tweet/Reg Split -->
+    <parallelGateway id="Parallel_Gateway_TweetReg" gatewayDirection="Diverging">
+      <incoming>SequenceFlow_ToTweetRegSplit</incoming>
+      <outgoing>SequenceFlow_TweetFriends</outgoing>
+      <outgoing>SequenceFlow_CompleteRegistration</outgoing>
+    </parallelGateway>
+
+    <!-- Task_LoginSystem -> Parallel Gateway -->
+    <sequenceFlow id="SequenceFlow_ToTweetRegSplit" sourceRef="Task_LoginSystem" targetRef="Parallel_Gateway_TweetReg"/> 
+
+    <!-- Tweet Friends flow -->
+    <sequenceFlow id="SequenceFlow_TweetFriendsOut" name="" sourceRef="Task_TweetFriends" targetRef="Parallel_Gateway_Converge"/>
+
+    <!-- Complete Registration -> Converging Gateway -->
+    <sequenceFlow id="SequenceFlow_CompleteRegistrationIn" name="" sourceRef="Task_CompleteReg" targetRef="Parallel_Gateway_Converge"/>
+
+    <!-- Finalize Payment flow to complete registration task (correcting direction) -->
+    <sequenceFlow id="SequenceFlow_FinalizePayment" sourceRef="Parallel_Gateway_TweetReg" targetRef="Task_CompleteReg"/>
+
+    <!-- End Registration Flow -->
+    <sequenceFlow id="SequenceFlow_EndRegistration" name="" sourceRef="Task_CompleteReg" targetRef="EndEvent_ReceiveTicket"/>
+
+  </process>
+</bpmn:definitions>
