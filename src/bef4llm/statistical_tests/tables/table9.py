@@ -53,9 +53,16 @@ def generate_table9(runs):
         m1, m2 = row["Model 1"], row["Model 2"]
         return (m1, m2) if medians[m1] >= medians[m2] else (m2, m1)
 
-    significant[["Better model", "Worse model"]] = significant.apply(
-        lambda row: pd.Series(better_worse(row)), axis=1
-    )
+    if significant.empty:
+        # No pair reached significance: .apply() never calls better_worse(), so
+        # pandas has nothing to infer the two new columns' dtype/shape from, and
+        # the assignment below would raise. Add them empty instead.
+        significant["Better model"] = pd.Series(dtype=object)
+        significant["Worse model"] = pd.Series(dtype=object)
+    else:
+        significant[["Better model", "Worse model"]] = significant.apply(
+            lambda row: pd.Series(better_worse(row)), axis=1
+        )
 
     table9_df = significant[["Better model", "Worse model", "p_value_corr", "n_pairs"]].rename(
         columns={"p_value_corr": "padj", "n_pairs": "Paired cases"}

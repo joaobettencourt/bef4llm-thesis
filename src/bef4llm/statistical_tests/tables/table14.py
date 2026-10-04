@@ -19,7 +19,6 @@ def count_expert_dataset_samples():
         if f.endswith(".txt") and not f.startswith(".")
     ])
 
-
 def _row_for_llm(llm, runs, group_dir):
     """
     Reads data/statistical_datasets/llm_metric_results_run<run>/<llm>.csv for
@@ -27,7 +26,7 @@ def _row_for_llm(llm, runs, group_dir):
     gets "for free" by reading already-pooled CSVs), and returns a Table 14 row.
     """
     syn_scores, prag_scores, sem_scores = [], [], []
-    n_valid_per_run, n_total_per_run = [], []
+    n_valid_per_run, n_invalid_per_run, n_not_generated_per_run, n_total_per_run = [], [], [], []
 
     for run in runs:
         path = f"{get_folder_path(Folder.DATA)}/statistical_datasets/llm_metric_results_run{run}/{llm}.csv"
@@ -38,6 +37,8 @@ def _row_for_llm(llm, runs, group_dir):
         df = pd.read_csv(path, sep=";")
         n_total_per_run.append(len(df))
         n_valid_per_run.append((df["status"] == "valid").sum())
+        n_invalid_per_run.append((df["status"] == "invalid").sum())
+        n_not_generated_per_run.append((df["status"] == "not_generated").sum())
 
         valid_df = df[df["status"] == "valid"]
         syn_scores.extend(valid_df["syntactic quality"].dropna().tolist())
@@ -49,6 +50,8 @@ def _row_for_llm(llm, runs, group_dir):
         return None
 
     avbm = sum(n_valid_per_run) / len(n_valid_per_run)
+    avim = sum(n_invalid_per_run) / len(n_invalid_per_run)
+    avng = sum(n_not_generated_per_run) / len(n_not_generated_per_run)
     avg_total = sum(n_total_per_run) / len(n_total_per_run)
     q_val = avbm / avg_total if avg_total else None
 
@@ -66,13 +69,14 @@ def _row_for_llm(llm, runs, group_dir):
         "LLM": llm,
         "Q_val": round(q_val, 4),
         "AVBM": round(avbm, 1),
+        "AVIM": round(avim, 1),
+        "AVNG": round(avng, 1),
         "Q_syn": round(q_syn, 4),
         "Q_prag": round(q_prag, 4),
         "Q_sem": round(q_sem, 4),
         "Q_qual": round(q_qual, 4),
         "Q_total": round(q_total, 4),
     }
-
 
 def _row_for_humans():
     """
@@ -96,6 +100,11 @@ def _row_for_humans():
 
     num_descriptions = count_expert_dataset_samples()
     avbm = q_val * num_descriptions
+    # Humans never time out / fail to produce a model, so every non-valid
+    # model is treated as invalid by elimination, and "not generated" is
+    # always 0 for this row.
+    avim = num_descriptions - avbm
+    avng = 0
 
     q_qual = (q_syn + q_prag + q_sem) / 3
     q_total = (q_syn + q_prag + q_sem + q_val) / 4
@@ -104,13 +113,14 @@ def _row_for_humans():
         "LLM": "human experts",
         "Q_val": round(q_val, 4),
         "AVBM": round(avbm, 1),
+        "AVIM": round(avim, 1),
+        "AVNG": round(avng, 1),
         "Q_syn": round(q_syn, 4),
         "Q_prag": round(q_prag, 4),
         "Q_sem": round(q_sem, 4),
         "Q_qual": round(q_qual, 4),
         "Q_total": round(q_total, 4),
     }
-
 
 def generate_table14(llms, runs):
     """
